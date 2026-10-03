@@ -1,0 +1,11 @@
+{
+  "name": "esports-analyst-ingest",
+  "private": true,
+  "description": "Data collection from the Brawlhalla Esports Stats API",
+  "scripts": {
+    "survey": "node survey_api.mjs"
+  },
+  "dependencies": {
+    "@bmg-esports/sdk": "2.2.0"
+  }
+}
