@@ -1,0 +1,7 @@
+# Minimal starting set; more will be added as the project grows.
+langgraph
+langchain-ollama
+streamlit
+pandas
+requests
+python-dotenv
