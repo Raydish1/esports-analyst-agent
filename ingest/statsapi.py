@@ -35,6 +35,7 @@ class StatsApi:
         self.last = 0.0
         self.requests_made = 0
         self.cache_hits = 0
+        self.task = None  # set by the crawl, so the request log says which task made each request
 
     def get(self, endpoint, params=None, refresh=False):
         """The parsed JSON body of GET endpoint?params.
@@ -50,7 +51,7 @@ class StatsApi:
         url = f"{BASE_URL}{endpoint}?{urllib.parse.urlencode(normalize_params(params), safe=',')}"
         for attempt in range(ATTEMPTS):
             status, body, error, ms = self._fetch(url)
-            self.cache.store(endpoint, params, url, status, body, ms, error)
+            self.cache.store(endpoint, params, url, status, body, ms, error, task=self.task)
             if status is not None and status < 500 and status != 429:
                 return self._parse(endpoint, params, status, body)
             if attempt < ATTEMPTS - 1:

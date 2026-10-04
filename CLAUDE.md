@@ -23,6 +23,7 @@ Done, with their write-ups:
 - Esports Earnings snapshot (`ingest/snapshot_esports_earnings.py`, run once on 2026-10-04) → `curation/esports_earnings_snapshot.csv`: the top 500 Brawlhalla earners from their website, with the raw HTML in `data/raw/esportsearnings/`. It isn't part of the crawl and isn't refreshed.
 - Curation seed files holding the decisions so far: `curation/player_aliases.csv` (nicknames), `curation/player_merges.csv` (duplicate records of one person) and `curation/external_ids.csv` (confirmed Esports Earnings links).
 - Phase 1, step 1: the Stats API fetch layer (`ingest/statsapi.py`, with the response cache and request log in `ingest/cache.py`) and crawl stage 0 (`python ingest/crawl.py events`), which finds all 622 official events. Tests: `python -m unittest discover -s tests`.
+- Phase 1, step 2: a resumable task queue and run lock (`ingest/tasks.py`), `python ingest/crawl.py status`, stages 1–2 run in full (4,981 PR players with profiles), and a pilot of stages 3–4 on 200 of those players. Stage 6 (`matches`) is written and tested but hasn't run.
 
 Decisions so far: the domain definitions below, plus these.
 - Career earnings: the Stats API figure first. For players without one, the fallback is the Esports Earnings snapshot (source `esportsearnings_manual`, as of 2026-10-04), linked to players through `player_aliases`. Each figure is stored with its source and as-of date. The Esports Earnings API is blocked (its account login isn't working).
@@ -30,7 +31,7 @@ Decisions so far: the domain definitions below, plus these.
 - Missing isn't zero: when an event has no payout data, or a player has no career figure, answers say so rather than counting $0.
 - API credentials live only in `.env` (see `.env.example`).
 
-Next step: Phase 1, step 2, which is crawl stages 1–2 (the PR seed and player profiles) plus the resumable task queue. After that, pilot stages 3–4 on a sample to measure the full crawl before running it.
+Next step: the user runs the full stages 3–6 themselves in PowerShell, from the commands in the README, after reviewing the pilot report. Check with the user before starting any new stage.
 
 ## Domain definitions (decided)
 - Data scope for now: official events only (`isOfficial: true`); community events are left out.
