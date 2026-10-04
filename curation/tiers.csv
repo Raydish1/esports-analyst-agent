@@ -1,0 +1,5 @@
+tier,rank,label,default_for_families
+S,1,World Championship,world_championship
+A,2,Midseason and major partner events,midseason;partner_event
+B,3,Regional championships,seasonal_championship;regional_championship
+C,4,Other official events,invitational_cup_league;qualifier;trial_of;royale;crew_battle;community_tournament;excluded_format;other

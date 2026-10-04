@@ -1,6 +1,6 @@
 # start.gg and Challengermode API survey
 
-What the start.gg and Challengermode APIs can add on top of the Stats API ([`api-survey.md`](api-survey.md)): bracket structure, entrants and standings, and prize information. This is input for the schema in [`schema-proposal.md`](schema-proposal.md), which hasn't been changed yet.
+What the start.gg and Challengermode APIs can add on top of the Stats API ([`api-survey.md`](api-survey.md)): bracket structure, entrants and standings, and prize information. This is input for the schema in [`schema-proposal.md`](schema-proposal.md), which was revised with these findings on 2026-10-04.
 
 - **Scripts:** [`ingest/survey_platforms.py`](../ingest/survey_platforms.py), with the API clients in [`ingest/platform_clients.py`](../ingest/platform_clients.py).
 - **Credentials:** `STARTGG_API_TOKEN`, `CHALLENGERMODE_REFRESH_KEY` and `CHALLENGERMODE_APP_ID`, read from `.env` (see `.env.example`). They are never printed or written to disk, and the Challengermode access token is redacted from the saved token-exchange response.
@@ -230,7 +230,7 @@ The three `series/…` events (the Pro Series finals) have no working URL (api-s
 
 `user(userId)` returns `username`, `profileUrl`, `connectedAccounts` (e.g. Twitch), and `gameAccounts`. The Brawlhalla game account has a UUID `id` and an in-game display name ("Raydish_", "MegDDDD", "vImpala"). That UUID is **not** the Stats API's numeric `brawlhallaId`.
 
-## Changes `schema-proposal.md` would need (not made yet)
+## Changes to `schema-proposal.md` (applied 2026-10-04)
 
 1. **Matches.**
    - State what `matches.match_id` holds: the start.gg set ID, or the Challengermode **match** ID (both confirmed).
