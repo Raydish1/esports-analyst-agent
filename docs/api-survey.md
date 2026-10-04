@@ -52,7 +52,7 @@ Player objects nested inside matches and matchups always have `sggPlayerId` and 
 
 | Field | Type | Example | Notes |
 |---|---|---|---|
-| `id` | string | `"tournament/ceo-2025-6/event/brawlhalla-singles"` or `"fcb7a286-3f0c-4f68-f9a5-08ded4cb1c05"` | start.gg event **slug** (the docs wrongly say "a number"), or Challengermode tournament UUID |
+| `id` | string | `"tournament/ceo-2025-6/event/brawlhalla-singles"` or `"fcb7a286-3f0c-4f68-f9a5-08ded4cb1c05"` | start.gg event **slug** (the docs wrongly say "a number"), or Challengermode tournament UUID. Three official events instead have start.gg *series* slugs, such as `series/pro-series-2021-na` (the Pro Series finals). |
 | `tournamentName` | string | `"CEO 2025"` | |
 | `eventName` | string or null | `"Brawlhalla Singles"` | Always null for Challengermode events |
 | `year` | int | `2025` | |
@@ -234,11 +234,12 @@ Because format and phases are only visible in names, these rules need a small, r
   - Finding all their sets takes one call per shared event (32 here).
 - None of these say which round a match was in.
 
-**DQs (decision: a DQ counts as neither a win nor a loss)**
+**DQs and forfeits (decision: neither counts as a win or a loss)**
 
 - In match data, the DQ'd side's score is `-1` and the other side's is `0`. For example, Marckiem00 vs sub_lemon at Moose Wars: Gobble Gauntlet (2023), start.gg set `67607493`, has `scores: [0, -1]`: sub_lemon was DQ'd.
 - GetMatchup counts that DQ as a match win for Marckiem00 and adds the `-1` into the game totals. His record against sub_lemon is `matches: [2, 0]`, `games: [3, -1]`: one real 3–0 plus the DQ. A DQ can even vanish from an aggregate, since a real 3–1 plus a DQ sums to 3–0 in games.
-- **So head-to-head records must be built from match-level data, dropping any match with a negative score.** Use GetPlayerMatches for each event in a player's placements, or GetMatchupMatches for each event a pair shared. This also avoids the matchup paging bug.
+- **Forfeits on Challengermode look different.** A no-show there is a match with no scores at all, which this API reports as `[0, 0]` (see [`platform-api-survey.md`](platform-api-survey.md)).
+- **So head-to-head records must be built from match-level data, dropping DQs (a negative score) and forfeits (0–0).** Use GetPlayerMatches for each event in a player's placements, or GetMatchupMatches for each event a pair shared. This also avoids the matchup paging bug.
 
 ## 6. Bracket fields and original IDs
 
@@ -252,7 +253,7 @@ Because format and phases are only visible in names, these rules need a small, r
 **Original IDs** (useful for pulling brackets from start.gg or Challengermode later):
 
 - **`Tournament.id`** is either:
-  - a start.gg event slug. That is the identifier start.gg's API and URLs use (`https://www.start.gg/tournament/…/event/…`; I haven't checked one).
+  - a start.gg event slug. That is the identifier start.gg's API and URLs use. Verified: `https://www.start.gg/{slug}` opens the event and `{slug}/brackets` opens its bracket view (schema-proposal §1).
   - a Challengermode tournament UUID. Verified: `challengermode.com/s/Brawlhalla/tournaments/fcb7a286-3f0c-4f68-f9a5-08ded4cb1c05` opens "Autumn Championship - North America 2026 - 1v1".
 - **`matchId`** is either a start.gg set ID (`"82392891"`) or a Challengermode match UUID.
 - **Player IDs:** `sggPlayerId`, `cmPlayerId` and `brawlhallaId` on top-level Player objects. They are null inside matches and matchups, so look them up with ListPlayers.
@@ -331,6 +332,8 @@ Inferred behaviour:
 | Who has megd played with in 2v2 tournaments, and how did they place? | **Yes** | GetPlayerTeammates(megD) for partners and event counts; GetPlayerPlacements(`playerIds=megD,partner`, `gameMode=2`) per partner | 26 partner rows (25 names; "hardymj" is split across two IDs). Raydish 33 events (best 2nd), buko pandan 14, Walshy 5, Moni- 5, … One placements call per partner. |
 | How many medals does Balloonboy have? | **Yes** (medals = official top-3 placements) | GetPlayerPlacements (`isOfficial=true`, both modes), count `placement <= 3` after applying the format rules (§2) | 27: in 1v1, 2 gold, 8 silver, 5 bronze; in 2v2, 5/3/4. His Triples and Brawlball silvers don't count; his crew battle silver does. The PR fields show 2/7/5 for 1v1. |
 | Who has the best record against marckiemoo? | **Yes**, using match-level data | GetPlayerPlacements for Marckiem00's events, then GetPlayerMatches for each one (65 in 1v1). Drop DQs, group by opponent, and rank by win rate. | GetMatchup can't be used as is: it counts DQs, and its paging stops at 200 opponents. "Best" also needs a minimum number of matches, and a choice between official-only and all events. |
+| What tournament did sandstorm make the most money from? | **No, not from the Stats API** | The Stats API only has a career total (gdsandstorm, 74433; "sandstorm" needs a nickname alias). Per-tournament amounts need payouts per placement. start.gg's `Event.prizingInfo` has them when the organizer enabled prizing, and they can be joined to his placements. Esports Earnings' per-tournament list (stale) is a fallback. Challengermode's API has no prize data. | See [`schema-proposal.md`](schema-proposal.md) §6b. 14 of 19 sampled official start.gg events have structured payouts, including every sampled event from 2019 on except MAX MODE 2025 (CEO 2025 included). BCX 2017, 2017–2018 league events and MAX MODE 2025 have none, and Challengermode-era events have no structured payouts at all, so those events would be blank unless their prize text can be found. |
+| Give me the bracket link of BCX 2022. | **Yes** | ListEvents or any placements list: the events named "Brawlhalla World Championship Expo 2022". Build the link from `id` (§6). | 1v1: `https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets`; 2v2: the same with `/event/2v2/brackets`. Both return 200. "BCX" never appears in the name, so the agent needs an event alias. |
 
 ## 10. Incomplete, inconsistent or surprising
 
@@ -354,6 +357,7 @@ Inferred behaviour:
 
 - `isOfficial` is broad, and 3v3, crew battle, triples and Brawlball events are filed under 1v1 with `isTwos: false` (§2).
 - At least one 2v2 event is filed as 1v1: CEO Dreamland 2017's doubles (§2).
+- Three official events (the Pro Series 2019 NA and EU Finals, and the Pro Series 2021 Finals) have `series/…` IDs. GetPlayerMatches rejects them, since its tournament ID must be an event slug or a UUID, and they don't form a working start.gg URL. So these events have placements but no match data or bracket link.
 - Duplicate identities across platforms ("hardymj"), and renamed players (§4, §8).
 - DQs appear as `-1` game scores and count as wins and losses in GetMatchup records, so they have to be filtered out of match-level data (§5).
 - Search only covers ranked or Challengermode-linked players, so inactive start.gg-era players such as Boomie can't be found by name (§8).
