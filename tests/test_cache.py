@@ -41,8 +41,9 @@ class ResponseCacheTest(unittest.TestCase):
         self.assertEqual(self.cache.newest("/player/1", {}), (404, b"not found"))
         self.cache.store("/event", {"gameMode": 2}, "u", 503, b"busy", 5)
         self.cache.store("/event", {"gameMode": 2}, "u", None, None, 5, error="timeout")
+        self.cache.store("/event", {"gameMode": 2}, "u", 429, b"slow down", 5)
         self.assertIsNone(self.cache.newest("/event", {"gameMode": 2}))
-        self.assertEqual(self.cache.db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 3)
+        self.assertEqual(self.cache.db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 4)
 
 
 if __name__ == "__main__":

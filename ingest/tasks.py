@@ -7,8 +7,9 @@ task that walks several pages is safe to repeat, because its pages come back fro
 Statuses: pending, running, done, failed (a timeout or server error; retried on the next
 run, up to MAX_ATTEMPTS) and rejected (a client error; not retried).
 
-Only one crawl runs at a time. A run records its process ID and a heartbeat, and a later
-run takes over when that process is gone or has been silent for STALE_AFTER.
+Only one crawl per API runs at a time, so each API's request rate stays polite; a Stats API
+crawl and a start.gg crawl can run together. A run records its process ID and a heartbeat,
+and a later run takes over when that process is gone or has been silent for STALE_AFTER.
 """
 
 import json
@@ -39,6 +40,7 @@ CREATE INDEX IF NOT EXISTS tasks_stage ON tasks (stage, status);
 CREATE TABLE IF NOT EXISTS runs (
   run_id        INTEGER PRIMARY KEY,
   stage         TEXT NOT NULL,
+  api           TEXT NOT NULL DEFAULT 'statsapi',  -- the lock's scope: 'statsapi' | 'startgg'
   pid           INTEGER NOT NULL,
   started_at    TEXT NOT NULL,
   heartbeat_at  TEXT NOT NULL,
@@ -55,8 +57,11 @@ def now():
 def connect(db_path=CRAWL_DB, schema=""):
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(db_path, timeout=30)
-    db.execute("PRAGMA journal_mode=WAL")  # lets `status` read while a crawl writes
+    db.execute("PRAGMA journal_mode=WAL")  # lets `status` read, and two crawls write, side by side
     db.executescript(SCHEMA + schema)
+    if "api" not in {row[1] for row in db.execute("PRAGMA table_info(runs)")}:  # added after stage 2
+        db.execute("ALTER TABLE runs ADD COLUMN api TEXT NOT NULL DEFAULT 'statsapi'")
+        db.commit()
     return db
 
 
@@ -121,24 +126,25 @@ class TaskQueue:
 
 
 class RunLock:
-    """Records this run and refuses to start while another crawl is running."""
+    """Records this run and refuses to start while another crawl on the same API is running."""
 
-    def __init__(self, db, stage):
-        self.db, self.stage, self.run_id = db, stage, None
+    def __init__(self, db, stage, api="statsapi"):
+        self.db, self.stage, self.api, self.run_id = db, stage, api, None
 
     def acquire(self):
         cutoff = (datetime.now(timezone.utc) - STALE_AFTER).isoformat(timespec="seconds")
         for run_id, stage, pid, heartbeat in self.db.execute(
-                "SELECT run_id, stage, pid, heartbeat_at FROM runs WHERE finished_at IS NULL").fetchall():
+                "SELECT run_id, stage, pid, heartbeat_at FROM runs WHERE finished_at IS NULL AND api = ?",
+                (self.api,)).fetchall():
             if pid != os.getpid() and pid_alive(pid) and heartbeat >= cutoff:
-                raise SystemExit(f"Another crawl is running ({stage}, process {pid}). Wait for it, or stop it first.")
+                raise SystemExit(f"Another {self.api} crawl is running ({stage}, process {pid}). Wait for it, or stop it first.")
             with self.db:
                 self.db.execute("UPDATE runs SET finished_at = ?, outcome = 'interrupted' WHERE run_id = ?",
                                 (heartbeat, run_id))
         with self.db:
             self.run_id = self.db.execute(
-                "INSERT INTO runs (stage, pid, started_at, heartbeat_at) VALUES (?, ?, ?, ?)",
-                (self.stage, os.getpid(), now(), now())).lastrowid
+                "INSERT INTO runs (stage, api, pid, started_at, heartbeat_at) VALUES (?, ?, ?, ?, ?)",
+                (self.stage, self.api, os.getpid(), now(), now())).lastrowid
 
     def heartbeat(self):
         with self.db:

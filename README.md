@@ -26,9 +26,10 @@ python ingest/crawl.py profiles    # 2: player profiles
 python ingest/crawl.py histories   # 3: official placements and teammates
 python ingest/crawl.py teams       # 4: official placements of each 2v2 pair
 python ingest/crawl.py matches     # 6: matches per player and event
+python ingest/crawl.py standings   # P1: start.gg standings of official start.gg events
 ```
 
-Each run plans its stage's tasks from what earlier stages found, works through them, and logs to `data/logs/crawl-<stage>.log`. Re-running a command resumes where it stopped, and Ctrl+C stops after the current task. Stage 5, discovery, is re-running stages 2–4 and 6 until `status` shows nothing left to plan.
+Each run plans its stage's tasks from what earlier stages found, works through them, and logs to `data/logs/crawl-<stage>.log`. A Stats API stage and a start.gg stage can run at the same time; two stages on the same API can't. Re-running a command resumes where it stopped, and Ctrl+C stops after the current task. Stage 5, discovery, is re-running stages 2–4 and 6 until `status` shows nothing left to plan.
 
 Tests use only the standard library:
 

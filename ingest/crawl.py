@@ -7,8 +7,10 @@
     python ingest/crawl.py histories [--sample N]  stage 3: official placements and teammates
     python ingest/crawl.py teams                   stage 4: official placements of each 2v2 pair
     python ingest/crawl.py matches                 stage 6: matches per player and event
+    python ingest/crawl.py standings               P1: start.gg standings of official start.gg events
 
 A stage first plans its tasks from what earlier stages found, then works through them.
+Stages on different APIs (the Stats API, start.gg) can run at the same time.
 Re-running the same command picks up where it stopped: finished tasks are skipped, and
 requests already made come back from the cache. Ctrl+C stops after the current task.
 Stage 3 finds new players as teammates and stage 6 as opponents; re-running stages 2-4
@@ -25,6 +27,7 @@ import time
 from datetime import datetime, timezone
 
 from cache import ROOT
+from startgg import StartGG
 from statsapi import ApiError, StatsApi
 from tasks import MAX_ATTEMPTS, RunLock, StopFlag, TaskQueue, connect, pid_alive
 
@@ -65,7 +68,33 @@ CREATE TABLE IF NOT EXISTS crawl_entries (      -- official events each player e
   planned    INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (player_id, event_id)
 );
+CREATE TABLE IF NOT EXISTS crawl_platform_events (   -- P1: official events as start.gg sees them
+  event_id           TEXT PRIMARY KEY,
+  platform           TEXT NOT NULL,             -- 'startgg'
+  platform_event_id  TEXT,
+  entrants           INTEGER,                   -- placed entrants (the standings' total)
+  registered         INTEGER,                   -- start.gg numEntrants, which counts registrations
+  status             TEXT NOT NULL              -- 'ok' | 'missing' (start.gg has no such event)
+);
+CREATE TABLE IF NOT EXISTS crawl_standings (         -- P1: every placed participant, by start.gg player ID
+  event_id        TEXT NOT NULL,
+  participant_id  INTEGER NOT NULL,
+  entrant_id      INTEGER,
+  sgg_player_id   INTEGER,
+  placement       INTEGER,
+  disqualified    INTEGER,
+  PRIMARY KEY (event_id, participant_id)
+);
 """
+
+STANDINGS_QUERY = """
+query Standings($slug: String!, $page: Int!) { event(slug: $slug) {
+  id numEntrants
+  standings(query: {page: $page, perPage: 64}) {
+    pageInfo { total totalPages }
+    nodes { placement isFinal
+      entrant { id name initialSeedNum isDisqualified
+        participants { id gamerTag prefix player { id } } } } } } }"""
 
 
 def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log=print):
@@ -274,14 +303,51 @@ def apply_matches(db, p, body):
     return []
 
 
-STAGES = {  # name: (number, plan, check run once the stage has finished)
-    "events": (0, plan_events, check_events),
-    "pr": (1, plan_pr, None),
-    "profiles": (2, plan_profiles, None),
-    "histories": (3, plan_histories, None),
-    "teams": (4, plan_teams, None),
-    "matches": (6, plan_matches, None),
+# P1: start.gg standings for official start.gg events (no Stats API requests, so it can
+# run alongside a Stats API stage). The 'series/...' events have no start.gg event.
+
+def plan_standings(db, queue, args):
+    for (eid,) in db.execute("SELECT event_id FROM crawl_events WHERE host = 'SGG' AND event_id LIKE 'tournament/%'"):
+        queue.add("standings", "standings_page", f"standings:{eid}:1", {"slug": eid, "page": 1})
+
+
+def fetch_standings_page(api, p, log):
+    return api.query("Standings", STANDINGS_QUERY, {"slug": p["slug"], "page": p["page"]})
+
+
+def apply_standings_page(db, p, data):
+    event = data.get("event")
+    if not event:
+        db.execute("INSERT OR REPLACE INTO crawl_platform_events (event_id, platform, status) VALUES (?, 'startgg', 'missing')",
+                   (p["slug"],))
+        return []
+    standings = event["standings"]
+    db.executemany(
+        "INSERT OR IGNORE INTO crawl_standings (event_id, participant_id, entrant_id, sgg_player_id, placement, disqualified)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        [(p["slug"], part["id"], node["entrant"]["id"], (part.get("player") or {}).get("id"), node["placement"],
+          int(bool(node["entrant"].get("isDisqualified"))))
+         for node in standings.get("nodes") or [] if node.get("entrant")
+         for part in node["entrant"].get("participants") or []])
+    if p["page"] != 1:
+        return []
+    db.execute("INSERT OR REPLACE INTO crawl_platform_events (event_id, platform, platform_event_id, entrants, registered, status)"
+               " VALUES (?, 'startgg', ?, ?, ?, 'ok')",
+               (p["slug"], str(event["id"]), standings["pageInfo"]["total"], event.get("numEntrants")))
+    return [("standings", "standings_page", f"standings:{p['slug']}:{page}", {**p, "page": page})
+            for page in range(2, (standings["pageInfo"]["totalPages"] or 1) + 1)]
+
+
+STAGES = {  # name: (number, plan, check run once the stage has finished, API it calls)
+    "events": ("0", plan_events, check_events, "statsapi"),
+    "pr": ("1", plan_pr, None, "statsapi"),
+    "profiles": ("2", plan_profiles, None, "statsapi"),
+    "histories": ("3", plan_histories, None, "statsapi"),
+    "teams": ("4", plan_teams, None, "statsapi"),
+    "matches": ("6", plan_matches, None, "statsapi"),
+    "standings": ("P1", plan_standings, None, "startgg"),
 }
+CLIENTS = {"statsapi": StatsApi, "startgg": StartGG}
 KINDS = {
     "event_list": (fetch_event_list, apply_event_list),
     "pr_page": (fetch_pr_page, apply_pr_page),
@@ -290,6 +356,7 @@ KINDS = {
     "teammates": (fetch_teammates, apply_teammates),
     "team": (fetch_team, apply_team),
     "matches": (fetch_matches, apply_matches),
+    "standings_page": (fetch_standings_page, apply_standings_page),
 }
 UNPLANNED = {  # work a stage would add on its next run, as players and pairs get found
     "profiles": "SELECT COUNT(*) FROM crawl_players WHERE profile = 0",
@@ -335,8 +402,9 @@ def run_stage(db, api, stage, args, log, stop, on_task=None):
                 queue.set_status(key, "done")
             status = "done"
         except Exception as e:
-            if isinstance(e, ApiError):  # 404: nothing there; other 4xx: rejected; 5xx or no response: failed
-                status = "done" if e.status == 404 else "rejected" if e.status and e.status < 500 else "failed"
+            if isinstance(e, ApiError):  # 404: nothing there; other 4xx: rejected; 429, 5xx or no response: failed
+                status = ("done" if e.status == 404 else
+                          "rejected" if e.status and e.status < 500 and e.status != 429 else "failed")
                 error = None if status == "done" else str(e)[:500]
             else:  # a bug or an unexpected response
                 status, error = "failed", f"{type(e).__name__}: {e}"[:500]
@@ -384,14 +452,14 @@ def show_status(db):
     requests = {stage: (n, size or 0) for stage, n, size in db.execute(
         "SELECT COALESCE(t.stage, substr(r.task, 1, instr(r.task, ':') - 1), 'other'), COUNT(*), SUM(r.bytes)"
         " FROM requests r LEFT JOIN tasks t ON t.task_key = r.task GROUP BY 1")}
-    print(f"{'Stage':<12}{'Tasks':>8}{'Done':>8}{'Left':>8}{'Failed':>8}{'To plan':>9}{'Requests':>10}{'Cache':>10}")
-    for name, (number, _, _) in STAGES.items():
+    print(f"{'Stage':<13}{'Tasks':>8}{'Done':>8}{'Left':>8}{'Failed':>8}{'To plan':>9}{'Requests':>10}{'Cache':>10}")
+    for name, (number, _, _, _) in STAGES.items():
         t = tasks.get(name, {})
         left = remaining(db, name)
         failed = t.get("failed", 0) + t.get("rejected", 0)
         unplanned = db.execute(UNPLANNED[name]).fetchone()[0] if name in UNPLANNED else 0
         n, size = requests.get(name, (0, 0))
-        print(f"{number} {name:<10}{sum(t.values()):>8}{t.get('done', 0):>8}{left:>8}{failed:>8}"
+        print(f"{number:>2} {name:<10}{sum(t.values()):>8}{t.get('done', 0):>8}{left:>8}{failed:>8}"
               f"{unplanned:>9}{n:>10}{human_bytes(size):>10}")
         last = db.execute("SELECT task_key, last_error, updated_at FROM tasks WHERE stage = ?"
                           " AND status IN ('failed', 'rejected') ORDER BY updated_at DESC LIMIT 1", (name,)).fetchone()
@@ -402,12 +470,12 @@ def show_status(db):
           f" pairs: {db.execute('SELECT COUNT(*) FROM crawl_pairs').fetchone()[0]};"
           f" player-event entries: {db.execute('SELECT COUNT(*) FROM crawl_entries').fetchone()[0]}")
     local = lambda stamp: datetime.fromisoformat(stamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")  # noqa: E731
-    for stage, pid, started, heartbeat, outcome, finished in db.execute(
-            "SELECT stage, pid, started_at, heartbeat_at, outcome, finished_at FROM runs ORDER BY run_id DESC LIMIT 3"):
+    for stage, api, pid, started, heartbeat, outcome, finished in db.execute(
+            "SELECT stage, api, pid, started_at, heartbeat_at, outcome, finished_at FROM runs ORDER BY run_id DESC LIMIT 4"):
         state = (f"{outcome} at {local(finished)}" if finished else
                  f"running now (last heartbeat {local(heartbeat)})" if pid_alive(pid) else
                  "ended without finishing; re-running it resumes")
-        print(f"Run: {stage}, started {local(started)}, {state}")
+        print(f"Run: {stage} ({api}), started {local(started)}, {state}")
 
 
 def make_logger(stage):
@@ -432,13 +500,14 @@ def main():
         show_status(db)
         return
     log = make_logger(args.stage)
-    lock = RunLock(db, args.stage)
+    api_name = STAGES[args.stage][3]
+    lock = RunLock(db, args.stage, api_name)
     lock.acquire()
     stop = StopFlag()
     stop.install(log)
     outcome = "crashed"
     try:
-        outcome = run_stage(db, StatsApi(), args.stage, args, log, stop, on_task=lock.heartbeat)
+        outcome = run_stage(db, CLIENTS[api_name](), args.stage, args, log, stop, on_task=lock.heartbeat)
     except KeyboardInterrupt:
         outcome = "interrupted"
         log("Stopped at once; re-run the same command to continue.")

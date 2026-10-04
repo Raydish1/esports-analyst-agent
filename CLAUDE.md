@@ -31,7 +31,9 @@ Decisions so far: the domain definitions below, plus these.
 - Missing isn't zero: when an event has no payout data, or a player has no career figure, answers say so rather than counting $0.
 - API credentials live only in `.env` (see `.env.example`).
 
-Next step: the user runs the full stages 3–6 themselves in PowerShell, from the commands in the README, after reviewing the pilot report. Check with the user before starting any new stage.
+- P1 start.gg standings (`python ingest/crawl.py standings`, with `ingest/startgg.py`): all 529 official start.gg events, 268k placements from 138,696 start.gg players. The run lock is per API, so a start.gg stage can run alongside a Stats API stage.
+
+Next step: the user decides stage 6's design: event-level set fetching from start.gg and Challengermode, or per-player Stats API matches (the comparison of 2026-10-04 has measured costs). Don't start stage 6 in any form until the user approves it. Check with the user before starting any new stage.
 
 ## Domain definitions (decided)
 - Data scope for now: official events only (`isOfficial: true`); community events are left out.

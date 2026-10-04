@@ -136,6 +136,34 @@ class CrawlTest(unittest.TestCase):
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_players WHERE history_planned = 1").fetchone()[0], 20)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0], 60)
 
+    def test_standings_record_participants_and_follow_up_pages(self):
+        with self.db:
+            self.db.executemany("INSERT INTO crawl_events (event_id, mode, host, start_time) VALUES (?, ?, ?, 0)",
+                                [("tournament/a/event/2v2", 2, "SGG"), ("tournament/gone/event/1v1", 1, "SGG"),
+                                 ("series/pro-series-2021-na", 1, "SGG"), ("fcb7a286-cm", 1, "CM")])
+
+        def node(placement, entrant, players):
+            return {"placement": placement, "entrant": {"id": entrant, "isDisqualified": False, "participants": [
+                {"id": entrant * 10 + i, "player": {"id": p}} for i, p in enumerate(players)]}}
+        pages = {1: [node(1, 1, [101, 102])], 2: [node(3, 2, [103, None])]}
+
+        def standings(v):
+            if "gone" in v["slug"]:
+                return {"event": None}
+            return {"event": {"id": 9, "numEntrants": 5, "standings": {
+                "pageInfo": {"total": 2, "totalPages": 2}, "nodes": pages[v["page"]]}}}
+
+        class FakeStartGG(FakeApi):
+            def query(self, name, document, variables):
+                return self.get(name, variables)
+        api = FakeStartGG({"Standings": standings})
+        self.assertEqual(self.run_stage(api, "standings"), "finished")
+        self.assertEqual(len(api.calls), 3)  # two pages of one event, one of the missing one; no series or CM events
+        self.assertEqual(dict(self.db.execute("SELECT event_id, status FROM crawl_platform_events")),
+                         {"tournament/a/event/2v2": "ok", "tournament/gone/event/1v1": "missing"})
+        self.assertEqual(sorted(self.db.execute("SELECT sgg_player_id, placement FROM crawl_standings"), key=str),
+                         sorted([(101, 1), (102, 1), (103, 3), (None, 3)], key=str))
+
     def test_matches_skip_series_events_and_find_opponents(self):
         with self.db:
             self.db.executemany("INSERT INTO crawl_entries (player_id, event_id, mode) VALUES (?, ?, 1)",
@@ -167,6 +195,12 @@ class RunLockTest(unittest.TestCase):
         self.open_run(os.getppid())  # the process that started the tests is alive
         with self.assertRaises(SystemExit):
             RunLock(self.db, "pr").acquire()
+
+    def test_locks_are_per_api(self):
+        self.open_run(os.getppid())  # a live Stats API crawl
+        RunLock(self.db, "standings", "startgg").acquire()  # a start.gg crawl may run alongside it
+        with self.assertRaises(SystemExit):
+            RunLock(self.db, "teams", "statsapi").acquire()
 
     def test_takes_over_from_a_crashed_run(self):
         self.open_run(2 ** 22 + 7)  # no such process
