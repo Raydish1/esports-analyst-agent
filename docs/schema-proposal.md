@@ -247,6 +247,7 @@ CREATE TABLE match_players (
 - **Sides** follow the platform: side 1 is start.gg's first slot, or Challengermode's lineup number 0.
   - **Players come from the entrant:** a start.gg slot's entrant leads to its participants through the standings, and a Challengermode lineup lists its members. 2v2 partners are therefore always both present.
   - **Byes** (a set or series with fewer than two entrants) aren't matches and aren't stored.
+  - **Replayed matches:** a Challengermode series can hold a cancelled match besides the one that was replayed (2 of 567 in the pilot). Only completed matches are stored.
 - **Match IDs.** `match_id` is the start.gg set ID (14 of 14 checked) or the Challengermode *match* UUID, not the match-series UUID. Scores agree with both platforms and the Stats API, so the Stats API's own match records add nothing. The series UUID is kept in `match_bracket_info` (§7).
 - **DQs and forfeits are no-contests.** `is_no_contest` covers both, and the record views drop them (§2). The matches stay in the table, because they happened.
   - A DQ is a `-1` score, the same on start.gg as in the Stats API. DQs are common: 352 of BCX 2022's 1,204 1v1 sets.
@@ -475,7 +476,7 @@ curation/*.csv                                                   hand-made data
 | 2. Profiles: ListPlayers in batches | 1 per batch | start.gg, Challengermode and in-game IDs | Done for the PR players |
 | 2b. Platform lookups: ListPlayers by `sggIds` (players in start.gg standings) and `cmIds` (Challengermode entrant lists), 100 per request | ~1,400 + ~100 | The Stats API record of each platform player, or none (a platform-only player, §1) | New |
 | 3. Histories: GetPlayerPlacements (both modes, `isOfficial=true`) and GetPlayerTeammates (`isOfficial=true`) per player | ~2–4 per player | The official events each known player entered, and their partners | Piloted on 200 players; full run held |
-| 3b. Pro Series finals: one GetPlayerPlacements page per candidate and finals | ~300 | Placements at the three `series/…` events | New |
+| 3b. Pro Series finals: one GetPlayerPlacements page per candidate and finals | ~990 (153 + 411 + 428) | Placements at the three `series/…` events | Piloted on the 2021 final |
 | 4. Teams: GetPlayerPlacements with both IDs, per partner pair | 1 per pair | `team_id` on 2v2 placements | Piloted; full run held |
 | 5. Discovery: new players from official teammates and from opponents in official matches, sent back to stage 2 | — | Unranked and inactive players, such as Boomie | Not needed |
 | 6. Matches: GetPlayerMatches per (player, official event), de-duplicated by `matchId` | 1 per pair | Match-level results for official events | Replaced by P4 and P5 |
@@ -486,9 +487,13 @@ curation/*.csv                                                   hand-made data
   - Stages 3 and 4 stay in the code. Their 200-player pilot is the cross-check for platform placements (check 8, §4), and they can still be run in full later.
   - Stage 6's per-player code is dropped, since it would never run.
 - **Stage 3b exists because no platform has the Pro Series finals.** The 2019 NA and EU Finals and the 2021 Finals use `series/…` IDs, which no platform event matches and GetPlayerMatches rejects. The Stats API has their placements but no event endpoint, so they're reached through likely entrants:
-  - **Candidates:** the top 16 of every official 1v1 start.gg event in the year before each final, in the final's region or with no region in its name. Their Stats API records come from one ListPlayers call by `sggIds`.
+  - **Candidates:** the top 32 of every official start.gg event, 1v1 or 2v2, in the year before each final, in the final's region or with no region in its name. Their Stats API records come from the stage 2b lookups, or from ListPlayers by `sggIds` for any not yet looked up.
   - **One request per candidate:** GetPlayerPlacements with `nextToken` set just after the final's start time returns the player's newest official events up to the final, so one page shows whether they played it.
   - **A completeness check:** the placements found should form a complete bracket (1, 2, 3, 4, 5, 5, 7, 7, … for double elimination). A gap means a missing entrant, and the stage reports it.
+  - **The 2021 final is a team event** (pilot, 2026-10-04): 36 placements, six teams of six, each member sharing the team's place.
+    - The first candidate rule, the top 16 of 1v1 events, found only 29 of them: team sizes 4–6 hinted at gaps.
+    - Two finalists never placed better than 17th, and one played mainly 2v2 (Boomie), hence top 32 and both modes.
+    - Six even teams suggest the list is now complete, but a team format can't be checked from places alone.
   - These events still have no match data.
 
 ### The pagination bugs
@@ -510,15 +515,47 @@ Both platforms use the same cache, request log and task queue as the Stats API. 
 | P1. start.gg standings for each official start.gg event, 64 entrants per page | 1 | 1–10 per event (BCX 2022 1v1, with 603 entrants, takes 10) | Placements for start.gg events, the names players used at each event, and every start.gg player | Done: 267,697 entrants, 138,696 players, 4,455 requests |
 | P2. start.gg `Event.prizingInfo` for each official start.gg event | 2 | 1 per event | Structured payouts (§6b) | |
 | P3. Challengermode tournament `description` for each official Challengermode event | 2 | 1 per event | Prize splits to parse (§6b) | |
-| P4. start.gg brackets: phases and pools (with round best-ofs), every set, and games in the last phase | 1 (was 3) | About 15,500 in all: 536,633 sets at about 40 per page, pool by pool for the four events over the cap, plus pools and games | `matches`, and later the bracket tables and `match_games` (§7) | New |
-| P5. Challengermode entrant lists (the roster with placements), and stages, brackets, rounds, series and matches | 1 (was 3) | About 2 per event, 180–270 in all (Autumn NA 2026's 1,023-series bracket came back in one request) | Placements and `matches` for Challengermode events, and later the bracket tables (§7) | New |
+| P4. start.gg brackets: phases and pools (with round best-ofs), every set, and games in the last phase | 1 (was 3) | About 12,800 in all (measured, §3 pilot below) | `matches`, and later the bracket tables and `match_games` (§7) | Piloted on 3 events |
+| P5. Challengermode entrant lists (the roster with placements), and stages, brackets, rounds, series and matches | 1 (was 3) | 2 per event, about 180 in all | Placements and `matches` for Challengermode events, and later the bracket tables (§7) | Piloted on 1 event |
 
 - **Events come from the Stats API.** Each platform is queried by ID: start.gg by event slug (the Stats API event ID), Challengermode by tournament UUID. Challengermode's list queries are capped at about 48 results with no paging, so they're never used to enumerate. The three `series/…` events have no start.gg event to query.
 - **P4 and P5 moved to Phase 1 (decided 2026-10-04),** because they're now where matches come from. Phase 3 still builds the bracket tables and `match_games` from their cached responses, with no further fetching.
 - **Request gaps:** at least 1 s on start.gg (80 requests per minute allowed) and 3.5 s on Challengermode (bots get 20 per minute). The survey ran at those gaps without throttling and saw no rate-limit headers.
-- **start.gg's query limit:** queries over 1,000 objects are rejected, so pages stay small (64 standings, about 40 sets, or 8–16 sets with games). Each response reports `extensions.queryComplexity`, counted from the objects actually returned. A complexity error is final, not retried.
+- **start.gg's query limit:** queries over 1,000 objects are rejected, so pages stay small. Each response reports `extensions.queryComplexity`, counted from the objects actually returned. A complexity error is final, not retried. Measured on 2026-10-04:
+
+  | Page | Complexity |
+  |---|---|
+  | 64 standings | 321 |
+  | 50 sets (17 each, with slot scores) | 851–863 |
+  | 16 pools with 320 rounds | 353, so pages hold 32 pools |
+  | 16 sets with games (1v1) or 8 (2v2) | up to 369 |
+- **start.gg field errors:** `PhaseGroup.startAt` fails with an internal error on the 2020 SteelSeries pools, every time, so it isn't fetched. Any GraphQL error now fails a page, even when other data came back, and `status` shows the field that failed.
 - **start.gg's 10,000-result cap:** a listing can't be paged past its 10,000th entry ("Cannot query more than the 10,000th entry"). Four official events have more sets than that: the 2020 1v1 events of the NA and EU SteelSeries Championships, Low Tier City Midseason Online NA and the NA Mammoth Cup (10,932–14,478 sets). Their sets are fetched pool by pool, about 70 pools each.
 - **Completeness:** for each event, the sets fetched must equal start.gg's own total, and each Challengermode entrant list must hold as many lineups as the roster's count. The stages check both when they finish.
+- **Games** are fetched for an event's last phase only, and only when it has at most 16 seeds: a Top 8 or Top 16. The last phase is the smallest one, because start.gg's `phaseOrder` isn't always bracket order: the EU SteelSeries Championship 2020 numbers its Top 256 phase 4, after Top 32 and Top 8.
+- **The pilot (2026-10-04)** ran every new stage on a few events, about four minutes in all. Requests: start.gg 95, Stats API 234, Challengermode 2 plus one token exchange.
+  - **Standings fix:** the two events were re-applied from the cache with no requests, and none is short now.
+  - **start.gg, BCX 2022 1v1:** all 1,204 sets in 31 requests and 33 s. 352 DQs, as the survey found. The Finals' 43 games came back, all with stage and characters.
+  - **start.gg, US Winter Championship 2017 2v2:** all 840 sets. 390 are DQs, and 2 have a winner but no score.
+  - **start.gg, EU SteelSeries Championship 2020 1v1 (two pools per phase):** 6 of its 70 pools, 641 of its 12,319 sets. Its Top 8 has 46 games, all with stage and characters.
+  - **Challengermode, Autumn Championship NA 2026 1v1:**
+    - all 284 lineups, and 1,023 series, of which 567 are between two lineups, each with its match;
+    - 48 matches have no scores (forfeits);
+    - two series also hold a cancelled match that was replayed, so the builder keeps completed matches only;
+    - Raydish's 6 Stats API matches agree with it on IDs and scores.
+  - **Lookups:** all 7,825 players of those four events have a Stats API record.
+  - **Pro Series 2021 final:** 36 placements, a team format (stage 3b above).
+  - **Speed:** about 1.05 s per start.gg request, set pages included (median response 1.0 s, at most 4 s). 0.5 s per Stats API request. Challengermode's responses took 4 s for the entrant list and 6 s for the 1,023-series bracket.
+- **The full run, measured:**
+
+  | Stage | Requests | Time |
+  |---|---|---|
+  | P4 | about 12,800: 9,918 set pages for the 523 events not yet fetched (exact), about 1,200 pool-by-pool pages for the four events over the cap, about 1,000–1,300 pool listings, about 500 games pages | 3.7–4 hours at the pilot's speed; up to 6 if start.gg slows to the survey's 1.3–3 s per set page |
+  | P5 | about 180 for the other 89 events | about 15 minutes |
+  | 2b | about 1,400 | about 12 minutes |
+  | 3b | 839, for the two 2019 finals | about 7 minutes |
+
+  Each API has its own lock, so P4 can run alongside the others, and the whole fetch takes about as long as P4.
 - **Challengermode tokens** last 20 minutes. The crawl client reuses the survey client's token handling: it exchanges the refresh key for a token, renews it 2 minutes before its `expiresAt` rather than once at startup, and on an auth error (a 401 or `AUTH_NOT_AUTHENTICATED`) gets a new token and retries once. A test simulates a token expiring mid-crawl.
 - **User-Agent:** every request sends a custom one, because Challengermode's Cloudflare front end rejects Python's default (error 1010).
 - **Credentials** come only from `.env`: `STARTGG_API_TOKEN` and `CHALLENGERMODE_REFRESH_KEY`, plus an Esports Earnings key once access works (§6a). They go into request headers and nowhere else: not the cache, the request log or any output. The token exchange isn't cached either. `CHALLENGERMODE_APP_ID` turned out not to be needed.
@@ -888,7 +925,8 @@ CREATE TABLE phases (              -- start.gg Phase / Challengermode stage
   phase_key     TEXT PRIMARY KEY,  -- 'sgg:<phase ID>' or 'cm:<tournament UUID>:<stage index>'
   event_id      TEXT NOT NULL REFERENCES events (event_id),
   name          TEXT,              -- e.g. 'Phase 1 Pools', 'Top 8'
-  phase_order   INTEGER NOT NULL,  -- start.gg phaseOrder / Challengermode stage index
+  phase_order   INTEGER NOT NULL,  -- bracket order, by seeds (largest first): start.gg's phaseOrder isn't
+                                   -- always it (EU SteelSeries 2020: Top 256 is 4th) / Challengermode stage index
   bracket_type  TEXT,              -- DOUBLE_ELIMINATION, SINGLE_ELIMINATION, SWISS, ROUND_ROBIN
   seeds         INTEGER,           -- start.gg numSeeds / Challengermode lineupCount
   source        TEXT NOT NULL,
@@ -1088,7 +1126,12 @@ There are three phases, and each ends with a database the agent can use. A phase
 
 ## Open questions
 
-None block Phase 1.
+**For you to decide: how the Pro Series 2021 final counts.** The Stats API files it as a 1v1 event, but it was a team event: six teams of six, every member sharing the team's place (§3, stage 3b). Under the current rules it's a standard 1v1 event, so each member of the winning team gets a 1v1 official win, and so on down. The options:
+- **Like a crew battle:** `format_override = 'crew_battle'` in `curation/events.csv`. It counts as 1v1, labeled as a team result, the way crew battles already are.
+- **Excluded:** an override to a format that counts toward neither mode.
+- **As filed:** a standard 1v1 event.
+
+The 2019 finals' format will show once their placements are in.
 
 **Waiting on others:** whether the esports team can share their account-link data (asked 2026-10-04). It would settle most merge candidates (§1).
 

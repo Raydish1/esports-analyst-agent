@@ -48,14 +48,14 @@ SAMPLE_SEED = 20261004  # fixes which players `histories --sample` picks
 LOG_DIR = ROOT / "data" / "logs"
 
 LOOKUP_PARAMS = {"startgg": ("sggIds", "sggPlayerId"), "challengermode": ("cmIds", "cmPlayerId")}
-SERIES_TOP = 16  # Pro Series candidates: everyone placed this high at an event in the year before a final
+SERIES_TOP = 32  # Pro Series candidates: everyone placed this high at an event in the year before a final
 SERIES_WINDOW = 365 * 86400
-SETS_PER_PAGE = 40
+SETS_PER_PAGE = 50  # a set costs about 17 of start.gg's 1,000 complexity (measured: 690 for 40)
 SETS_CAP = 10_000  # start.gg can't page a listing past its 10,000th entry
-POOLS_PER_QUERY = 24  # an event with more pools than this gets them phase by phase, a page at a time
-POOLS_PER_PAGE = 16
+POOLS_PER_QUERY = 32  # an event with more pools than this gets them phase by phase, a page at a time
+POOLS_PER_PAGE = 32  # a pool costs about 2 + its rounds (measured: 353 for 16 pools with 320 rounds)
 GAMES_PER_PAGE = {1: 16, 2: 8}  # sets per page with their games; 2v2 games list twice the characters
-GAMES_MAX_SEEDS = 64  # games are fetched for the last phase only, and only when it's this small
+GAMES_MAX_SEEDS = 16  # games are fetched for the last phase only, and only when it's this small
 ROSTER_LIMIT = 2000  # Challengermode lineups per roster query, which has no paging
 
 STANDINGS_TABLE = """
@@ -177,7 +177,7 @@ query PoolSets($poolId: ID!, $page: Int!, $perPage: Int!) { phaseGroup(id: $pool
     pageInfo { total totalPages }
     nodes { %s } } } }""" % SET_FIELDS
 
-POOL_FIELDS = "id displayIdentifier bracketType bracketUrl numRounds state startAt rounds { number bestOf }"
+POOL_FIELDS = "id displayIdentifier bracketType bracketUrl numRounds state rounds { number bestOf }"  # startAt fails on 2020 pools
 
 EVENT_POOLS_QUERY = """
 query EventPools($slug: String!) { event(slug: $slug) {
@@ -493,8 +493,9 @@ def apply_teammates(db, p, rows):
 
 
 # Stage 3b: the Pro Series finals. No platform has them and the Stats API has no event
-# endpoint, so likely entrants are checked one by one: the top of every official 1v1 start.gg
-# event in the year before the final, in its region or in no region (LANs, partner events).
+# endpoint, so likely entrants are checked one by one: the top of every official start.gg
+# event, 1v1 or 2v2, in the year before the final, in its region or in no region (LANs,
+# partner events). The 2021 final turned out to be a team format, with 2v2 players.
 
 def slug_region(event_id):
     """'NA', 'EU' or 'other' from the region an event ID names; None when it names none."""
@@ -509,6 +510,11 @@ def slug_region(event_id):
     return None
 
 
+def series_check(final, start, player_id):
+    return ("proseries", "series_check", f"series_check:{final}:{player_id}",
+            {"event_id": final, "start_time": start, "player_id": player_id})
+
+
 def plan_proseries(db, queue, args):
     only = set(getattr(args, "event", None) or [])
     for final, start in db.execute("SELECT event_id, start_time FROM crawl_events WHERE event_id LIKE 'series/%'"
@@ -516,15 +522,22 @@ def plan_proseries(db, queue, args):
         if only and final not in only:
             continue
         events = [eid for (eid,) in db.execute(
-            "SELECT event_id FROM crawl_events WHERE mode = 1 AND host = 'SGG' AND event_id LIKE 'tournament/%'"
+            "SELECT event_id FROM crawl_events WHERE host = 'SGG' AND event_id LIKE 'tournament/%'"
             " AND start_time >= ? AND start_time < ?", (start - SERIES_WINDOW, start))
             if slug_region(eid) in (slug_region(final), None)]
-        ids = sorted({str(r[0]) for eid in events for r in db.execute(
+        ids = {str(r[0]) for eid in events for r in db.execute(
             "SELECT sgg_player_id FROM crawl_standings WHERE event_id = ? AND placement <= ? AND sgg_player_id IS NOT NULL",
-            (eid, SERIES_TOP))}, key=int)
-        for n, i in enumerate(range(0, len(ids), PROFILE_BATCH), 1):
-            queue.add("proseries", "series_candidates", f"series_candidates:{final}:{n}",
-                      {"event_id": final, "start_time": start, "sgg_ids": ids[i:i + PROFILE_BATCH]})
+            (eid, SERIES_TOP))}
+        known = dict(db.execute("SELECT platform_player_id, player_id FROM crawl_platform_players"
+                                " WHERE platform = 'startgg' AND status IN (2, 3)").fetchall())
+        for pid in sorted({known[i] for i in ids if known.get(i)}):  # already looked up (stage 2b)
+            queue.add(*series_check(final, start, pid))
+        unknown = sorted((i for i in ids if i not in known), key=int)
+        for i in range(0, len(unknown), PROFILE_BATCH):
+            chunk = unknown[i:i + PROFILE_BATCH]
+            digest = hashlib.sha1(",".join(chunk).encode()).hexdigest()[:10]
+            queue.add("proseries", "series_candidates", f"series_candidates:{final}:{chunk[0]}-{chunk[-1]}:{digest}",
+                      {"event_id": final, "start_time": start, "sgg_ids": chunk})
 
 
 def fetch_series_candidates(api, p, log):
@@ -533,9 +546,7 @@ def fetch_series_candidates(api, p, log):
 
 def apply_series_candidates(db, p, body):
     found = record_lookup(db, "startgg", p["sgg_ids"], body)  # these are lookups too
-    return [("proseries", "series_check", f"series_check:{p['event_id']}:{pid}",
-             {"event_id": p["event_id"], "start_time": p["start_time"], "player_id": pid})
-            for pid in sorted(set(found.values()))]
+    return [series_check(p["event_id"], p["start_time"], pid) for pid in sorted(set(found.values()))]
 
 
 def fetch_series_check(api, p, log):
@@ -561,7 +572,11 @@ def double_elimination_places(n):
 
 
 def check_proseries(db, api, log):
-    """The placements found at each final should form a complete bracket; a gap means an entrant was missed."""
+    """The placements found at each final should form a complete bracket; a gap means an entrant was missed.
+
+    A team format, where every member shares the team's place, can't be checked that way: each
+    place from 1 down is shared, and only the team sizes hint at a missing member.
+    """
     ok = True
     for (final,) in db.execute("SELECT event_id FROM crawl_events WHERE event_id LIKE 'series/%' ORDER BY start_time").fetchall():
         checked = sum(1 for (k,) in db.execute("SELECT task_key FROM tasks WHERE kind = 'series_check'")
@@ -569,10 +584,15 @@ def check_proseries(db, api, log):
         if not checked:
             continue
         found = sorted(r[0] for r in db.execute("SELECT placement FROM crawl_series_placements WHERE event_id = ?", (final,)))
+        sizes = collections.Counter(found)
         if found and found == double_elimination_places(len(found)):
             verdict = f"consistent with a complete double elimination of {len(found)}"
         elif found and found == list(range(1, len(found) + 1)):
             verdict = f"consistent with a complete ranking of {len(found)}"
+        elif found and sorted(sizes) == list(range(1, len(sizes) + 1)) and min(sizes.values()) > 1:
+            verdict = (f"a team format: {len(sizes)} teams of {min(sizes.values())}-{max(sizes.values())} players"
+                       f" ({', '.join(f'{place}: {n}' for place, n in sorted(sizes.items()))}), so completeness can't be"
+                       " confirmed from places")
         else:
             ok, verdict = False, "not a complete bracket, so an entrant may be missing"
         log(f"{final}: {len(found)} placements among {checked} candidates ({', '.join(map(str, found)) or 'none'}): {verdict}")
@@ -692,12 +712,13 @@ def apply_sgg_sets(db, p, data):
                    for ph in phases]
     else:
         follow.append(("brackets", "sgg_pools", f"sgg_pools:{slug}", {"slug": slug}))
-    played = [ph for ph in phases if not ph.get("isExhibition")]
-    if played and (played[-1].get("numSeeds") or SETS_CAP) <= GAMES_MAX_SEEDS:
+    # The last phase is the smallest: phaseOrder isn't always bracket order (EU SteelSeries 2020 numbers Top 256 4th).
+    last = min((ph for ph in phases if not ph.get("isExhibition")),
+               key=lambda ph: (ph.get("numSeeds") or SETS_CAP, -(ph.get("phaseOrder") or 0)), default=None)
+    if last and (last.get("numSeeds") or SETS_CAP) <= GAMES_MAX_SEEDS:
         mode = (db.execute("SELECT mode FROM crawl_events WHERE event_id = ?", (slug,)).fetchone() or (2,))[0]
-        last = played[-1]["id"]
-        follow.append(("brackets", "sgg_games", f"sgg_games:{last}:1",
-                       {"slug": slug, "phase_id": last, "page": 1, "per_page": GAMES_PER_PAGE.get(mode, 8)}))
+        follow.append(("brackets", "sgg_games", f"sgg_games:{last['id']}:1",
+                       {"slug": slug, "phase_id": last["id"], "page": 1, "per_page": GAMES_PER_PAGE.get(mode, 8)}))
     return follow
 
 
@@ -889,7 +910,8 @@ UNPLANNED = {  # work a stage would add on its next run, as earlier stages find 
                " WHERE c.platform = x.platform AND c.platform_player_id = x.id AND c.status > 0)",
     "histories": "SELECT COUNT(*) FROM crawl_players WHERE history_planned = 0",
     "proseries": "SELECT COUNT(*) FROM crawl_events e WHERE event_id LIKE 'series/%' AND NOT EXISTS"
-                 " (SELECT 1 FROM tasks WHERE task_key = 'series_candidates:' || e.event_id || ':1')",
+                 " (SELECT 1 FROM tasks WHERE stage = 'proseries' AND (task_key LIKE 'series_check:' || e.event_id || ':%'"
+                 " OR task_key LIKE 'series_candidates:' || e.event_id || ':%'))",
     "teams": "SELECT COUNT(*) FROM crawl_pairs WHERE planned = 0",
     "brackets": "SELECT (SELECT COUNT(*) FROM crawl_events e WHERE host = 'SGG' AND event_id LIKE 'tournament/%'"
                 " AND NOT EXISTS (SELECT 1 FROM tasks WHERE task_key = 'sgg_sets:' || e.event_id || ':1'))"

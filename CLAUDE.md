@@ -25,6 +25,10 @@ Done, with their write-ups:
 - Phase 1, step 1: the Stats API fetch layer (`ingest/statsapi.py`, with the response cache and request log in `ingest/cache.py`) and crawl stage 0 (`python ingest/crawl.py events`), which finds all 622 official events. Tests: `python -m unittest discover -s tests`.
 - Phase 1, step 2: a resumable task queue and run lock (`ingest/tasks.py`), `python ingest/crawl.py status`, stages 1–2 run in full (4,981 PR players with profiles), and a pilot of stages 3–4 on 200 of those players.
 - P1 start.gg standings (`python ingest/crawl.py standings`, with `ingest/startgg.py`): all 529 official start.gg events, 268k placements from 138,696 start.gg players. The run lock is per API, so a start.gg stage can run alongside a Stats API stage.
+- The platform fetches, built and piloted (2026-10-04):
+  - Stages: P4 `brackets` (start.gg sets, pools, last-phase games), P5 `cm` (Challengermode entrant lists and brackets, via `ingest/challengermode.py`), 2b `lookups` and 3b `proseries`.
+  - The pilot covered 3 start.gg events (one over the 10,000-set cap, two pools per phase), one Challengermode event, their players' lookups, and the 2021 Pro Series final. Results and the measured estimate for the full run are in the schema proposal (§3).
+  - The standings fix: a player entered twice in one event lost a row to the crawl table's key. It's re-keyed, and the two events were re-applied from the cache.
 
 Decisions so far: the domain definitions below, plus these.
 - Career earnings: the Stats API figure first. For players without one, the fallback is the Esports Earnings snapshot (source `esportsearnings_manual`, as of 2026-10-04), linked to players through `player_aliases`. Each figure is stored with its source and as-of date. The Esports Earnings API is blocked (its account login isn't working).
@@ -39,7 +43,7 @@ Decisions so far: the domain definitions below, plus these.
   - Merge candidates are ranked in tiers (exact name, same region, non-overlapping activity). Only tier 1 is accepted automatically; the rest go to a review CSV. The user has asked the esports team for their account-link data.
   - Challengermode: renew the access token shortly before its `expiresAt`, and on an auth error renew it and retry once. Keep at least 3.5 s between requests.
 
-Next step: build the platform fetches (start.gg brackets, Challengermode entrant lists and brackets, the platform-player lookups, the Pro Series finals), pilot them on a few events, and give the user the commands for the full runs. The user runs long fetches themselves. Don't start anything beyond a pilot without asking, and check with the user before starting any new stage.
+Next step: the user runs the full fetches (P5, then 2b and 3b, with P4 alongside). Then the merge-candidate review list, once the user approves it. Open: how the Pro Series 2021 final counts, since it was a team event (schema proposal, open questions). The user runs long fetches themselves. Don't start anything beyond a pilot without asking, and check with the user before starting any new stage.
 
 ## Domain definitions (decided)
 - Data scope for now: official events only (`isOfficial: true`); community events are left out.

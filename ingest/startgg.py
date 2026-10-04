@@ -103,7 +103,11 @@ def _classify(status, body):
     if parsed.get("data") is not None and not errors:
         return 200, None
     messages = [str(parsed.get("message") or "")] + [str(e.get("message") or "") for e in errors]
-    problem = "; ".join(m for m in messages if m)[:300] or "no data"
+    first = next((e["path"] for e in errors if e.get("path")), None)
+    problem = "; ".join(dict.fromkeys(m for m in messages if m)) or "no data"
+    if errors:
+        problem += f" ({len(errors)} error(s)" + (f", first at {'.'.join(map(str, first))})" if first else ")")
+    problem = problem[:300]
     refused = (any((e.get("extensions") or {}).get("category") == "validation" for e in errors)
                or any("complexity" in m.lower() for m in messages))
     return (QUERY_REFUSED if refused else GRAPHQL_ERROR), problem

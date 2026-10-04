@@ -211,7 +211,8 @@ class CrawlTest(unittest.TestCase):
     def test_brackets_page_sets_and_fetch_pools_and_last_phase_games(self):
         self.add_events([("tournament/a/event/2v2", 2, "SGG", 0), ("fcb7a286-cm", 1, "CM", 0)])
         phases = [{"id": 51, "phaseOrder": 1, "groupCount": 4, "numSeeds": 200},
-                  {"id": 52, "phaseOrder": 2, "groupCount": 1, "numSeeds": 8}]
+                  {"id": 52, "phaseOrder": 2, "groupCount": 1, "numSeeds": 8},
+                  {"id": 53, "phaseOrder": 3, "groupCount": 1, "numSeeds": 64}]  # numbered out of bracket order
         total = crawl.SETS_PER_PAGE + 5
 
         def event_sets(v):
@@ -222,7 +223,9 @@ class CrawlTest(unittest.TestCase):
         api = FakeGraphQL({"EventSets": event_sets, "EventPools": pools, "PhaseGames": games})
         self.assertEqual(self.run_stage(api, "brackets"), "finished")
         self.assertEqual(sorted(name for name, _ in api.calls), ["EventPools", "EventSets", "EventSets", "PhaseGames", "PhaseGames"])
-        self.assertIn(("perPage", "8"), [c for name, params in api.calls if name == "PhaseGames" for c in params])  # 2v2
+        games_params = [c for name, params in api.calls if name == "PhaseGames" for c in params]
+        self.assertIn(("phaseId", "52"), games_params)  # the smallest phase, not the last-numbered one
+        self.assertIn(("perPage", "8"), games_params)  # 2v2
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_matches").fetchone()[0], total)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_pools").fetchone()[0], 4)
 
@@ -314,6 +317,7 @@ class CrawlTest(unittest.TestCase):
         final = 1_600_000_000
         self.add_events([("series/pro-series-2021-na", 1, "SGG", final),
                          ("tournament/north-america-winter-2021/event/1v1", 1, "SGG", final - 100),
+                         ("tournament/north-america-winter-2021/event/2v2", 2, "SGG", final - 100),
                          ("tournament/europe-winter-2021/event/1v1", 1, "SGG", final - 100),
                          ("tournament/dreamhack-x/event/1v1", 1, "SGG", final - 200),
                          ("tournament/north-america-old/event/1v1", 1, "SGG", final - 400 * 86400)])
@@ -321,11 +325,13 @@ class CrawlTest(unittest.TestCase):
             self.db.executemany("INSERT INTO crawl_standings (event_id, participant_id, entrant_id, sgg_player_id, placement)"
                                 " VALUES (?, ?, ?, ?, ?)",
                                 [("tournament/north-america-winter-2021/event/1v1", 1, 1, 501, 1),
-                                 ("tournament/north-america-winter-2021/event/1v1", 2, 2, 502, 17),  # not top 16
+                                 ("tournament/north-america-winter-2021/event/1v1", 2, 2, 502, 33),  # not top 32
+                                 ("tournament/north-america-winter-2021/event/2v2", 6, 6, 506, 3),  # 2v2 counts too
                                  ("tournament/europe-winter-2021/event/1v1", 3, 3, 503, 1),  # another region
                                  ("tournament/dreamhack-x/event/1v1", 4, 4, 504, 2),  # no region: a candidate
                                  ("tournament/north-america-old/event/1v1", 5, 5, 505, 1)])  # over a year before
-        finalists = {1: 1, 4: 2}  # player IDs are sgg ID - 500
+            self.db.execute("INSERT INTO crawl_platform_players VALUES ('startgg', '506', 2, 6)")  # looked up already
+        finalists = {1: 1, 4: 2, 6: 3}  # player IDs are sgg ID - 500
 
         def placements(p):
             pid = int(p["playerIds"])
@@ -335,12 +341,26 @@ class CrawlTest(unittest.TestCase):
             return {"playerPlacements": rows}
         api = FakeApi({"/players": lambda p: {"players": [{"playerId": int(i) - 500, "sggPlayerId": int(i)} for i in p["sggIds"]]},
                        "/player/placement": placements})
-        self.assertEqual(self.run_stage(api, "proseries"), "finished")  # 1, 2 is a complete bracket of two
+        self.assertEqual(self.run_stage(api, "proseries"), "finished")  # 1, 2, 3 is a complete bracket of three
         checked = sorted(dict(params)["playerIds"] for endpoint, params in api.calls if endpoint == "/player/placement")
-        self.assertEqual(checked, ["1", "4"])
+        self.assertEqual(checked, ["1", "4", "6"])
+        looked_up = [dict(params)["sggIds"] for endpoint, params in api.calls if endpoint == "/players"]
+        self.assertEqual(looked_up, [str(["501", "504"])])  # 506 was known already
         token = [dict(params)["nextToken"] for endpoint, params in api.calls if endpoint == "/player/placement"][0]
         self.assertEqual(token, str(final + 1))
-        self.assertEqual(sorted(self.db.execute("SELECT player_id, placement FROM crawl_series_placements")), [(1, 1), (4, 2)])
+        self.assertEqual(sorted(self.db.execute("SELECT player_id, placement FROM crawl_series_placements")),
+                         [(1, 1), (4, 2), (6, 3)])
+
+    def test_proseries_check_recognizes_a_team_format_and_a_gap(self):
+        self.add_events([("series/a-na", 1, "SGG", 0), ("series/b-na", 1, "SGG", 0)])
+        with self.db:
+            for final, places in (("series/a-na", [1, 1, 2, 2, 3, 3, 3]), ("series/b-na", [1, 2, 3, 5])):
+                for pid, place in enumerate(places):
+                    self.db.execute("INSERT INTO crawl_series_placements VALUES (?, ?, ?)", (final, pid, place))
+                    TaskQueue(self.db).add("proseries", "series_check", f"series_check:{final}:{pid}", {})
+        self.assertFalse(crawl.check_proseries(self.db, None, self.log.append))  # b-na has no 4th place
+        self.assertIn("a team format: 3 teams of 2-3 players", self.log[0])
+        self.assertIn("an entrant may be missing", self.log[1])
 
     def test_double_elimination_places(self):
         self.assertEqual(crawl.double_elimination_places(8), [1, 2, 3, 4, 5, 5, 7, 7])
