@@ -13,7 +13,7 @@ The Stats API is for personal use only, so API responses and the built database 
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
 ## Project status (2026-10-04)
-Data exploration and design. Nothing is built yet: don't build the database or the agent until the schema proposal is approved.
+Planning is finished (committed 2026-10-04), and Phase 1 of the schema proposal's implementation plan (§9) is in progress on branch `claude/phase-1`. Build in the order of that plan, in small steps.
 
 Done, with their write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -22,6 +22,7 @@ Done, with their write-ups:
 - `curation/tiers.csv`: a skeleton only (see the tiers rule below).
 - Esports Earnings snapshot (`ingest/snapshot_esports_earnings.py`, run once on 2026-10-04) → `curation/esports_earnings_snapshot.csv`: the top 500 Brawlhalla earners from their website, with the raw HTML in `data/raw/esportsearnings/`. It isn't part of the crawl and isn't refreshed.
 - Curation seed files holding the decisions so far: `curation/player_aliases.csv` (nicknames), `curation/player_merges.csv` (duplicate records of one person) and `curation/external_ids.csv` (confirmed Esports Earnings links).
+- Phase 1, step 1: the Stats API fetch layer (`ingest/statsapi.py`, with the response cache and request log in `ingest/cache.py`) and crawl stage 0 (`python ingest/crawl.py events`), which finds all 622 official events. Tests: `python -m unittest discover -s tests`.
 
 Decisions so far: the domain definitions below, plus these.
 - Career earnings: the Stats API figure first. For players without one, the fallback is the Esports Earnings snapshot (source `esportsearnings_manual`, as of 2026-10-04), linked to players through `player_aliases`. Each figure is stored with its source and as-of date. The Esports Earnings API is blocked (its account login isn't working).
@@ -29,7 +30,7 @@ Decisions so far: the domain definitions below, plus these.
 - Missing isn't zero: when an event has no payout data, or a player has no career figure, answers say so rather than counting $0.
 - API credentials live only in `.env` (see `.env.example`).
 
-Next step: get `docs/schema-proposal.md` approved (no open questions remain), then build Phase 1 of its implementation plan (§9).
+Next step: Phase 1, step 2, which is crawl stages 1–2 (the PR seed and player profiles) plus the resumable task queue. After that, pilot stages 3–4 on a sample to measure the full crawl before running it.
 
 ## Domain definitions (decided)
 - Data scope for now: official events only (`isOfficial: true`); community events are left out.

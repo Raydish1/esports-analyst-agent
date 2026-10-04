@@ -410,13 +410,13 @@ GROUP BY ta.team_id, tb.team_id;
 ### Files
 
 ```text
-data/raw/cache/<endpoint>/<key[:2]>/<key>.json.gz   one immutable file per response
-data/db/crawl.sqlite                                request log and task queue
-data/db/brawlhalla.sqlite                           the built database (disposable)
-curation/*.csv                                      hand-made data
+data/raw/cache/<endpoint>/<key[:2]>/<key>.<fetched_at>.json.gz   one immutable file per response
+data/db/crawl.sqlite                                             request log and task queue
+data/db/brawlhalla.sqlite                                        the built database (disposable)
+curation/*.csv                                                   hand-made data
 ```
 
-`key` is a hash of the endpoint and its normalized parameters (sorted, lists comma-joined).
+`key` is a hash of the endpoint and its normalized parameters (sorted, lists comma-joined). The `fetched_at` timestamp in the file name means a refresh adds a file rather than overwriting one.
 
 ### Stages
 

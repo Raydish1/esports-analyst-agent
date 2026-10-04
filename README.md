@@ -16,9 +16,19 @@ Capstone project for a CMU agentic AI course.
 
 ## Status
 
-Data exploration phase. The database schema and agent are not built yet.
+Building Phase 1 of the plan in [`docs/schema-proposal.md`](docs/schema-proposal.md) (§9). The Stats API fetch layer and the official-events crawl work so far:
 
-Findings so far are in [`docs/api-survey.md`](docs/api-survey.md). To re-run the API survey (Node 18+; it writes to `data/raw/survey/`):
+```bash
+python ingest/crawl.py events
+```
+
+Tests use only the standard library:
+
+```bash
+python -m unittest discover -s tests
+```
+
+API findings are in [`docs/api-survey.md`](docs/api-survey.md). To re-run the API survey (Node 18+; it writes to `data/raw/survey/`):
 
 ```bash
 cd ingest && npm install && npm run survey
