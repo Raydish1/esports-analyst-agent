@@ -27,6 +27,24 @@ class FakeApi:
         return answer
 
 
+class FakeGraphQL(FakeApi):
+    """The same for start.gg and Challengermode, routed by query name."""
+
+    def query(self, name, document, variables):
+        return self.get(name, variables)
+
+
+def sets_page(ids, total, pool=7, per_page=None):
+    per_page = per_page or crawl.SETS_PER_PAGE
+    return {"pageInfo": {"total": total, "totalPages": -(-total // per_page)},
+            "nodes": [{"id": i, "phaseGroup": {"id": pool}} for i in ids]}
+
+
+def node(placement, entrant, players):
+    return {"placement": placement, "entrant": {"id": entrant, "isDisqualified": False, "participants": [
+        {"id": entrant * 10 + i, "player": {"id": p}} for i, p in enumerate(players)]}}
+
+
 def pr_route(params):  # three pages of three players per mode and region
     page, base = params["page"], params["gameMode"] * 1000 + crawl.REGIONS.index(params["region"]) * 100
     return {"prPlayers": [{"playerId": base + page * 10 + i} for i in range(3)], "totalPages": 3}
@@ -36,7 +54,7 @@ class CrawlTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = connect(Path(self.tmp.name) / "crawl.sqlite", schema=crawl.CRAWL_SCHEMA)
-        self.args = SimpleNamespace(sample=None)
+        self.args = SimpleNamespace(sample=None, event=None, max_pools=None)
         self.log = []
 
     def tearDown(self):
@@ -136,15 +154,13 @@ class CrawlTest(unittest.TestCase):
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_players WHERE history_planned = 1").fetchone()[0], 20)
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0], 60)
 
-    def test_standings_record_participants_and_follow_up_pages(self):
+    def add_events(self, rows):
         with self.db:
-            self.db.executemany("INSERT INTO crawl_events (event_id, mode, host, start_time) VALUES (?, ?, ?, 0)",
-                                [("tournament/a/event/2v2", 2, "SGG"), ("tournament/gone/event/1v1", 1, "SGG"),
-                                 ("series/pro-series-2021-na", 1, "SGG"), ("fcb7a286-cm", 1, "CM")])
+            self.db.executemany("INSERT INTO crawl_events (event_id, mode, host, start_time) VALUES (?, ?, ?, ?)", rows)
 
-        def node(placement, entrant, players):
-            return {"placement": placement, "entrant": {"id": entrant, "isDisqualified": False, "participants": [
-                {"id": entrant * 10 + i, "player": {"id": p}} for i, p in enumerate(players)]}}
+    def test_standings_record_participants_and_follow_up_pages(self):
+        self.add_events([("tournament/a/event/2v2", 2, "SGG", 0), ("tournament/gone/event/1v1", 1, "SGG", 0),
+                         ("series/pro-series-2021-na", 1, "SGG", 0), ("fcb7a286-cm", 1, "CM", 0)])
         pages = {1: [node(1, 1, [101, 102])], 2: [node(3, 2, [103, None])]}
 
         def standings(v):
@@ -152,11 +168,7 @@ class CrawlTest(unittest.TestCase):
                 return {"event": None}
             return {"event": {"id": 9, "numEntrants": 5, "standings": {
                 "pageInfo": {"total": 2, "totalPages": 2}, "nodes": pages[v["page"]]}}}
-
-        class FakeStartGG(FakeApi):
-            def query(self, name, document, variables):
-                return self.get(name, variables)
-        api = FakeStartGG({"Standings": standings})
+        api = FakeGraphQL({"Standings": standings})
         self.assertEqual(self.run_stage(api, "standings"), "finished")
         self.assertEqual(len(api.calls), 3)  # two pages of one event, one of the missing one; no series or CM events
         self.assertEqual(dict(self.db.execute("SELECT event_id, status FROM crawl_platform_events")),
@@ -164,16 +176,188 @@ class CrawlTest(unittest.TestCase):
         self.assertEqual(sorted(self.db.execute("SELECT sgg_player_id, placement FROM crawl_standings"), key=str),
                          sorted([(101, 1), (102, 1), (103, 3), (None, 3)], key=str))
 
-    def test_matches_skip_series_events_and_find_opponents(self):
+    def test_standings_keep_a_player_entered_twice(self):
+        self.add_events([("tournament/a/event/1v1", 1, "SGG", 0)])
+        twice = [node(97, 1, [609951]), node(513, 2, [609951])]
+        twice[1]["entrant"]["participants"][0]["id"] = twice[0]["entrant"]["participants"][0]["id"]  # one participant
+        api = FakeGraphQL({"Standings": lambda v: {"event": {"id": 9, "numEntrants": 2, "standings": {
+            "pageInfo": {"total": 2, "totalPages": 1}, "nodes": twice}}}})
+        self.assertEqual(self.run_stage(api, "standings"), "finished")  # the check finds both entrants
+        self.assertEqual(sorted(self.db.execute("SELECT entrant_id, placement FROM crawl_standings")), [(1, 97), (2, 513)])
+
+    def test_migration_rekeys_standings_and_reapplies_short_events(self):
+        old = Path(self.tmp.name) / "old.sqlite"
+        db = connect(old)
+        with db:  # the table as it was before 2026-10-04, after a run that lost an entrant
+            db.executescript(crawl.CRAWL_SCHEMA.replace(crawl.STANDINGS_TABLE + ";", "") + """
+                CREATE TABLE crawl_standings (event_id TEXT NOT NULL, participant_id INTEGER NOT NULL, entrant_id INTEGER,
+                  sgg_player_id INTEGER, placement INTEGER, disqualified INTEGER, PRIMARY KEY (event_id, participant_id));
+                INSERT INTO crawl_standings VALUES ('tournament/a/event/1v1', 10, 1, 609951, 97, 0),
+                                                   ('tournament/b/event/1v1', 20, 2, 5, 1, 0);
+                INSERT INTO crawl_platform_events VALUES ('tournament/a/event/1v1', 'startgg', '9', 2, 2, 'ok'),
+                                                         ('tournament/b/event/1v1', 'startgg', '8', 1, 1, 'ok');""")
+            for key in ("standings:tournament/a/event/1v1:1", "standings:tournament/b/event/1v1:1"):
+                TaskQueue(db).add("standings", "standings_page", key, {"slug": key.split(":")[1], "page": 1})
+                TaskQueue(db).set_status(key, "done")
+        crawl.migrate(db)
+        crawl.migrate(db)  # a second time changes nothing
+        key = [r[1] for r in sorted(db.execute("PRAGMA table_info(crawl_standings)"), key=lambda r: r[5]) if r[5]]
+        self.assertEqual(key, ["event_id", "entrant_id", "participant_id"])
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM crawl_standings").fetchone()[0], 2)
+        self.assertEqual(dict(db.execute("SELECT task_key, status FROM tasks")),
+                         {"standings:tournament/a/event/1v1:1": "pending", "standings:tournament/b/event/1v1:1": "done"})
+        db.close()
+
+    def test_brackets_page_sets_and_fetch_pools_and_last_phase_games(self):
+        self.add_events([("tournament/a/event/2v2", 2, "SGG", 0), ("fcb7a286-cm", 1, "CM", 0)])
+        phases = [{"id": 51, "phaseOrder": 1, "groupCount": 4, "numSeeds": 200},
+                  {"id": 52, "phaseOrder": 2, "groupCount": 1, "numSeeds": 8}]
+        total = crawl.SETS_PER_PAGE + 5
+
+        def event_sets(v):
+            ids = range(1, crawl.SETS_PER_PAGE + 1) if v["page"] == 1 else range(crawl.SETS_PER_PAGE + 1, total + 1)
+            return {"event": {"id": 9, "phases": phases, "sets": sets_page(ids, total)}}
+        games = lambda v: {"phase": {"sets": {"pageInfo": {"total": 14, "totalPages": 2}, "nodes": []}}}  # noqa: E731
+        pools = lambda v: {"event": {"phaseGroups": [{"id": g, "phase": {"id": 51}} for g in range(1, 5)]}}  # noqa: E731
+        api = FakeGraphQL({"EventSets": event_sets, "EventPools": pools, "PhaseGames": games})
+        self.assertEqual(self.run_stage(api, "brackets"), "finished")
+        self.assertEqual(sorted(name for name, _ in api.calls), ["EventPools", "EventSets", "EventSets", "PhaseGames", "PhaseGames"])
+        self.assertIn(("perPage", "8"), [c for name, params in api.calls if name == "PhaseGames" for c in params])  # 2v2
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_matches").fetchone()[0], total)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_pools").fetchone()[0], 4)
+
+    def test_brackets_fetch_an_event_over_the_cap_pool_by_pool(self):
+        self.add_events([("tournament/big/event/1v1", 1, "SGG", 0)])
+        phases = [{"id": 51, "phaseOrder": 1, "groupCount": 3, "numSeeds": 7000},
+                  {"id": 52, "phaseOrder": 2, "groupCount": 1, "numSeeds": 8}]
+        pool_ids = {51: [101, 102, 103], 52: [201]}
+        pool_sets = {101: 50, 102: 3, 103: 4, 201: 7}
+        total = sum(pool_sets.values()) + crawl.SETS_CAP  # pretend start.gg counts past the cap
+        pool_sets[103] += crawl.SETS_CAP
+
+        def event_sets(v):
+            return {"event": {"id": 9, "phases": phases, "sets": sets_page([1001], total, pool=101)}}
+
+        def phase_pools(v):
+            return {"phase": {"phaseGroups": {"pageInfo": {"total": 3, "totalPages": 1},
+                                              "nodes": [{"id": g} for g in pool_ids[v["phaseId"]]]}}}
+
+        def pool_page(v):  # sets numbered by pool; set 1001 is pool 101's first, also on the event's first page
+            n, per = pool_sets[v["poolId"]], crawl.SETS_PER_PAGE
+            ids = [v["poolId"] * 100000 + i for i in range((v["page"] - 1) * per, min(n, v["page"] * per))]
+            if v["poolId"] == 101 and v["page"] == 1:
+                ids[0] = 1001
+            return {"phaseGroup": {"id": v["poolId"], "sets": sets_page(ids, n, pool=v["poolId"])}}
+        api = FakeGraphQL({"EventSets": event_sets, "PhasePools": phase_pools, "PoolSets": pool_page,
+                           "PhaseGames": lambda v: {"phase": {"sets": {"pageInfo": {"totalPages": 1}, "nodes": []}}}})
+        self.args.max_pools = 1  # the pilot: one pool per phase
+        self.assertEqual(self.run_stage(api, "brackets"), "finished")
+        planned = sorted(p for name, params in api.calls if name == "PoolSets" for k, p in params if k == "poolId")
+        self.assertEqual(sorted(set(planned)), ["101", "201"])
+        self.assertTrue(any("2 of 4 pools fetched so far" in line for line in self.log))  # one per phase
+        self.args.max_pools = None  # the full run picks up the other pools
+        self.assertEqual(self.run_stage(api, "brackets"), "finished")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_matches").fetchone()[0], total)
+        self.assertEqual(len(api.calls), len(set(api.calls)), "a page was requested twice")
+
+    def test_brackets_check_reports_missing_sets(self):
+        self.add_events([("tournament/a/event/1v1", 1, "SGG", 0)])
+        api = FakeGraphQL({"EventSets": lambda v: {"event": {"id": 9, "phases": [], "sets": sets_page([1, 2], 3)}},
+                           "EventPools": lambda v: {"event": {"phaseGroups": []}}})
+        self.assertEqual(self.run_stage(api, "brackets"), "stopped")  # start.gg reported 3 sets, 2 came back
+        self.assertTrue(any("2 sets fetched, start.gg reports 3" in line for line in self.log))
+
+    def test_cm_records_entrants_and_matches(self):
+        self.add_events([("t-1", 1, "CM", 0), ("tournament/a/event/1v1", 1, "SGG", 0)])
+        roster = {"tournament": {"id": "t-1", "attendance": {"roster": {"lineupCount": 2, "lineups": [
+            {"id": "L1", "placement": {"bestPlacement": 1}, "members": [{"user": {"id": "u1"}}]},
+            {"id": "L2", "placement": {"bestPlacement": 2}, "members": [{"user": {"id": "u2"}}]}]}}}}
+        series = [{"id": "S1", "lineups": [{"id": "L1"}, {"id": "L2"}], "matches": [{"id": "M1"}]},
+                  {"id": "S2", "lineups": [{"id": "L1"}], "matches": []}]  # a bye
+        bracket = {"tournament": {"stages": [{"brackets": [{"rounds": [{"matchSeries": series}]}]},
+                                             {"rounds": [{"matchSeries": [{"id": "S3", "matches": [{"id": "M3"}]}]}]}]}}
+        api = FakeGraphQL({"Roster": lambda v: roster, "Bracket": lambda v: bracket})
+        self.assertEqual(self.run_stage(api, "cm"), "finished")
+        self.assertEqual(sorted(self.db.execute("SELECT user_id, placement FROM crawl_cm_entrants")), [("u1", 1), ("u2", 2)])
+        self.assertEqual(sorted(r[0] for r in self.db.execute("SELECT match_id FROM crawl_matches")), ["M1", "M3"])
+
+    def test_cm_check_reports_a_truncated_entrant_list(self):
+        self.add_events([("t-1", 1, "CM", 0)])
+        roster = {"tournament": {"attendance": {"roster": {"lineupCount": 3, "lineups": [
+            {"id": "L1", "members": [{"user": {"id": "u1"}}]}]}}}}
+        api = FakeGraphQL({"Roster": lambda v: roster, "Bracket": lambda v: {"tournament": {"stages": []}}})
+        self.assertEqual(self.run_stage(api, "cm"), "stopped")
+        self.assertTrue(any("1 of 3 lineups" in line for line in self.log))
+
+    def test_lookups_mark_each_platform_player_and_split_refused_batches(self):
         with self.db:
-            self.db.executemany("INSERT INTO crawl_entries (player_id, event_id, mode) VALUES (?, ?, 1)",
-                                [(160000, "tournament/x/event/1v1"), (160000, "series/pro-series-2021-na")])
-        match = {"matchId": "1", "scores": [3, 1], "opponent": [{"playerId": 169084}]}
-        api = FakeApi({"/player/match": lambda p: {"playerMatches": [match]}})
-        self.assertEqual(self.run_stage(api, "matches"), "finished")
-        self.assertEqual([c[0] for c in api.calls], ["/player/match"])
-        self.assertEqual(self.db.execute("SELECT found_by FROM crawl_players WHERE player_id = 169084").fetchone(),
-                         ("opponent",))
+            self.db.executemany("INSERT INTO crawl_standings (event_id, participant_id, entrant_id, sgg_player_id) VALUES (?, ?, ?, ?)",
+                                [("e", i, i, 1000 + i) for i in range(150)])
+            self.db.executemany("INSERT INTO crawl_cm_entrants (event_id, lineup_id, user_id) VALUES ('c', ?, ?)",
+                                [("L1", "AB-cd"), ("L2", "ef")])
+
+        def players(params):
+            if "sggIds" in params:
+                ids = [int(i) for i in params["sggIds"]]
+                if len(ids) > 60:
+                    return ApiError(400, "/players", params, "too many")
+                return {"players": [{"playerId": i - 1000, "sggPlayerId": i} for i in ids if i % 10]}  # every 10th unknown
+            return {"players": [{"playerId": 7, "cmPlayerId": "ab-CD"}]}
+        self.assertEqual(self.run_stage(FakeApi({"/players": players}), "lookups"), "finished")
+        status = dict(self.db.execute("SELECT status, COUNT(*) FROM crawl_platform_players WHERE platform = 'startgg' GROUP BY status"))
+        self.assertEqual(status, {2: 135, 3: 15})
+        self.assertEqual(dict(self.db.execute("SELECT platform_player_id, player_id FROM crawl_platform_players"
+                                              " WHERE platform = 'challengermode'")), {"AB-cd": 7, "ef": None})
+        self.assertEqual(self.db.execute(crawl.UNPLANNED["lookups"]).fetchone()[0], 0)
+
+    def test_proseries_checks_regional_candidates_and_records_placements(self):
+        final = 1_600_000_000
+        self.add_events([("series/pro-series-2021-na", 1, "SGG", final),
+                         ("tournament/north-america-winter-2021/event/1v1", 1, "SGG", final - 100),
+                         ("tournament/europe-winter-2021/event/1v1", 1, "SGG", final - 100),
+                         ("tournament/dreamhack-x/event/1v1", 1, "SGG", final - 200),
+                         ("tournament/north-america-old/event/1v1", 1, "SGG", final - 400 * 86400)])
+        with self.db:
+            self.db.executemany("INSERT INTO crawl_standings (event_id, participant_id, entrant_id, sgg_player_id, placement)"
+                                " VALUES (?, ?, ?, ?, ?)",
+                                [("tournament/north-america-winter-2021/event/1v1", 1, 1, 501, 1),
+                                 ("tournament/north-america-winter-2021/event/1v1", 2, 2, 502, 17),  # not top 16
+                                 ("tournament/europe-winter-2021/event/1v1", 3, 3, 503, 1),  # another region
+                                 ("tournament/dreamhack-x/event/1v1", 4, 4, 504, 2),  # no region: a candidate
+                                 ("tournament/north-america-old/event/1v1", 5, 5, 505, 1)])  # over a year before
+        finalists = {1: 1, 4: 2}  # player IDs are sgg ID - 500
+
+        def placements(p):
+            pid = int(p["playerIds"])
+            rows = [{"placement": 9, "tournament": {"id": "tournament/north-america-winter-2021/event/1v1"}}]
+            if pid in finalists:
+                rows.insert(0, {"placement": finalists[pid], "tournament": {"id": "series/pro-series-2021-na"}})
+            return {"playerPlacements": rows}
+        api = FakeApi({"/players": lambda p: {"players": [{"playerId": int(i) - 500, "sggPlayerId": int(i)} for i in p["sggIds"]]},
+                       "/player/placement": placements})
+        self.assertEqual(self.run_stage(api, "proseries"), "finished")  # 1, 2 is a complete bracket of two
+        checked = sorted(dict(params)["playerIds"] for endpoint, params in api.calls if endpoint == "/player/placement")
+        self.assertEqual(checked, ["1", "4"])
+        token = [dict(params)["nextToken"] for endpoint, params in api.calls if endpoint == "/player/placement"][0]
+        self.assertEqual(token, str(final + 1))
+        self.assertEqual(sorted(self.db.execute("SELECT player_id, placement FROM crawl_series_placements")), [(1, 1), (4, 2)])
+
+    def test_double_elimination_places(self):
+        self.assertEqual(crawl.double_elimination_places(8), [1, 2, 3, 4, 5, 5, 7, 7])
+        self.assertEqual(crawl.double_elimination_places(16)[8:], [9] * 4 + [13] * 4)
+        self.assertEqual(crawl.double_elimination_places(3), [1, 2, 3])
+
+    def test_refused_credentials_fail_and_are_retried_rather_than_rejected(self):
+        api = FakeApi({"/pr": lambda p: ApiError(401, "/pr", {}, "refused")})
+        self.assertEqual(self.run_stage(api, "pr"), "stopped")  # ten failures in a row stop the run
+        self.assertEqual(self.statuses("pr"), {"failed": 10})
+
+    def test_event_filter_limits_platform_stages(self):
+        self.add_events([("t-1", 1, "CM", 0), ("t-2", 1, "CM", 0)])
+        queue = TaskQueue(self.db)
+        with self.db:
+            crawl.plan_cm(self.db, queue, SimpleNamespace(event=["t-2"]))
+        self.assertEqual(sorted(r[0] for r in self.db.execute("SELECT task_key FROM tasks")), ["cm_bracket:t-2", "cm_entrants:t-2"])
 
 
 class RunLockTest(unittest.TestCase):

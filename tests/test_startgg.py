@@ -13,6 +13,10 @@ from statsapi import ApiError  # noqa: E402
 
 GOOD = (200, b'{"data": {"event": {"id": 1}}}', None, 5)
 NO_DATA = (200, b'{"errors": [{"message": "An unknown error has occurred"}], "data": null}', None, 5)
+PARTIAL = (200, b'{"errors": [{"message": "An unknown error has occurred"}], "data": {"event": {"sets": null}}}', None, 5)
+PAST_CAP = (200, b'{"errors": [{"message": "Cannot query more than the 10,000th entry", "extensions":'
+                 b' {"category": "validation"}}], "data": {"event": {"sets": null}}}', None, 5)
+BAD_TOKEN = (400, b'{"success": false, "message": "Invalid authentication token"}', None, 5)
 
 
 class StartGGTest(unittest.TestCase):
@@ -51,12 +55,31 @@ class StartGGTest(unittest.TestCase):
         self.responses = [GOOD]  # the next run asks again rather than replaying the error
         self.assertEqual(self.client.query("Q", "query { x }", {"a": 2}), {"event": {"id": 1}})
 
+    def test_errors_alongside_data_are_retried_too(self):
+        self.responses = [PARTIAL, GOOD]
+        self.assertEqual(self.client.query("Q", "query { x }", {"a": 4}), {"event": {"id": 1}})
+
     def test_client_errors_are_final(self):
-        self.responses = [(400, b'{"success": false, "message": "Invalid authentication token"}', None, 5), GOOD]
+        self.responses = [(400, b'{"success": false, "message": "Syntax Error"}', None, 5), GOOD]
         with self.assertRaises(ApiError) as caught:
             self.client.query("Q", "query { x }", {"a": 3})
         self.assertEqual(caught.exception.status, 400)
         self.assertEqual(len(self.responses), 1)  # no retry
+
+    def test_a_refused_query_is_final(self):
+        self.responses = [PAST_CAP, GOOD]
+        with self.assertRaises(ApiError) as caught:
+            self.client.query("Q", "query { x }", {"page": 251})
+        self.assertEqual(caught.exception.status, startgg.QUERY_REFUSED)
+        self.assertEqual(len(self.responses), 1)  # no retry
+
+    def test_a_refused_token_is_logged_as_401_and_never_reused(self):
+        self.responses = [BAD_TOKEN]
+        with self.assertRaises(ApiError) as caught:
+            self.client.query("Q", "query { x }", {"a": 5})
+        self.assertEqual(caught.exception.status, startgg.AUTH_FAILED)
+        self.responses = [GOOD]  # a fixed token: the next run asks again
+        self.assertEqual(self.client.query("Q", "query { x }", {"a": 5}), {"event": {"id": 1}})
 
 
 if __name__ == "__main__":

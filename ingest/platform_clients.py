@@ -19,11 +19,15 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+from statsapi import ApiError
+
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw" / "platforms"
 SAFE_HEADERS = re.compile(r"rate|limit|remaining|reset|retry|request-id|^date$", re.I)
 # Challengermode's Cloudflare front end rejects Python's default user agent (error 1010).
 USER_AGENT = "esports-analyst-agent/0.1 (personal research project)"
+CM_AUTH_URL = "https://publicapi.challengermode.com/mk1/v1/auth/access_keys"
+CM_REFRESH_MARGIN = 120  # seconds before a Challengermode token's expiresAt to fetch a new one
 
 
 def load_env(path=ROOT / ".env"):
@@ -40,6 +44,54 @@ def load_env(path=ROOT / ".env"):
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+class AccessToken:
+    """A Challengermode access token, exchanged for CHALLENGERMODE_REFRESH_KEY.
+
+    get() renews it CM_REFRESH_MARGIN seconds before its expiresAt, so a long crawl never
+    sends an expired token; invalidate() forces a new one, for the single retry after an
+    auth error. post(url, payload) makes the HTTP call and returns (status, parsed JSON body
+    or None); clock() gives Unix seconds. The token is kept in memory only, and
+    last_response holds the exchange's response with the token redacted.
+    """
+
+    def __init__(self, post, margin=CM_REFRESH_MARGIN, clock=time.time):
+        self.post, self.margin, self.clock = post, margin, clock
+        self.value, self.expires, self.expires_at = None, 0.0, None
+        self.refreshes = 0
+        self.last_response = None
+
+    def get(self):
+        if not self.value or self.clock() >= self.expires - self.margin:
+            self.refresh()
+        return self.value
+
+    def invalidate(self):
+        self.value = None
+
+    def refresh(self):
+        payload = {"refreshKey": os.environ["CHALLENGERMODE_REFRESH_KEY"]}
+        status, body = self.post(CM_AUTH_URL, payload)
+        if status == 400 and "PackedRefreshKey" in json.dumps(body):  # field name as the API reports it
+            payload = {"packedRefreshKey": payload["refreshKey"]}
+            status, body = self.post(CM_AUTH_URL, payload)
+        if status is None or status >= 500 or status == 429:  # worth trying again later
+            raise ApiError(status, "challengermode/auth", {}, "token exchange failed")
+        if status != 200 or not isinstance(body, dict):
+            raise SystemExit(f"Challengermode token exchange failed with HTTP {status}")
+        token_field = next((k for k in ("value", "accessKey", "accessToken", "token") if k in body), None)
+        if not token_field:
+            raise SystemExit("Challengermode token exchange returned no recognisable token field: "
+                             + ", ".join(sorted(body)))
+        self.value = body[token_field]
+        self.expires_at = body.get("expiresAt")
+        if self.expires_at:
+            self.expires = datetime.fromisoformat(self.expires_at.replace("Z", "+00:00")).timestamp()
+        else:
+            self.expires = self.clock() + 15 * 60
+        self.refreshes += 1
+        self.last_response = {k: ("<redacted>" if k == token_field else v) for k, v in body.items()}
 
 
 class Recorder:
@@ -143,56 +195,45 @@ class StartGG(GraphQLClient):
         return {"Authorization": "Bearer " + os.environ["STARTGG_API_TOKEN"]}
 
 
+def is_cm_auth_error(status, body):
+    """A 401, or a GraphQL AUTH_NOT_AUTHENTICATED error: the token, not the request, was refused."""
+    if status == 401:
+        return True
+    errors = body.get("errors") if isinstance(body, dict) else None
+    return bool(errors) and any((e.get("extensions") or {}).get("code") == "AUTH_NOT_AUTHENTICATED" for e in errors)
+
+
 class Challengermode(GraphQLClient):
     url = "https://publicapi.challengermode.com/graphql"
-    auth_url = "https://publicapi.challengermode.com/mk1/v1/auth/access_keys"
     min_gap = 3.5  # bots may make 20 requests per minute
-    refresh_margin = 120  # seconds before expiry to fetch a new token
 
     def __init__(self):
         super().__init__("challengermode")
         if not os.environ.get("CHALLENGERMODE_REFRESH_KEY"):
             raise SystemExit("CHALLENGERMODE_REFRESH_KEY is not set")
-        self._token = None
-        self._expires = 0.0
+        self.token = AccessToken(self._exchange)
         self.token_log = []  # expiry times only, for the report
 
-    def _refresh(self):
-        payload = {"refreshKey": os.environ["CHALLENGERMODE_REFRESH_KEY"]}
-        status, body, headers, ms = self._post(self.auth_url, payload, {})
-        if status == 400 and "PackedRefreshKey" in json.dumps(body):  # field name as the API reports it
-            payload = {"packedRefreshKey": payload["refreshKey"]}
-            status, body, headers, ms = self._post(self.auth_url, payload, {})
-        if status != 200 or not isinstance(body, dict):
-            raise SystemExit(f"Challengermode token exchange failed with HTTP {status}")
-        token_field = next((k for k in ("value", "accessKey", "accessToken", "token") if k in body), None)
-        if not token_field:
-            raise SystemExit("Challengermode token exchange returned no recognisable token field: "
-                             + ", ".join(sorted(body)))
-        self._token = body[token_field]
-        expires_at = body.get("expiresAt")
-        if expires_at:
-            self._expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00")).timestamp()
-        else:
-            self._expires = time.time() + 15 * 60
-        redacted = {k: ("<redacted>" if k == token_field else v) for k, v in body.items()}
-        self.token_log.append({"fetched_at": now_iso(), "expiresAt": expires_at,
-                               "lifetime_s": round(self._expires - time.time())})
-        self.recorder.save("auth_access_key", redacted, {
-            "label": "auth_access_key", "url": self.auth_url, "status": status, "ms": ms,
-            "fetched_at": now_iso(), "headers": headers, "note": "token redacted"})
-        print(f"[auth] Challengermode token obtained; expires {expires_at}")
+    def _exchange(self, url, payload):
+        status, body, headers, ms = self._post(url, payload, {})
+        self._last_exchange = (status, headers, ms)
+        return status, body
 
     def auth_headers(self):
-        if not self._token or time.time() > self._expires - self.refresh_margin:
-            self._refresh()
-        return {"Authorization": "Bearer " + self._token}
+        refreshes = self.token.refreshes
+        token = self.token.get()
+        if self.token.refreshes != refreshes:  # a new token: record the exchange, token redacted
+            status, headers, ms = self._last_exchange
+            self.token_log.append({"fetched_at": now_iso(), "expiresAt": self.token.expires_at,
+                                   "lifetime_s": round(self.token.expires - time.time())})
+            self.recorder.save("auth_access_key", self.token.last_response, {
+                "label": "auth_access_key", "url": CM_AUTH_URL, "status": status, "ms": ms,
+                "fetched_at": now_iso(), "headers": headers, "note": "token redacted"})
+            print(f"[auth] Challengermode token obtained; expires {self.token.expires_at}")
+        return {"Authorization": "Bearer " + token}
 
     def is_auth_error(self, status, body):
-        if status == 401:
-            return True
-        errors = body.get("errors") if isinstance(body, dict) else None
-        return bool(errors) and any((e.get("extensions") or {}).get("code") == "AUTH_NOT_AUTHENTICATED" for e in errors)
+        return is_cm_auth_error(status, body)
 
     def on_auth_error(self):
-        self._token = None  # force a fresh token for the single retry
+        self.token.invalidate()  # force a fresh token for the single retry

@@ -45,6 +45,12 @@ class ResponseCacheTest(unittest.TestCase):
         self.assertIsNone(self.cache.newest("/event", {"gameMode": 2}))
         self.assertEqual(self.cache.db.execute("SELECT COUNT(*) FROM requests").fetchone()[0], 4)
 
+    def test_refused_credentials_are_never_reused(self):
+        self.cache.store("cm/Roster", {"id": "x"}, "u", 401, b'{"errors": []}', 5)
+        self.cache.store("cm/Roster", {"id": "y"}, "u", 403, b"error code: 1010", 5)
+        self.assertIsNone(self.cache.newest("cm/Roster", {"id": "x"}))
+        self.assertIsNone(self.cache.newest("cm/Roster", {"id": "y"}))
+
 
 if __name__ == "__main__":
     unittest.main()

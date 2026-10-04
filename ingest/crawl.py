@@ -1,24 +1,30 @@
-"""The Stats API crawl (docs/schema-proposal.md §3), run one stage at a time.
+"""The crawl (docs/schema-proposal.md §3), run one stage at a time.
 
     python ingest/crawl.py status                  progress of every stage
     python ingest/crawl.py events                  stage 0: every official event
     python ingest/crawl.py pr                      stage 1: the PR lists, which seed the players
     python ingest/crawl.py profiles                stage 2: profiles of known players
-    python ingest/crawl.py histories [--sample N]  stage 3: official placements and teammates
-    python ingest/crawl.py teams                   stage 4: official placements of each 2v2 pair
-    python ingest/crawl.py matches                 stage 6: matches per player and event
+    python ingest/crawl.py lookups                 stage 2b: the Stats API record of every platform player
+    python ingest/crawl.py histories [--sample N]  stage 3: official placements and teammates (held after its pilot)
+    python ingest/crawl.py proseries               stage 3b: placements at the three Pro Series finals
+    python ingest/crawl.py teams                   stage 4: official placements of each 2v2 pair (held after its pilot)
     python ingest/crawl.py standings               P1: start.gg standings of official start.gg events
+    python ingest/crawl.py brackets                P4: start.gg sets, pools and last-phase games
+    python ingest/crawl.py cm                      P5: Challengermode entrant lists and brackets
+
+For a pilot, --event ID (repeatable) limits brackets, cm, lookups and proseries to the events
+named, and --max-pools N fetches only the first N pools of each phase of an event that start.gg
+can't list in one go (over 10,000 sets).
 
 A stage first plans its tasks from what earlier stages found, then works through them.
-Stages on different APIs (the Stats API, start.gg) can run at the same time.
+Stages on different APIs (the Stats API, start.gg, Challengermode) can run at the same time.
 Re-running the same command picks up where it stopped: finished tasks are skipped, and
-requests already made come back from the cache. Ctrl+C stops after the current task.
-Stage 3 finds new players as teammates and stage 6 as opponents; re-running stages 2-4
-and 6 crawls them, and that loop is stage 5, discovery. Each run also writes a log to
-data/logs/crawl-<stage>.log.
+requests already made come back from the cache. Ctrl+C stops after the current task. Each
+run also writes a log to data/logs/crawl-<stage>.log.
 """
 
 import argparse
+import collections
 import hashlib
 import logging
 import random
@@ -27,9 +33,10 @@ import time
 from datetime import datetime, timezone
 
 from cache import ROOT
+from challengermode import Challengermode
 from startgg import StartGG
 from statsapi import ApiError, StatsApi
-from tasks import MAX_ATTEMPTS, RunLock, StopFlag, TaskQueue, connect, pid_alive
+from tasks import MAX_ATTEMPTS, RunLock, StopFlag, TaskQueue, connect, now, pid_alive
 
 PAGE_SIZE = 50  # the maximum for ListEvents, GetPlayerPlacements and GetPlayerTeammates
 PR_PAGE_SIZE = 100
@@ -39,6 +46,28 @@ REGIONS = ["NA", "EU", "SA", "SEA", "MENA"]  # ListPr's regions with rows
 FIRST_YEAR = 2017  # the API has nothing earlier
 SAMPLE_SEED = 20261004  # fixes which players `histories --sample` picks
 LOG_DIR = ROOT / "data" / "logs"
+
+LOOKUP_PARAMS = {"startgg": ("sggIds", "sggPlayerId"), "challengermode": ("cmIds", "cmPlayerId")}
+SERIES_TOP = 16  # Pro Series candidates: everyone placed this high at an event in the year before a final
+SERIES_WINDOW = 365 * 86400
+SETS_PER_PAGE = 40
+SETS_CAP = 10_000  # start.gg can't page a listing past its 10,000th entry
+POOLS_PER_QUERY = 24  # an event with more pools than this gets them phase by phase, a page at a time
+POOLS_PER_PAGE = 16
+GAMES_PER_PAGE = {1: 16, 2: 8}  # sets per page with their games; 2v2 games list twice the characters
+GAMES_MAX_SEEDS = 64  # games are fetched for the last phase only, and only when it's this small
+ROSTER_LIMIT = 2000  # Challengermode lineups per roster query, which has no paging
+
+STANDINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS crawl_standings (         -- P1: every placed participant, by start.gg player ID
+  event_id        TEXT NOT NULL,
+  participant_id  INTEGER NOT NULL,
+  entrant_id      INTEGER NOT NULL,
+  sgg_player_id   INTEGER,
+  placement       INTEGER,
+  disqualified    INTEGER,
+  PRIMARY KEY (event_id, entrant_id, participant_id) -- one player can be entered twice in an event
+)"""
 
 CRAWL_SCHEMA = """
 -- What the crawl has learned so far, used to plan later stages. The builder reads the cache, not these.
@@ -68,22 +97,53 @@ CREATE TABLE IF NOT EXISTS crawl_entries (      -- official events each player e
   planned    INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (player_id, event_id)
 );
-CREATE TABLE IF NOT EXISTS crawl_platform_events (   -- P1: official events as start.gg sees them
+CREATE TABLE IF NOT EXISTS crawl_platform_events (   -- P1, P5: official events as each platform sees them
   event_id           TEXT PRIMARY KEY,
-  platform           TEXT NOT NULL,             -- 'startgg'
+  platform           TEXT NOT NULL,             -- 'startgg' | 'challengermode'
   platform_event_id  TEXT,
-  entrants           INTEGER,                   -- placed entrants (the standings' total)
-  registered         INTEGER,                   -- start.gg numEntrants, which counts registrations
+  entrants           INTEGER,                   -- placed entrants (start.gg's standings total, Challengermode's lineupCount)
+  registered         INTEGER,                   -- start.gg numEntrants, which counts registrations; lineups returned
   status             TEXT NOT NULL              -- 'ok' | 'missing' (start.gg has no such event)
 );
-CREATE TABLE IF NOT EXISTS crawl_standings (         -- P1: every placed participant, by start.gg player ID
-  event_id        TEXT NOT NULL,
-  participant_id  INTEGER NOT NULL,
-  entrant_id      INTEGER,
-  sgg_player_id   INTEGER,
-  placement       INTEGER,
-  disqualified    INTEGER,
-  PRIMARY KEY (event_id, participant_id)
+""" + STANDINGS_TABLE + """;
+CREATE TABLE IF NOT EXISTS crawl_cm_entrants (       -- P5: every lineup member at each official Challengermode event
+  event_id    TEXT NOT NULL,
+  lineup_id   TEXT NOT NULL,
+  user_id     TEXT NOT NULL,                    -- the Stats API cmPlayerId
+  placement   INTEGER,                          -- bestPlacement
+  PRIMARY KEY (event_id, lineup_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS crawl_brackets (          -- P4, P5: each event's bracket
+  event_id    TEXT PRIMARY KEY,
+  platform    TEXT NOT NULL,                    -- 'startgg' | 'challengermode'
+  matches     INTEGER,                          -- start.gg's set total; for Challengermode, the matches returned
+  by_pool     INTEGER NOT NULL DEFAULT 0        -- 1: over start.gg's 10,000-result cap, so fetched pool by pool
+);
+CREATE TABLE IF NOT EXISTS crawl_pools (             -- P4: start.gg pools (phase groups)
+  pool_id   INTEGER PRIMARY KEY,
+  event_id  TEXT NOT NULL,
+  phase_id  INTEGER,
+  sets      INTEGER,                            -- the pool's set total, for events fetched pool by pool
+  planned   INTEGER NOT NULL DEFAULT 0          -- events fetched pool by pool: 1 once the pool's sets are planned
+);
+CREATE TABLE IF NOT EXISTS crawl_matches (           -- P4, P5: every set or match returned
+  match_id  TEXT PRIMARY KEY,                   -- start.gg set ID / Challengermode match UUID
+  event_id  TEXT NOT NULL,
+  pool_id   INTEGER                             -- start.gg pool
+);
+CREATE INDEX IF NOT EXISTS crawl_matches_event ON crawl_matches (event_id);
+CREATE TABLE IF NOT EXISTS crawl_platform_players (  -- 2b: platform players and their Stats API records
+  platform            TEXT NOT NULL,            -- 'startgg' | 'challengermode'
+  platform_player_id  TEXT NOT NULL,            -- start.gg player ID / Challengermode user ID
+  status              INTEGER NOT NULL DEFAULT 0,  -- 0 to look up, 1 planned, 2 found, 3 not in the Stats API
+  player_id           INTEGER,                  -- the Stats API record, once found
+  PRIMARY KEY (platform, platform_player_id)
+);
+CREATE TABLE IF NOT EXISTS crawl_series_placements ( -- 3b: placements found at the Pro Series finals
+  event_id   TEXT NOT NULL,
+  player_id  INTEGER NOT NULL,
+  placement  INTEGER NOT NULL,
+  PRIMARY KEY (event_id, player_id)
 );
 """
 
@@ -95,6 +155,94 @@ query Standings($slug: String!, $page: Int!) { event(slug: $slug) {
     nodes { placement isFinal
       entrant { id name initialSeedNum isDisqualified
         participants { id gamerTag prefix player { id } } } } } } }"""
+
+# P4. Sets carry what `matches` and the bracket tables need; seeds come from the standings'
+# initialSeedNum. Sorting by round pages stably (no set repeated or skipped in the survey).
+SET_FIELDS = """id round fullRoundText identifier displayScore winnerId state wPlacement lPlacement startedAt completedAt
+      phaseGroup { id }
+      slots { slotIndex entrant { id name } standing { stats { score { value } } } }"""
+
+EVENT_SETS_QUERY = """
+query EventSets($slug: String!, $page: Int!, $perPage: Int!) { event(slug: $slug) {
+  id
+  phases { id name phaseOrder bracketType numSeeds groupCount state isExhibition }
+  sets(page: $page, perPage: $perPage, sortType: ROUND) {
+    pageInfo { total totalPages }
+    nodes { %s } } } }""" % SET_FIELDS
+
+POOL_SETS_QUERY = """
+query PoolSets($poolId: ID!, $page: Int!, $perPage: Int!) { phaseGroup(id: $poolId) {
+  id
+  sets(page: $page, perPage: $perPage, sortType: ROUND) {
+    pageInfo { total totalPages }
+    nodes { %s } } } }""" % SET_FIELDS
+
+POOL_FIELDS = "id displayIdentifier bracketType bracketUrl numRounds state startAt rounds { number bestOf }"
+
+EVENT_POOLS_QUERY = """
+query EventPools($slug: String!) { event(slug: $slug) {
+  id phaseGroups { %s phase { id } } } }""" % POOL_FIELDS
+
+PHASE_POOLS_QUERY = """
+query PhasePools($phaseId: ID!, $page: Int!, $perPage: Int!) { phase(id: $phaseId) {
+  id phaseGroups(query: {page: $page, perPage: $perPage}) {
+    pageInfo { total totalPages }
+    nodes { %s } } } }""" % POOL_FIELDS
+
+PHASE_GAMES_QUERY = """
+query PhaseGames($phaseId: ID!, $page: Int!, $perPage: Int!) { phase(id: $phaseId) {
+  id sets(page: $page, perPage: $perPage, sortType: ROUND) {
+    pageInfo { total totalPages }
+    nodes { id games { orderNum winnerId entrant1Score entrant2Score stage { id name }
+      selections { entrant { id } character { id name } } } } } } }"""
+
+# P5. A Challengermode match is the set: its result is the game score, and its lineup
+# numbers (0, 1) say whose score is whose. The series around it is a best-of-1 wrapper.
+CM_ROSTER_QUERY = """
+query Roster($id: UUID!, $limit: Int!) { tournament(tournamentId: $id) {
+  id name state
+  attendance { confirmedLineupCount roster { lineupCount userCount
+    lineups(limit: $limit) { id name seed preSeed disqualified
+      placement { bestPlacement worstPlacement displayPlacement }
+      members { gameAccountId captain user { id username } } } } } } }"""
+
+CM_SERIES_FIELDS = """id ordinal state bestOf startedAt title labels
+      lineups { id name seed disqualified members { user { id } } }
+      results { final draw lineupResults { lineupNumber score placement } }
+      matches(includeFailed: true) { id state
+        lineups { number members { user { id } } }
+        results { final draw lineupResults { lineupNumber score placement } } }"""
+
+CM_ROUND_FIELDS = "roundNumber title labels matchSeries { %s }" % CM_SERIES_FIELDS
+
+CM_BRACKET_QUERY = """
+query Bracket($id: UUID!) { tournament(tournamentId: $id) {
+  id
+  stages { index format lineupCount
+    ... on TournamentEliminationStage { brackets { title labels rounds { %s } } }
+    ... on TournamentSwissStage { rounds { %s } }
+    ... on TournamentGroupStage { groups { number title matchSeries { %s } } } } } }""" % (
+    CM_ROUND_FIELDS, CM_ROUND_FIELDS, CM_SERIES_FIELDS)
+
+
+def migrate(db):
+    """Bring crawl tables made by earlier versions of this file up to date."""
+    key = [r[1] for r in sorted(db.execute("PRAGMA table_info(crawl_standings)"), key=lambda r: r[5]) if r[5]]
+    if key == ["event_id", "participant_id"]:  # until 2026-10-04 a player entered twice in one event kept one row
+        with db:
+            db.execute("ALTER TABLE crawl_standings RENAME TO crawl_standings_old")
+            db.execute(STANDINGS_TABLE)
+            db.execute("INSERT INTO crawl_standings (event_id, participant_id, entrant_id, sgg_player_id, placement, disqualified)"
+                       " SELECT event_id, participant_id, entrant_id, sgg_player_id, placement, disqualified"
+                       " FROM crawl_standings_old")
+            db.execute("DROP TABLE crawl_standings_old")
+            short = {r[0] for r in db.execute(
+                "SELECT event_id FROM crawl_platform_events p WHERE platform = 'startgg' AND status = 'ok' AND entrants >"
+                " (SELECT COUNT(DISTINCT entrant_id) FROM crawl_standings s WHERE s.event_id = p.event_id)")}
+            keys = [k for (k,) in db.execute("SELECT task_key FROM tasks WHERE stage = 'standings'")
+                    if k.rsplit(":", 1)[0].removeprefix("standings:") in short]
+            # Their pages are applied again, from the cache, on the next standings run.
+            db.executemany("UPDATE tasks SET status = 'pending', updated_at = ? WHERE task_key = ?", [(now(), k) for k in keys])
 
 
 def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log=print):
@@ -132,6 +280,25 @@ def placement_pages(api, player_ids, mode, log):
     return walk_pages(api, "/player/placement", {"playerIds": player_ids, "gameMode": mode, "isOfficial": True},
                       "playerPlacements", lambda r: r["tournament"]["id"], lambda r: r["tournament"]["startTime"],
                       PAGE_SIZE, log)
+
+
+def follow_pages(p, kind, key_prefix, page_info):
+    """From a listing's first page, the tasks for the rest of its pages."""
+    if p["page"] != 1:
+        return []
+    return [(STAGE_OF[kind], kind, f"{key_prefix}:{page}", {**p, "page": page})
+            for page in range(2, ((page_info or {}).get("totalPages") or 1) + 1)]
+
+
+def chosen_events(db, host, args):
+    """The official events a platform stage covers: every one on that platform, or those named with --event."""
+    if host == "SGG":  # the 'series/...' events have no start.gg event
+        rows = db.execute("SELECT event_id FROM crawl_events WHERE host = 'SGG' AND event_id LIKE 'tournament/%'"
+                          " ORDER BY start_time, event_id")
+    else:
+        rows = db.execute("SELECT event_id FROM crawl_events WHERE host = 'CM' ORDER BY start_time, event_id")
+    only = set(getattr(args, "event", None) or [])
+    return [eid for (eid,) in rows if not only or eid in only]
 
 
 # Stage 0: events
@@ -206,13 +373,18 @@ def plan_profiles(db, queue, args):
     db.execute("UPDATE crawl_players SET profile = 1 WHERE profile = 0")
 
 
-def fetch_profile_batch(api, p, log):
+def split_on_refusal(api, endpoint, params, ids):
+    """ListPlayers, or {'split': True} when it refuses the batch, which is then tried in halves."""
     try:
-        return api.get("/players", {"playerIds": p["player_ids"]})
+        return api.get(endpoint, params)
     except ApiError as e:
-        if e.status and 400 <= e.status < 500 and e.status != 404 and len(p["player_ids"]) > 1:
+        if e.status and 400 <= e.status < 500 and e.status not in (401, 403, 404, 429) and len(ids) > 1:
             return {"split": True}  # too many IDs for one request: try each half
         raise
+
+
+def fetch_profile_batch(api, p, log):
+    return split_on_refusal(api, "/players", {"playerIds": p["player_ids"]}, p["player_ids"])
 
 
 def apply_profile_batch(db, p, body):
@@ -223,6 +395,61 @@ def apply_profile_batch(db, p, body):
     db.executemany("UPDATE crawl_players SET profile = ? WHERE player_id = ?",
                    [(2 if i in found else 3, i) for i in ids])
     return []
+
+
+# Stage 2b: lookups. Every player in start.gg standings and Challengermode entrant lists,
+# matched to their Stats API record by platform ID; a player with none is platform-only.
+
+def lookup_task(platform, ids):
+    digest = hashlib.sha1(",".join(ids).encode()).hexdigest()[:10]
+    return "lookups", "lookup", f"lookup:{platform}:{ids[0]}-{ids[-1]}:{digest}", {"platform": platform, "ids": ids}
+
+
+def plan_lookups(db, queue, args):
+    only = list(getattr(args, "event", None) or [])
+    where = f" AND event_id IN ({', '.join('?' * len(only))})" if only else ""
+    db.execute("INSERT OR IGNORE INTO crawl_platform_players (platform, platform_player_id)"
+               " SELECT DISTINCT 'startgg', CAST(sgg_player_id AS TEXT) FROM crawl_standings"
+               " WHERE sgg_player_id IS NOT NULL" + where, only)
+    db.execute("INSERT OR IGNORE INTO crawl_platform_players (platform, platform_player_id)"
+               " SELECT DISTINCT 'challengermode', user_id FROM crawl_cm_entrants WHERE 1" + where, only)
+    for platform in LOOKUP_PARAMS:
+        ids = [r[0] for r in db.execute("SELECT platform_player_id FROM crawl_platform_players WHERE platform = ?"
+                                        " AND status = 0 ORDER BY length(platform_player_id), platform_player_id",
+                                        (platform,))]
+        for i in range(0, len(ids), PROFILE_BATCH):
+            queue.add(*lookup_task(platform, ids[i:i + PROFILE_BATCH]))
+        db.execute("UPDATE crawl_platform_players SET status = 1 WHERE platform = ? AND status = 0", (platform,))
+
+
+def fetch_lookup(api, p, log):
+    return split_on_refusal(api, "/players", {LOOKUP_PARAMS[p["platform"]][0]: p["ids"]}, p["ids"])
+
+
+def record_lookup(db, platform, ids, body):
+    """Mark each platform ID found (with its Stats API record) or not in the Stats API. Returns the records found."""
+    field = LOOKUP_PARAMS[platform][1]
+    found = {str(pl[field]).lower(): pl["playerId"] for pl in body.get("players") or [] if pl and pl.get(field) is not None}
+    db.executemany("INSERT INTO crawl_platform_players (platform, platform_player_id, status, player_id) VALUES (?, ?, ?, ?)"
+                   " ON CONFLICT (platform, platform_player_id) DO UPDATE SET status = excluded.status,"
+                   " player_id = excluded.player_id",
+                   [(platform, i, 2 if i.lower() in found else 3, found.get(i.lower())) for i in ids])
+    return found
+
+
+def apply_lookup(db, p, body):
+    if body.get("split"):
+        half = len(p["ids"]) // 2
+        return [lookup_task(p["platform"], p["ids"][:half]), lookup_task(p["platform"], p["ids"][half:])]
+    record_lookup(db, p["platform"], p["ids"], body)
+    return []
+
+
+def check_lookups(db, api, log):
+    for platform, status, n in db.execute("SELECT platform, status, COUNT(*) FROM crawl_platform_players"
+                                          " GROUP BY platform, status ORDER BY platform, status"):
+        log(f"  {platform}: {n} {({0: 'to look up', 1: 'planned', 2: 'found', 3: 'not in the Stats API'})[status]}")
+    return True
 
 
 # Stage 3: histories
@@ -265,6 +492,93 @@ def apply_teammates(db, p, rows):
     return []
 
 
+# Stage 3b: the Pro Series finals. No platform has them and the Stats API has no event
+# endpoint, so likely entrants are checked one by one: the top of every official 1v1 start.gg
+# event in the year before the final, in its region or in no region (LANs, partner events).
+
+def slug_region(event_id):
+    """'NA', 'EU' or 'other' from the region an event ID names; None when it names none."""
+    name = event_id.split("/")[1]
+    tokens = set(name.split("-"))
+    if name.startswith("north-america") or tokens & {"na", "us"}:
+        return "NA"
+    if name.startswith("europe") or "eu" in tokens:
+        return "EU"
+    if tokens & {"sa", "sea", "aus", "brz", "south", "southeast", "asia", "australia", "brazil", "japan", "mena"}:
+        return "other"
+    return None
+
+
+def plan_proseries(db, queue, args):
+    only = set(getattr(args, "event", None) or [])
+    for final, start in db.execute("SELECT event_id, start_time FROM crawl_events WHERE event_id LIKE 'series/%'"
+                                   " ORDER BY start_time").fetchall():
+        if only and final not in only:
+            continue
+        events = [eid for (eid,) in db.execute(
+            "SELECT event_id FROM crawl_events WHERE mode = 1 AND host = 'SGG' AND event_id LIKE 'tournament/%'"
+            " AND start_time >= ? AND start_time < ?", (start - SERIES_WINDOW, start))
+            if slug_region(eid) in (slug_region(final), None)]
+        ids = sorted({str(r[0]) for eid in events for r in db.execute(
+            "SELECT sgg_player_id FROM crawl_standings WHERE event_id = ? AND placement <= ? AND sgg_player_id IS NOT NULL",
+            (eid, SERIES_TOP))}, key=int)
+        for n, i in enumerate(range(0, len(ids), PROFILE_BATCH), 1):
+            queue.add("proseries", "series_candidates", f"series_candidates:{final}:{n}",
+                      {"event_id": final, "start_time": start, "sgg_ids": ids[i:i + PROFILE_BATCH]})
+
+
+def fetch_series_candidates(api, p, log):
+    return api.get("/players", {"sggIds": p["sgg_ids"]})
+
+
+def apply_series_candidates(db, p, body):
+    found = record_lookup(db, "startgg", p["sgg_ids"], body)  # these are lookups too
+    return [("proseries", "series_check", f"series_check:{p['event_id']}:{pid}",
+             {"event_id": p["event_id"], "start_time": p["start_time"], "player_id": pid})
+            for pid in sorted(set(found.values()))]
+
+
+def fetch_series_check(api, p, log):
+    """The player's newest official 1v1 events up to the final's start: one page shows whether they played it."""
+    return api.get("/player/placement", {"playerIds": p["player_id"], "gameMode": 1, "isOfficial": True,
+                                         "maxResults": 10, "nextToken": p["start_time"] + 1})
+
+
+def apply_series_check(db, p, body):
+    db.executemany("INSERT OR REPLACE INTO crawl_series_placements (event_id, player_id, placement) VALUES (?, ?, ?)",
+                   [(p["event_id"], p["player_id"], r["placement"]) for r in body.get("playerPlacements") or []
+                    if r["tournament"]["id"] == p["event_id"]])
+    return []
+
+
+def double_elimination_places(n):
+    """The places of a complete double elimination of n entrants: 1, 2, 3, 4, 5, 5, 7, 7, 9 x4, 13 x4, 17 x8, ..."""
+    places, place, size = [1, 2, 3, 4], 5, 2
+    while len(places) < n:
+        places += [place] * size + [place + size] * size
+        place, size = place + 2 * size, size * 2
+    return places[:n]
+
+
+def check_proseries(db, api, log):
+    """The placements found at each final should form a complete bracket; a gap means an entrant was missed."""
+    ok = True
+    for (final,) in db.execute("SELECT event_id FROM crawl_events WHERE event_id LIKE 'series/%' ORDER BY start_time").fetchall():
+        checked = sum(1 for (k,) in db.execute("SELECT task_key FROM tasks WHERE kind = 'series_check'")
+                      if k.startswith(f"series_check:{final}:"))
+        if not checked:
+            continue
+        found = sorted(r[0] for r in db.execute("SELECT placement FROM crawl_series_placements WHERE event_id = ?", (final,)))
+        if found and found == double_elimination_places(len(found)):
+            verdict = f"consistent with a complete double elimination of {len(found)}"
+        elif found and found == list(range(1, len(found) + 1)):
+            verdict = f"consistent with a complete ranking of {len(found)}"
+        else:
+            ok, verdict = False, "not a complete bracket, so an entrant may be missing"
+        log(f"{final}: {len(found)} placements among {checked} candidates ({', '.join(map(str, found)) or 'none'}): {verdict}")
+    return ok
+
+
 # Stage 4: teams
 
 def plan_teams(db, queue, args):
@@ -280,26 +594,6 @@ def fetch_team(api, p, log):
 def apply_team(db, p, rows):
     db.execute("UPDATE crawl_pairs SET events = ? WHERE player1_id = ? AND player2_id = ?",
                (len(rows), *p["player_ids"]))
-    return []
-
-
-# Stage 6: matches (the Pro Series finals' 'series/...' IDs are rejected by GetPlayerMatches)
-
-def plan_matches(db, queue, args):
-    for pid, eid in db.execute("SELECT player_id, event_id FROM crawl_entries"
-                               " WHERE planned = 0 AND event_id NOT LIKE 'series/%'").fetchall():
-        queue.add("matches", "matches", f"matches:{pid}:{eid}", {"player_id": pid, "event_id": eid})
-    db.execute("UPDATE crawl_entries SET planned = 1 WHERE planned = 0 AND event_id NOT LIKE 'series/%'")
-
-
-def fetch_matches(api, p, log):
-    return api.get("/player/match", {"tournamentId": p["event_id"], "playerIds": p["player_id"]})
-
-
-def apply_matches(db, p, body):
-    opponents = {o["playerId"] for m in body.get("playerMatches") or [] for o in m.get("opponent") or [] if o}
-    db.executemany("INSERT OR IGNORE INTO crawl_players (player_id, found_by) VALUES (?, 'opponent')",
-                   [(o,) for o in opponents])
     return []
 
 
@@ -338,31 +632,271 @@ def apply_standings_page(db, p, data):
             for page in range(2, (standings["pageInfo"]["totalPages"] or 1) + 1)]
 
 
+def check_standings(db, api, log):
+    """Every event's standings must hold start.gg's own count of placed entrants."""
+    short = db.execute("SELECT event_id, entrants, (SELECT COUNT(DISTINCT entrant_id) FROM crawl_standings s"
+                       " WHERE s.event_id = p.event_id) AS held FROM crawl_platform_events p"
+                       " WHERE platform = 'startgg' AND status = 'ok' AND entrants <> held").fetchall()
+    for eid, entrants, held in short:
+        log(f"  {eid}: {held} of {entrants} entrants")
+    log(f"start.gg standings: {len(short)} event(s) short")
+    return not short
+
+
+# P4: start.gg brackets. Each event's sets, a page at a time, or pool by pool for the four
+# events over start.gg's cap; its pools with their round best-ofs; and the games of its
+# last phase. start.gg requests only, so it can run alongside a Stats API stage.
+
+def plan_brackets(db, queue, args):
+    for slug in chosen_events(db, "SGG", args):
+        queue.add("brackets", "sgg_sets", f"sgg_sets:{slug}:1", {"slug": slug, "page": 1})
+    # The pools of events fetched pool by pool, once pool tasks have found them.
+    only, limit, taken = set(getattr(args, "event", None) or []), getattr(args, "max_pools", None), collections.Counter()
+    for pool_id, slug, phase_id, planned in db.execute(
+            "SELECT pool_id, event_id, phase_id, planned FROM crawl_pools WHERE event_id IN"
+            " (SELECT event_id FROM crawl_brackets WHERE by_pool = 1) ORDER BY event_id, phase_id, pool_id").fetchall():
+        if only and slug not in only:
+            continue
+        if not planned and limit is not None and taken[phase_id] >= limit:
+            continue  # a pilot: only the first pools of each phase
+        if not planned:
+            queue.add("brackets", "sgg_pool_sets", f"sgg_pool_sets:{pool_id}:1", {"slug": slug, "pool_id": pool_id, "page": 1})
+            db.execute("UPDATE crawl_pools SET planned = 1 WHERE pool_id = ?", (pool_id,))
+        taken[phase_id] += 1
+
+
+def record_sets(db, slug, sets):
+    db.executemany("INSERT OR IGNORE INTO crawl_matches (match_id, event_id, pool_id) VALUES (?, ?, ?)",
+                   [(str(s["id"]), slug, (s.get("phaseGroup") or {}).get("id")) for s in sets.get("nodes") or []])
+
+
+def fetch_sgg_sets(api, p, log):
+    return api.query("EventSets", EVENT_SETS_QUERY, {"slug": p["slug"], "page": p["page"], "perPage": SETS_PER_PAGE})
+
+
+def apply_sgg_sets(db, p, data):
+    event, slug = data.get("event"), p["slug"]
+    if not event or event.get("sets") is None:
+        raise ValueError(f"start.gg returned no sets for {slug}")
+    record_sets(db, slug, event["sets"])
+    if p["page"] != 1:
+        return []
+    info = event["sets"]["pageInfo"]
+    by_pool = (info["total"] or 0) > SETS_CAP
+    db.execute("INSERT OR REPLACE INTO crawl_brackets (event_id, platform, matches, by_pool) VALUES (?, 'startgg', ?, ?)",
+               (slug, info["total"], int(by_pool)))
+    follow = [] if by_pool else follow_pages(p, "sgg_sets", f"sgg_sets:{slug}", info)
+    phases = sorted(event.get("phases") or [], key=lambda ph: ph.get("phaseOrder") or 0)
+    if by_pool or sum(ph.get("groupCount") or 1 for ph in phases) > POOLS_PER_QUERY:
+        follow += [("brackets", "sgg_phase_pools", f"sgg_phase_pools:{ph['id']}:1", {"slug": slug, "phase_id": ph["id"], "page": 1})
+                   for ph in phases]
+    else:
+        follow.append(("brackets", "sgg_pools", f"sgg_pools:{slug}", {"slug": slug}))
+    played = [ph for ph in phases if not ph.get("isExhibition")]
+    if played and (played[-1].get("numSeeds") or SETS_CAP) <= GAMES_MAX_SEEDS:
+        mode = (db.execute("SELECT mode FROM crawl_events WHERE event_id = ?", (slug,)).fetchone() or (2,))[0]
+        last = played[-1]["id"]
+        follow.append(("brackets", "sgg_games", f"sgg_games:{last}:1",
+                       {"slug": slug, "phase_id": last, "page": 1, "per_page": GAMES_PER_PAGE.get(mode, 8)}))
+    return follow
+
+
+def fetch_sgg_pools(api, p, log):
+    return api.query("EventPools", EVENT_POOLS_QUERY, {"slug": p["slug"]})
+
+
+def apply_sgg_pools(db, p, data):
+    db.executemany("INSERT OR IGNORE INTO crawl_pools (pool_id, event_id, phase_id) VALUES (?, ?, ?)",
+                   [(g["id"], p["slug"], (g.get("phase") or {}).get("id"))
+                    for g in (data.get("event") or {}).get("phaseGroups") or []])
+    return []
+
+
+def fetch_sgg_phase_pools(api, p, log):
+    return api.query("PhasePools", PHASE_POOLS_QUERY, {"phaseId": p["phase_id"], "page": p["page"], "perPage": POOLS_PER_PAGE})
+
+
+def apply_sgg_phase_pools(db, p, data):
+    pools = (data.get("phase") or {}).get("phaseGroups")
+    if pools is None:
+        raise ValueError(f"start.gg returned no pools for phase {p['phase_id']}")
+    db.executemany("INSERT OR IGNORE INTO crawl_pools (pool_id, event_id, phase_id) VALUES (?, ?, ?)",
+                   [(g["id"], p["slug"], p["phase_id"]) for g in pools.get("nodes") or []])
+    return follow_pages(p, "sgg_phase_pools", f"sgg_phase_pools:{p['phase_id']}", pools.get("pageInfo"))
+
+
+def fetch_sgg_pool_sets(api, p, log):
+    return api.query("PoolSets", POOL_SETS_QUERY, {"poolId": p["pool_id"], "page": p["page"], "perPage": SETS_PER_PAGE})
+
+
+def apply_sgg_pool_sets(db, p, data):
+    pool = data.get("phaseGroup")
+    if not pool or pool.get("sets") is None:
+        raise ValueError(f"start.gg returned no sets for pool {p['pool_id']}")
+    record_sets(db, p["slug"], pool["sets"])
+    if p["page"] == 1:
+        db.execute("UPDATE crawl_pools SET sets = ? WHERE pool_id = ?", (pool["sets"]["pageInfo"]["total"], p["pool_id"]))
+    return follow_pages(p, "sgg_pool_sets", f"sgg_pool_sets:{p['pool_id']}", pool["sets"]["pageInfo"])
+
+
+def fetch_sgg_games(api, p, log):
+    return api.query("PhaseGames", PHASE_GAMES_QUERY, {"phaseId": p["phase_id"], "page": p["page"], "perPage": p["per_page"]})
+
+
+def apply_sgg_games(db, p, data):
+    sets = (data.get("phase") or {}).get("sets")
+    if sets is None:
+        raise ValueError(f"start.gg returned no sets for phase {p['phase_id']}")
+    return follow_pages(p, "sgg_games", f"sgg_games:{p['phase_id']}", sets.get("pageInfo"))
+
+
+def check_brackets(db, api, log):
+    """Every event's sets must all have come back: as many distinct sets as start.gg's own total."""
+    complete, partial, short = 0, 0, 0
+    for slug, total, by_pool, held in db.execute(
+            "SELECT event_id, matches, by_pool, (SELECT COUNT(*) FROM crawl_matches m WHERE m.event_id = b.event_id)"
+            " FROM crawl_brackets b WHERE platform = 'startgg' ORDER BY event_id").fetchall():
+        if by_pool:
+            pools, planned, pool_sets = db.execute("SELECT COUNT(*), SUM(planned), SUM(sets) FROM crawl_pools"
+                                                   " WHERE event_id = ?", (slug,)).fetchone()
+            if not pools or planned < pools:
+                partial += 1
+                log(f"  {slug}: {planned or 0} of {pools} pools fetched so far ({held} of {total} sets)")
+                continue
+            if pool_sets != total:
+                log(f"  {slug}: its pools hold {pool_sets} sets, start.gg's event total is {total}")
+        if held == total:
+            complete += 1
+        else:
+            short += 1
+            log(f"  {slug}: {held} sets fetched, start.gg reports {total}")
+    log(f"start.gg brackets: {complete} event(s) complete, {partial} partly fetched (--max-pools), {short} with sets missing")
+    return not short
+
+
+# P5: Challengermode entrant lists and brackets (Challengermode requests only, so it can run
+# alongside the other stages). The roster has no paging, so ROSTER_LIMIT must exceed the
+# largest event; the check makes sure it did.
+
+def plan_cm(db, queue, args):
+    for eid in chosen_events(db, "CM", args):
+        queue.add("cm", "cm_entrants", f"cm_entrants:{eid}", {"tournament_id": eid})
+        queue.add("cm", "cm_bracket", f"cm_bracket:{eid}", {"tournament_id": eid})
+
+
+def fetch_cm_entrants(api, p, log):
+    return api.query("Roster", CM_ROSTER_QUERY, {"id": p["tournament_id"], "limit": ROSTER_LIMIT})
+
+
+def apply_cm_entrants(db, p, data):
+    eid, tournament = p["tournament_id"], data.get("tournament")
+    if not tournament:
+        raise ValueError(f"Challengermode has no tournament {eid}")
+    roster = (tournament.get("attendance") or {}).get("roster") or {}
+    lineups = [lu for lu in roster.get("lineups") or [] if lu]
+    db.executemany("INSERT OR IGNORE INTO crawl_cm_entrants (event_id, lineup_id, user_id, placement) VALUES (?, ?, ?, ?)",
+                   [(eid, lu["id"], m["user"]["id"], (lu.get("placement") or {}).get("bestPlacement"))
+                    for lu in lineups for m in lu.get("members") or [] if (m.get("user") or {}).get("id")])
+    db.execute("INSERT OR REPLACE INTO crawl_platform_events (event_id, platform, platform_event_id, entrants, registered, status)"
+               " VALUES (?, 'challengermode', ?, ?, ?, 'ok')", (eid, eid, roster.get("lineupCount"), len(lineups)))
+    return []
+
+
+def cm_series(tournament):
+    """Every match series of a Challengermode tournament, from every kind of stage."""
+    for stage in tournament.get("stages") or []:
+        for bracket in stage.get("brackets") or [{"rounds": stage.get("rounds") or []}]:
+            for rnd in bracket.get("rounds") or []:
+                yield from (s for s in rnd.get("matchSeries") or [] if s)
+        for group in stage.get("groups") or []:
+            yield from (s for s in group.get("matchSeries") or [] if s)
+
+
+def fetch_cm_bracket(api, p, log):
+    return api.query("Bracket", CM_BRACKET_QUERY, {"id": p["tournament_id"]})
+
+
+def apply_cm_bracket(db, p, data):
+    eid, tournament = p["tournament_id"], data.get("tournament")
+    if not tournament:
+        raise ValueError(f"Challengermode has no tournament {eid}")
+    matches = {m["id"] for s in cm_series(tournament) for m in s.get("matches") or [] if m}
+    db.executemany("INSERT OR IGNORE INTO crawl_matches (match_id, event_id) VALUES (?, ?)", [(m, eid) for m in matches])
+    db.execute("INSERT OR REPLACE INTO crawl_brackets (event_id, platform, matches) VALUES (?, 'challengermode', ?)",
+               (eid, len(matches)))
+    return []
+
+
+def check_cm(db, api, log):
+    """Each entrant list must hold the roster's count of lineups, and every series between two lineups a match."""
+    problems = 0
+    for eid, entrants, held in db.execute(
+            "SELECT event_id, entrants, (SELECT COUNT(DISTINCT lineup_id) FROM crawl_cm_entrants c"
+            " WHERE c.event_id = p.event_id) FROM crawl_platform_events p WHERE platform = 'challengermode'").fetchall():
+        if held != entrants:
+            problems += 1
+            log(f"  {eid}: {held} of {entrants} lineups in the entrant list")
+    for (eid,) in db.execute("SELECT event_id FROM crawl_brackets WHERE platform = 'challengermode'").fetchall():
+        series = list(cm_series(api.query("Bracket", CM_BRACKET_QUERY, {"id": eid})["tournament"]))  # from the cache
+        empty = [s for s in series if sum(1 for lu in s.get("lineups") or [] if lu) == 2 and not s.get("matches")]
+        if empty:
+            problems += 1
+            log(f"  {eid}: {len(empty)} of {len(series)} series between two lineups have no match")
+    log(f"Challengermode: {problems} problem(s)")
+    return not problems
+
+
 STAGES = {  # name: (number, plan, check run once the stage has finished, API it calls)
     "events": ("0", plan_events, check_events, "statsapi"),
     "pr": ("1", plan_pr, None, "statsapi"),
     "profiles": ("2", plan_profiles, None, "statsapi"),
+    "lookups": ("2b", plan_lookups, check_lookups, "statsapi"),
     "histories": ("3", plan_histories, None, "statsapi"),
+    "proseries": ("3b", plan_proseries, check_proseries, "statsapi"),
     "teams": ("4", plan_teams, None, "statsapi"),
-    "matches": ("6", plan_matches, None, "statsapi"),
-    "standings": ("P1", plan_standings, None, "startgg"),
+    "standings": ("P1", plan_standings, check_standings, "startgg"),
+    "brackets": ("P4", plan_brackets, check_brackets, "startgg"),
+    "cm": ("P5", plan_cm, check_cm, "challengermode"),
 }
-CLIENTS = {"statsapi": StatsApi, "startgg": StartGG}
+CLIENTS = {"statsapi": StatsApi, "startgg": StartGG, "challengermode": Challengermode}
 KINDS = {
     "event_list": (fetch_event_list, apply_event_list),
     "pr_page": (fetch_pr_page, apply_pr_page),
     "profile_batch": (fetch_profile_batch, apply_profile_batch),
+    "lookup": (fetch_lookup, apply_lookup),
     "placements": (fetch_placements, apply_placements),
     "teammates": (fetch_teammates, apply_teammates),
+    "series_candidates": (fetch_series_candidates, apply_series_candidates),
+    "series_check": (fetch_series_check, apply_series_check),
     "team": (fetch_team, apply_team),
-    "matches": (fetch_matches, apply_matches),
     "standings_page": (fetch_standings_page, apply_standings_page),
+    "sgg_sets": (fetch_sgg_sets, apply_sgg_sets),
+    "sgg_pools": (fetch_sgg_pools, apply_sgg_pools),
+    "sgg_phase_pools": (fetch_sgg_phase_pools, apply_sgg_phase_pools),
+    "sgg_pool_sets": (fetch_sgg_pool_sets, apply_sgg_pool_sets),
+    "sgg_games": (fetch_sgg_games, apply_sgg_games),
+    "cm_entrants": (fetch_cm_entrants, apply_cm_entrants),
+    "cm_bracket": (fetch_cm_bracket, apply_cm_bracket),
 }
-UNPLANNED = {  # work a stage would add on its next run, as players and pairs get found
+STAGE_OF = {kind: "brackets" for kind in ("sgg_sets", "sgg_phase_pools", "sgg_pool_sets", "sgg_games")}
+REPLAN = {"brackets"}  # stages whose own tasks find work for their planner (pools found by pool tasks)
+EVENT_STAGES = {"brackets", "cm", "lookups", "proseries"}  # the stages --event can limit
+UNPLANNED = {  # work a stage would add on its next run, as earlier stages find more
     "profiles": "SELECT COUNT(*) FROM crawl_players WHERE profile = 0",
+    "lookups": "SELECT COUNT(*) FROM (SELECT DISTINCT 'startgg' AS platform, CAST(sgg_player_id AS TEXT) AS id"
+               " FROM crawl_standings WHERE sgg_player_id IS NOT NULL UNION SELECT 'challengermode', user_id"
+               " FROM crawl_cm_entrants) x WHERE NOT EXISTS (SELECT 1 FROM crawl_platform_players c"
+               " WHERE c.platform = x.platform AND c.platform_player_id = x.id AND c.status > 0)",
     "histories": "SELECT COUNT(*) FROM crawl_players WHERE history_planned = 0",
+    "proseries": "SELECT COUNT(*) FROM crawl_events e WHERE event_id LIKE 'series/%' AND NOT EXISTS"
+                 " (SELECT 1 FROM tasks WHERE task_key = 'series_candidates:' || e.event_id || ':1')",
     "teams": "SELECT COUNT(*) FROM crawl_pairs WHERE planned = 0",
-    "matches": "SELECT COUNT(*) FROM crawl_entries WHERE planned = 0 AND event_id NOT LIKE 'series/%'",
+    "brackets": "SELECT (SELECT COUNT(*) FROM crawl_events e WHERE host = 'SGG' AND event_id LIKE 'tournament/%'"
+                " AND NOT EXISTS (SELECT 1 FROM tasks WHERE task_key = 'sgg_sets:' || e.event_id || ':1'))"
+                " + (SELECT COUNT(*) FROM crawl_pools WHERE planned = 0 AND event_id IN"
+                " (SELECT event_id FROM crawl_brackets WHERE by_pool = 1))",
+    "cm": "SELECT COUNT(*) FROM crawl_events e WHERE host = 'CM' AND NOT EXISTS"
+          " (SELECT 1 FROM tasks WHERE task_key = 'cm_entrants:' || e.event_id)",
 }
 
 
@@ -389,6 +923,12 @@ def run_stage(db, api, stage, args, log, stop, on_task=None):
     in_a_row, started, last_report = 0, time.monotonic(), time.monotonic()
     while not stop.requested:
         claimed = queue.claim(stage)
+        if not claimed and stage in REPLAN:  # tasks may have found more work to plan
+            with db:
+                STAGES[stage][1](db, queue, args)
+            claimed = queue.claim(stage)
+            if claimed:
+                log(f"{stage}: planned {remaining(db, stage)} more task(s) from what this run found")
         if not claimed:
             break
         key, kind, params = claimed
@@ -402,9 +942,9 @@ def run_stage(db, api, stage, args, log, stop, on_task=None):
                 queue.set_status(key, "done")
             status = "done"
         except Exception as e:
-            if isinstance(e, ApiError):  # 404: nothing there; other 4xx: rejected; 429, 5xx or no response: failed
+            if isinstance(e, ApiError):  # 404: nothing there; other 4xx: rejected; refused credentials, 429, 5xx or no response: failed
                 status = ("done" if e.status == 404 else
-                          "rejected" if e.status and e.status < 500 and e.status != 429 else "failed")
+                          "rejected" if e.status and e.status < 500 and e.status not in (401, 403, 429) else "failed")
                 error = None if status == "done" else str(e)[:500]
             else:  # a bug or an unexpected response
                 status, error = "failed", f"{type(e).__name__}: {e}"[:500]
@@ -434,6 +974,7 @@ def run_stage(db, api, stage, args, log, stop, on_task=None):
         return "stopped"
     check = STAGES[stage][2]
     if check and not check(db, api, log):
+        log("The check above found a problem; what was fetched is kept.")
         return "stopped"
     return "finished"
 
@@ -469,6 +1010,15 @@ def show_status(db):
     print(f"\nPlayers known: {sum(found.values())} ({', '.join(f'{n} from {k}' for k, n in sorted(found.items()))});"
           f" pairs: {db.execute('SELECT COUNT(*) FROM crawl_pairs').fetchone()[0]};"
           f" player-event entries: {db.execute('SELECT COUNT(*) FROM crawl_entries').fetchone()[0]}")
+    brackets = dict((p, (e, m)) for p, e, m in db.execute(
+        "SELECT b.platform, COUNT(*), (SELECT COUNT(*) FROM crawl_matches m JOIN crawl_brackets c USING (event_id)"
+        " WHERE c.platform = b.platform) FROM crawl_brackets b GROUP BY b.platform"))
+    looked_up = dict(db.execute("SELECT status, COUNT(*) FROM crawl_platform_players WHERE status >= 2 GROUP BY status"))
+    print(f"Brackets: start.gg {brackets.get('startgg', (0, 0))[0]} events, {brackets.get('startgg', (0, 0))[1]} sets;"
+          f" Challengermode {brackets.get('challengermode', (0, 0))[0]} events,"
+          f" {brackets.get('challengermode', (0, 0))[1]} matches."
+          f" Lookups: {looked_up.get(2, 0)} found, {looked_up.get(3, 0)} not in the Stats API."
+          f" Pro Series placements: {db.execute('SELECT COUNT(*) FROM crawl_series_placements').fetchone()[0]}")
     local = lambda stamp: datetime.fromisoformat(stamp).astimezone().strftime("%Y-%m-%d %H:%M:%S")  # noqa: E731
     for stage, api, pid, started, heartbeat, outcome, finished in db.execute(
             "SELECT stage, api, pid, started_at, heartbeat_at, outcome, finished_at FROM runs ORDER BY run_id DESC LIMIT 4"):
@@ -491,14 +1041,26 @@ def make_logger(stage):
 
 def main():
     sys.stdout.reconfigure(errors="replace")  # player names can't always be printed in the console's code page
-    parser = argparse.ArgumentParser(description="Run one stage of the Stats API crawl, or show progress.")
+    parser = argparse.ArgumentParser(description="Run one stage of the crawl, or show progress.")
     parser.add_argument("stage", choices=["status", *STAGES])
     parser.add_argument("--sample", type=int, help="histories only: plan just this many PR players (the pilot)")
+    parser.add_argument("--event", action="append", metavar="ID",
+                        help="brackets, cm, lookups, proseries: only this event (repeat for more); for a pilot")
+    parser.add_argument("--max-pools", type=int, metavar="N",
+                        help="brackets: only the first N pools of each phase of an event fetched pool by pool")
     args = parser.parse_args()
     db = connect(schema=CRAWL_SCHEMA)
+    migrate(db)
     if args.stage == "status":
         show_status(db)
         return
+    if args.event and args.stage not in EVENT_STAGES:
+        parser.error(f"--event works with {', '.join(sorted(EVENT_STAGES))}")
+    if args.max_pools is not None and args.stage != "brackets":
+        parser.error("--max-pools works with brackets only")
+    unknown = [e for e in args.event or [] if not db.execute("SELECT 1 FROM crawl_events WHERE event_id = ?", (e,)).fetchone()]
+    if unknown:
+        parser.error(f"not an official event: {', '.join(unknown)}")
     log = make_logger(args.stage)
     api_name = STAGES[args.stage][3]
     lock = RunLock(db, args.stage, api_name)

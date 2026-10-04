@@ -84,11 +84,13 @@ class ResponseCache:
     def newest(self, endpoint, params):
         """The newest usable cached response, as (status, body bytes), or None.
 
-        Network errors, 429s and 5xx responses don't count, so the next run retries them.
+        Network errors, refused credentials (401, 403), 429s and 5xx responses don't count,
+        so the next run retries them.
         """
         row = self.db.execute(
-            "SELECT status, path FROM requests WHERE key = ? AND path IS NOT NULL AND status < 500 AND status != 429"
-            " ORDER BY fetched_at DESC, id DESC LIMIT 1", (request_key(endpoint, params),)).fetchone()
+            "SELECT status, path FROM requests WHERE key = ? AND path IS NOT NULL AND status < 500"
+            " AND status NOT IN (401, 403, 429) ORDER BY fetched_at DESC, id DESC LIMIT 1",
+            (request_key(endpoint, params),)).fetchone()
         if not row:
             return None
         status, path = row
