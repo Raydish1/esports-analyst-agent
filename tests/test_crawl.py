@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -385,6 +386,79 @@ class CrawlTest(unittest.TestCase):
         self.assertFalse(crawl.check_proseries(self.db, None, self.log.append))  # b-na has no 4th place
         self.assertIn("a team format, every place shared (1: 2 players, 2: 2 players, 3: 3 players)", self.log[0])
         self.assertIn("an entrant may be missing", self.log[1])
+
+    def add_standings(self, rows):  # (event, entrant, sgg player, placement)
+        with self.db:
+            self.db.executemany("INSERT INTO crawl_standings (event_id, participant_id, entrant_id, sgg_player_id, placement)"
+                                " VALUES (?, ?, ?, ?, ?)", [(e, ent * 10, ent, p, pl) for e, ent, p, pl in rows])
+
+    def test_sets_record_their_entrants(self):
+        self.add_events([("tournament/a/event/1v1", 1, "SGG", 0)])
+        sets = sets_page([1, 2], 2)
+        sets["nodes"][0]["slots"] = [{"entrant": {"id": 7}}, {"entrant": {"id": 8}}]
+        sets["nodes"][1]["slots"] = [{"entrant": {"id": 7}}, {"entrant": None}]  # a bye's empty slot
+        api = FakeGraphQL({"EventSets": lambda v: {"event": {"id": 9, "phases": [], "sets": sets}},
+                           "EventPools": lambda v: {"event": {"phaseGroups": []}}})
+        self.assertEqual(self.run_stage(api, "brackets"), "finished")
+        self.assertEqual(sorted(self.db.execute("SELECT entrant_id FROM crawl_set_entrants")), [(7,), (8,)])
+
+    def test_set_entrants_are_backfilled_once_from_the_cache(self):
+        from cache import ResponseCache
+        cache = ResponseCache(Path(self.tmp.name) / "cache", Path(self.tmp.name) / "crawl.sqlite")
+        page = {"data": {"event": {"sets": {"nodes": [{"id": 1, "slots": [{"entrant": {"id": 7}}, {"entrant": {"id": 8}}]}]}}}}
+        queue = TaskQueue(self.db)
+        with self.db:
+            queue.add("brackets", "sgg_sets", "sgg_sets:tournament/a/event/1v1:1", {"slug": "tournament/a/event/1v1", "page": 1})
+            queue.set_status("sgg_sets:tournament/a/event/1v1:1", "done")
+        cache.store("startgg/EventSets", {"page": 1}, "u", 200, json.dumps(page).encode(), 5,
+                    task="sgg_sets:tournament/a/event/1v1:1")
+        with mock.patch.object(crawl, "CACHE_DIR", Path(self.tmp.name) / "cache"), self.db:
+            crawl.backfill_set_entrants(self.db)
+        self.assertEqual(sorted(self.db.execute("SELECT * FROM crawl_set_entrants")),
+                         [("tournament/a/event/1v1", 7), ("tournament/a/event/1v1", 8)])
+        cache.db.close()
+
+    def test_entrant_lists_fill_in_entrants_missing_from_standings(self):
+        self.add_events([("tournament/a/event/1v1", 1, "SGG", 0), ("tournament/b/event/1v1", 1, "SGG", 0)])
+        self.add_standings([("tournament/a/event/1v1", 1, 101, 1), ("tournament/b/event/1v1", 3, 103, 1)])
+        with self.db:
+            self.db.executemany("INSERT INTO crawl_set_entrants VALUES (?, ?)",
+                                [("tournament/a/event/1v1", 1), ("tournament/a/event/1v1", 2), ("tournament/b/event/1v1", 3)])
+        entrants = [{"id": 1, "participants": [{"id": 10, "player": {"id": 101}}]},
+                    {"id": 2, "participants": [{"id": 20, "player": {"id": 102}}]},
+                    {"id": 4, "participants": [{"id": 40, "player": {"id": 104}}]}]  # registered, never played
+        api = FakeGraphQL({"Entrants": lambda v: {"event": {"entrants": {"pageInfo": {"totalPages": 1}, "nodes": entrants}}}})
+        self.assertEqual(self.run_stage(api, "entrants"), "finished")  # every set entrant is known now
+        self.assertEqual([dict(params)["slug"] for _, params in api.calls], ["tournament/a/event/1v1"])  # b is complete
+        self.assertTrue(any("1 entrant(s) in sets but not in the standings, 1 of them in its entrant list" in line
+                            for line in self.log))
+        queue = TaskQueue(self.db)
+        with self.db:
+            crawl.plan_lookups(self.db, queue, self.args)
+        ids = {r[0] for r in self.db.execute("SELECT platform_player_id FROM crawl_platform_players")}
+        self.assertEqual(ids, {"101", "102", "103"})  # 104 never played, so it isn't looked up
+
+    def test_gaps_take_stats_api_placements_and_leave_the_rest_unplaced(self):
+        self.add_events([("tournament/a/event/1v1", 1, "SGG", 5000)])
+        self.add_standings([("tournament/a/event/1v1", 1, 101, 1)])
+        with self.db:
+            self.db.executemany("INSERT INTO crawl_set_entrants VALUES ('tournament/a/event/1v1', ?)", [(1,), (2,), (3,), (4,)])
+            self.db.executemany("INSERT INTO crawl_entrants VALUES ('tournament/a/event/1v1', ?, ?, ?)",
+                                [(2, 20, 102), (3, 30, 103), (4, 40, 104)])
+            self.db.executemany("INSERT INTO crawl_platform_players VALUES ('startgg', ?, ?, ?)",
+                                [("102", 2, 2), ("103", 2, 3), ("104", 3, None)])  # 104 has no Stats API record
+
+        def placements(p):
+            if p["playerIds"] == 2:
+                return {"playerPlacements": [{"placement": 9, "tournament": {"id": "tournament/a/event/1v1"}}]}
+            return {"playerPlacements": [{"placement": 1, "tournament": {"id": "tournament/older/event/1v1"}}]}
+        api = FakeApi({"/player/placement": placements})
+        self.assertEqual(self.run_stage(api, "gaps"), "finished")
+        self.assertEqual(sorted(dict(params)["playerIds"] for _, params in api.calls), ["2", "3"])
+        self.assertEqual(dict(api.calls[0][1])["nextToken"], "5001")
+        self.assertEqual(list(self.db.execute("SELECT player_id, placement FROM crawl_gap_placements")), [(2, 9)])
+        self.assertTrue(any("3 entrant(s) missing from the standings, 2 player(s) with a Stats API record,"
+                            " 1 placed by the Stats API" in line for line in self.log))
 
     def test_double_elimination_places(self):
         self.assertEqual(crawl.double_elimination_places(8), [1, 2, 3, 4, 5, 5, 7, 7])

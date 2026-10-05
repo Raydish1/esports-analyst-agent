@@ -7,15 +7,17 @@
     python ingest/crawl.py lookups                 stage 2b: the Stats API record of every platform player
     python ingest/crawl.py histories [--sample N]  stage 3: official placements and teammates (held after its pilot)
     python ingest/crawl.py proseries               stage 3b: placements at the three Pro Series finals
+    python ingest/crawl.py gaps                    stage 3c: Stats API placements of entrants missing from standings
     python ingest/crawl.py teams                   stage 4: official placements of each 2v2 pair (held after its pilot)
     python ingest/crawl.py standings               P1: start.gg standings of official start.gg events
+    python ingest/crawl.py entrants                P1b: entrant lists of events whose standings miss entrants (after P4)
     python ingest/crawl.py brackets                P4: start.gg sets, pools and last-phase games
     python ingest/crawl.py cm                      P5: Challengermode entrant lists and brackets
 
-For a pilot, --event ID (repeatable) limits brackets, cm, lookups and proseries to the events
-named, and --max-pools N fetches only the first N pools of each phase of an event that start.gg
-can't list in one go (over 10,000 sets). Once the cause of a rejected task is fixed,
---retry-rejected puts the stage's rejected tasks back in the queue.
+For a pilot, --event ID (repeatable) limits brackets, cm, entrants, gaps, lookups and proseries
+to the events named, and --max-pools N fetches only the first N pools of each phase of an event
+that start.gg can't list in one go (over 10,000 sets). Once the cause of a rejected task is
+fixed, --retry-rejected puts the stage's rejected tasks back in the queue.
 
 A stage first plans its tasks from what earlier stages found, then works through them.
 Stages on different APIs (the Stats API, start.gg, Challengermode) can run at the same time.
@@ -26,14 +28,16 @@ run also writes a log to data/logs/crawl-<stage>.log.
 
 import argparse
 import collections
+import gzip
 import hashlib
+import json
 import logging
 import random
 import sys
 import time
 from datetime import datetime, timezone
 
-from cache import ROOT
+from cache import CACHE_DIR, ROOT
 from challengermode import Challengermode
 from startgg import StartGG
 from statsapi import ApiError, StatsApi
@@ -146,7 +150,30 @@ CREATE TABLE IF NOT EXISTS crawl_series_placements ( -- 3b: placements found at 
   placement  INTEGER NOT NULL,
   PRIMARY KEY (event_id, player_id)
 );
+CREATE TABLE IF NOT EXISTS crawl_set_entrants (      -- P4: every start.gg entrant that appears in a set
+  event_id    TEXT NOT NULL,
+  entrant_id  INTEGER NOT NULL,
+  PRIMARY KEY (event_id, entrant_id)
+);
+CREATE TABLE IF NOT EXISTS crawl_entrants (          -- P1b: entrant lists of events whose standings miss entrants
+  event_id        TEXT NOT NULL,
+  entrant_id      INTEGER NOT NULL,
+  participant_id  INTEGER NOT NULL,
+  sgg_player_id   INTEGER,
+  PRIMARY KEY (event_id, entrant_id, participant_id)
+);
+CREATE TABLE IF NOT EXISTS crawl_gap_placements (    -- 3c: Stats API placements of those entrants' players
+  event_id   TEXT NOT NULL,
+  player_id  INTEGER NOT NULL,
+  placement  INTEGER NOT NULL,
+  PRIMARY KEY (event_id, player_id)
+);
 """
+
+# Entrants in a start.gg event's sets that its standings don't list (three events in 2026-10).
+MISSING_ENTRANTS = """
+SELECT s.event_id, s.entrant_id FROM crawl_set_entrants s WHERE NOT EXISTS
+  (SELECT 1 FROM crawl_standings t WHERE t.event_id = s.event_id AND t.entrant_id = s.entrant_id)"""
 
 STANDINGS_QUERY = """
 query Standings($slug: String!, $page: Int!) { event(slug: $slug) {
@@ -156,6 +183,13 @@ query Standings($slug: String!, $page: Int!) { event(slug: $slug) {
     nodes { placement isFinal
       entrant { id name initialSeedNum isDisqualified
         participants { id gamerTag prefix player { id } } } } } } }"""
+
+ENTRANTS_QUERY = """
+query Entrants($slug: String!, $page: Int!) { event(slug: $slug) {
+  id entrants(query: {page: $page, perPage: 64}) {
+    pageInfo { total totalPages }
+    nodes { id name initialSeedNum isDisqualified
+      participants { id gamerTag prefix player { id } } } } } }"""
 
 # P4. Sets carry what `matches` and the bracket tables need; seeds come from the standings'
 # initialSeedNum. Sorting by round pages stably (no set repeated or skipped in the survey).
@@ -414,6 +448,10 @@ def plan_lookups(db, queue, args):
                " WHERE sgg_player_id IS NOT NULL" + where, only)
     db.execute("INSERT OR IGNORE INTO crawl_platform_players (platform, platform_player_id)"
                " SELECT DISTINCT 'challengermode', user_id FROM crawl_cm_entrants WHERE 1" + where, only)
+    db.execute("INSERT OR IGNORE INTO crawl_platform_players (platform, platform_player_id)"  # entrants who played (P1b)
+               " SELECT DISTINCT 'startgg', CAST(sgg_player_id AS TEXT) FROM crawl_entrants e WHERE sgg_player_id IS NOT NULL"
+               " AND EXISTS (SELECT 1 FROM crawl_set_entrants s WHERE s.event_id = e.event_id"
+               " AND s.entrant_id = e.entrant_id)" + where, only)
     for platform in LOOKUP_PARAMS:
         ids = [r[0] for r in db.execute("SELECT platform_player_id FROM crawl_platform_players WHERE platform = ?"
                                         " AND status = 0 ORDER BY length(platform_player_id), platform_player_id",
@@ -550,9 +588,9 @@ def apply_series_candidates(db, p, body):
     return [series_check(p["event_id"], p["start_time"], pid) for pid in sorted(set(found.values()))]
 
 
-def fetch_series_check(api, p, log):
-    """The player's newest official 1v1 events up to the final's start: one page shows whether they played it."""
-    return api.get("/player/placement", {"playerIds": p["player_id"], "gameMode": 1, "isOfficial": True,
+def fetch_placement_check(api, p, log):
+    """The player's newest official events up to an event's start: one page shows whether they played it."""
+    return api.get("/player/placement", {"playerIds": p["player_id"], "gameMode": p.get("mode", 1), "isOfficial": True,
                                          "maxResults": 10, "nextToken": p["start_time"] + 1})
 
 
@@ -598,6 +636,45 @@ def check_proseries(db, api, log):
             ok, verdict = False, "not a complete bracket, so an entrant may be missing"
         log(f"{final}: {len(found)} placements among {checked} candidates ({', '.join(map(str, found)) or 'none'}): {verdict}")
     return ok
+
+
+# Stage 3c: gaps. For each entrant that appears in a start.gg event's sets but not in its
+# standings (P1b), the Stats API's placement of its players, one request each as in stage 3b.
+# A player the Stats API doesn't place there stays unplaced: placements are never derived from
+# brackets (decided 2026-10-05). Runs after P1b and 2b, which find the players.
+
+GAP_PLAYERS = f"""
+SELECT DISTINCT m.event_id, p.player_id FROM ({MISSING_ENTRANTS}) m
+JOIN crawl_entrants e ON e.event_id = m.event_id AND e.entrant_id = m.entrant_id
+JOIN crawl_platform_players p ON p.platform = 'startgg' AND p.platform_player_id = CAST(e.sgg_player_id AS TEXT)
+WHERE p.status = 2"""
+
+
+def plan_gaps(db, queue, args):
+    only = set(getattr(args, "event", None) or [])
+    for eid, pid in db.execute(GAP_PLAYERS).fetchall():
+        if only and eid not in only:
+            continue
+        start, mode = db.execute("SELECT start_time, mode FROM crawl_events WHERE event_id = ?", (eid,)).fetchone()
+        queue.add("gaps", "gap_check", f"gap_check:{eid}:{pid}",
+                  {"event_id": eid, "start_time": start, "mode": mode, "player_id": pid})
+
+
+def apply_gap_check(db, p, body):
+    db.executemany("INSERT OR REPLACE INTO crawl_gap_placements (event_id, player_id, placement) VALUES (?, ?, ?)",
+                   [(p["event_id"], p["player_id"], r["placement"]) for r in body.get("playerPlacements") or []
+                    if r["tournament"]["id"] == p["event_id"]])
+    return []
+
+
+def check_gaps(db, api, log):
+    """How many of each event's entrants missing from its standings the Stats API places; the rest stay unplaced."""
+    for eid, missing in db.execute(f"SELECT event_id, COUNT(*) FROM ({MISSING_ENTRANTS}) GROUP BY event_id").fetchall():
+        players = db.execute(f"SELECT COUNT(*) FROM ({GAP_PLAYERS}) WHERE event_id = ?", (eid,)).fetchone()[0]
+        placed = db.execute("SELECT COUNT(*) FROM crawl_gap_placements WHERE event_id = ?", (eid,)).fetchone()[0]
+        log(f"  {eid}: {missing} entrant(s) missing from the standings, {players} player(s) with a Stats API record,"
+            f" {placed} placed by the Stats API; the rest stay unplaced")
+    return True
 
 
 # Stage 4: teams
@@ -689,6 +766,20 @@ def plan_brackets(db, queue, args):
 def record_sets(db, slug, sets):
     db.executemany("INSERT OR IGNORE INTO crawl_matches (match_id, event_id, pool_id) VALUES (?, ?, ?)",
                    [(str(s["id"]), slug, (s.get("phaseGroup") or {}).get("id")) for s in sets.get("nodes") or []])
+    db.executemany("INSERT OR IGNORE INTO crawl_set_entrants (event_id, entrant_id) VALUES (?, ?)",
+                   {(slug, slot["entrant"]["id"]) for s in sets.get("nodes") or [] for slot in s.get("slots") or []
+                    if slot.get("entrant")})
+
+
+def backfill_set_entrants(db):
+    """Once: the entrants of the set pages applied before crawl_set_entrants existed, read back from the cache."""
+    if db.execute("SELECT 1 FROM crawl_set_entrants LIMIT 1").fetchone():
+        return
+    for params, path in db.execute(
+            "SELECT t.params, r.path FROM tasks t JOIN requests r ON r.task = t.task_key"
+            " WHERE t.kind IN ('sgg_sets', 'sgg_pool_sets') AND t.status = 'done' AND r.status = 200").fetchall():
+        data = json.loads(gzip.decompress((CACHE_DIR / path).read_bytes()))["data"]
+        record_sets(db, json.loads(params)["slug"], (data.get("event") or data.get("phaseGroup") or {}).get("sets") or {})
 
 
 def fetch_sgg_sets(api, p, log):
@@ -796,6 +887,45 @@ def check_brackets(db, api, log):
     return not short
 
 
+# P1b: entrant lists of the start.gg events whose sets name entrants missing from their
+# standings (found through the sets, so it runs after P4). The standings were the only route
+# from an entrant to its players, so without these, those entrants' sets can't be attributed.
+
+def plan_entrants(db, queue, args):
+    backfill_set_entrants(db)
+    only = set(getattr(args, "event", None) or [])
+    for (slug,) in db.execute(f"SELECT DISTINCT event_id FROM ({MISSING_ENTRANTS}) ORDER BY event_id").fetchall():
+        if not only or slug in only:
+            queue.add("entrants", "sgg_entrants", f"sgg_entrants:{slug}:1", {"slug": slug, "page": 1})
+
+
+def fetch_sgg_entrants(api, p, log):
+    return api.query("Entrants", ENTRANTS_QUERY, {"slug": p["slug"], "page": p["page"]})
+
+
+def apply_sgg_entrants(db, p, data):
+    entrants = (data.get("event") or {}).get("entrants")
+    if entrants is None:
+        raise ValueError(f"start.gg returned no entrants for {p['slug']}")
+    db.executemany("INSERT OR IGNORE INTO crawl_entrants (event_id, entrant_id, participant_id, sgg_player_id)"
+                   " VALUES (?, ?, ?, ?)",
+                   [(p["slug"], e["id"], part["id"], (part.get("player") or {}).get("id"))
+                    for e in entrants.get("nodes") or [] if e for part in e.get("participants") or []])
+    return follow_pages(p, "sgg_entrants", f"sgg_entrants:{p['slug']}", entrants.get("pageInfo"))
+
+
+def check_entrants(db, api, log):
+    """Every entrant in a set must now be known: in its event's standings or its entrant list."""
+    unknown = 0
+    for slug, missing, listed in db.execute(
+            f"SELECT m.event_id, COUNT(*), SUM(EXISTS (SELECT 1 FROM crawl_entrants e WHERE e.event_id = m.event_id"
+            f" AND e.entrant_id = m.entrant_id)) FROM ({MISSING_ENTRANTS}) m GROUP BY m.event_id").fetchall():
+        unknown += missing - listed
+        log(f"  {slug}: {missing} entrant(s) in sets but not in the standings, {listed} of them in its entrant list")
+    log(f"start.gg entrant lists: {unknown} entrant(s) in sets still unknown")
+    return not unknown
+
+
 # P5: Challengermode entrant lists and brackets (Challengermode requests only, so it can run
 # alongside the other stages). The roster has no paging, so ROSTER_LIMIT must exceed the
 # largest event; the check makes sure it did.
@@ -882,8 +1012,10 @@ STAGES = {  # name: (number, plan, check run once the stage has finished, API it
     "lookups": ("2b", plan_lookups, check_lookups, "statsapi"),
     "histories": ("3", plan_histories, None, "statsapi"),
     "proseries": ("3b", plan_proseries, check_proseries, "statsapi"),
+    "gaps": ("3c", plan_gaps, check_gaps, "statsapi"),
     "teams": ("4", plan_teams, None, "statsapi"),
     "standings": ("P1", plan_standings, check_standings, "startgg"),
+    "entrants": ("P1b", plan_entrants, check_entrants, "startgg"),
     "brackets": ("P4", plan_brackets, check_brackets, "startgg"),
     "cm": ("P5", plan_cm, check_cm, "challengermode"),
 }
@@ -896,9 +1028,11 @@ KINDS = {
     "placements": (fetch_placements, apply_placements),
     "teammates": (fetch_teammates, apply_teammates),
     "series_candidates": (fetch_series_candidates, apply_series_candidates),
-    "series_check": (fetch_series_check, apply_series_check),
+    "series_check": (fetch_placement_check, apply_series_check),
+    "gap_check": (fetch_placement_check, apply_gap_check),
     "team": (fetch_team, apply_team),
     "standings_page": (fetch_standings_page, apply_standings_page),
+    "sgg_entrants": (fetch_sgg_entrants, apply_sgg_entrants),
     "sgg_sets": (fetch_sgg_sets, apply_sgg_sets),
     "sgg_pools": (fetch_sgg_pools, apply_sgg_pools),
     "sgg_phase_pools": (fetch_sgg_phase_pools, apply_sgg_phase_pools),
@@ -907,19 +1041,27 @@ KINDS = {
     "cm_entrants": (fetch_cm_entrants, apply_cm_entrants),
     "cm_bracket": (fetch_cm_bracket, apply_cm_bracket),
 }
-STAGE_OF = {kind: "brackets" for kind in ("sgg_sets", "sgg_phase_pools", "sgg_pool_sets", "sgg_games")}
+STAGE_OF = {**{kind: "brackets" for kind in ("sgg_sets", "sgg_phase_pools", "sgg_pool_sets", "sgg_games")},
+            "sgg_entrants": "entrants"}
 REPLAN = {"brackets"}  # stages whose own tasks find work for their planner (pools found by pool tasks)
-EVENT_STAGES = {"brackets", "cm", "lookups", "proseries"}  # the stages --event can limit
+EVENT_STAGES = {"brackets", "cm", "entrants", "gaps", "lookups", "proseries"}  # the stages --event can limit
 UNPLANNED = {  # work a stage would add on its next run, as earlier stages find more
     "profiles": "SELECT COUNT(*) FROM crawl_players WHERE profile = 0",
     "lookups": "SELECT COUNT(*) FROM (SELECT DISTINCT 'startgg' AS platform, CAST(sgg_player_id AS TEXT) AS id"
                " FROM crawl_standings WHERE sgg_player_id IS NOT NULL UNION SELECT 'challengermode', user_id"
-               " FROM crawl_cm_entrants) x WHERE NOT EXISTS (SELECT 1 FROM crawl_platform_players c"
+               " FROM crawl_cm_entrants UNION SELECT 'startgg', CAST(sgg_player_id AS TEXT) FROM crawl_entrants e"
+               " WHERE sgg_player_id IS NOT NULL AND EXISTS (SELECT 1 FROM crawl_set_entrants s"
+               " WHERE s.event_id = e.event_id AND s.entrant_id = e.entrant_id)) x"
+               " WHERE NOT EXISTS (SELECT 1 FROM crawl_platform_players c"
                " WHERE c.platform = x.platform AND c.platform_player_id = x.id AND c.status > 0)",
     "histories": "SELECT COUNT(*) FROM crawl_players WHERE history_planned = 0",
     "proseries": "SELECT COUNT(*) FROM crawl_events e WHERE event_id LIKE 'series/%' AND NOT EXISTS"
                  " (SELECT 1 FROM tasks WHERE stage = 'proseries' AND (task_key LIKE 'series_check:' || e.event_id || ':%'"
                  " OR task_key LIKE 'series_candidates:' || e.event_id || ':%'))",
+    "gaps": f"SELECT COUNT(*) FROM ({GAP_PLAYERS}) g WHERE NOT EXISTS"
+            " (SELECT 1 FROM tasks WHERE task_key = 'gap_check:' || g.event_id || ':' || g.player_id)",
+    "entrants": f"SELECT COUNT(DISTINCT event_id) FROM ({MISSING_ENTRANTS}) m WHERE NOT EXISTS"
+                " (SELECT 1 FROM tasks WHERE task_key = 'sgg_entrants:' || m.event_id || ':1')",
     "teams": "SELECT COUNT(*) FROM crawl_pairs WHERE planned = 0",
     "brackets": "SELECT (SELECT COUNT(*) FROM crawl_events e WHERE host = 'SGG' AND event_id LIKE 'tournament/%'"
                 " AND NOT EXISTS (SELECT 1 FROM tasks WHERE task_key = 'sgg_sets:' || e.event_id || ':1'))"
@@ -1023,14 +1165,14 @@ def show_status(db):
     requests = {stage: (n, size or 0) for stage, n, size in db.execute(
         "SELECT COALESCE(t.stage, substr(r.task, 1, instr(r.task, ':') - 1), 'other'), COUNT(*), SUM(r.bytes)"
         " FROM requests r LEFT JOIN tasks t ON t.task_key = r.task GROUP BY 1")}
-    print(f"{'Stage':<13}{'Tasks':>8}{'Done':>8}{'Left':>8}{'Failed':>8}{'To plan':>9}{'Requests':>10}{'Cache':>10}")
+    print(f"{'Stage':<14}{'Tasks':>8}{'Done':>8}{'Left':>8}{'Failed':>8}{'To plan':>9}{'Requests':>10}{'Cache':>10}")
     for name, (number, _, _, _) in STAGES.items():
         t = tasks.get(name, {})
         left = remaining(db, name)
         failed = t.get("failed", 0) + t.get("rejected", 0)
         unplanned = db.execute(UNPLANNED[name]).fetchone()[0] if name in UNPLANNED else 0
         n, size = requests.get(name, (0, 0))
-        print(f"{number:>2} {name:<10}{sum(t.values()):>8}{t.get('done', 0):>8}{left:>8}{failed:>8}"
+        print(f"{number:>3} {name:<10}{sum(t.values()):>8}{t.get('done', 0):>8}{left:>8}{failed:>8}"
               f"{unplanned:>9}{n:>10}{human_bytes(size):>10}")
         last = db.execute("SELECT task_key, last_error, updated_at FROM tasks WHERE stage = ?"
                           " AND status IN ('failed', 'rejected') ORDER BY updated_at DESC LIMIT 1", (name,)).fetchone()
