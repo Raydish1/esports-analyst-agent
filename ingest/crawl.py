@@ -14,7 +14,8 @@
 
 For a pilot, --event ID (repeatable) limits brackets, cm, lookups and proseries to the events
 named, and --max-pools N fetches only the first N pools of each phase of an event that start.gg
-can't list in one go (over 10,000 sets).
+can't list in one go (over 10,000 sets). Once the cause of a rejected task is fixed,
+--retry-rejected puts the stage's rejected tasks back in the queue.
 
 A stage first plans its tasks from what earlier stages found, then works through them.
 Stages on different APIs (the Stats API, start.gg, Challengermode) can run at the same time.
@@ -590,9 +591,9 @@ def check_proseries(db, api, log):
         elif found and found == list(range(1, len(found) + 1)):
             verdict = f"consistent with a complete ranking of {len(found)}"
         elif found and sorted(sizes) == list(range(1, len(sizes) + 1)) and min(sizes.values()) > 1:
-            verdict = (f"a team format: {len(sizes)} teams of {min(sizes.values())}-{max(sizes.values())} players"
-                       f" ({', '.join(f'{place}: {n}' for place, n in sorted(sizes.items()))}), so completeness can't be"
-                       " confirmed from places")
+            verdict = ("a team format, every place shared (" + ", ".join(f"{place}: {n} players" for place, n in
+                                                                         sorted(sizes.items()))
+                       + "), so completeness can't be confirmed from places")
         else:
             ok, verdict = False, "not a complete bracket, so an entrant may be missing"
         log(f"{final}: {len(found)} placements among {checked} candidates ({', '.join(map(str, found)) or 'none'}): {verdict}")
@@ -849,16 +850,23 @@ def apply_cm_bracket(db, p, data):
 
 
 def check_cm(db, api, log):
-    """Each entrant list must hold the roster's count of lineups, and every series between two lineups a match."""
+    """Every lineup in an event's bracket must be in its entrant list, and every series between two lineups must
+    have a match. A roster also lists lineups that never played (in 2v2 mostly a player without a partner): they
+    have no placement and aren't entrants, so the roster's own lineup count can exceed the bracket's."""
     problems = 0
-    for eid, entrants, held in db.execute(
-            "SELECT event_id, entrants, (SELECT COUNT(DISTINCT lineup_id) FROM crawl_cm_entrants c"
-            " WHERE c.event_id = p.event_id) FROM crawl_platform_events p WHERE platform = 'challengermode'").fetchall():
-        if held != entrants:
+    for eid, returned in db.execute("SELECT event_id, registered FROM crawl_platform_events"
+                                    " WHERE platform = 'challengermode'").fetchall():
+        if returned >= ROSTER_LIMIT:
             problems += 1
-            log(f"  {eid}: {held} of {entrants} lineups in the entrant list")
+            log(f"  {eid}: the entrant list may be cut off at {ROSTER_LIMIT} lineups")
     for (eid,) in db.execute("SELECT event_id FROM crawl_brackets WHERE platform = 'challengermode'").fetchall():
         series = list(cm_series(api.query("Bracket", CM_BRACKET_QUERY, {"id": eid})["tournament"]))  # from the cache
+        listed = {r[0] for r in db.execute("SELECT DISTINCT lineup_id FROM crawl_cm_entrants WHERE event_id = ?", (eid,))}
+        played = {lu["id"] for s in series for lu in s.get("lineups") or [] if lu}
+        if played - listed:
+            problems += 1
+            log(f"  {eid}: {len(played - listed)} of the {len(played)} lineups in the bracket aren't in the entrant list"
+                + ("" if listed else " (it hasn't been fetched)"))
         empty = [s for s in series if sum(1 for lu in s.get("lineups") or [] if lu) == 2 and not s.get("matches")]
         if empty:
             problems += 1
@@ -1070,6 +1078,8 @@ def main():
                         help="brackets, cm, lookups, proseries: only this event (repeat for more); for a pilot")
     parser.add_argument("--max-pools", type=int, metavar="N",
                         help="brackets: only the first N pools of each phase of an event fetched pool by pool")
+    parser.add_argument("--retry-rejected", action="store_true",
+                        help="put this stage's rejected tasks back in the queue first, once their cause is fixed")
     args = parser.parse_args()
     db = connect(schema=CRAWL_SCHEMA)
     migrate(db)
@@ -1087,6 +1097,8 @@ def main():
     api_name = STAGES[args.stage][3]
     lock = RunLock(db, args.stage, api_name)
     lock.acquire()
+    if args.retry_rejected:
+        log(f"{TaskQueue(db).retry_rejected(args.stage)} rejected task(s) back in the queue")
     stop = StopFlag()
     stop.install(log)
     outcome = "crashed"

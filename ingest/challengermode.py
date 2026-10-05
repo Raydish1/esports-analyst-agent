@@ -11,6 +11,10 @@ expiresAt, and after an auth error the client gets a new one and retries once. T
 key and the token only ever go into the exchange body and the Authorization header; the
 exchange isn't cached, and an auth failure is logged with status 401, which the cache never
 replays.
+
+A query that runs past the server's 15 s budget comes back as HTTP 400 with error code
+HC0045. That's a timeout, not a refusal: it's logged as 504 and retried, and an HC0045 400
+logged before this rule existed is never taken as an answer either.
 """
 
 import hashlib
@@ -30,6 +34,8 @@ TIMEOUT = 60
 ATTEMPTS = 5
 GRAPHQL_ERROR = 520  # status recorded for a 200 response whose errors left no data; retried later
 AUTH_FAILED = 401  # status recorded for any response that refused the token
+TIMED_OUT = 504  # status recorded for a query that ran past the server's time budget (HC0045); retried
+SERVER_TIMEOUT = b'"HC0045"'
 
 
 class Challengermode:
@@ -51,7 +57,7 @@ class Challengermode:
         params = {"q": hashlib.sha256(document.encode()).hexdigest()[:12], **variables}
         if not refresh:
             cached = self.cache.newest(endpoint, params)
-            if cached:
+            if cached and not (cached[0] == 400 and SERVER_TIMEOUT in cached[1]):
                 self.cache_hits += 1
                 status, body = cached
                 if status != 200:
@@ -64,6 +70,8 @@ class Challengermode:
             parsed = _parse(body)
             if is_cm_auth_error(status, parsed):
                 status = AUTH_FAILED
+            elif status == 400 and SERVER_TIMEOUT in (body or b""):
+                status, error = TIMED_OUT, "the query ran past Challengermode's 15 s budget (HC0045)"
             elif status == 200 and (not isinstance(parsed, dict) or (parsed.get("errors") and not parsed.get("data"))):
                 status, error = GRAPHQL_ERROR, body[:300].decode("utf-8", "replace")
             self.cache.store(endpoint, params, URL, status, body, ms, error, task=self.task)

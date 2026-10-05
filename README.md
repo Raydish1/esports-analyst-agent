@@ -34,7 +34,7 @@ python ingest/crawl.py cm          # P5: Challengermode entrant lists and bracke
 
 **Order of the Phase 1 platform fetches.** `brackets` is the long one, about 4 hours, and it uses only start.gg, so it can start first and run alongside the rest. Meanwhile, one after another: `cm`, then `lookups` (which needs the Challengermode entrant lists), then `proseries` (which reuses the lookups).
 
-Each run plans its stage's tasks from what earlier stages found, works through them, and logs to `data/logs/crawl-<stage>.log`. Stages on different APIs (the Stats API, start.gg, Challengermode) can run at the same time; two stages on the same API can't. Re-running a command resumes where it stopped, and Ctrl+C stops after the current task. For a pilot, `--event ID` limits `brackets`, `cm`, `lookups` and `proseries` to the events named, and `brackets --max-pools N` fetches only the first N pools of each phase of an event over start.gg's 10,000-set cap.
+Each run plans its stage's tasks from what earlier stages found, works through them, and logs to `data/logs/crawl-<stage>.log`. Stages on different APIs (the Stats API, start.gg, Challengermode) can run at the same time; two stages on the same API can't. Re-running a command resumes where it stopped, and Ctrl+C stops after the current task. For a pilot, `--event ID` limits `brackets`, `cm`, `lookups` and `proseries` to the events named, and `brackets --max-pools N` fetches only the first N pools of each phase of an event over start.gg's 10,000-set cap. A rejected task (a client error) isn't retried on its own; once its cause is fixed, re-run the stage with `--retry-rejected`.
 
 Tests use only the standard library:
 

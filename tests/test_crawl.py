@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ingest"))
 import crawl  # noqa: E402
@@ -284,13 +285,36 @@ class CrawlTest(unittest.TestCase):
         self.assertEqual(sorted(self.db.execute("SELECT user_id, placement FROM crawl_cm_entrants")), [("u1", 1), ("u2", 2)])
         self.assertEqual(sorted(r[0] for r in self.db.execute("SELECT match_id FROM crawl_matches")), ["M1", "M3"])
 
-    def test_cm_check_reports_a_truncated_entrant_list(self):
+    def cm_event(self, lineups, bracket_lineups, lineup_count):
+        roster = {"tournament": {"attendance": {"roster": {"lineupCount": lineup_count, "lineups": [
+            {"id": lid, "members": [{"user": {"id": f"u-{lid}"}}]} for lid in lineups]}}}}
+        series = [{"id": "S1", "lineups": [{"id": lid} for lid in bracket_lineups], "matches": [{"id": "M1"}]}]
+        bracket = {"tournament": {"stages": [{"brackets": [{"rounds": [{"matchSeries": series}]}]}]}}
+        return FakeGraphQL({"Roster": lambda v: roster, "Bracket": lambda v: bracket})
+
+    def test_cm_check_reports_a_bracket_lineup_missing_from_the_entrant_list(self):
         self.add_events([("t-1", 1, "CM", 0)])
-        roster = {"tournament": {"attendance": {"roster": {"lineupCount": 3, "lineups": [
-            {"id": "L1", "members": [{"user": {"id": "u1"}}]}]}}}}
-        api = FakeGraphQL({"Roster": lambda v: roster, "Bracket": lambda v: {"tournament": {"stages": []}}})
-        self.assertEqual(self.run_stage(api, "cm"), "stopped")
-        self.assertTrue(any("1 of 3 lineups" in line for line in self.log))
+        self.assertEqual(self.run_stage(self.cm_event(["L1"], ["L1", "L2"], 2), "cm"), "stopped")
+        self.assertTrue(any("1 of the 2 lineups in the bracket aren't in the entrant list" in line for line in self.log))
+
+    def test_cm_check_accepts_lineups_that_never_played(self):  # BCX 2025 2v2: 298 lineups for a count of 256
+        self.add_events([("t-1", 2, "CM", 0)])
+        self.assertEqual(self.run_stage(self.cm_event(["L1", "L2", "L3"], ["L1", "L2"], 2), "cm"), "finished")
+
+    def test_cm_check_reports_an_entrant_list_cut_off_at_the_limit(self):
+        self.add_events([("t-1", 1, "CM", 0)])
+        with mock.patch.object(crawl, "ROSTER_LIMIT", 2):
+            self.assertEqual(self.run_stage(self.cm_event(["L1", "L2"], ["L1", "L2"], 3), "cm"), "stopped")
+        self.assertTrue(any("may be cut off at 2 lineups" in line for line in self.log))
+
+    def test_rejected_tasks_go_back_in_the_queue_on_request(self):
+        queue = TaskQueue(self.db)
+        with self.db:
+            for key, stage, status in (("a", "cm", "rejected"), ("b", "cm", "done"), ("c", "pr", "rejected")):
+                queue.add(stage, "cm_bracket", key, {})
+                queue.set_status(key, status, "HTTP 400")
+        self.assertEqual(queue.retry_rejected("cm"), 1)
+        self.assertEqual(dict(self.db.execute("SELECT task_key, status FROM tasks")), {"a": "pending", "b": "done", "c": "rejected"})
 
     def test_lookups_mark_each_platform_player_and_split_refused_batches(self):
         with self.db:
@@ -359,7 +383,7 @@ class CrawlTest(unittest.TestCase):
                     self.db.execute("INSERT INTO crawl_series_placements VALUES (?, ?, ?)", (final, pid, place))
                     TaskQueue(self.db).add("proseries", "series_check", f"series_check:{final}:{pid}", {})
         self.assertFalse(crawl.check_proseries(self.db, None, self.log.append))  # b-na has no 4th place
-        self.assertIn("a team format: 3 teams of 2-3 players", self.log[0])
+        self.assertIn("a team format, every place shared (1: 2 players, 2: 2 players, 3: 3 players)", self.log[0])
         self.assertIn("an entrant may be missing", self.log[1])
 
     def test_double_elimination_places(self):

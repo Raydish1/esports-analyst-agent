@@ -138,6 +138,30 @@ class ChallengermodeClientTest(unittest.TestCase):
         self.assertEqual(sum(kind == "query" for _, kind, _ in server.sent), 1)
         self.assertEqual(api.cache_hits, 1)
 
+    def test_a_server_timeout_is_retried_and_never_replayed(self):
+        server = FakeChallengermode(self.clock)
+        api = self.client(server)
+        timeouts = [(400, b'{"errors":[{"message":"The request exceeded the configured timeout of `00:00:15`.",'
+                          b'"extensions":{"code":"HC0045"}}]}', None, 15000)]
+
+        def send(url, payload, headers):  # the first query times out; everything after is answered
+            if url != CM_AUTH_URL and timeouts:
+                return timeouts.pop()
+            return server.post(url, payload, headers)
+        api._send = send
+        self.assertEqual(self.query(api, 1), {"tournament": {"id": "t1"}})  # the second attempt went through
+        statuses = [r[0] for r in self.cache.db.execute("SELECT status FROM requests ORDER BY id")]
+        self.assertEqual(statuses, [challengermode.TIMED_OUT, 200])
+
+    def test_a_timeout_logged_as_400_before_the_fix_is_not_an_answer(self):
+        server = FakeChallengermode(self.clock)
+        api = self.client(server)
+        document = "query T($id: UUID!) { tournament(tournamentId: $id) { id } }"
+        params = {"q": challengermode.hashlib.sha256(document.encode()).hexdigest()[:12], "id": "t1"}
+        self.cache.store("challengermode/Tournament", params, "u", 400, b'{"errors":[{"extensions":{"code":"HC0045"}}]}', 5)
+        self.assertEqual(self.query(api, 1), {"tournament": {"id": "t1"}})
+        self.assertEqual(sum(kind == "query" for _, kind, _ in server.sent), 1)
+
     def test_a_failing_token_exchange_fails_the_task_rather_than_the_crawl(self):
         server = FakeChallengermode(self.clock)
         api = self.client(server)

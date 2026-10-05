@@ -5,7 +5,8 @@ INSERT OR IGNORE, so planning twice adds nothing, then works through the pending
 task that walks several pages is safe to repeat, because its pages come back from the cache.
 
 Statuses: pending, running, done, failed (a timeout or server error; retried on the next
-run, up to MAX_ATTEMPTS) and rejected (a client error; not retried).
+run, up to MAX_ATTEMPTS) and rejected (a client error; not retried, unless a run asks for
+it with --retry-rejected once the cause is fixed).
 
 Only one crawl per API runs at a time, so each API's request rate stays polite; a Stats API
 crawl and a start.gg crawl can run together. A run records its process ID and a heartbeat,
@@ -104,6 +105,12 @@ class TaskQueue:
                                      " WHERE stage = ? AND status = 'failed' AND attempts < ?",
                                      (now(), stage, MAX_ATTEMPTS)).rowcount
         return running, failed
+
+    def retry_rejected(self, stage):
+        """Put a stage's rejected tasks back in the queue, once the cause is fixed. Returns how many."""
+        with self.db:
+            return self.db.execute("UPDATE tasks SET status = 'pending', last_error = NULL, updated_at = ?"
+                                   " WHERE stage = ? AND status = 'rejected'", (now(), stage)).rowcount
 
     def claim(self, stage):
         """The next pending task, marked 'running', or None when the stage has none left."""
