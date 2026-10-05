@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-04)
+## Project status (2026-10-05)
 Planning is finished (committed 2026-10-04), and Phase 1 of the schema proposal's implementation plan (§9) is in progress on branch `claude/phase-1`. Build in the order of that plan, in small steps.
 
 Done, with their write-ups:
@@ -21,7 +21,7 @@ Done, with their write-ups:
 - Schema proposal → `docs/schema-proposal.md`: SQLite schema, views applying the rules below, crawl and coverage plans, earnings design, the target questions, a three-phase implementation plan, and the list of official events. Revised 2026-10-04 with the platform survey findings and the decisions below, including those on stage 6 and placements.
 - `curation/tiers.csv`: a skeleton only (see the tiers rule below).
 - Esports Earnings snapshot (`ingest/snapshot_esports_earnings.py`, run once on 2026-10-04) → `curation/esports_earnings_snapshot.csv`: the top 500 Brawlhalla earners from their website, with the raw HTML in `data/raw/esportsearnings/`. It isn't part of the crawl and isn't refreshed.
-- Curation seed files holding the decisions so far: `curation/player_aliases.csv` (nicknames), `curation/player_merges.csv` (duplicate records of one person) and `curation/external_ids.csv` (confirmed Esports Earnings links).
+- Curation seed files holding the decisions so far: `curation/player_aliases.csv` (nicknames), `curation/player_merges.csv` (duplicate records of one person), `curation/external_ids.csv` (confirmed Esports Earnings links) and `curation/events.csv` (format and mode overrides and the two phase splits).
 - Phase 1, step 1: the Stats API fetch layer (`ingest/statsapi.py`, with the response cache and request log in `ingest/cache.py`) and crawl stage 0 (`python ingest/crawl.py events`), which finds all 622 official events. Tests: `python -m unittest discover -s tests`.
 - Phase 1, step 2: a resumable task queue and run lock (`ingest/tasks.py`), `python ingest/crawl.py status`, stages 1–2 run in full (4,981 PR players with profiles), and a pilot of stages 3–4 on 200 of those players.
 - P1 start.gg standings (`python ingest/crawl.py standings`, with `ingest/startgg.py`): all 529 official start.gg events, 268k placements from 138,696 start.gg players. The run lock is per API, so a start.gg stage can run alongside a Stats API stage.
@@ -29,6 +29,12 @@ Done, with their write-ups:
   - Stages: P4 `brackets` (start.gg sets, pools, last-phase games), P5 `cm` (Challengermode entrant lists and brackets, via `ingest/challengermode.py`), 2b `lookups` and 3b `proseries`.
   - The pilot covered 3 start.gg events (one over the 10,000-set cap, two pools per phase), one Challengermode event, their players' lookups, and the 2021 Pro Series final. Results and the measured estimate for the full run are in the schema proposal (§3).
   - The standings fix: a player entered twice in one event lost a row to the crawl table's key. It's re-keyed, and the two events were re-applied from the cache.
+- The full platform fetches, run by the user (2026-10-05), all complete:
+  - P4: 536,633 start.gg sets for all 529 events.
+  - P5: 90 Challengermode events, 23,948 matches. Three server timeouts were fixed in the client and retried with `--retry-rejected`.
+  - 2b: 146,258 players matched, 83 not in the Stats API.
+  - 3b: 84 Pro Series placements. All three finals were team events.
+  - Results are in the schema proposal (§1, §3).
 
 Decisions so far: the domain definitions below, plus these.
 - Career earnings: the Stats API figure first. For players without one, the fallback is the Esports Earnings snapshot (source `esportsearnings_manual`, as of 2026-10-04), linked to players through `player_aliases`. Each figure is stored with its source and as-of date. The Esports Earnings API is blocked (its account login isn't working).
@@ -42,8 +48,9 @@ Decisions so far: the domain definitions below, plus these.
   - Full runs of stages 3 and 4 are held. The three Pro Series finals, which no platform has, get a small targeted Stats API fetch instead.
   - Merge candidates are ranked in tiers (exact name, same region, non-overlapping activity). Only tier 1 is accepted automatically; the rest go to a review CSV. The user has asked the esports team for their account-link data.
   - Challengermode: renew the access token shortly before its `expiresAt`, and on an auth error renew it and retry once. Keep at least 3.5 s between requests.
+- The Pro Series 2021 final counts like a crew battle (2026-10-05): `format_override = 'crew_battle'` in `curation/events.csv`. It was a team event, six teams of six.
 
-Next step: the user runs the full fetches (P5, then 2b and 3b, with P4 alongside). Then the merge-candidate review list, once the user approves it. Open: how the Pro Series 2021 final counts, since it was a team event (schema proposal, open questions). The user runs long fetches themselves. Don't start anything beyond a pilot without asking, and check with the user before starting any new stage.
+Next step: two decisions for the user, in the schema proposal's open questions. First, whether the 2019 Pro Series finals (also team events) count like crew battles too. Second, how to fill in three start.gg events whose standings miss entrants who played. Then the merge-candidate review list, once the user approves it, then the builder. The user runs long fetches themselves. Don't start anything beyond a pilot without asking, and check with the user before starting any new stage.
 
 ## Domain definitions (decided)
 - Data scope for now: official events only (`isOfficial: true`); community events are left out.
