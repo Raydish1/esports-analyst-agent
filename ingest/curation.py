@@ -61,7 +61,7 @@ EventOverride = namedtuple("EventOverride", "event_id format_override mode_overr
                                             " note line")
 EventAlias = namedtuple("EventAlias", "alias event_id note line")
 EventTerm = namedtuple("EventTerm", "term means note")
-PlayerAlias = namedtuple("PlayerAlias", "alias player_id note line")
+PlayerAlias = namedtuple("PlayerAlias", "alias shown_as player_id note line")
 Merge = namedtuple("Merge", "player_id canonical_player_id source note line")  # source: 'curated' | 'auto'
 CheckException = namedtuple("CheckException", "check subject note line")
 
@@ -266,7 +266,7 @@ def load_player_aliases(rows, cur, problems):
             problems.append(f"{where}: {alias!r} for {pid} is listed twice")
         elif pid is not None:
             seen.add((alias, pid))
-            cur.player_aliases.append(PlayerAlias(alias, pid, row.get("note", ""), line))
+            cur.player_aliases.append(PlayerAlias(alias, row["alias"], pid, row.get("note") or None, line))
 
 
 def load_merges(curated_rows, rejection_rows, auto_rows, cur, problems):

@@ -5,7 +5,7 @@
 -- Changes from the proposal, decided in the build plan:
 --   * match scores may be NULL, with the platform's reported winner as the fallback;
 --   * merges record whether a person or an unattended run decided them;
---   * event aliases and events keep their curated note, and events a curated status ('cancelled');
+--   * event aliases, events and player aliases keep their curated note, and events a curated status;
 --   * four new tables: event_terms, event_sources, build_info, build_checks.
 -- Foreign keys aren't enforced while a build loads; the checks verify them.
 
@@ -33,6 +33,7 @@ CREATE TABLE player_aliases (
   kind       TEXT NOT NULL,      -- 'display_name' | 'former_name' | 'without_tag' | 'nickname'
   shown_as   TEXT NOT NULL,      -- original spelling, e.g. 'ECHO | Marckiemoo'
   source     TEXT NOT NULL,      -- 'stats_api' | 'startgg' | 'challengermode' | 'curated'
+  note       TEXT,               -- new (build plan): a curated nickname's note, e.g. who else the name means
   PRIMARY KEY (alias, player_id)
 );
 CREATE INDEX player_aliases_player ON player_aliases (player_id);

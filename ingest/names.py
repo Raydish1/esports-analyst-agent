@@ -17,6 +17,11 @@ def normalize(name):
     return re.sub(r"[\W_]+", "", fold((name or "").split("|")[-1]))
 
 
+def normalize_full(name):
+    """A whole name, team tag included, as aliases are matched ('Pink | Guichabou' -> 'pinkguichabou')."""
+    return re.sub(r"[\W_]+", "", fold(name))
+
+
 def normalize_words(text):
     """An event alias as it's matched: accents folded, lowercase, words split on anything but letters
     and digits, one space between them ('BCX  2022!' -> 'bcx 2022')."""

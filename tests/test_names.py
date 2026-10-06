@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ingest"))
-from names import normalize, normalize_words  # noqa: E402
+from names import normalize, normalize_full, normalize_words  # noqa: E402
 
 
 class NormalizeTest(unittest.TestCase):
@@ -12,6 +12,8 @@ class NormalizeTest(unittest.TestCase):
         self.assertEqual(normalize("Machèèèèté"), "macheeeete")
         self.assertEqual(normalize("STING RAY"), normalize("sting-ray!"))
         self.assertEqual(normalize(None), "")
+        self.assertEqual(normalize_full("Pink | Guichabou"), "pinkguichabou")  # a display name keeps its tag
+        self.assertEqual(normalize_full("★★"), "")
 
     def test_event_aliases_keep_one_space_between_words(self):
         self.assertEqual(normalize_words("BCX  2022!"), "bcx 2022")

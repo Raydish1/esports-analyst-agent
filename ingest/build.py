@@ -33,10 +33,12 @@ from collections import namedtuple
 from datetime import datetime, timezone
 from pathlib import Path
 
+import build_aliases
 import build_events
 import build_matches
 import build_placements
 import build_players
+import build_rankings
 import curation
 from builds import BuildRunning, Builds
 from cache import CACHE_DIR, CRAWL_DB, ROOT
@@ -76,6 +78,7 @@ class Build:
         self.auto_merges = auto_merges
         self.curation = None  # set by the curation step
         self.players = None  # the player registry, set by the players step
+        self.skipped = []  # curated rows skipped, by file and line, with the reason
         self.info = {}
 
 
@@ -97,6 +100,9 @@ STEPS = [  # (name, function(build)) in the build plan's order; each fills its t
     ("standings", build_players.standings_step),
     ("placements", build_placements.step),
     ("matches", build_matches.step),
+    ("aliases", build_aliases.aliases_step),
+    ("merges", build_aliases.merges_step),
+    ("rankings", build_rankings.step),
 ]
 CHECKS = []  # functions(build) returning Outcomes
 

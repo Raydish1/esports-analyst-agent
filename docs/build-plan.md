@@ -137,7 +137,7 @@ Tests use small JSON fixtures, like `test_crawl.py`.
 
 ## 2. Curation files
 
-Tables keep what the platforms reported. Curated values live in their own columns and tables, and the views apply them, so a curation edit only needs a rebuild. A curated row naming an event or player that doesn't exist stops the build: it's a typo to fix, and the live build stays in place.
+Tables keep what the platforms reported. Curated values live in their own columns and tables, and the views apply them, so a curation edit only needs a rebuild. A curated row naming an event that doesn't exist stops the build: it's a typo to fix, and the live build stays in place. A row naming a player the cache has no record of is skipped and listed instead (step 6, for review), since it may name a real record with no official results.
 
 | File | Applied as | Validated for |
 |---|---|---|
@@ -260,8 +260,8 @@ One commit per step, pushed after each, with a report after each step for review
 | 3 | Players, lookups and negative IDs; standings | Done 2026-10-05 |
 | 4 | Placements, teams and the Pro Series placements | Done 2026-10-05 |
 | 5 | Matches and match players | Done 2026-10-05 |
-| 6 | Aliases, merges, PR and earnings | Next |
-| 7 | Views, with the approved fixes | |
+| 6 | Aliases, merges, PR and earnings | Done 2026-10-05 |
+| 7 | Views, with the approved fixes | Next |
 | 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | |
 | 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | |
 
@@ -382,3 +382,32 @@ One commit per step, pushed after each, with a report after each step for review
   - The entrants who played without a placement are SEA League Week 1/4's and MAX MODE 2025's 70. 10 of their players have no Stats API record and get negative IDs here, 37 start.gg platform-only players in all. The crawl's 15 included 5 who appear only in CEO Dreamland 2020's placeholders.
 - **Speed:** secondary indexes are now created once, after the steps (as the build order intended), rather than kept up to date row by row. A build through this step takes about 45 s, down from 80: players 2 s, standings 8 s, placements 2 s, matches 30 s, indexes 2 s. Parsing the 11,000 set pages is most of the matches step.
 - **Tests:** 4 new; the suite (115) passes.
+
+**Step 6 (2026-10-05):**
+- **Built:** `build_aliases.py` (build steps 7 and 8) and `build_rankings.py` (step 9).
+  - **Aliases:** one row per (alias, player), keeping the strongest kind:
+    1. a curated nickname, with its note;
+    2. the display name, whole, tag included;
+    3. the name without its tag;
+    4. former names: older Stats API names, start.gg tags at each event (from the standings and entrant lists, shown with the event's prefix), and Challengermode usernames. The newest spelling is shown.
+  - **Merges:** curated rows first, then the automatic ones that survive.
+    - IDs are resolved as players are today: a negative ID through its platform ID.
+    - A merge that conflicts once resolved stops the build if it's curated, and is dropped if it's automatic.
+    - Chains are collapsed.
+  - **Rankings:** one PR row per player, mode and list date, and the Stats API's career earnings for every ranked player, $0 included.
+- **On the cache:**
+  - 191,472 aliases: 7 nicknames, 145,532 display names, 1,269 names without tags and 44,664 former names. 65 players have none, because their names are only symbols.
+  - 671 merges into 671 canonical players.
+  - 6,209 PR rows. Career earnings for 4,981 ranked players, 400 of them above $0; gdsandstorm leads at $258,984.17, as the survey found.
+  - Spot checks:
+    - "godly" finds Zivai through "Kingdom | Godly", "littleflower" finds flowerVS, and "balloonboy" finds BBBalloonBoy through "LGN | BalloonBoy".
+    - Curated nicknames win, with their notes.
+    - Seven Stats API records are named Boomie, so the agent must choose (146606) and mention the others.
+- **Change from the approved plan (for review):**
+  - A curated row naming a player the cache has no record of is skipped and listed (`build_info.curated_rows_skipped`, then the review list in step 8). It no longer stops the build.
+  - The case behind it: the hand-decided hardymj merge in `player_merges.csv` names record 632566. That's a Challengermode-only record known from the survey, whose only event isn't official, so the crawl never fetched it.
+  - From the builder's side such a row looks like a typo, but a merge with it can't change any result.
+  - An unknown event still stops the build.
+- **Lesson:** steps can't rely on the secondary indexes, which now come at the end. One correlated lookup on `player_aliases.player_id` took 572 s until it moved to Python.
+- **Speed:** a full build takes about 25 s on a quiet machine (aliases 3 s; merges and rankings under 1 s). Under load, steps have run up to twice as long.
+- **Tests:** 5 new; the suite (121) passes.

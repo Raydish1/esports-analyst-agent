@@ -50,18 +50,23 @@ class Players:
 
     def __init__(self):
         self.records = {}  # Stats API ID -> {field: (fetched_at, value)}
+        self.names = {}  # Stats API ID -> {every name a response gave: its newest fetch time}, for former names
         self.claims = {"startgg": {}, "challengermode": {}}  # platform ID -> Stats API ID
         self.asked = {"startgg": set(), "challengermode": set()}  # platform IDs a lookup asked about
         self.platform_only = {}  # negative ID -> {platform, platform_id, name, seen}
         self.referenced = set()  # player IDs the build's rows point at
         self.unasked = set()  # (platform, platform ID) no lookup asked about
         self.written = {}  # player ID -> the row last written
+        self._cm_by_negative_id = None
 
     def observe(self, record, fetched_at):
         pid = record.get("playerId")
         if pid is None:
             return
         fields = self.records.setdefault(pid, {})
+        if record.get("name"):
+            names = self.names.setdefault(pid, {})
+            names[record["name"]] = max(fetched_at, names.get(record["name"], ""))
         for key, source in FIELDS:
             value = record.get(source)
             if value in (None, ""):
@@ -108,6 +113,25 @@ class Players:
                                        "name": name or (known or {}).get("name") or platform_id, "seen": seen}
         self.referenced.add(nid)
         return nid
+
+    def current_id(self, pid):
+        """The player a curated row's ID names today, or None if the cache has no such player. A negative ID is
+        resolved through the platform ID it encodes, so it keeps working after a lookup finds the player a
+        Stats API record."""
+        if pid > 0:
+            return pid if pid in self.records else None
+        if -pid < 2 ** 40:
+            platform, platform_id = "startgg", str(-pid)
+        else:
+            if self._cm_by_negative_id is None:
+                users = set(self.claims["challengermode"]) | {p["platform_id"] for p in self.platform_only.values()
+                                                              if p["platform"] == "challengermode"}
+                self._cm_by_negative_id = {negative_id("challengermode", u): u for u in users}
+            platform, platform_id = "challengermode", self._cm_by_negative_id.get(pid)
+        record = self.claims[platform].get(platform_id)
+        if record is not None:
+            return record
+        return pid if pid in self.platform_only else None
 
     def use(self, pid):
         """Mark a Stats API record as one the build's rows point at. False if the cache has no such record."""
