@@ -38,10 +38,10 @@ import json
 import re
 import sqlite3
 import sys
-import unicodedata
 from datetime import datetime, timezone
 
 from cache import CACHE_DIR, CRAWL_DB, ROOT
+from names import normalize
 
 MERGES = ROOT / "curation" / "player_merges.csv"
 REJECTIONS = ROOT / "curation" / "merge_rejections.csv"
@@ -56,13 +56,6 @@ REGION_WORDS = [  # (region, phrases in an event name, words in it); the first m
     ("AUS", ["australia", "oceania"], {"aus", "oce"}),
     ("JPN", ["japan"], {"jpn"}),
 ]
-
-
-def normalize(name):
-    """A name as aliases are matched: no team tag ('Pink | Guichabou' -> 'Guichabou'), accents
-    folded, lowercase, letters and digits only."""
-    name = unicodedata.normalize("NFKD", (name or "").split("|")[-1])
-    return re.sub(r"[\W_]+", "", "".join(c for c in name if not unicodedata.combining(c)).casefold())
 
 
 def event_region(name):

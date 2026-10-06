@@ -9,14 +9,13 @@ refused token is logged as a 401, which the cache never replays. The token comes
 STARTGG_API_TOKEN in .env and only ever goes into the Authorization header.
 """
 
-import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.request
 
-from cache import ResponseCache
+from cache import ResponseCache, query_hash
 from platform_clients import USER_AGENT, load_env
 from statsapi import ApiError
 
@@ -44,7 +43,7 @@ class StartGG:
     def query(self, name, document, variables, refresh=False):
         """The `data` of a GraphQL query. Raises ApiError when it can't be had."""
         endpoint = f"startgg/{name}"
-        params = {"q": hashlib.sha256(document.encode()).hexdigest()[:12], **variables}
+        params = {"q": query_hash(document), **variables}
         if not refresh:
             cached = self.cache.newest(endpoint, params)
             if cached:

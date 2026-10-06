@@ -16,13 +16,7 @@ def person(pid, name, sgg=None, cm=None, region=None, years=(), best=None):
     return p
 
 
-class NamesAndRegionsTest(unittest.TestCase):
-    def test_normalize_drops_tags_accents_case_and_punctuation(self):
-        self.assertEqual(mc.normalize("Pink | Guichabou"), "guichabou")
-        self.assertEqual(mc.normalize("Machèèèèté"), "macheeeete")
-        self.assertEqual(mc.normalize("STING RAY"), mc.normalize("sting-ray!"))
-        self.assertEqual(mc.normalize(None), "")
-
+class RegionsTest(unittest.TestCase):
     def test_event_region_reads_event_names(self):
         self.assertEqual(mc.event_region("Autumn Championship - North America 2026 - 1v1"), "NA")
         self.assertEqual(mc.event_region("Brawlhalla Spring Championship 2018 (EU) Brawlhalla Singles"), "EU")

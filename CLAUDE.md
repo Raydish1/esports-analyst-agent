@@ -44,6 +44,12 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 - Clients: `statsapi.py`, `startgg.py` and `challengermode.py`, all writing every response to the cache in `cache.py` before parsing.
 - The crawl: `crawl.py` holds the stages and `status`. `tasks.py` holds the resumable task queue and per-API run locks.
 - `merge_candidates.py` builds the merge review list.
+- The builder (`docs/build-plan.md`), as far as its order of work has gone:
+  - `build.py` runs a build (`python ingest/build.py`, plus `status` and `rollback`);
+  - `builds.py` handles the build files, the pointer and rollback;
+  - `cache_reader.py` gives read-only access to the cache;
+  - `schema.sql` holds the tables;
+  - `names.py` holds the name normalization shared with `merge_candidates.py`.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames.

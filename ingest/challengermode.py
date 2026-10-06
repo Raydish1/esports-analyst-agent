@@ -17,14 +17,13 @@ HC0045. That's a timeout, not a refusal: it's logged as 504 and retried, and an 
 logged before this rule existed is never taken as an answer either.
 """
 
-import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.request
 
-from cache import ResponseCache
+from cache import ResponseCache, query_hash
 from platform_clients import USER_AGENT, AccessToken, is_cm_auth_error, load_env
 from statsapi import ApiError
 
@@ -54,7 +53,7 @@ class Challengermode:
     def query(self, name, document, variables, refresh=False):
         """The `data` of a GraphQL query. Raises ApiError when it can't be had."""
         endpoint = f"challengermode/{name}"
-        params = {"q": hashlib.sha256(document.encode()).hexdigest()[:12], **variables}
+        params = {"q": query_hash(document), **variables}
         if not refresh:
             cached = self.cache.newest(endpoint, params)
             if cached and not (cached[0] == 400 and SERVER_TIMEOUT in cached[1]):

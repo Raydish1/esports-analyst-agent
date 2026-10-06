@@ -119,13 +119,13 @@ The builder reads only the cache (the response files, plus the request log in `c
 Tests use small JSON fixtures, like `test_crawl.py`.
 
 **Commands:**
-- `python ingest/build.py`: build, run the checks, and publish if they pass;
+- `python ingest/build.py`: build, run the checks, and publish if they pass. Without `--as-of`, the cutoff is the build's start, so a response fetched during the build isn't used;
 - `--no-publish`: build and check, leaving the live build as it is;
-- `--as-of TIME`: only responses fetched up to TIME (UTC);
-- `--event ID`: a dev build of the named events, never published;
+- `--as-of TIME`: build from the responses fetched up to TIME (UTC unless it gives a zone). Such a build of the past never goes live;
+- `--event ID`: a dev build of the named events, never published (from step 2);
 - `status`: the live build and the builds kept;
-- `rollback`: make the previous build live again;
-- `freeze NAME`: copy the live build to `data/db/eval/` as a frozen snapshot.
+- `rollback`: make the build that was live before live again;
+- `freeze NAME`: copy the live build to `data/db/eval/` as a frozen snapshot (step 9).
 
 ## 2. Curation files
 
@@ -205,11 +205,20 @@ New curation needs never block an update, and the frozen evaluation snapshot is 
 
 - **Fetch only new events, rebuild everything.** A full build takes minutes and gives the same result for the same inputs, so the updater never edits a live database.
 - **Each build is a new file, and a pointer file names the live one.**
-  - **Files:** `data/db/builds/<build-id>.sqlite`, where the build ID is the UTC start time, e.g. `20261005T190000Z`. While building, the file is `<build-id>.partial.sqlite`; if the checks fail, it becomes `<build-id>.failed.sqlite`.
-  - **The pointer,** `data/db/current.json`, names the live build and the one before it. Publishing rewrites the pointer atomically. Windows won't let a database file be replaced while the app has it open, so the pointer is what changes, not the database file.
+  - **Files** in `data/db/builds/`, named by the build's UTC start time, e.g. `20261005T190000Z`:
+    - `<build-id>.partial.sqlite` while it's being made;
+    - `<build-id>.sqlite` once its checks pass;
+    - `<build-id>.failed.sqlite` if they fail.
+  - **The pointer,** `data/db/current.json`, names the live build and lists the builds that were live before it. Publishing rewrites it atomically: Windows won't let a database file be replaced while the app has it open, so the pointer is what changes, not the database file.
+  - **Rollback** returns to the build that was live before. So a build that passed but never went live (`--no-publish`, `--as-of`) is never a rollback target, and neither is a build already rolled back from.
   - **The agent** opens the live build read-only through the pointer.
-  - **Kept:** the live build, the three newest published builds and the two newest failed ones. A file still in use is skipped.
-  - **One build at a time:** a lock file in `data/db/builds/` makes a second build wait its turn.
+  - **Kept:**
+    - the live build and the three that were live before it;
+    - the two newest builds that passed but never went live;
+    - the two newest failed ones.
+
+    A file still in use is skipped.
+  - **One build at a time:** a lock file in `data/db/builds/` makes a second build wait, for up to 20 minutes.
 - **The gates are the swap rule:** publish only if no blocking check fails and no "no worse" count got worse.
 - **The review list,** `data/review/review.csv`, is rebuilt every time with stable keys. It holds:
   - **new events** with their detected format and mode. An event leaves the list once it has a row in `events.csv`; a row without overrides just records that the detection was checked;
@@ -237,8 +246,8 @@ One commit per step, pushed after each, with a report after each step for review
 
 | Step | Work | Status |
 |---|---|---|
-| 1 | Cache reader, `names.py`, the tables (`schema.sql`), and the build skeleton with publish, pointer and rollback | Next |
-| 2 | Curation loading and validation; events, format rules and event aliases | |
+| 1 | Cache reader, `names.py`, the tables (`schema.sql`), and the build skeleton with publish, pointer and rollback | Done 2026-10-05 |
+| 2 | Curation loading and validation; events, format rules and event aliases | Next |
 | 3 | Players, lookups and negative IDs; standings | |
 | 4 | Placements, teams and the Pro Series placements | |
 | 5 | Matches and match players | |
@@ -246,3 +255,17 @@ One commit per step, pushed after each, with a report after each step for review
 | 7 | Views, with the approved fixes | |
 | 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | |
 | 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | |
+
+**Step 1 (2026-10-05):**
+- **Built:**
+  - `cache_reader.py` reads the newest successful response to each request. It accepts only listed query versions and an optional cutoff, and its connection to the request log is read-only.
+  - `cache.query_hash` is now the one definition of a query's version, used by both GraphQL clients and the reader.
+  - `names.py` holds `normalize`, moved unchanged from `merge_candidates.py`. Its review list came out byte-identical afterwards.
+  - `schema.sql` has every Phase 1 table. `player_merges` gains a `source` column ('curated' or 'auto', for decision 2).
+  - `builds.py` handles the build files, the pointer, rollback, pruning and the lock.
+  - `build.py` runs the build, with `status` and `rollback`. Steps and checks are empty lists that the next steps fill.
+- **Tests:** 25 new; the whole suite (89) passes.
+- **On the real cache:**
+  - The reader indexes all 21,000 requests in 1.6 s.
+  - Every Phase 1 endpoint reads in full, including all 297 `PhasePools` requests: 290 in the current version and the pilot's 7.
+  - The first real build, with the empty schema, took about a second and is live.

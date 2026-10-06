@@ -39,6 +39,12 @@ def request_key(endpoint, params):
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:20]
 
 
+def query_hash(document):
+    """A GraphQL query's version: the 'q' parameter the clients log with each request, so a changed
+    query is fetched afresh and the builder can tell which version a response answered."""
+    return hashlib.sha256(document.encode()).hexdigest()[:12]
+
+
 def endpoint_dir(endpoint):
     return endpoint.strip("/").replace("/", "_") or "root"  # '/player/placement' -> 'player_placement'
 

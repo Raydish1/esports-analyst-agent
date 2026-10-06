@@ -16,7 +16,17 @@ Capstone project for a CMU agentic AI course.
 
 ## Status
 
-Building Phase 1 of the plan in [`docs/schema-proposal.md`](docs/schema-proposal.md) (§9). Its fetching is complete (2026-10-05); next is the builder, which makes the database from the cache. The crawl runs one stage at a time:
+Building Phase 1 of the plan in [`docs/schema-proposal.md`](docs/schema-proposal.md) (§9). Its fetching is complete (2026-10-05). The builder, which makes the database from the cache, is being built step by step, following [`docs/build-plan.md`](docs/build-plan.md):
+
+```bash
+python ingest/build.py             # build into data/db/builds/, check, and make it live if the checks pass
+python ingest/build.py status      # the live build and the builds kept
+python ingest/build.py rollback    # make the build that was live before live again
+```
+
+The builder makes no requests. `data/db/current.json` names the live build, which the agent opens read-only. A build also takes `--no-publish`, and `--as-of TIME` for a build of the past.
+
+The crawl runs one stage at a time:
 
 ```bash
 python ingest/crawl.py status      # progress of every stage; safe to run during a crawl

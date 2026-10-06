@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ingest"))
 os.environ.setdefault("CHALLENGERMODE_REFRESH_KEY", "test-refresh-key")  # the client never sends a request here
 import challengermode  # noqa: E402
-from cache import ResponseCache  # noqa: E402
+from cache import ResponseCache, query_hash  # noqa: E402
 from platform_clients import CM_AUTH_URL, CM_REFRESH_MARGIN  # noqa: E402
 from statsapi import ApiError  # noqa: E402
 
@@ -157,7 +157,7 @@ class ChallengermodeClientTest(unittest.TestCase):
         server = FakeChallengermode(self.clock)
         api = self.client(server)
         document = "query T($id: UUID!) { tournament(tournamentId: $id) { id } }"
-        params = {"q": challengermode.hashlib.sha256(document.encode()).hexdigest()[:12], "id": "t1"}
+        params = {"q": query_hash(document), "id": "t1"}
         self.cache.store("challengermode/Tournament", params, "u", 400, b'{"errors":[{"extensions":{"code":"HC0045"}}]}', 5)
         self.assertEqual(self.query(api, 1), {"tournament": {"id": "t1"}})
         self.assertEqual(sum(kind == "query" for _, kind, _ in server.sent), 1)
