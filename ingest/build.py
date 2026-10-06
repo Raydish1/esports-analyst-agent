@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import build_events
+import build_placements
 import build_players
 import curation
 from builds import BuildRunning, Builds
@@ -92,6 +93,7 @@ STEPS = [  # (name, function(build)) in the build plan's order; each fills its t
     ("events", build_events.step),
     ("players", build_players.players_step),
     ("standings", build_players.standings_step),
+    ("placements", build_placements.step),
 ]
 CHECKS = []  # functions(build) returning Outcomes
 
@@ -139,6 +141,8 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
         try:
             db.execute("PRAGMA journal_mode = OFF")  # an unfinished build is thrown away, so no rollback journal
             db.execute("PRAGMA synchronous = OFF")
+            db.execute("PRAGMA cache_size = -262144")  # 256 MB, rather than 2 MB: the big tables fit
+            db.execute("PRAGMA temp_store = MEMORY")  # sorts for windows and GROUP BYs stay off the disk
             db.executescript(SCHEMA.read_text(encoding="utf-8"))
             build = Build(db, reader, curation_dir, log, events, auto_merges)
             build.info.update(build_id=build_id, started_at=stamp(started), as_of=reader.as_of,

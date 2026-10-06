@@ -51,6 +51,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `curation.py` loads and checks the curated files;
   - `build_events.py` is the events step;
   - `build_players.py` holds the players and standings steps;
+  - `build_placements.py` fills placements and 2v2 teams, including the Pro Series finals' placements from the Stats API;
   - `sources.py` lists the query versions the builder reads;
   - `problems.py` defines `BuildStop` (and `CurationError`), which end a build with a list of problems;
   - `schema.sql` holds the tables;

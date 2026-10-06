@@ -109,6 +109,13 @@ class Players:
         self.referenced.add(nid)
         return nid
 
+    def use(self, pid):
+        """Mark a Stats API record as one the build's rows point at. False if the cache has no such record."""
+        if pid in self.records:
+            self.referenced.add(pid)
+            return True
+        return False
+
     def row(self, pid):
         if pid in self.records:
             fields = self.records[pid]
@@ -124,9 +131,12 @@ class Players:
 
     def flush(self, db, everyone=False):
         """Write the players met since the last flush, or whose row changed. `everyone` adds every Stats API
-        record, met or not. Returns how many rows were written."""
-        ids = (set(self.records) if everyone else self.referenced & self.records.keys()) \
-            | (self.referenced & self.platform_only.keys())
+        record, met or not. Returns how many rows were written.
+
+        A Stats API record's row is final once written. Only a platform-only player's can change, when a
+        newer entry renames them."""
+        ids = (set(self.records) if everyone else self.referenced & self.records.keys()) - self.written.keys()
+        ids |= self.referenced & self.platform_only.keys()
         changed = [row for row in map(self.row, sorted(ids)) if self.written.get(row[0]) != row]
         db.executemany("INSERT OR REPLACE INTO players (player_id, name, sgg_player_id, cm_player_id, brawlhalla_id,"
                        " country, twitter, twitch, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", changed)

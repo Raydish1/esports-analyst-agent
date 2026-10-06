@@ -250,8 +250,8 @@ One commit per step, pushed after each, with a report after each step for review
 | 1 | Cache reader, `names.py`, the tables (`schema.sql`), and the build skeleton with publish, pointer and rollback | Done 2026-10-05 |
 | 2 | Curation loading and validation; events, format rules and event aliases | Done 2026-10-05 |
 | 3 | Players, lookups and negative IDs; standings | Done 2026-10-05 |
-| 4 | Placements, teams and the Pro Series placements | Next |
-| 5 | Matches and match players | |
+| 4 | Placements, teams and the Pro Series placements | Done 2026-10-05 |
+| 5 | Matches and match players | Next |
 | 6 | Aliases, merges, PR and earnings | |
 | 7 | Views, with the approved fixes | |
 | 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | |
@@ -332,3 +332,18 @@ One commit per step, pushed after each, with a report after each step for review
 - **For check 5 (step 8):** Challengermode's `reported_entrants` is the roster's `lineupCount`. In 26 events it exceeds the placed lineups, by 1 to 9 (41 in all), because it counts lineups that registered but never played. So check 5 compares brackets with entrant lists, as the crawl's check does, rather than this count.
 - **Speed:** the players step takes 6 s, the standings step 17 s. The dev build has standings at 12 of its 16 events: the Pro Series finals and CEO Dreamland 2020 have none.
 - **Tests:** 6 new; the suite (108) passes.
+
+**Step 4 (2026-10-05):**
+- **Built:** `build_placements.py`, build step 5, which fills `placements` and `teams`.
+  - **Placements** come from the standings, one per player per event. A player entered more than once keeps the entrant that wasn't DQ'd first, then the better placement, then the lower entrant ID. The placement keeps that entrant's team.
+  - **Teams** are the entrants with exactly two players in events whose effective mode is 2v2, so the mode override counts. Team IDs follow the pairs' order, so the same pairs get the same IDs in every build. The views map merged records to canonical players (step 7).
+  - **The Pro Series finals** take their placements from every single-player GetPlayerPlacements page in the cache that lists them, the newest response winning. A 2v2 pair's pages are left out, and the placements get no team ID, which is only for 2v2 pairs.
+  - **Stats API placements for entrants missing from standings** (stage 3c; none today) come with the matches step, which finds those entrants.
+- **On the cache:** 346,199 placements: start.gg 329,322, Challengermode 16,793 and the Stats API 84.
+  - 31 standings rows were folded in, from 24 players entered twice, 2 entered three times and 1 entered four times. Most are "Deleted user" accounts.
+  - ThousandCut and Thepokymater keep their 1025th place and team, not the DQ'd 2049th.
+  - 44,692 teams, and all 131,134 2v2 placements have one: every 2v2 entrant has two players.
+  - CEO Dreamland 2017's doubles get teams through the mode override. Crew battles, 3v3 and 1v1 events get none.
+  - The finals: 24, 24 and 36 placements, in their team shapes (places 1-5 shared by teams of three in 2019, six teams of six in 2021).
+- **Speed:** the build's connection now uses a 256 MB page cache and in-memory temp storage, rather than SQLite's 2 MB and temp files. Writing players now rechecks only new players and platform-only ones. The build takes about 27 s through this step: players 4 s, standings 14 s, placements 10 s.
+- **Tests:** 3 new; the suite (111) passes.
