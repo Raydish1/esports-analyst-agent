@@ -64,8 +64,11 @@ Curation (`curation/`, committed):
 - `events.csv`: the three Pro Series finals as crew battles, CEO Dreamland 2017's doubles as 2v2, and the two Brawl League Masters Season 4 phase splits.
 - `format_rules.csv`: name patterns that mark side formats (crew battles, 3v3, Triples, Brawlball, Kung Foot, …); the lowest priority wins.
 - `event_aliases.csv`: names people use for events that the data doesn't, such as "bcx 2022" and "worlds 2019". Worlds 2018 was DreamHack Atlanta 2018. The Last Chance Qualifiers aren't Worlds.
-- `event_terms.csv`: words people use for words in event names, such as "ltc" (Low Tier City) and "winters" (the winter championships).
-  - "msi" means the Midseason Invitational, which isn't an official event. Some people use it for the Midseason Championship 2025 by mistake, so check which was meant.
+  - "msi" (or "midseason invitational") defaults to the 2022 Brawlhalla Midseason Championship (decided 2026-10-05). Someone may mean another midseason event, so the answer says which one it used.
+- `event_terms.csv`: words people use for words in event names:
+  - "ltc" (Low Tier City);
+  - "winters", "springs", "summers" and "autumns" (the seasonal championships);
+  - region abbreviations: na, eu, sa, brz/br, sea, aus, oce, mena, jpn/jp.
 - `tiers.csv`: a skeleton only (see the tiers rule below).
 
 Merge review: **`data/review/merge_candidates.csv`** (git-ignored; regenerate with `python ingest/merge_candidates.py`, which makes no requests).

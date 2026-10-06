@@ -47,7 +47,7 @@ COLUMNS = {  # file: (required columns, optional ones); any other column is a ty
 
 FormatRule = namedtuple("FormatRule", "pattern format priority")
 EventOverride = namedtuple("EventOverride", "event_id format_override mode_override competition_id phase_order line")
-EventAlias = namedtuple("EventAlias", "alias event_id line")
+EventAlias = namedtuple("EventAlias", "alias event_id note line")
 EventTerm = namedtuple("EventTerm", "term means note")
 PlayerAlias = namedtuple("PlayerAlias", "alias player_id note line")
 Merge = namedtuple("Merge", "player_id canonical_player_id source note line")  # source: 'curated' | 'auto'
@@ -201,7 +201,7 @@ def load_event_aliases(rows, cur, problems):
             problems.append(f"{where}: {alias!r} for {row['event_id']} is listed twice")
         else:
             seen.add((alias, row["event_id"]))
-            cur.event_aliases.append(EventAlias(alias, row["event_id"], line))
+            cur.event_aliases.append(EventAlias(alias, row["event_id"], row.get("note") or None, line))
 
 
 def load_event_terms(rows, cur, problems):

@@ -77,8 +77,8 @@ def step(build):
         " is_official, is_twos, is_online, format_override, mode_override, competition_id, phase_order, fetched_at)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
     build.db.executemany("INSERT INTO format_rules (pattern, format, priority) VALUES (?, ?, ?)", cur.format_rules)
-    build.db.executemany("INSERT INTO event_aliases (alias, event_id) VALUES (?, ?)",
-                         [(a.alias, a.event_id) for a in cur.event_aliases if a.event_id in chosen])
+    build.db.executemany("INSERT INTO event_aliases (alias, event_id, note) VALUES (?, ?, ?)",
+                         [(a.alias, a.event_id, a.note) for a in cur.event_aliases if a.event_id in chosen])
     build.db.executemany("INSERT INTO event_terms (term, means, note) VALUES (?, ?, ?)", cur.event_terms)
     names = [f" {normalize_words(r['tournamentName'] + ' ' + (r.get('eventName') or ''))} " for r, _ in listed.values()]
     for term in cur.event_terms:

@@ -106,7 +106,7 @@ The builder reads only the cache (the response files, plus the request log in `c
   - Sources: `player_merges.csv`, plus the automatic merges in `data/review/auto_merges.csv` that no curated row contradicts.
   - Chains (A→B→C) are collapsed, and a cycle stops the build.
 - **New tables beyond the schema proposal:** `event_terms` (step 2), `event_sources`, `build_info` and `build_checks`.
-- **Schema changes from decision 1:** nullable scores and `reported_winner_side` on `matches`.
+- **Schema changes:** nullable scores and `reported_winner_side` on `matches` (decision 1), and a `note` on `event_aliases` (step 2, for defaults such as MSI).
 
 **Code** (all in `ingest/`):
 - `build.py`: the steps and the command line;
@@ -283,17 +283,31 @@ One commit per step, pushed after each, with a report after each step for review
   - `event_sources` gets each event's platform here; the steps reading the platforms fill in the rest.
 - **New curation files:**
   - `format_rules.csv`: the schema proposal's ten starting rules. On the cache, they classify the 622 events as 601 standard, 9 crew battles (6 by rule, plus the three Pro Series finals by override), and 3 each of 3v3, Brawlball, Triples and Kung Foot, as the appendix lists them. Five rules match nothing yet; they wait for future side formats. The 2022 Crew Battle Invitationals ("Crew Battle 3v3") match two rules, and priority makes them crew battles.
-  - `event_aliases.csv`: 46 rows.
+  - `event_aliases.csv`: 54 rows.
     - "bcx 2017" and "bcx 2022" to "bcx 2025" name both modes of each BCX.
     - "worlds 2017" to "worlds 2025" name each year's World Championship. For 2020 and 2021, that's the five regional championships, without the Last Chance Qualifiers (decided).
     - "world championship 2018" names DreamHack Atlanta 2018, whose events are named just "Brawlhalla 1v1" and "Brawlhalla 2v2". It was the 2018 World Championship (confirmed by the user).
   - `event_terms.csv` (community names, added at the user's request): words people use for words in event names, so they keep working for future events.
     - "ltc" means "low tier city": Low Tier City 7 (2019) and Low Tier City Midseason Online (2020).
     - "winters", "springs", "summers" and "autumns" mean "<season> championship" and "<season> doubles championship" (the 2024 seasonals were 2v2 only). They don't mean the bare season word, which also appears in the Royales, DreamHack Winter and the Summer Slam.
-    - "msi" means "midseason invitational". No official event has that name, and no Midseason Championship 2025 exists either. The official midseason events are LTC Midseason Online 2020, the Brawlhalla Midseason Championship 2022 and the Midseason Championship 2026.
-      - The note warns that some people say MSI for the Midseason Championship 2025, so an answer should check which event was meant and never swap one in silently.
-      - The build logs that the phrase matches no event yet.
-    - How the agent uses them: it normalizes the user's words and replaces a term with each phrase it means, then matches those against event names. The event aliases cover the irregular cases.
+    - Region abbreviations for every region in the data, each with the phrases names use:
+      - "na" → "north america", plus "us" for 2017's US events;
+      - "eu" → "europe", "sa" → "south america";
+      - "brz" and "br" → "brazil" (2017-2019; Brazil plays in South America's events from 2020);
+      - "sea" → "southeast asia" and 2017's "s e asia";
+      - "aus" → "australia" and 2017's "australian"; "oce" → "australia" (Oceania);
+      - "mena" → "middle east"; "jpn" and "jp" → "japan".
+
+      "me" and "us" aren't terms, since they're everyday words.
+    - Every phrase matches official events: 12 for "low tier city", 75 for "winter championship", 78 for "north america", and so on.
+    - **How the agent uses them:**
+      - It tries each of the user's words as typed and as each phrase it means, and a phrase as its term ("North America" also finds names that say "(NA)").
+      - It then matches those against event names.
+      - The event aliases cover the irregular cases.
+  - **MSI (decided 2026-10-05):** "msi" first meant "midseason invitational", a name no official event has. It now defaults to the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational.
+    - The aliases "msi", "msi 2022", "midseason invitational" and "midseason invitational 2022" name its two events.
+    - Their note, kept in `event_aliases.note`, says someone may mean another midseason event, so the answer says which one it used.
+    - The other midseason events are LTC Midseason Online 2020 and the Midseason Championship 2026. A Midseason Championship 2025 isn't an official event.
 - **Dev builds:** `--event ID` builds only the named events, and `--dev` builds the awkward cases in `DEV_EVENTS` (16 events). Neither ever goes live, but both check every curated row, as a full build does. `build_info` records the build's scope.
 - **For later steps:**
   - `v_events` should order matching rules by priority, then pattern, so a tie can't change between builds (step 7).

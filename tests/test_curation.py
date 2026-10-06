@@ -45,7 +45,14 @@ class CurationTest(unittest.TestCase):
         self.assertIn("crew_battle", cur.formats())
         self.assertIn(("bcx 2022", "tournament/brawlhalla-world-championship-expo-2022/event/1v1"),
                       [(a.alias, a.event_id) for a in cur.event_aliases])
-        self.assertIn(("winters", "winter championship"), [(t.term, t.means) for t in cur.event_terms])
+        terms = [(t.term, t.means) for t in cur.event_terms]
+        self.assertIn(("winters", "winter championship"), terms)
+        self.assertIn(("na", "north america"), terms)
+        msi = [a for a in cur.event_aliases if a.alias == "msi"]
+        self.assertEqual({a.event_id for a in msi}, {
+            "tournament/brawlhalla-midseason-championship/event/brawlhalla-championship-1v1",
+            "tournament/brawlhalla-midseason-championship/event/brawlhalla-championship-2v2"})
+        self.assertTrue(all(a.note.startswith("Default for MSI") for a in msi))
 
     def test_overrides_phases_aliases_and_merges_load(self):
         self.write("events.csv", "series/finals,crew_battle,,,,", "e2v2,,2v2,,,filed as 1v1",

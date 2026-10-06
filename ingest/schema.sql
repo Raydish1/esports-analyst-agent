@@ -5,6 +5,7 @@
 -- Changes from the proposal, decided in the build plan:
 --   * match scores may be NULL, with the platform's reported winner as the fallback;
 --   * merges record whether a person or an unattended run decided them;
+--   * event aliases keep their curated note;
 --   * four new tables: event_terms, event_sources, build_info, build_checks.
 -- Foreign keys aren't enforced while a build loads; the checks verify them.
 
@@ -82,8 +83,9 @@ CREATE TABLE events (
 CREATE INDEX events_start ON events (start_time);
 
 CREATE TABLE event_aliases (       -- curated: names people use for events
-  alias     TEXT NOT NULL,         -- normalized, e.g. 'bcx 2022', 'worlds 2019'
+  alias     TEXT NOT NULL,         -- normalized, e.g. 'bcx 2022', 'worlds 2019', 'msi'
   event_id  TEXT NOT NULL REFERENCES events (event_id),
+  note      TEXT,                  -- new (build plan): e.g. that an alias is a default someone may not mean ('msi')
   PRIMARY KEY (alias, event_id)
 );
 

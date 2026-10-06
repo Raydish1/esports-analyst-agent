@@ -1,6 +1,5 @@
 term,means,note
 ltc,low tier city,Low Tier City 7 (2019) and Low Tier City Midseason Online (2020)
-msi,midseason invitational,"No official event has this name (2026-10-05). Some people also say MSI for the Midseason Championship 2025 by mistake, so an answer should check which event was meant and never swap in a Midseason Championship silently"
 winters,winter championship,"The seasonal championships, not the Winter Royale or DreamHack Winter"
 winters,winter doubles championship,The 2024 seasonals were 2v2 only
 springs,spring championship,"The seasonal championships, not the Spring Royale or Spring Fling"
@@ -9,3 +8,17 @@ summers,summer championship,"The seasonal championships, not the Summer Royale, 
 summers,summer doubles championship,The 2024 seasonals were 2v2 only
 autumns,autumn championship,"The seasonal championships, not the Autumn Royale"
 autumns,autumn doubles championship,The 2024 seasonals were 2v2 only
+na,north america,"Names also say NA, as in (NA), NA-West and NA-East"
+na,us,"2017's North American events say US, as in the Brawlhalla US Winter Championship (Online)"
+eu,europe,"Names also say EU, as in (EU)"
+sa,south america,"Names also say SA, as in (SA). Brazil's own events (2017-2019) are under brz"
+brz,brazil,"Brazil's events of 2017-2019, whose names also say BRZ. From 2020, Brazil plays in South America's events"
+br,brazil,"As brz. From 2020, Brazil plays in South America's events"
+sea,southeast asia,"Names also say SEA, as in (SEA) and the SEA League"
+sea,s e asia,2017's S.E. Asia Open Series
+aus,australia,"Names also say AUS, as in (AUS)"
+aus,australian,2017's Australian Open Series
+oce,australia,Oceania: the data calls the region Australia
+mena,middle east,"Middle East & North Africa in 2024, Middle East from 2025"
+jpn,japan,The Brawlhalla Japan Invitational (2022)
+jp,japan,As jpn
