@@ -69,7 +69,11 @@ class CacheReader:
             newest[request] = (params, fetched_at, path)  # rows come oldest first, so the newest stays
         return sorted(newest.values(), key=lambda entry: entry[1])
 
+    def load(self, path):
+        """A cached response's parsed body, by its path from entries()."""
+        return json.loads(gzip.decompress((self.cache_dir / path).read_bytes()))
+
     def responses(self, endpoint, versions=None):
         """Each response from entries(), parsed, one at a time."""
         for params, fetched_at, path in self.entries(endpoint, versions):
-            yield Response(params, fetched_at, json.loads(gzip.decompress((self.cache_dir / path).read_bytes())))
+            yield Response(params, fetched_at, self.load(path))

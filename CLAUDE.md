@@ -52,6 +52,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `build_events.py` is the events step;
   - `build_players.py` holds the players and standings steps;
   - `build_placements.py` fills placements and 2v2 teams, including the Pro Series finals' placements from the Stats API;
+  - `build_matches.py` fills matches and match players from start.gg sets and Challengermode matches;
   - `sources.py` lists the query versions the builder reads;
   - `problems.py` defines `BuildStop` (and `CurationError`), which end a build with a list of problems;
   - `schema.sql` holds the tables;
@@ -94,6 +95,9 @@ Decisions so far: the domain definitions below, plus these.
   - Their entrant lists were fetched, so all their sets can be attributed.
   - Placements come from the Stats API where it has them. It had none, so all 151 such entrants stay unplaced.
   - Placements are never derived from brackets.
+  - **Correction (found by the builder, 2026-10-05): CEO Dreamland 2020 was never played on start.gg.**
+    - All 161 of its sets are unstarted placeholders, and its only phase is still "CREATED". The in-person event seems to have been cancelled; Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28.
+    - So it has no results at all. The entrants who really played without a placement are SEA League's and MAX MODE's 70.
 - Merge candidates (2026-10-05): built by `ingest/merge_candidates.py` with the tiers in the schema proposal (§1). Tier 1 (a start.gg-only and a Challengermode-only record, each its name's only record on its platform, same region, separate activity) is accepted automatically into `player_merges.csv`. Tiers 2 and 3 wait for review.
 - The builder (2026-10-05; details in `docs/build-plan.md`):
   - Builds are versioned files in `data/db/builds/`, and a pointer file, `data/db/current.json`, names the live one. The agent reads the database through the pointer, read-only.

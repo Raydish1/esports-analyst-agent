@@ -251,8 +251,8 @@ One commit per step, pushed after each, with a report after each step for review
 | 2 | Curation loading and validation; events, format rules and event aliases | Done 2026-10-05 |
 | 3 | Players, lookups and negative IDs; standings | Done 2026-10-05 |
 | 4 | Placements, teams and the Pro Series placements | Done 2026-10-05 |
-| 5 | Matches and match players | Next |
-| 6 | Aliases, merges, PR and earnings | |
+| 5 | Matches and match players | Done 2026-10-05 |
+| 6 | Aliases, merges, PR and earnings | Next |
 | 7 | Views, with the approved fixes | |
 | 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | |
 | 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | |
@@ -347,3 +347,30 @@ One commit per step, pushed after each, with a report after each step for review
   - The finals: 24, 24 and 36 placements, in their team shapes (places 1-5 shared by teams of three in 2019, six teams of six in 2021).
 - **Speed:** the build's connection now uses a 256 MB page cache and in-memory temp storage, rather than SQLite's 2 MB and temp files. Writing players now rechecks only new players and platform-only ones. The build takes about 27 s through this step: players 4 s, standings 14 s, placements 10 s.
 - **Tests:** 3 new; the suite (111) passes.
+
+**Step 5 (2026-10-05):**
+- **Built:** `build_matches.py`, build step 6, which fills `matches` and `match_players`.
+  - **start.gg:**
+    - The set pages of every chosen event, plus the pool pages of the four big 2020 events. Pool pages are tied to their events through each event's first page (its phases) and the phases' pool pages.
+    - A set seen twice keeps its newest response, players included.
+    - Byes and sets never played are left out. Scores are kept as reported (−1 for a DQ, NULL where none was given), and every set keeps start.gg's own winner.
+    - Side 1 is slot 0.
+    - Players come from the standings, else from the entrant list (P1b). Those met only there are registered as players here, with any Stats API placement (stage 3c; none in the cache).
+  - **Challengermode:**
+    - Completed matches in two-lineup series. Cancelled matches and byes are left out.
+    - Side 1 is lineup 0.
+    - No scores means a forfeit, stored 0–0, so it's a no-contest. The reported winner comes from the match result.
+  - **`event_sources`** gets start.gg's set totals and phase states.
+  - **Left out but counted:** what isn't stored goes in `build_info.match_counts`, for check 9.
+- **On the cache:** 560,184 matches and 1,386,358 match players.
+  - start.gg: 536,400, which is 536,633 sets minus 189 byes and 44 never played. Challengermode: 23,784, leaving out 164 cancelled matches.
+  - Every match has players on both sides, and the players per side fit each format: 1 in 1v1, 2 in 2v2, 3 in crew battles.
+  - start.gg: 258,886 DQs (106,899 double) and 260 sets with only a winner (259 plus one with a single score), as in the schema proposal's §1.
+  - Challengermode: 2,034 no-contests (2,012 forfeits and 22 explicit 0–0 draws) and 2 ties of 1–1.
+  - Reported winners disagree with the scores in 3 matches: a start.gg 2–0 whose reported winner is the other side, and the two 1–1 ties. Check 9 lists them.
+- **Correction: CEO Dreamland 2020 was never played on start.gg.**
+  - All 161 of its sets are unstarted "preview" placeholders, and its only phase is still "CREATED". The in-person event was apparently cancelled; Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28.
+  - So it has no matches and no placements. The crawl's "81 entrants in sets" there were entrants of placeholders.
+  - The entrants who played without a placement are SEA League Week 1/4's and MAX MODE 2025's 70. 10 of their players have no Stats API record and get negative IDs here, 37 start.gg platform-only players in all. The crawl's 15 included 5 who appear only in CEO Dreamland 2020's placeholders.
+- **Speed:** secondary indexes are now created once, after the steps (as the build order intended), rather than kept up to date row by row. A build through this step takes about 45 s, down from 80: players 2 s, standings 8 s, placements 2 s, matches 30 s, indexes 2 s. Parsing the 11,000 set pages is most of the matches step.
+- **Tests:** 4 new; the suite (115) passes.

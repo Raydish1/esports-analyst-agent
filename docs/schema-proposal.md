@@ -239,6 +239,8 @@ CREATE INDEX placements_player ON placements (player_id);
   | MAX MODE 2025 1v1 | 8 (the top 8 only) | 41 |
   | CEO Dreamland 2020 1v1 (no standings at all) | 0 | 81 |
 
+  **Correction (the builder, 2026-10-05):** CEO Dreamland 2020's 81 "entrants in sets" are entrants of unstarted placeholder sets. All 161 of its sets are start.gg previews, and its only phase is still "CREATED". The event was never played on start.gg; it was apparently cancelled, and Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28. So the entrants who played without a placement are SEA League's and MAX MODE's 70 (build-plan.md, step 5).
+
   Those 151 entrants have no placement from the standings, and the standings were also how an entrant mapped to its players. Decided 2026-10-05:
   - **Entrant lists for their sets.** The events' entrant lists (stage P1b, 197 entrants in 5 requests) map every entrant to its players, so all their sets can be attributed. The builder takes an entrant's players from `standings`, or else from these lists.
   - **Placements from the Stats API, where it has them** (stage 3c). It had none: of the 151 entrants' players, 136 have a Stats API record, and none has a placement at these events. Each check's page listed the player's earlier official events, so the check itself worked.

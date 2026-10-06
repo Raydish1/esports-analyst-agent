@@ -24,6 +24,7 @@ import argparse
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 import subprocess
 import sys
@@ -33,6 +34,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import build_events
+import build_matches
 import build_placements
 import build_players
 import curation
@@ -94,12 +96,21 @@ STEPS = [  # (name, function(build)) in the build plan's order; each fills its t
     ("players", build_players.players_step),
     ("standings", build_players.standings_step),
     ("placements", build_placements.step),
+    ("matches", build_matches.step),
 ]
 CHECKS = []  # functions(build) returning Outcomes
 
 
 def stamp(moment):
     return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+
+def schema_parts():
+    """schema.sql split in two: the tables, made first, and the secondary indexes (CREATE INDEX), made once
+    the steps have loaded the rows. No step relies on those indexes while it loads."""
+    text = SCHEMA.read_text(encoding="utf-8")
+    indexes = re.findall(r"^CREATE INDEX [^;]+;", text, re.M)
+    return re.sub(r"^CREATE INDEX [^;]+;", "", text, flags=re.M), "\n".join(indexes)
 
 
 def code_version():
@@ -143,7 +154,8 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
             db.execute("PRAGMA synchronous = OFF")
             db.execute("PRAGMA cache_size = -262144")  # 256 MB, rather than 2 MB: the big tables fit
             db.execute("PRAGMA temp_store = MEMORY")  # sorts for windows and GROUP BYs stay off the disk
-            db.executescript(SCHEMA.read_text(encoding="utf-8"))
+            tables, indexes = schema_parts()
+            db.executescript(tables)
             build = Build(db, reader, curation_dir, log, events, auto_merges)
             build.info.update(build_id=build_id, started_at=stamp(started), as_of=reader.as_of,
                               cache_cutoff=reader.cutoff(), **code_version(),
@@ -155,6 +167,9 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
                 step(build)
                 db.commit()
                 log(f"  {name}: {time.monotonic() - begun:.1f} s")
+            begun = time.monotonic()
+            db.executescript(indexes)  # once the rows are in: faster than keeping them up to date row by row
+            log(f"  indexes: {time.monotonic() - begun:.1f} s")
             outcomes = [outcome for check in checks for outcome in check(build)]
             db.executemany("INSERT INTO build_checks (check_id, gate, subject, outcome, detail) VALUES (?, ?, ?, ?, ?)",
                            outcomes)
