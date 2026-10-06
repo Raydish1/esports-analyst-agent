@@ -2,10 +2,14 @@
 -- rules and reusable building blocks, not answers to particular questions, and the agent queries them
 -- rather than the tables. Each view documents its rules inside its definition, after AS, because
 -- SQLite keeps that text in sqlite_master, where the agent reads the schema.
--- Changes from the schema proposal: canonical player IDs in the team views; each side's player count
--- and is_scored in v_match_results; ties settled by the better placement in v_results; v_entries also
--- has players who played without a placement; v_win_runs is new; v_match_sides is folded into
--- v_match_results' side_players.
+-- Changes from the schema proposal:
+--   * the team views use canonical player IDs, with one row per player per partner (partner_id), so a
+--     filter on a player uses an index;
+--   * v_match_results has each side's player count and is_scored; v_match_sides is folded into it;
+--   * v_results settles ties by the better placement, and picks a person's result with NOT EXISTS
+--     rather than a window function, so the views on top of it stay fast when filtered by player;
+--   * v_entries also has players who played without a placement;
+--   * v_win_runs is new.
 
 CREATE VIEW v_events AS
 -- Every official event with its effective mode and format, and what it counts toward (decided rules).
@@ -18,10 +22,8 @@ CREATE VIEW v_events AS
 --              to COVID-19). An answer says it wasn't held, not that its results are missing. note
 --              gives the reason.
 --   competition_key  shared by the phases of one competition (e.g. a Swiss stage and its Top 8 Finals).
-SELECT x.*,
-       CASE x.format WHEN 'standard' THEN x.mode WHEN 'crew_battle' THEN '1v1' END AS counts_as,
-       date(x.start_time, 'unixepoch') AS start_date
-FROM (
+-- (The events are classified once per query, MATERIALIZED, rather than once per row that joins them.)
+WITH classified AS MATERIALIZED (
   SELECT e.*,
          COALESCE(e.mode_override, CASE WHEN e.is_twos = 1 THEN '2v2' ELSE '1v1' END) AS mode,
          COALESCE(e.format_override,
@@ -31,7 +33,11 @@ FROM (
                   'standard') AS format,
          COALESCE(e.competition_id, e.event_id) AS competition_key
   FROM events e
-) x;
+)
+SELECT x.*,
+       CASE x.format WHEN 'standard' THEN x.mode WHEN 'crew_battle' THEN '1v1' END AS counts_as,
+       date(x.start_time, 'unixepoch') AS start_date
+FROM classified x;
 
 CREATE VIEW v_player_ids AS
 -- Every player record with its canonical player. Two records of one person (player_merges) are
@@ -50,21 +56,23 @@ CREATE VIEW v_results AS
 --     standings, 'challengermode' entrant lists, 'stats_api' for the Pro Series finals).
 --   * The data starts in February 2017 and covers official events only, so answers say "official
 --     events".
-SELECT player_id, record_id, event_id, competition_key, mode, format, placement, team_id, source,
-       is_official, tier, tournament_name, event_name, year, start_date, start_time, host, bracket_url
-FROM (
-  SELECT i.canonical_id AS player_id, p.player_id AS record_id, p.placement, p.team_id, p.source,
-         v.event_id, v.competition_key, v.counts_as AS mode, v.format, v.is_official, v.tier,
-         v.tournament_name, v.event_name, v.year, v.start_date, v.start_time, v.host, v.bracket_url,
-         ROW_NUMBER() OVER (PARTITION BY v.competition_key, i.canonical_id
-                            ORDER BY COALESCE(v.phase_order, 0) DESC, v.start_time DESC, p.placement,
-                                     p.player_id) AS nth
-  FROM placements p
-  JOIN v_events v     ON v.event_id = p.event_id
-  JOIN v_player_ids i ON i.player_id = p.player_id
-  WHERE v.counts_as IS NOT NULL
-) ranked
-WHERE nth = 1;
+SELECT pl.canonical_id AS player_id, p.player_id AS record_id, v.event_id, v.competition_key,
+       v.counts_as AS mode, v.format, p.placement, p.team_id, p.source, v.is_official, v.tier,
+       v.tournament_name, v.event_name, v.year, v.start_date, v.start_time, v.host, v.bracket_url
+FROM placements p
+JOIN players pl ON pl.player_id = p.player_id
+JOIN v_events v ON v.event_id = p.event_id
+WHERE v.counts_as IS NOT NULL
+  AND NOT EXISTS (  -- another of the person's records placed better in the same event
+        SELECT 1 FROM players q
+        JOIN placements p2 ON p2.event_id = p.event_id AND p2.player_id = q.player_id
+        WHERE q.canonical_id = pl.canonical_id AND (p2.placement, p2.player_id) < (p.placement, p.player_id))
+  AND (v.competition_id IS NULL OR NOT EXISTS (  -- the person reached a later phase of the competition
+        SELECT 1 FROM events e2
+        JOIN placements p2 ON p2.event_id = e2.event_id
+        JOIN players q     ON q.player_id = p2.player_id
+        WHERE e2.competition_id = v.competition_id AND q.canonical_id = pl.canonical_id
+          AND (COALESCE(e2.phase_order, 0), e2.start_time) > (COALESCE(v.phase_order, 0), v.start_time)));
 
 CREATE VIEW v_entries AS
 -- Every official event a player (canonical) entered, side formats included (their mode is NULL).
@@ -73,13 +81,18 @@ CREATE VIEW v_entries AS
 --   * Entered means placed or played. placement is NULL for a player who played without a placement
 --     (unplaced_entries: the entrants missing from SEA League Week 1/4's and MAX MODE 2025's standings).
 --   * A cancelled event has no entrants, so it never shows here.
-SELECT i.canonical_id AS player_id, v.event_id, v.tournament_name, v.event_name, v.start_date, v.start_time,
-       v.format, v.counts_as AS mode, v.is_official, x.placement
-FROM (SELECT event_id, player_id, placement FROM placements
-      UNION ALL
-      SELECT event_id, player_id, NULL FROM unplaced_entries) x
-JOIN v_events v     ON v.event_id = x.event_id
-JOIN v_player_ids i ON i.player_id = x.player_id;
+--   * A person whose two records both entered one event has two rows for it.
+SELECT pl.canonical_id AS player_id, v.event_id, v.tournament_name, v.event_name, v.start_date, v.start_time,
+       v.format, v.counts_as AS mode, v.is_official, p.placement
+FROM placements p
+JOIN players pl ON pl.player_id = p.player_id
+JOIN v_events v ON v.event_id = p.event_id
+UNION ALL
+SELECT pl.canonical_id, v.event_id, v.tournament_name, v.event_name, v.start_date, v.start_time,
+       v.format, v.counts_as, v.is_official, NULL
+FROM unplaced_entries u
+JOIN players pl ON pl.player_id = u.player_id
+JOIN v_events v ON v.event_id = u.event_id;
 
 CREATE VIEW v_medals AS
 -- Medals: top-3 placements (1st, 2nd or 3rd) at official events, from v_results, so the format and phase
@@ -106,17 +119,15 @@ CREATE VIEW v_official_wins AS
 SELECT * FROM v_results WHERE is_official = 1 AND placement = 1;
 
 CREATE VIEW v_team_results AS
--- 2v2 results by team: one row per team per competition, with the pair as canonical players
--- (player1_id < player2_id). A person with two records stays one partner, so group by the pair for a
--- team's history.
-SELECT DISTINCT MIN(i1.canonical_id, i2.canonical_id) AS player1_id,
-       MAX(i1.canonical_id, i2.canonical_id) AS player2_id,
-       r.event_id, r.competition_key, r.placement, r.is_official, r.tier, r.tournament_name, r.event_name,
-       r.year, r.start_date
+-- 2v2 results by team, one row per player per team result: player_id and partner_id are both canonical, so
+-- a person with two records stays one partner. "Who has X played with": WHERE player_id = X, grouped by
+-- partner_id. A team's history: WHERE player_id = X AND partner_id = Y.
+SELECT r.player_id, partner.canonical_id AS partner_id, r.event_id, r.competition_key, r.placement,
+       r.is_official, r.tier, r.tournament_name, r.event_name, r.year, r.start_date
 FROM v_results r
 JOIN teams t         ON t.team_id = r.team_id
-JOIN v_player_ids i1 ON i1.player_id = t.player1_id
-JOIN v_player_ids i2 ON i2.player_id = t.player2_id
+JOIN players partner ON partner.player_id = CASE WHEN t.player1_id = r.record_id THEN t.player2_id
+                                                 ELSE t.player1_id END
 WHERE r.mode = '2v2';
 
 CREATE VIEW v_match_results AS
@@ -141,7 +152,7 @@ SELECT i.canonical_id AS player_id, mp.player_id AS record_id, m.match_id, mp.si
        CASE WHEN m.winner_side = mp.side THEN 1 ELSE 0 END AS won
 FROM matches m
 JOIN match_players mp ON mp.match_id = m.match_id
-JOIN v_player_ids i   ON i.player_id = mp.player_id
+JOIN players i        ON i.player_id = mp.player_id
 JOIN v_events v       ON v.event_id = m.event_id
 WHERE m.is_no_contest = 0
   AND m.winner_side IS NOT NULL
@@ -163,23 +174,20 @@ WHERE a.mode = '1v1' AND a.side_players = 1 AND b.side_players = 1
 GROUP BY a.player_id, b.player_id;
 
 CREATE VIEW v_head_to_head_2v2 AS
--- 2v2 head-to-head, team against team. Each team is a pair of canonical players (player1_id <
--- player2_id; opponent1_id < opponent2_id). DQs and forfeits are left out. games_won and games_lost
--- count scored sets only; unscored_matches counts the others.
-WITH sides AS (
-  SELECT match_id, side, MIN(player_id) AS player1_id, MAX(player_id) AS player2_id, MAX(won) AS won,
-         MAX(games_won) AS games_won, MAX(games_lost) AS games_lost, MAX(is_scored) AS is_scored
-  FROM v_match_results
-  WHERE mode = '2v2' AND side_players = 2
-  GROUP BY match_id, side
-  HAVING COUNT(DISTINCT player_id) = 2
-)
-SELECT a.player1_id, a.player2_id, b.player1_id AS opponent1_id, b.player2_id AS opponent2_id,
+-- 2v2 head-to-head, team against team: one row per player per partner per opposing pair, so each team's
+-- record appears once for each of its two players. player_id and partner_id are the team; opponent1_id <
+-- opponent2_id the opposing team; all canonical. A team's record against everyone: WHERE player_id = X
+-- AND partner_id = Y. DQs and forfeits are left out. games_won and games_lost count scored sets only;
+-- unscored_matches counts the others.
+SELECT a.player_id, p.player_id AS partner_id, o1.player_id AS opponent1_id, o2.player_id AS opponent2_id,
        SUM(a.won) AS wins, SUM(1 - a.won) AS losses, COUNT(*) AS matches,
        SUM(a.games_won) AS games_won, SUM(a.games_lost) AS games_lost, SUM(1 - a.is_scored) AS unscored_matches
-FROM sides a
-JOIN sides b ON b.match_id = a.match_id AND b.side <> a.side
-GROUP BY a.player1_id, a.player2_id, b.player1_id, b.player2_id;
+FROM v_match_results a
+JOIN v_match_results p  ON p.match_id = a.match_id AND p.side = a.side AND p.player_id <> a.player_id
+JOIN v_match_results o1 ON o1.match_id = a.match_id AND o1.side <> a.side
+JOIN v_match_results o2 ON o2.match_id = a.match_id AND o2.side = o1.side AND o2.player_id > o1.player_id
+WHERE a.mode = '2v2' AND a.side_players = 2 AND o1.side_players = 2
+GROUP BY a.player_id, p.player_id, o1.player_id, o2.player_id;
 
 CREATE VIEW v_career_earnings AS
 -- One career earnings figure per player (canonical): the Stats API's, else the Esports Earnings snapshot's
@@ -215,13 +223,19 @@ CREATE VIEW v_win_runs AS
 --   * A crew battle's run isn't comparable: leave it out and say why.
 --   * A win without counted sets (sets_played = 0, e.g. no match data) ranks last.
 --   * The answer names the metric and shows the top run's set scores.
+-- (Each figure is a subquery per win, so a query for one player reads only that player's matches.)
 SELECT w.player_id, w.event_id, w.competition_key, w.tournament_name, w.event_name, w.start_date, w.mode,
        w.format, (w.format = 'crew_battle') AS is_crew_battle,
-       COUNT(m.match_id) AS sets_played,
-       COALESCE(SUM(1 - m.won), 0) AS sets_dropped,
-       SUM(m.games_won) AS games_won,
-       SUM(m.games_lost) AS games_lost,
-       COALESCE(SUM(1 - m.is_scored), 0) AS unscored_sets,
+       (SELECT COUNT(*) FROM v_match_results m
+         WHERE m.player_id = w.player_id AND m.competition_key = w.competition_key) AS sets_played,
+       (SELECT COALESCE(SUM(1 - m.won), 0) FROM v_match_results m
+         WHERE m.player_id = w.player_id AND m.competition_key = w.competition_key) AS sets_dropped,
+       (SELECT SUM(m.games_won) FROM v_match_results m
+         WHERE m.player_id = w.player_id AND m.competition_key = w.competition_key) AS games_won,
+       (SELECT SUM(m.games_lost) FROM v_match_results m
+         WHERE m.player_id = w.player_id AND m.competition_key = w.competition_key) AS games_lost,
+       (SELECT COALESCE(SUM(1 - m.is_scored), 0) FROM v_match_results m
+         WHERE m.player_id = w.player_id AND m.competition_key = w.competition_key) AS unscored_sets,
        (SELECT COUNT(DISTINCT x.match_id)
           FROM players xi
           JOIN match_players xp ON xp.player_id = xi.player_id
@@ -229,6 +243,4 @@ SELECT w.player_id, w.event_id, w.competition_key, w.tournament_name, w.event_na
           JOIN events xe        ON xe.event_id = x.event_id
          WHERE xi.canonical_id = w.player_id
            AND COALESCE(xe.competition_id, xe.event_id) = w.competition_key) AS no_contests
-FROM v_official_wins w
-LEFT JOIN v_match_results m ON m.player_id = w.player_id AND m.competition_key = w.competition_key
-GROUP BY w.player_id, w.event_id;
+FROM v_official_wins w;

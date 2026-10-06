@@ -176,7 +176,9 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
                 log(f"  {name}: {time.monotonic() - begun:.1f} s")
             begun = time.monotonic()
             db.executescript(indexes)  # once the rows are in: faster than keeping them up to date row by row
-            log(f"  indexes: {time.monotonic() - begun:.1f} s")
+            db.execute("ANALYZE")  # statistics for the query planner: without them a view can take minutes
+            db.commit()
+            log(f"  indexes and statistics: {time.monotonic() - begun:.1f} s")
             log(f"  views: {create_views(db)} created, and each compiles")
             outcomes = [outcome for check in checks for outcome in check(build)]
             db.executemany("INSERT INTO build_checks (check_id, gate, subject, outcome, detail) VALUES (?, ?, ?, ?, ?)",

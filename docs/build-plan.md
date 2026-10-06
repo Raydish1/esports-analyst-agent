@@ -261,8 +261,8 @@ One commit per step, pushed after each, with a report after each step for review
 | 4 | Placements, teams and the Pro Series placements | Done 2026-10-05 |
 | 5 | Matches and match players | Done 2026-10-05 |
 | 6 | Aliases, merges, PR and earnings | Done 2026-10-05 |
-| 7 | Views, with the approved fixes | In progress (work in progress committed 2026-10-06) |
-| 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | |
+| 7 | Views, with the approved fixes | Done 2026-10-06 |
+| 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | Next |
 | 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | |
 
 **Step 1 (2026-10-05):**
@@ -412,19 +412,47 @@ One commit per step, pushed after each, with a report after each step for review
 - **Speed:** a full build takes about 25 s on a quiet machine (aliases 3 s; merges and rankings under 1 s). Under load, steps have run up to twice as long.
 - **Tests:** 5 new; the suite (121) passes.
 
-**Step 7, in progress (2026-10-06):**
+**Step 7 (2026-10-06):**
 - **Decided by the user:**
-  - Curated rows naming unknown players stay skip-and-review. They're listed prominently at the end of every build log and in `status`; the review list (step 8) will list them too.
+  - Curated rows naming unknown players stay skip-and-review. They're listed prominently (`!!`) at the end of every build log and in `status`, and the review list (step 8) will list them too.
   - `v_win_runs` is a per-win summary with no rank column. Question 11's ordering is documented in the view, for the agent to apply.
   - Views encode the decided counting rules and reusable building blocks, not answers to particular target questions.
   - Holding out mismatched new events comes in step 8.
-- **Done:**
-  - `views.sql` holds 13 views, each documented inside its definition (SQLite keeps that text in `sqlite_master`, where the agent reads the schema).
-  - The build creates the views after the indexes and compiles each one.
-  - The new `unplaced_entries` table holds players who played without a placement.
-  - `players.canonical_id` (indexed) holds the merges for the views.
-  - Every answer checked matches the survey: BBBalloonBoy 27 medals, Raydish 6 official wins, Hexoo 5th at Community Tournament #2.
-- **Left:**
-  - Speed up the views still too slow for an agent: `v_win_runs` (20 s for one player), `v_player_medals`, `v_team_results` and `v_head_to_head_2v2` (about 5-6 s each), and `v_entries` (1.7 s). Per-player `v_results`, the 1v1 head-to-heads and match lists already take under 0.1 s. The likely cause is the window over all placements in `v_results` feeding aggregates.
-  - Tests for the views' rules.
-  - Docs and CLAUDE.md for step 7.
+- **The views:** `views.sql` holds 13:
+  - `v_events`, `v_player_ids`, `v_results`, `v_entries`;
+  - `v_medals`, `v_player_medals`, `v_official_wins`;
+  - `v_team_results`, `v_match_results`, `v_head_to_head_1v1`, `v_head_to_head_2v2`;
+  - `v_career_earnings`, `v_win_runs`.
+
+  Each documents its rules inside its definition, after `AS`. SQLite keeps that text in `sqlite_master`, where the agent reads the schema.
+  - The build creates the views after the indexes and compiles each one, so a broken view fails the build.
+  - Not created: `v_tier_results` (tiers are deferred), `v_event_coverage` (step 8), and Phase 3's `v_event_entrants` and `v_match_games`.
+- **Changes from the schema proposal's §2:**
+  - **Canonical IDs and partners:** the team views use canonical IDs, with one row per player per partner (`partner_id`). "Who has X played with" is then `WHERE player_id = X`, which uses an index.
+  - **`v_match_results`** gains `side_players` (which replaces `v_match_sides`) and `is_scored`. Unscored sets have NULL games.
+  - **`v_results`:**
+    - settles a tie by the better placement;
+    - uses NOT EXISTS, not a window function, to pick a person's one result per competition: the last phase reached, then the better placement;
+    - its rules are unchanged.
+  - **`v_entries`** also has players who played without a placement, through the new `unplaced_entries` table (filled by the matches step).
+  - **`v_win_runs`** is new.
+- **Speed:**
+  - The changes:
+    - `players.canonical_id` is an indexed column holding the merges.
+    - `v_events` classifies events once per query (a MATERIALIZED CTE) rather than once per joined row.
+    - The views are shaped so a player filter reaches the indexes: no window or GROUP BY between the filter and the tables.
+    - The build runs `ANALYZE` after the indexes. Without statistics, an unfiltered scan of `v_results` took 424 s; with them, 1.9 s.
+  - On the live build, the target questions' per-player queries take 0.02-0.3 s. Before:
+    - `v_win_runs`: 30 s, now 0.27 s;
+    - `v_player_medals`: 6 s, now 0.02 s;
+    - `v_team_results`: 5 s, now 0.02 s;
+    - `v_head_to_head_2v2`: 6 s, now 0.1 s.
+  - Leaderboards (most official wins, most medals) take 0.2-0.4 s. Full scans take 2-3 s: `v_results` (344,901 rows), `v_match_results` (780,142).
+- **Answers checked against the survey:**
+  - BBBalloonBoy's 27 medals (1v1 2/8/5, 2v2 5/3/4);
+  - Raydish's 6 official wins, all 1v1;
+  - Hexoo's one 1v1 top 8 (5th at Brawlhalla Community Tournament #2);
+  - Boomie's 80 medals;
+  - megD's partners, led by Raydish (20 events, best 2nd) and hardymj (4).
+- **Raydish's win runs (question 11's input):** the Trial of Laufey has the fewest games lost (2, over 9 sets with none dropped). The 2026 crew battle win is flagged `is_crew_battle`.
+- **Tests:** 9 new in `test_views.py`, one database exercising every rule the views apply; the suite (130) passes.

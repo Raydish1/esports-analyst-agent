@@ -42,7 +42,8 @@ class MakeBuildTest(unittest.TestCase):
         db = sqlite3.connect(self.builds.path(build_id, state))
         try:
             return dict(db.execute("SELECT key, value FROM build_info")), \
-                {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+                {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'"
+                                          " AND name NOT LIKE 'sqlite_%'")}  # not ANALYZE's statistics
         finally:
             db.close()
 

@@ -55,6 +55,9 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `build_matches.py` fills matches and match players from start.gg sets and Challengermode matches;
   - `build_aliases.py` fills player aliases (curated nicknames, display names, names without tags, former names) and merges;
   - `build_rankings.py` fills PR snapshots and Stats API career earnings;
+  - `views.sql` holds the 13 views the agent queries:
+    - each documents its counting rules inside its definition, which SQLite keeps in `sqlite_master`;
+    - the build compiles every view, then runs `ANALYZE`, without which some views take minutes;
   - `sources.py` lists the query versions the builder reads;
   - `problems.py` defines `BuildStop` (and `CurationError`), which end a build with a list of problems;
   - `schema.sql` holds the tables;
@@ -110,6 +113,11 @@ Decisions so far: the domain definitions below, plus these.
   - Tier-1 merges found by unattended runs go to `data/review/auto_merges.csv`, not `curation/`. New events whose team sizes don't fit their mode stay out of the counts until reviewed.
   - The frozen evaluation snapshot (`data/db/eval/`) is never updated automatically.
   - The §8 survey answers are a regression check, not independent verification. The user has confirmed Raydish's 6 official wins and verifies the others separately.
+  - Curated rows naming a player the cache has no record of are skipped, not a reason to stop (2026-10-06). They're listed prominently at the end of every build log, in `status`, and in the review list, so typos get caught. The case: the hardymj merge names a Challengermode record with no official results. An unknown event still stops the build.
+  - Views encode the decided counting rules and reusable building blocks, not answers to particular target questions (2026-10-06).
+    - The agent reads each view's rules from its definition.
+    - Question 11's dominance ordering is documented in `v_win_runs` for the agent to apply; the view has no rank column.
+    - Views must stay fast when filtered by a player: no window or GROUP BY between the filter and the indexed tables.
 
 Next step: **the builder, following `docs/build-plan.md`'s order of work.**
 - One step per commit, pushed after each.
