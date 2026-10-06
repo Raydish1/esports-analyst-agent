@@ -1,9 +1,10 @@
-event_id,format_override,mode_override,competition_id,phase_order,note
-tournament/ceo-dreamland/event/brawlhalla-doubles,,2v2,,,CEO: Dreamland 2017's doubles event is filed under 1v1 (isTwos false)
-tournament/brawl-league-masters-season-4-na-1/event/swiss,,,brawl-league-masters-season-4-na,1,Brawl League Masters Season 4 (NA): the Swiss stage
-tournament/brawl-league-masters-season-4-na-1/event/top-8-finals,,,brawl-league-masters-season-4-na,2,Brawl League Masters Season 4 (NA): the Top 8 Finals
-tournament/brawl-league-masters-season-4-eu-1/event/brawlhalla-singles-1v1,,,brawl-league-masters-season-4-eu,1,Brawl League Masters Season 4 (EU): the Swiss stage
-tournament/brawl-league-masters-season-4-eu-1/event/top-8-updated-finals,,,brawl-league-masters-season-4-eu,2,Brawl League Masters Season 4 (EU): the Top 8 Updated Finals
-series/pro-series-2019-na,crew_battle,,,,"Pro Series 2019 NA Finals: a team event, eight teams of three, each member sharing the team's place (stage 3b, 2026-10-05). Counts like a crew battle (decided 2026-10-05)"
-series/pro-series-2019-eu,crew_battle,,,,"Pro Series 2019 EU Finals: a team event, eight teams of three, each member sharing the team's place (stage 3b, 2026-10-05). Counts like a crew battle (decided 2026-10-05)"
-series/pro-series-2021-na,crew_battle,,,,"Pro Series 2021 Finals: a team event, six teams of six, each member sharing the team's place (stage 3b, 2026-10-05). Counts like a crew battle (decided 2026-10-05)"
+event_id,format_override,mode_override,competition_id,phase_order,status,note
+tournament/ceo-dreamland/event/brawlhalla-doubles,,2v2,,,,CEO: Dreamland 2017's doubles event is filed under 1v1 (isTwos false)
+tournament/brawl-league-masters-season-4-na-1/event/swiss,,,brawl-league-masters-season-4-na,1,,Brawl League Masters Season 4 (NA): the Swiss stage
+tournament/brawl-league-masters-season-4-na-1/event/top-8-finals,,,brawl-league-masters-season-4-na,2,,Brawl League Masters Season 4 (NA): the Top 8 Finals
+tournament/brawl-league-masters-season-4-eu-1/event/brawlhalla-singles-1v1,,,brawl-league-masters-season-4-eu,1,,Brawl League Masters Season 4 (EU): the Swiss stage
+tournament/brawl-league-masters-season-4-eu-1/event/top-8-updated-finals,,,brawl-league-masters-season-4-eu,2,,Brawl League Masters Season 4 (EU): the Top 8 Updated Finals
+series/pro-series-2019-na,crew_battle,,,,,"Pro Series 2019 NA Finals: a team event, eight teams of three, each member sharing the team's place (stage 3b, 2026-10-05). Counts like a crew battle (decided 2026-10-05)"
+series/pro-series-2019-eu,crew_battle,,,,,"Pro Series 2019 EU Finals: a team event, eight teams of three, each member sharing the team's place (stage 3b, 2026-10-05). Counts like a crew battle (decided 2026-10-05)"
+series/pro-series-2021-na,crew_battle,,,,,"Pro Series 2021 Finals: a team event, six teams of six, each member sharing the team's place (stage 3b, 2026-10-05). Counts like a crew battle (decided 2026-10-05)"
+tournament/ceo-dreamland-2020/event/brawlhalla-1v1,,,,,cancelled,Not held: cancelled due to COVID-19 (decided 2026-10-05). Its start.gg event has only unstarted placeholder sets and no standings. Brawlhalla CEO Dreamland ONLINE (2020-03-28) followed

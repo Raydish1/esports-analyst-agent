@@ -5,7 +5,7 @@
 -- Changes from the proposal, decided in the build plan:
 --   * match scores may be NULL, with the platform's reported winner as the fallback;
 --   * merges record whether a person or an unattended run decided them;
---   * event aliases keep their curated note;
+--   * event aliases and events keep their curated note, and events a curated status ('cancelled');
 --   * four new tables: event_terms, event_sources, build_info, build_checks.
 -- Foreign keys aren't enforced while a build loads; the checks verify them.
 
@@ -70,6 +70,8 @@ CREATE TABLE events (
   mode_override        TEXT CHECK (mode_override IN ('1v1', '2v2')),
   competition_id       TEXT,              -- shared by the phases of one competition
   phase_order          INTEGER,           -- 1, 2, ... within a competition
+  status               TEXT CHECK (status IN ('cancelled')),  -- new (build plan): an official event never held
+  note                 TEXT,              -- new (build plan): events.csv's note, e.g. why an event wasn't held
   bracket_url          TEXT GENERATED ALWAYS AS (
                          CASE
                            WHEN host = 'SGG' AND event_id LIKE 'tournament/%'

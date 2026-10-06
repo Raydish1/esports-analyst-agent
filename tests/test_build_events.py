@@ -42,15 +42,16 @@ class EventsStepTest(unittest.TestCase):
         self.curation = self.root / "curation"
         self.curation.mkdir()
         self.write("format_rules.csv", "pattern,format,priority,note", "%crew battle%,crew_battle,1,")
-        self.write("events.csv", "event_id,format_override,mode_override,competition_id,phase_order,note",
-                   "series/pro-series-2019-na,crew_battle,,,,", "tournament/league/event/swiss,,,league,1,",
-                   "tournament/league/event/top-8,,,league,2,")
+        self.write("events.csv", "event_id,format_override,mode_override,competition_id,phase_order,status,note",
+                   "series/pro-series-2019-na,crew_battle,,,,,", "tournament/league/event/swiss,,,league,1,,",
+                   "tournament/league/event/top-8,,,league,2,,", "cm-1,,,,,cancelled,never held: cancelled")
         self.write("event_aliases.csv", "alias,event_id,note", "Cup 2018,tournament/cup/event/1v1,",
                    "cup 2018,tournament/cup/event/2v2,the doubles")
         self.write("event_terms.csv", "term,means,note", "cups,cup,", "msi,midseason invitational,no such event yet")
         self.write("player_aliases.csv", "alias,player_id,note")
         self.write("player_merges.csv", "player_id,canonical_player_id,note")
         self.write("merge_rejections.csv", "player_id,other_player_id,note")
+        self.write("check_exceptions.csv", "check,subject,note")
         self.dbs, self.log = [], []
 
     def tearDown(self):
@@ -93,6 +94,8 @@ class EventsStepTest(unittest.TestCase):
                          [("tournament/league/event/swiss", None, "league", 1),
                           ("tournament/league/event/top-8", None, "league", 2),
                           ("series/pro-series-2019-na", "crew_battle", None, None)])
+        self.assertEqual(db.execute("SELECT event_id, status, note FROM events WHERE status IS NOT NULL").fetchall(),
+                         [("cm-1", "cancelled", "never held: cancelled")])
         self.assertEqual(db.execute("SELECT alias, event_id, note FROM event_aliases ORDER BY event_id").fetchall(),
                          [("cup 2018", "tournament/cup/event/1v1", None),
                           ("cup 2018", "tournament/cup/event/2v2", "the doubles")])

@@ -63,7 +63,8 @@ Curation (`curation/`, committed):
 - `player_merges.csv`: 2 merges decided by hand and 670 accepted automatically (tier 1).
 - `merge_rejections.csv`: empty so far.
 - `external_ids.csv`: Esports Earnings links.
-- `events.csv`: the three Pro Series finals as crew battles, CEO Dreamland 2017's doubles as 2v2, and the two Brawl League Masters Season 4 phase splits.
+- `events.csv`: the three Pro Series finals as crew battles, CEO Dreamland 2017's doubles as 2v2, the two Brawl League Masters Season 4 phase splits, and CEO Dreamland 2020 as `cancelled` (not held).
+- `check_exceptions.csv`: known check failures with their explanation, by check ID (the build plan's §3). So far, CEO Dreamland 2020 having no winner.
 - `format_rules.csv`: name patterns that mark side formats (crew battles, 3v3, Triples, Brawlball, Kung Foot, …); the lowest priority wins.
 - `event_aliases.csv`: names people use for events that the data doesn't, such as "bcx 2022" and "worlds 2019". Worlds 2018 was DreamHack Atlanta 2018. The Last Chance Qualifiers aren't Worlds.
   - "msi" (or "midseason invitational") defaults to the 2022 Brawlhalla Midseason Championship (decided 2026-10-05). Someone may mean another midseason event, so the answer says which one it used.
@@ -95,9 +96,10 @@ Decisions so far: the domain definitions below, plus these.
   - Their entrant lists were fetched, so all their sets can be attributed.
   - Placements come from the Stats API where it has them. It had none, so all 151 such entrants stay unplaced.
   - Placements are never derived from brackets.
-  - **Correction (found by the builder, 2026-10-05): CEO Dreamland 2020 was never played on start.gg.**
-    - All 161 of its sets are unstarted placeholders, and its only phase is still "CREATED". The in-person event seems to have been cancelled; Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28.
-    - So it has no results at all. The entrants who really played without a placement are SEA League's and MAX MODE's 70.
+  - **Correction (found by the builder, 2026-10-05): CEO Dreamland 2020 was never played.** It was cancelled due to COVID-19 (confirmed by the user). Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28.
+    - All 161 of its start.gg sets are unstarted placeholders, so it has no results at all.
+    - `events.csv` marks it `status = cancelled`, and `check_exceptions.csv` explains its missing winner.
+    - The entrants who really played without a placement are SEA League's and MAX MODE's 70.
 - Merge candidates (2026-10-05): built by `ingest/merge_candidates.py` with the tiers in the schema proposal (§1). Tier 1 (a start.gg-only and a Challengermode-only record, each its name's only record on its platform, same region, separate activity) is accepted automatically into `player_merges.csv`. Tiers 2 and 3 wait for review.
 - The builder (2026-10-05; details in `docs/build-plan.md`):
   - Builds are versioned files in `data/db/builds/`, and a pointer file, `data/db/current.json`, names the live one. The agent reads the database through the pointer, read-only.
@@ -125,6 +127,7 @@ Explain the builder's design before implementing it, and keep it in small steps.
 - A tournament win's dominance is measured by games lost across the run: the fewest is the most dominant (3-0 in every set, then one dropped game, and so on). Ties go to fewer sets dropped, then to more games won.
   - A run with any unscored set (below) ranks after every fully scored run (decided 2026-10-05).
   - If such a run would have ranked near the top on its scored games alone, the answer mentions it in one line, so it isn't silently buried.
+- An official event that wasn't held (`events.status = 'cancelled'`, such as CEO Dreamland 2020, cancelled due to COVID-19): answers say it wasn't held, not that its results are missing.
 - A DQ (a `-1` game score) or a forfeit (a Challengermode match with no scores, which the Stats API shows as 0-0) is a no-contest, flagged by `matches.is_no_contest`. It counts as neither a win nor a loss and contributes no games.
 - A set with a reported winner but no game score (259 start.gg sets, mostly 2017–2019) counts as a win and a loss (decided 2026-10-05). Unlike a forfeit, it was played. Its games are unknown, not zero:
   - game-based stats (games won or lost, game win rates, dominance) leave it out of the game counts;

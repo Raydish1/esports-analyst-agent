@@ -6,8 +6,10 @@ This module checks each file's structure: columns, values, duplicate keys, and r
 each other. Whether an event or player a row names exists is checked by the build step that applies
 the file.
 
-    events.csv            mode and format overrides, and phase splits. A row with no override records
-                          that an event's detected format and mode were checked (the review list, §5).
+    events.csv            mode and format overrides, phase splits, and events that weren't held
+                          (status 'cancelled'). A row with no override records that an event's detected
+                          format and mode were checked (the review list, §5). Its note goes into the
+                          database, so an answer can give the reason.
     format_rules.csv      LIKE patterns on an event's lowercase name, each mapped to a format;
                           the lowest priority wins.
     event_aliases.csv     names people use for events that the data doesn't (BCX, Worlds)
@@ -19,6 +21,8 @@ the file.
     merge_rejections.csv  two records that aren't
     data/review/auto_merges.csv  tier-1 merges an unattended run found (decision 2). A curated merge
                           of the same record, a rejection, or a loop drops one.
+    check_exceptions.csv  known check failures that are explained (§3): check ID, subject, note. Whether
+                          the subject exists is checked by the checks.
 """
 
 import csv
@@ -33,24 +37,33 @@ from problems import CurationError
 CURATION_DIR = ROOT / "curation"
 AUTO_MERGES = ROOT / "data" / "review" / "auto_merges.csv"
 MODES = ("1v1", "2v2")
+STATUSES = ("cancelled",)  # events.csv status: an official event that was never held
+CHECK_IDS = (  # the checks of the build plan's §3, by ID
+    "event_totals", "winners", "pr_cross_check", "teams", "completeness", "match_presence", "earnings",
+    "stats_api_placements", "no_contests", "snapshot_fallbacks", "pro_series", "integrity", "entrant_sizes",
+    "regression", "known_events")
 STANDARD = "standard"  # the format of an event no rule or override names
 FORMAT_NAME = re.compile(r"^[a-z0-9][a-z0-9_]*$")
 COLUMNS = {  # file: (required columns, optional ones); any other column is a typo
     "format_rules.csv": (("pattern", "format", "priority"), ("note",)),
-    "events.csv": (("event_id",), ("format_override", "mode_override", "competition_id", "phase_order", "note")),
+    "events.csv": (("event_id",), ("format_override", "mode_override", "competition_id", "phase_order", "status",
+                                   "note")),
     "event_aliases.csv": (("alias", "event_id"), ("note",)),
     "event_terms.csv": (("term", "means"), ("note",)),
     "player_aliases.csv": (("alias", "player_id"), ("note",)),
     "player_merges.csv": (("player_id", "canonical_player_id"), ("note",)),
     "merge_rejections.csv": (("player_id", "other_player_id"), ("note",)),
+    "check_exceptions.csv": (("check", "subject"), ("note",)),
 }
 
 FormatRule = namedtuple("FormatRule", "pattern format priority")
-EventOverride = namedtuple("EventOverride", "event_id format_override mode_override competition_id phase_order line")
+EventOverride = namedtuple("EventOverride", "event_id format_override mode_override competition_id phase_order status"
+                                            " note line")
 EventAlias = namedtuple("EventAlias", "alias event_id note line")
 EventTerm = namedtuple("EventTerm", "term means note")
 PlayerAlias = namedtuple("PlayerAlias", "alias player_id note line")
 Merge = namedtuple("Merge", "player_id canonical_player_id source note line")  # source: 'curated' | 'auto'
+CheckException = namedtuple("CheckException", "check subject note line")
 
 
 class Curation:
@@ -61,6 +74,7 @@ class Curation:
         self.merges = []          # curated merges, then the automatic ones that survived
         self.rejections = set()   # frozensets of two player IDs
         self.dropped_auto = []    # (Merge, reason) for automatic merges a curated row overrode
+        self.check_exceptions = []
 
     def formats(self):
         """Every format an override may name."""
@@ -127,6 +141,7 @@ def load(curation_dir=CURATION_DIR, auto_merges=AUTO_MERGES):
                 read(curation_dir / "merge_rejections.csv", "merge_rejections.csv", problems),
                 read(Path(auto_merges), "data/review/auto_merges.csv", problems, optional=True) if auto_merges else [],
                 cur, problems)
+    load_check_exceptions(read(curation_dir / "check_exceptions.csv", "check_exceptions.csv", problems), cur, problems)
     if problems:
         raise CurationError(problems)
     return cur
@@ -171,6 +186,9 @@ def load_events(rows, cur, problems):
             problems.append(f"{where}: unknown format {fmt!r} (formats: {', '.join(sorted(formats))})")
         if mode and mode not in MODES:
             problems.append(f"{where}: mode_override must be 1v1 or 2v2, not {mode!r}")
+        status = row.get("status", "")
+        if status and status not in STATUSES:
+            problems.append(f"{where}: status must be empty or {', '.join(STATUSES)}, not {status!r}")
         competition, order = row.get("competition_id", ""), row.get("phase_order", "")
         phase = None
         if bool(competition) != bool(order):
@@ -181,13 +199,29 @@ def load_events(rows, cur, problems):
             else:
                 phase = int(order)
                 phases[competition].append((phase, line))
-        cur.events.append(EventOverride(event_id, fmt or None, mode or None, competition or None, phase, line))
+        cur.events.append(EventOverride(event_id, fmt or None, mode or None, competition or None, phase,
+                                        status or None, row.get("note") or None, line))
     for competition, members in sorted(phases.items()):
         orders = [order for order, _ in members]
         if len(members) < 2:
             problems.append(f"events.csv:{members[0][1]}: competition {competition!r} has only one phase")
         elif len(set(orders)) < len(orders):
             problems.append(f"events.csv:{members[0][1]}: competition {competition!r} repeats a phase_order")
+
+
+def load_check_exceptions(rows, cur, problems):
+    seen = set()
+    for line, row in rows:
+        where = f"check_exceptions.csv:{line}"
+        if row["check"] not in CHECK_IDS:
+            problems.append(f"{where}: unknown check {row['check']!r} (checks: {', '.join(CHECK_IDS)})")
+        elif not row["subject"]:
+            problems.append(f"{where}: no subject (an event or player ID)")
+        elif (row["check"], row["subject"]) in seen:
+            problems.append(f"{where}: {row['check']} for {row['subject']} is listed twice")
+        else:
+            seen.add((row["check"], row["subject"]))
+            cur.check_exceptions.append(CheckException(row["check"], row["subject"], row.get("note") or None, line))
 
 
 def load_event_aliases(rows, cur, problems):

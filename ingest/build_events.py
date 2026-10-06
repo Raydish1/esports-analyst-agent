@@ -4,7 +4,8 @@
 Events come from the full ListEvents listings, every page of both modes. The per-year listings are
 check 1's cross-check. An event listed in several responses takes the newest one.
 
-curation/events.csv fills the curated columns. A curated row naming an event the listings don't have
+curation/events.csv fills the curated columns, including an event's status ('cancelled': never held) and
+its note, which an answer can quote. A curated row naming an event the listings don't have
 stops the build, and so does a competition whose phases are in different modes. A dev build (--event,
 --dev) loads only the chosen events, but it still checks every curated row, so it fails where a full
 build would.
@@ -71,11 +72,11 @@ def step(build):
                      record["year"], record["startTime"], int(bool(record["isOfficial"])),
                      int(bool(record["isTwos"])), int(bool(record["isOnline"])),
                      o and o.format_override, o and o.mode_override, o and o.competition_id, o and o.phase_order,
-                     fetched_at))
+                     o and o.status, o and o.note, fetched_at))
     build.db.executemany(
         "INSERT INTO events (event_id, host, tournament_name, event_name, sgg_tournament_slug, year, start_time,"
-        " is_official, is_twos, is_online, format_override, mode_override, competition_id, phase_order, fetched_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
+        " is_official, is_twos, is_online, format_override, mode_override, competition_id, phase_order, status, note,"
+        " fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows)
     build.db.executemany("INSERT INTO format_rules (pattern, format, priority) VALUES (?, ?, ?)", cur.format_rules)
     build.db.executemany("INSERT INTO event_aliases (alias, event_id, note) VALUES (?, ?, ?)",
                          [(a.alias, a.event_id, a.note) for a in cur.event_aliases if a.event_id in chosen])
@@ -86,6 +87,9 @@ def step(build):
             build.log(f"  event term {term.term!r}: no official event's name has {term.means!r} yet")
     build.db.executemany("INSERT INTO event_sources (event_id, platform, fetched_at) VALUES (?, ?, ?)",
                          [(r[0], platform(r[0], r[1]), r[-1]) for r in rows])
+    for o in cur.events:
+        if o.status and o.event_id in chosen:
+            build.log(f"  {o.event_id}: {o.status}")
     twos = sum(r[8] for r in rows)
     curated = sum(1 for o in cur.events if o.event_id in chosen)
     build.info["events"] = str(len(rows))

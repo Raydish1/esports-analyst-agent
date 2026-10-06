@@ -21,6 +21,11 @@ The plan builds on [`schema-proposal.md`](schema-proposal.md) (the schema, rules
    - `v_match_results` gains each side's player count, so crew-against-crew sets can be filtered out (question 11);
    - when two merged records placed in one event, `v_results` keeps the better placement.
 6. **The §8 survey answers are a regression check, not independent verification:** they came from the same Stats API. The user has confirmed Raydish's 6 official wins and will verify the other answers separately.
+7. **CEO Dreamland 2020 wasn't held (decided after step 5):** it was cancelled due to COVID-19.
+   - `events.csv` marks it `status = cancelled`, with the reason in its note. Both go into `events`.
+   - A check exception (`winners`) explains why it has no winner.
+   - Answers say it wasn't held, not that its results are missing.
+8. **Player aliases keep their curated note (decided after step 5),** as event aliases do. For example, "flowers" is also the display name of a different player, and the answer can mention them.
 
 ## What the cache showed
 
@@ -106,7 +111,10 @@ The builder reads only the cache (the response files, plus the request log in `c
   - Sources: `player_merges.csv`, plus the automatic merges in `data/review/auto_merges.csv` that no curated row contradicts.
   - Chains (A→B→C) are collapsed, and a cycle stops the build.
 - **New tables beyond the schema proposal:** `event_terms` (step 2), `event_sources`, `build_info` and `build_checks`.
-- **Schema changes:** nullable scores and `reported_winner_side` on `matches` (decision 1), and a `note` on `event_aliases` (step 2, for defaults such as MSI).
+- **Schema changes:**
+  - nullable scores and `reported_winner_side` on `matches` (decision 1);
+  - a `note` on `event_aliases` (step 2, for defaults such as MSI), `events` and `player_aliases` (decisions 7 and 8);
+  - a curated `status` on `events` (decision 7).
 
 **Code** (all in `ingest/`):
 - `build.py`: the steps and the command line;
@@ -133,7 +141,7 @@ Tables keep what the platforms reported. Curated values live in their own column
 
 | File | Applied as | Validated for |
 |---|---|---|
-| `events.csv` | `format_override`, `mode_override`, `competition_id`, `phase_order` on `events`; `v_events` applies them | Event exists; known format; mode 1v1 or 2v2; each competition has at least two phases with distinct orders |
+| `events.csv` | `format_override`, `mode_override`, `competition_id`, `phase_order`, `status` and `note` on `events`; `v_events` applies them | Event exists; known format; mode 1v1 or 2v2; status empty or `cancelled`; each competition has at least two phases with distinct orders |
 | `format_rules.csv` (new, seeded from §2's starting rules) | `format_rules` → `v_events.format` | Valid pattern and priority |
 | `event_aliases.csv` (new, seeded with "bcx 2017" to "bcx 2025", "worlds 2019" and similar) | `event_aliases` | Event exists |
 | `event_terms.csv` (new: words people use for words in event names, such as "ltc" and "winters") | `event_terms` | A term doesn't mean itself; a phrase no event has yet is logged |
@@ -142,7 +150,7 @@ Tables keep what the platforms reported. Curated values live in their own column
 | `merge_rejections.csv` | Read by `merge_candidates.py`; the builder checks it against the merges, manual and automatic | Both records exist |
 | `data/review/auto_merges.csv` (machine-owned, decision 2) | Applied like `player_merges.csv` unless a curated row contradicts it | As for merges |
 | `known_events.csv` (new; the user fills in about 20 rows, §4 of the schema proposal) | The known-events report | Each row finds its event |
-| `check_exceptions.csv` (new) | Turns a known check failure into an explained one: check, subject, note | Subject exists |
+| `check_exceptions.csv` (new; so far the cancelled CEO Dreamland 2020's `winners` row) | Turns a known check failure into an explained one: check ID, subject, note | Known check ID (below); the checks confirm the subject exists |
 | `external_ids.csv`, `esports_earnings_snapshot.csv` | Phase 2; not read yet | |
 | `tiers.csv` | Not read (tiers are deferred) | |
 
@@ -157,21 +165,21 @@ Each check has a gate, which lets a script decide whether to publish without a p
 
 | Check (numbers from the schema proposal's §4) | Gate |
 |---|---|
-| 1. Event totals: the full ListEvents listing equals the per-year listings | Blocking |
-| 2. Winners: one 1st place per counted event (a pair in 2v2, a crew in crew battles, a team at the Pro Series finals) | Blocking |
-| 3. PR cross-check, per Stats API record and mode, using PR's own rule (official events; crew battles and Community Tournament #2 left out) | No worse |
-| 4. Every 2v2 placement has a team | No worse |
-| 5. Completeness from the cache: each event's sets and standings match the platform's totals; every set entrant maps to players; every lineup in a Challengermode bracket is in its entrant list | Blocking |
-| 6. Placed entrants with no match, other than byes and DQs | No worse |
-| 8. Stats API placements against the standings, exact: all 6,093 in the cache, on both platforms | Blocking |
-| 9. No-contests and odd scores counted and listed. Every scored set's winner must match the platform's reported winner | No worse |
-| 11. The Pro Series finals form complete teams | Blocking |
-| New: unique IDs, valid foreign keys, every platform player looked up, valid curation | Blocking |
-| New: entrant sizes fit each event's mode and format | Blocking for reviewed events; review for new ones (decision 3) |
-| New: compared with the live build, no event is lost and no event's placements or matches decreased | Blocking |
-| Known-events report (`known_events.csv`) | Blocking once filled in |
+| 1. `event_totals`: the full ListEvents listing equals the per-year listings | Blocking |
+| 2. `winners`: one 1st place per counted event (a pair in 2v2, a crew in crew battles, a team at the Pro Series finals) | Blocking |
+| 3. `pr_cross_check`: per Stats API record and mode, using PR's own rule (official events; crew battles and Community Tournament #2 left out) | No worse |
+| 4. `teams`: every 2v2 placement has a team | No worse |
+| 5. `completeness`, from the cache: each event's sets and standings match the platform's totals; every set entrant maps to players; every lineup in a Challengermode bracket is in its entrant list | Blocking |
+| 6. `match_presence`: placed entrants with no match, other than byes and DQs | No worse |
+| 8. `stats_api_placements`: Stats API placements against the standings, exact: all 6,093 in the cache, on both platforms | Blocking |
+| 9. `no_contests`: no-contests and odd scores counted and listed. Every scored set's winner must match the platform's reported winner | No worse |
+| 11. `pro_series`: the Pro Series finals form complete teams | Blocking |
+| New, `integrity`: unique IDs, valid foreign keys, every platform player looked up, valid curation | Blocking |
+| New, `entrant_sizes`: entrant sizes fit each event's mode and format | Blocking for reviewed events; review for new ones (decision 3) |
+| New, `regression`: compared with the live build, no event is lost and no event's placements or matches decreased | Blocking |
+| `known_events`: the known-events report (`known_events.csv`) | Blocking once filled in |
 
-Checks 7 and 10 wait for Phase 2's prize data and snapshot links.
+Checks 7 (`earnings`) and 10 (`snapshot_fallbacks`) wait for Phase 2's prize data and snapshot links. The IDs are what `check_exceptions.csv` names (`curation.CHECK_IDS`).
 
 **`v_event_coverage`** shows per event:
 - mode, format and platform state;

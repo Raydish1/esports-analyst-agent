@@ -15,6 +15,7 @@ HEADERS = {
     "player_aliases.csv": "alias,player_id,note\n",
     "player_merges.csv": "player_id,canonical_player_id,note\n",
     "merge_rejections.csv": "player_id,other_player_id,note\n",
+    "check_exceptions.csv": "check,subject,note\n",
 }
 
 
@@ -53,6 +54,25 @@ class CurationTest(unittest.TestCase):
             "tournament/brawlhalla-midseason-championship/event/brawlhalla-championship-1v1",
             "tournament/brawlhalla-midseason-championship/event/brawlhalla-championship-2v2"})
         self.assertTrue(all(a.note.startswith("Default for MSI") for a in msi))
+        ceo = next(o for o in cur.events if o.event_id == "tournament/ceo-dreamland-2020/event/brawlhalla-1v1")
+        self.assertEqual(ceo.status, "cancelled")
+        self.assertIn("COVID-19", ceo.note)
+        self.assertIn(("winners", ceo.event_id), [(e.check, e.subject) for e in cur.check_exceptions])
+
+    def test_event_status_and_check_exceptions(self):
+        header = "event_id,format_override,mode_override,competition_id,phase_order,status,note\n"
+        self.write("events.csv", "e1,,,,,cancelled,never held", header=header)
+        self.write("check_exceptions.csv", "winners,e1,not held")
+        cur = self.load()
+        self.assertEqual([(o.event_id, o.status, o.note) for o in cur.events], [("e1", "cancelled", "never held")])
+        self.assertEqual([(e.check, e.subject, e.note) for e in cur.check_exceptions], [("winners", "e1", "not held")])
+        self.write("events.csv", "e1,,,,,postponed,", header=header)
+        self.write("check_exceptions.csv", "winners,e1,", "made_up,e1,", "winners,,", "winners,e1,again")
+        found = "\n".join(self.problems())
+        self.assertIn("events.csv:2: status must be empty or cancelled, not 'postponed'", found)
+        self.assertIn("check_exceptions.csv:3: unknown check 'made_up'", found)
+        self.assertIn("check_exceptions.csv:4: no subject", found)
+        self.assertIn("check_exceptions.csv:5: winners for e1 is listed twice", found)
 
     def test_overrides_phases_aliases_and_merges_load(self):
         self.write("events.csv", "series/finals,crew_battle,,,,", "e2v2,,2v2,,,filed as 1v1",

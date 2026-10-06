@@ -79,7 +79,8 @@ class PlayersStepTest(unittest.TestCase):
                              ("event_aliases.csv", "alias,event_id"), ("event_terms.csv", "term,means"),
                              ("player_aliases.csv", "alias,player_id"),
                              ("player_merges.csv", "player_id,canonical_player_id"),
-                             ("merge_rejections.csv", "player_id,other_player_id")):
+                             ("merge_rejections.csv", "player_id,other_player_id"),
+                             ("check_exceptions.csv", "check,subject")):
             (self.curation / name).write_text(header + "\n", encoding="utf-8")
         self.dbs, self.log = [], []
 
