@@ -1,0 +1,248 @@
+# Database build plan
+
+**Status: approved 2026-10-05.** This is the plan for Phase 1's builder (schema proposal §9): the database built from the cache and `curation/` alone. The decisions below settled its open questions. Work goes in the order at the end, one step per commit, pushed after each, with a report after each step for review.
+
+The plan builds on [`schema-proposal.md`](schema-proposal.md) (the schema, rules and checks it implements) and the rules in [`CLAUDE.md`](../CLAUDE.md). Where they differ, the decisions here are newer.
+
+## Decisions of 2026-10-05
+
+1. **Sets with a winner but no score count as a win and a loss with no games.** start.gg has 259 completed sets where the organizer reported only the winner (see "What the cache showed").
+   - **Storage:** `matches.side1_score` and `side2_score` may be NULL, and a new `reported_winner_side` holds the platform's own winner. `winner_side` falls back on it when a score is missing.
+   - **Games are unknown, not zero.** In any game-based stat (games won or lost, game win rates, question 11's dominance ranking), these sets are left out of the game counts, and the affected result is flagged: "includes sets with no recorded score".
+   - **A win with unscored sets never looks like a perfect run.** The views expose how many unscored sets a result includes, and question 11's ranking puts a run with any unscored set after every fully scored run.
+   - **Challengermode forfeits stay no-contests.** A Challengermode match with no scores is a no-show (decided 2026-10-04), so it's still stored as 0–0. A start.gg set with only a winner was played.
+2. **Merges found by an unattended run go to `data/review/auto_merges.csv`,** a machine-owned file the builder applies and the review list shows. Only the strongest tier (tier 1) is accepted automatically. The updater never edits committed files.
+   - Running `merge_candidates.py` by hand still appends tier 1 to `curation/player_merges.csv`.
+   - A pair in `curation/merge_rejections.csv` overrides an automatic merge.
+3. **New events whose team sizes don't fit their mode stay out of the counts until reviewed.** An example is a "1v1" event whose entrants have three players.
+4. **Builds are versioned files with a pointer file.** They replace one fixed `data/db/brawlhalla.sqlite` (§5).
+5. **Three fixes to the schema proposal's §2 views are approved:**
+   - `v_team_results` and `v_head_to_head_2v2` use canonical player IDs, so a merged record doesn't split a team;
+   - `v_match_results` gains each side's player count, so crew-against-crew sets can be filtered out (question 11);
+   - when two merged records placed in one event, `v_results` keeps the better placement.
+6. **The §8 survey answers are a regression check, not independent verification:** they came from the same Stats API. The user has confirmed Raydish's 6 official wins and will verify the other answers separately.
+
+## What the cache showed
+
+Measured on 2026-10-05, read-only, before planning.
+
+- **Size and speed:** about 21,000 cached responses (20,933 with status 200), 96 MB compressed, indexed by the request log in `data/db/crawl.sqlite`.
+  - Parsing all 4,455 standings pages took 3.7 s.
+  - The 11,157 set pages (9,965 event pages and 1,192 pool pages, 536,633 distinct sets) took 16.7 s.
+- **Crew battles are crew against crew on both platforms.** This settles the "shape of crew battle matches" item in Phase 1's done list.
+  - start.gg's 2022 Crew Battle Invitationals have entrants of three participants, and their sets are scored crew against crew ("Team Red 0 - Team Pink 2").
+  - Challengermode's 2026 Crew Battle Championships have lineups of three, and match sides of three.
+  - So crew battle sets never count in 1v1 head-to-heads (one player per side), and question 11 can't rank Raydish's crew battle win; the answer says why.
+- **259 start.gg sets have a winner but no game score.**
+  - They're completed sets, not DQs: `displayScore` reads like "Boomie W - Fable | Mother Russia L".
+  - By year: 2017 135, 2018 13, 2019 79, 2020 18, 2021 7, 2022 1, 2023 3, 2024 3.
+  - One more set has one score and a winner ("2" against none). Decision 1 covers it too.
+- **Other unscored sets:**
+  - 981 have a −1 against no score (DQs, no-contests);
+  - 44 were never played (no score, no winner; not stored);
+  - 189 have fewer than two entrants (byes; not stored).
+- **The recount differs from the schema proposal's §1 table** (278 with a winner but no score, 173 never played, 989 with one score missing). Check 9 recounts with the builder's exact rule, and the table gets corrected.
+- **Pool-by-pool set pages don't name their event.** A `PoolSets` request names only the pool. The builder links pools to events through cached responses: an event's first `EventSets` page lists its phases, and `PhasePools` lists each phase's pools. All 1,192 pool pages are linked this way, so the builder never needs the crawl's planning tables.
+- **Query versions:** each GraphQL endpoint the builder reads has one cached query version, except `PhasePools`. There, 7 pages exist only in the pilot's version (query hash `4adbea053cfe`) next to 290 in the current one (`27af850a353b`). So the builder accepts a short list of known query versions per endpoint.
+- **ListPlayers never returns a country.** It returns `playerId`, `sggPlayerId`, `cmPlayerId`, `brawlhallaId`, `name`, and sometimes `twitter` and `twitch`. `players.country` stays NULL.
+- **Entrant sizes always fit the mode or format,** so they can flag new side formats.
+  - In start.gg standings, events filed as 1v1 have 206,241 entrants of one player, 200 of three (the 3v3 Championships and the Crew Battle Invitationals) and 17 of two (CEO Dreamland 2017's doubles, which is filed as 1v1).
+  - 2v2 events have 61,239 entrants, all of two.
+  - All 4,312 placed Challengermode 2v2 lineups have two players.
+- **Check 8 can be ten times stronger than planned.** The cache holds 6,093 single-player Stats API placements at platform events: 5,562 at start.gg events and 531 at Challengermode ones. They're the stage 3 pilot plus the up-to-ten events on each stage 3b and 3c page. The pilot alone had 563. The 84 Pro Series placements are the placements themselves, not a check.
+- **Platform state can't select old events.**
+  - Challengermode reports all 90 events `COMPLETED`.
+  - On start.gg, 513 events have every phase completed, 16 have a phase still `ACTIVE`, and 1 has only a `CREATED` phase.
+- **Disk:** 244 GB free; a build should be roughly 300 MB.
+
+## 1. Build order
+
+The builder reads only the cache (the response files, plus the request log in `crawl.sqlite` that indexes them) and `curation/`. It never reads the crawl's planning tables (`crawl_*`) and never makes a request.
+
+| Step | Reads | Produces |
+|---|---|---|
+| 0. Start | — | A new file in `data/db/builds/`, every table from `schema.sql`, and `build_info` (code commit, curation file hashes, cache cutoff) |
+| 1. Curation | `curation/*.csv` | Every file validated; the build stops on a bad row before reading the cache |
+| 2. Events | `/event` listings, `events.csv`, `format_rules.csv`, `event_aliases.csv` | `events` with the curated columns filled in, `format_rules`, `event_aliases`, `event_sources` |
+| 3. Players | start.gg standings and P1b entrant lists, Challengermode rosters, `/players` lookups, PR rows, teammate records | `players`: Stats API records, plus negative IDs for the platform-only players who placed or played (43 today) |
+| 4. Standings | the same | `standings`, one row per participant of each placed entrant, `player_id` resolved |
+| 5. Placements | `standings`, `/player/placement` | `placements` and `teams` |
+| 6. Matches | start.gg set pages, Challengermode brackets | `matches`, `match_players` |
+| 7. Aliases | everything above, `player_aliases.csv` | `player_aliases` |
+| 8. Merges | `player_merges.csv`, `merge_rejections.csv`, `data/review/auto_merges.csv` | `player_merges` |
+| 9. PR | `/pr` | `pr_snapshots`, `player_earnings` (Stats API figures) |
+| 10. Views | `views.sql` | Every §2 view except the deferred `v_tier_results`, plus `v_career_earnings` and `v_event_coverage`; then indexes |
+| 11. Checks | the new build and the live one | `build_checks`, a report in `data/reports/<build>/`, and a verdict |
+| 12. Publish | the verdict | On pass, the build goes live (§5); on fail, it's kept and marked failed, and the live build stays |
+
+**What each step does:**
+- **Responses:** the newest successful response to each request, at or before the cutoff when `--as-of` is given. Only known query versions are read (above).
+- **Events:** from the full ListEvents listings, one row per Stats API event. The per-year listings are check 1's cross-check.
+  - `events.csv` fills `format_override`, `mode_override`, `competition_id` and `phase_order`.
+  - New table `event_sources` records each event's platform, platform ID and state, and the platform's own totals: entrants and sets reported. Completeness checks and `v_event_coverage` compare against those totals.
+- **Players:**
+  - **Stats API records** come from every cached record: ListPlayers (profiles, lookups and Pro Series candidates), teammate records and PR rows. The newest name wins, and a known platform ID is never overwritten with null.
+  - **Lookup results:** a platform ID named in a cached lookup request but missing from its response isn't in the Stats API.
+  - **Platform-only players** get a stable negative ID: start.gg `-sgg_player_id`; Challengermode `-(2^40 + the first 40 bits of the user UUID)`. Two players with the same ID stop the build.
+  - Only platform players who placed or played get a row.
+- **Placements:**
+  - Each player gets one row per event: from the entrant that wasn't DQ'd first, then the better placement.
+  - The Pro Series finals' placements, and any for the three events missing standings (stage 3c; none today), come from the Stats API.
+  - A team is made from each entrant with exactly two players in an event whose effective mode is 2v2. The mode override counts, so CEO Dreamland 2017's doubles get teams.
+- **Matches:**
+  - **start.gg sets:**
+    - A set with fewer than two entrants (a bye) or with no score and no winner (never played) isn't stored.
+    - A −1 is a DQ, a no-contest; the other side's missing score stays NULL.
+    - A set with a winner but no score is stored with NULL scores and its reported winner (decision 1).
+    - Every set also stores start.gg's winner as `reported_winner_side`, so check 9 can confirm it matches the scores.
+  - **Challengermode matches:** only completed matches in series between two lineups. A match with no scores is a forfeit, stored 0–0 (decision 1).
+  - **Sides:** start.gg's slot order; Challengermode's lineup `number` (0 is side 1).
+  - **An entrant's players** come from the standings, otherwise from the P1b entrant lists.
+- **Aliases:**
+  - Generated: display names, names without the team tag, and former names. Former names come from older Stats API names, the start.gg tag and name at each event, and Challengermode usernames.
+  - Curated nicknames win when they coincide with a generated alias.
+  - Name normalization is shared with `merge_candidates.py` through `names.py`.
+- **Merges:**
+  - Sources: `player_merges.csv`, plus the automatic merges in `data/review/auto_merges.csv` that no curated row contradicts.
+  - Chains (A→B→C) are collapsed, and a cycle stops the build.
+- **New tables beyond the schema proposal:** `event_sources`, `build_info` and `build_checks`.
+- **Schema changes from decision 1:** nullable scores and `reported_winner_side` on `matches`.
+
+**Code** (all in `ingest/`):
+- `build.py`: the steps and the command line;
+- `cache_reader.py`: read-only access to the cache, as above;
+- `builds.py`: build files, the pointer, rollback and pruning;
+- `names.py`: name normalization, moved out of `merge_candidates.py`;
+- `checks.py`;
+- `schema.sql` and `views.sql`.
+
+Tests use small JSON fixtures, like `test_crawl.py`.
+
+**Commands:**
+- `python ingest/build.py`: build, run the checks, and publish if they pass;
+- `--no-publish`: build and check, leaving the live build as it is;
+- `--as-of TIME`: only responses fetched up to TIME (UTC);
+- `--event ID`: a dev build of the named events, never published;
+- `status`: the live build and the builds kept;
+- `rollback`: make the previous build live again;
+- `freeze NAME`: copy the live build to `data/db/eval/` as a frozen snapshot.
+
+## 2. Curation files
+
+Tables keep what the platforms reported. Curated values live in their own columns and tables, and the views apply them, so a curation edit only needs a rebuild. A curated row naming an event or player that doesn't exist stops the build: it's a typo to fix, and the live build stays in place.
+
+| File | Applied as | Validated for |
+|---|---|---|
+| `events.csv` | `format_override`, `mode_override`, `competition_id`, `phase_order` on `events`; `v_events` applies them | Event exists; known format; mode 1v1 or 2v2; each competition has at least two phases with distinct orders |
+| `format_rules.csv` (new, seeded from §2's starting rules) | `format_rules` → `v_events.format` | Valid pattern and priority |
+| `event_aliases.csv` (new, seeded with "bcx 2017" to "bcx 2025", "worlds 2019" and similar) | `event_aliases` | Event exists |
+| `player_aliases.csv` | Rows of kind `nickname`, source `curated`, winning over generated aliases | Player exists |
+| `player_merges.csv` | `player_merges` → `v_player_ids` | Both records exist; no cycles; the pair isn't also rejected |
+| `merge_rejections.csv` | Read by `merge_candidates.py`; the builder checks it against the merges, manual and automatic | Both records exist |
+| `data/review/auto_merges.csv` (machine-owned, decision 2) | Applied like `player_merges.csv` unless a curated row contradicts it | As for merges |
+| `known_events.csv` (new; the user fills in about 20 rows, §4 of the schema proposal) | The known-events report | Each row finds its event |
+| `check_exceptions.csv` (new) | Turns a known check failure into an explained one: check, subject, note | Subject exists |
+| `external_ids.csv`, `esports_earnings_snapshot.csv` | Phase 2; not read yet | |
+| `tiers.csv` | Not read (tiers are deferred) | |
+
+**Negative IDs in curated rows** resolve through the platform ID they encode. So a row naming a platform-only player keeps working after a later lookup finds that player a Stats API record.
+
+## 3. Checks, gates and when Phase 1 is done
+
+Each check has a gate, which lets a script decide whether to publish without a person:
+- **Blocking:** any failure not listed in `check_exceptions.csv` stops the publish.
+- **No worse:** stops the publish only if the count is worse than the live build's.
+- **Review:** never stops it; the item goes to the review list (§5).
+
+| Check (numbers from the schema proposal's §4) | Gate |
+|---|---|
+| 1. Event totals: the full ListEvents listing equals the per-year listings | Blocking |
+| 2. Winners: one 1st place per counted event (a pair in 2v2, a crew in crew battles, a team at the Pro Series finals) | Blocking |
+| 3. PR cross-check, per Stats API record and mode, using PR's own rule (official events; crew battles and Community Tournament #2 left out) | No worse |
+| 4. Every 2v2 placement has a team | No worse |
+| 5. Completeness from the cache: each event's sets and standings match the platform's totals; every set entrant maps to players; every lineup in a Challengermode bracket is in its entrant list | Blocking |
+| 6. Placed entrants with no match, other than byes and DQs | No worse |
+| 8. Stats API placements against the standings, exact: all 6,093 in the cache, on both platforms | Blocking |
+| 9. No-contests and odd scores counted and listed. Every scored set's winner must match the platform's reported winner | No worse |
+| 11. The Pro Series finals form complete teams | Blocking |
+| New: unique IDs, valid foreign keys, every platform player looked up, valid curation | Blocking |
+| New: entrant sizes fit each event's mode and format | Blocking for reviewed events; review for new ones (decision 3) |
+| New: compared with the live build, no event is lost and no event's placements or matches decreased | Blocking |
+| Known-events report (`known_events.csv`) | Blocking once filled in |
+
+Checks 7 and 10 wait for Phase 2's prize data and snapshot links.
+
+**`v_event_coverage`** shows per event:
+- mode, format and platform state;
+- entrants reported and placed, placements held and the worst placement;
+- matches reported and held, and players with match data;
+- 2v2 placements without a team;
+- players who played but have no placement (the 151 entrants of the three events missing standings);
+- a short flag the agent can quote, such as "placements incomplete" or "no match data".
+
+**Phase 1 is done when:**
+- a full build passes every blocking check, with each exception in `check_exceptions.csv` with a note. Two are expected: the three events missing standings, and the Pro Series finals, which have no match data;
+- the known-events report is clean;
+- the §8 queries for questions 1–4, 6–8 and 10–12 give the survey's answers, such as Raydish's 6 official wins, Balloonboy's 27 medals and Hexoo's one 1v1 top 8. This is a regression check, not independent verification (decision 6);
+- two builds from the same cache and curation have identical table contents;
+- the schema proposal, CLAUDE.md and the README are updated.
+
+## 4. Time, and where it runs
+
+- **About 2–4 minutes for a full build, checks included.** This is an estimate, to be replaced by the first full build's real figure.
+  - Reading is about 30 s; the biggest parts were measured at 20 s.
+  - Then roughly 3 million rows are inserted, followed by the indexes and checks.
+- **It runs inside Claude Code:** no network, no credentials, and well within one tool call, so failures can be fixed on the spot. The same command works in PowerShell. Dev builds of a few events take seconds.
+
+## 5. Support for the scheduled updater
+
+The updater comes later (Windows Task Scheduler). It will:
+- find new or recently ended official events and fetch only those;
+- rebuild into a new database file and run the checks;
+- swap the new file in only if they pass, keeping the previous version for rollback.
+
+New curation needs never block an update, and the frozen evaluation snapshot is never updated automatically. The builder supports this as follows.
+
+- **Fetch only new events, rebuild everything.** A full build takes minutes and gives the same result for the same inputs, so the updater never edits a live database.
+- **Each build is a new file, and a pointer file names the live one.**
+  - **Files:** `data/db/builds/<build-id>.sqlite`, where the build ID is the UTC start time, e.g. `20261005T190000Z`. While building, the file is `<build-id>.partial.sqlite`; if the checks fail, it becomes `<build-id>.failed.sqlite`.
+  - **The pointer,** `data/db/current.json`, names the live build and the one before it. Publishing rewrites the pointer atomically. Windows won't let a database file be replaced while the app has it open, so the pointer is what changes, not the database file.
+  - **The agent** opens the live build read-only through the pointer.
+  - **Kept:** the live build, the three newest published builds and the two newest failed ones. A file still in use is skipped.
+  - **One build at a time:** a lock file in `data/db/builds/` makes a second build wait its turn.
+- **The gates are the swap rule:** publish only if no blocking check fails and no "no worse" count got worse.
+- **The review list,** `data/review/review.csv`, is rebuilt every time with stable keys. It holds:
+  - **new events** with their detected format and mode. An event leaves the list once it has a row in `events.csv`; a row without overrides just records that the detection was checked;
+  - **possible phase splits:** two events in one mode of one tournament, or with near-identical names and dates, where one's entrants are mostly the other's top finishers;
+  - **merge candidates** from `merge_candidates.py`, and the automatic merges in `data/review/auto_merges.csv` (decision 2);
+  - Phase 2's prize reviews, later.
+- **New side formats** (decision 3):
+  - A new event whose entrant sizes contradict its mode stays out of the counts until reviewed.
+  - A new event that only has an unfamiliar name is counted as detected and listed for review.
+- **`--as-of`** builds from the responses fetched up to a given time. It reproduces any past build. It also tests the updater by replaying the past: build as of 2026-09-01, then build now, and compare.
+- **The frozen evaluation snapshot** is made only by `freeze`: a read-only copy of a published build in `data/db/eval/`, with its `build_info`. Neither pruning, rollback nor the updater touches that folder, and evaluation runs name the snapshot file directly.
+- **Crawl changes the updater will need, not part of this plan:**
+  - Stage 0 and the PR lists must re-fetch their first pages; today those requests would be answered from the cache.
+  - Standings need `--event`.
+  - Something must plan fetches for new or recently ended events. `event_sources` keeps each event's platform state for it. State alone can't select old events: 17 start.gg events still show a phase that never finished.
+
+## 6. Order of work
+
+One commit per step, pushed after each, with a report after each step for review. Every step has fixture tests and, from step 2 on, a dev build of a set of awkward events:
+- BCX 2022 and Autumn NA 2026;
+- a 2020 event fetched pool by pool;
+- a crew battle and the Pro Series finals;
+- CEO Dreamland 2017's doubles;
+- the three events missing standings.
+
+| Step | Work | Status |
+|---|---|---|
+| 1 | Cache reader, `names.py`, the tables (`schema.sql`), and the build skeleton with publish, pointer and rollback | Next |
+| 2 | Curation loading and validation; events, format rules and event aliases | |
+| 3 | Players, lookups and negative IDs; standings | |
+| 4 | Placements, teams and the Pro Series placements | |
+| 5 | Matches and match players | |
+| 6 | Aliases, merges, PR and earnings | |
+| 7 | Views, with the approved fixes | |
+| 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | |
+| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | |

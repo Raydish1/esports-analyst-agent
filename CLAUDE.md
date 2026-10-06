@@ -13,7 +13,7 @@ The Stats API is for personal use only, so API responses and the built database 
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
 ## Project status (2026-10-05)
-Phase 1 of the schema proposal's implementation plan (§9) is in progress on branch `claude/phase-1`. All of Phase 1's fetching is done and checked. **The next step is building the database from the cache** (below). Build in the order of that plan, in small steps.
+Phase 1 of the schema proposal's implementation plan (§9) is in progress on branch `claude/phase-1`. All of Phase 1's fetching is done and checked. **The next step is the builder, following [`docs/build-plan.md`](docs/build-plan.md)** (approved 2026-10-05), one step of its order of work at a time (below).
 
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -21,6 +21,9 @@ Planning and write-ups:
 - Schema proposal → `docs/schema-proposal.md`: the design to build from.
   - Contents: the SQLite schema, views applying the rules below, crawl and coverage plans, earnings design, the target questions, a three-phase implementation plan, and the list of official events.
   - Its status note lists the decisions of 2026-10-04 and 2026-10-05. §1 has what the fetch found that the builder must handle, and §3 the crawl stages and their results.
+- Build plan → [`docs/build-plan.md`](docs/build-plan.md): how the builder makes the database.
+  - Contents: what the cache showed, the build order, how curation files are applied, the checks and their gates, when Phase 1 is done, support for the scheduled updater, and the order of work with each step's status.
+  - Its decisions of 2026-10-05 are newer than the schema proposal where they differ.
 
 What's fetched, all complete. Responses are in `data/raw/cache/`, and the request log and crawl tables in `data/db/crawl.sqlite`. `python ingest/crawl.py status` shows every stage.
 - Stats API:
@@ -73,18 +76,18 @@ Decisions so far: the domain definitions below, plus these.
   - Placements come from the Stats API where it has them. It had none, so all 151 such entrants stay unplaced.
   - Placements are never derived from brackets.
 - Merge candidates (2026-10-05): built by `ingest/merge_candidates.py` with the tiers in the schema proposal (§1). Tier 1 (a start.gg-only and a Challengermode-only record, each its name's only record on its platform, same region, separate activity) is accepted automatically into `player_merges.csv`. Tiers 2 and 3 wait for review.
+- The builder (2026-10-05; details in `docs/build-plan.md`):
+  - Builds are versioned files in `data/db/builds/`, and a pointer file, `data/db/current.json`, names the live one. The agent reads the database through the pointer, read-only.
+  - Each check has a gate: blocking, no worse than the live build, or review. A build goes live only if its gates pass.
+  - A scheduled updater (Windows Task Scheduler) comes later. It fetches only new or recently ended events, rebuilds, and swaps the build in only if the checks pass. New curation needs go to a review list and never block it.
+  - Tier-1 merges found by unattended runs go to `data/review/auto_merges.csv`, not `curation/`. New events whose team sizes don't fit their mode stay out of the counts until reviewed.
+  - The frozen evaluation snapshot (`data/db/eval/`) is never updated automatically.
+  - The §8 survey answers are a regression check, not independent verification. The user has confirmed Raydish's 6 official wins and verifies the others separately.
 
-Next step: **build the database from the cache**. That's the builder in the schema proposal's §9, Phase 1 "Build".
-- What it does: `data/db/brawlhalla.sqlite` from `data/raw/cache/` and `curation/` alone, with no API calls.
-- Tables and views: those in §1, §2 and §7 (`standings`), plus `v_career_earnings` and `v_event_coverage`.
-- Rules in §1 it must apply:
-  - placements from start.gg standings, Challengermode entrant lists (placed lineups only) and the Stats API for the Pro Series finals;
-  - a player entered twice keeps their better placement;
-  - entrants' players come from standings, else from the P1b entrant lists;
-  - matches from start.gg sets and completed Challengermode matches, leaving out byes and sets never played (no score, no winner);
-  - platform-only players get negative IDs;
-  - merges and event overrides come from `curation/`.
-- Then the automatic checks (§4).
+Next step: **the builder, following `docs/build-plan.md`'s order of work.**
+- One step per commit, pushed after each.
+- Report after each step for review rather than continuing through the list.
+- The plan's status column shows which step is next.
 
 Explain the builder's design before implementing it, and keep it in small steps. The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 
@@ -98,6 +101,10 @@ Explain the builder's design before implementing it, and keep it in small steps.
 - "The last event a player entered" counts every official event. If the newest is a side format (Kung Foot, Triples, etc.), the answer also gives the newest 1v1 or 2v2 event.
 - A tournament win's dominance is measured by games lost across the run: the fewest is the most dominant (3-0 in every set, then one dropped game, and so on). Ties go to fewer sets dropped, then to more games won.
 - A DQ (a `-1` game score) or a forfeit (a Challengermode match with no scores, which the Stats API shows as 0-0) is a no-contest, flagged by `matches.is_no_contest`. It counts as neither a win nor a loss and contributes no games.
+- A set with a reported winner but no game score (259 start.gg sets, mostly 2017–2019) counts as a win and a loss (decided 2026-10-05). Unlike a forfeit, it was played. Its games are unknown, not zero:
+  - game-based stats (games won or lost, game win rates, dominance) leave it out of the game counts;
+  - the affected result is flagged: "includes sets with no recorded score";
+  - a win with unscored sets never looks like a perfect run.
 - 2v2 prize amounts are per team; each player gets half. Crew battle prizes are per crew; each player gets a third.
 - People often use names other than a player's current display name ("marckiemoo" is Marckiem00, "Hexo" is Hexoo, "flower" or "flowers" is flowerVS). The API's search also misses inactive players (Boomie is player 146606). Resolve players against our own data, not only the API search. Decided names go in `curation/player_aliases.csv`, and duplicate records of one person in `curation/player_merges.csv`.
 
