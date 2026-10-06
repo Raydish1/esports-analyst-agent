@@ -5,6 +5,8 @@ curation/ alone.
     python ingest/build.py --no-publish   build and check, but leave the live build as it is
     python ingest/build.py --as-of TIME   build from the responses fetched up to TIME (ISO 8601, UTC
                                           unless it gives a zone); such a build of the past never goes live
+    python ingest/build.py --event ID     a dev build of the events named (repeatable), never published
+    python ingest/build.py --dev          a dev build of DEV_EVENTS, the awkward cases, never published
     python ingest/build.py status         the live build and the builds kept
     python ingest/build.py rollback       make the build that was live before live again
 
@@ -30,27 +32,63 @@ from collections import namedtuple
 from datetime import datetime, timezone
 from pathlib import Path
 
+import build_events
+import curation
 from builds import BuildRunning, Builds
 from cache import CACHE_DIR, CRAWL_DB, ROOT
 from cache_reader import CacheReader, utc_stamp
+from curation import AUTO_MERGES, CURATION_DIR, CurationError
 
 SCHEMA = Path(__file__).resolve().parent / "schema.sql"
-CURATION_DIR = ROOT / "curation"
 LOG_DIR = ROOT / "data" / "logs"
+DEV_EVENTS = [  # awkward cases for a dev build (docs/build-plan.md §6)
+    "tournament/brawlhalla-world-championship-expo-2022/event/1v1",  # BCX 2022: big, with many DQs
+    "tournament/brawlhalla-world-championship-expo-2022/event/2v2",
+    "fcb7a286-3f0c-4f68-f9a5-08ded4cb1c05",  # Autumn Championship NA 2026 1v1, on Challengermode
+    "774eaef2-3f11-4c7b-f9ab-08ded4cb1c05",  # its 2v2
+    "tournament/europe-steelseries-championship-1/event/brawlhalla-championship-1v1",  # sets fetched pool by pool
+    "tournament/north-america-crew-battle-invitational/event/brawlhalla-crew-battle-3v3",  # a crew battle on start.gg
+    "d883b17c-e3b4-428b-6372-08debb341c9c",  # a crew battle on Challengermode (NA 2026)
+    "series/pro-series-2019-na", "series/pro-series-2019-eu", "series/pro-series-2021-na",  # Stats API only
+    "tournament/ceo-dreamland/event/brawlhalla-doubles",  # 2v2, filed as 1v1
+    "tournament/brawl-league-masters-season-4-na-1/event/swiss",  # one competition in two phases
+    "tournament/brawl-league-masters-season-4-na-1/event/top-8-finals",
+    "tournament/sea-league-week-1-4/event/brawlhalla-singles",  # standings miss entrants who played
+    "tournament/max-mode-2025/event/brawlhalla-1v1",
+    "tournament/ceo-dreamland-2020/event/brawlhalla-1v1",
+]
 
 Outcome = namedtuple("Outcome", "check_id gate subject outcome detail")  # a row of build_checks
 
-STEPS = []   # (name, function(build)) in the build plan's order; each fills its tables
-CHECKS = []  # functions(build) returning Outcomes
-
 
 class Build:
-    """What a step works with: the new database, the cache, the curation files, the log, and
-    build_info to add to."""
+    """What a step works with: the new database, the cache, the curation files, the events chosen for a
+    dev build (None: all), the log, and build_info to add to."""
 
-    def __init__(self, db, reader, curation_dir, log):
+    def __init__(self, db, reader, curation_dir, log, events=None, auto_merges=AUTO_MERGES):
         self.db, self.reader, self.curation_dir, self.log = db, reader, Path(curation_dir), log
+        self.events = set(events) if events is not None else None
+        self.auto_merges = auto_merges
+        self.curation = None  # set by the curation step
         self.info = {}
+
+
+def load_curation(build):
+    """Step 1: every curated file, checked before the cache is read (curation.py)."""
+    build.curation = cur = curation.load(build.curation_dir, build.auto_merges)
+    auto = sum(1 for m in cur.merges if m.source == "auto")
+    build.log(f"  {len(cur.events)} event rows, {len(cur.format_rules)} format rules, {len(cur.event_aliases)} event"
+              f" aliases, {len(cur.event_terms)} event terms, {len(cur.player_aliases)} player aliases,"
+              f" {len(cur.merges)} merges ({auto} automatic), {len(cur.rejections)} rejections")
+    for merge, reason in cur.dropped_auto:
+        build.log(f"  automatic merge of {merge.player_id} into {merge.canonical_player_id} dropped: {reason}")
+
+
+STEPS = [  # (name, function(build)) in the build plan's order; each fills its tables
+    ("curation", load_curation),
+    ("events", build_events.step),
+]
+CHECKS = []  # functions(build) returning Outcomes
 
 
 def stamp(moment):
@@ -70,14 +108,19 @@ def code_version():
     return {"code_commit": commit, "code_changed": "yes" if git("status", "--porcelain", "--", "ingest") else "no"}
 
 
-def curation_hashes(curation_dir):
-    """A short SHA-256 of every curation file, so two builds' inputs can be compared."""
-    return {f.name: hashlib.sha256(f.read_bytes()).hexdigest()[:16] for f in sorted(Path(curation_dir).glob("*.csv"))}
+def curation_hashes(curation_dir, auto_merges=None):
+    """A short SHA-256 of every curation file, and of data/review/auto_merges.csv if there is one, so two
+    builds' inputs can be compared."""
+    hashes = {f.name: hashlib.sha256(f.read_bytes()).hexdigest()[:16] for f in sorted(Path(curation_dir).glob("*.csv"))}
+    if auto_merges and Path(auto_merges).exists():
+        hashes["data/review/auto_merges.csv"] = hashlib.sha256(Path(auto_merges).read_bytes()).hexdigest()[:16]
+    return hashes
 
 
 def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE_DIR, crawl_db=CRAWL_DB,
-               curation_dir=CURATION_DIR, steps=None, checks=None):
+               curation_dir=CURATION_DIR, auto_merges=AUTO_MERGES, events=None, steps=None, checks=None):
     """Make a build, and publish it if its checks pass and `publish` is set. Returns (build ID, passed).
+    With `events`, a dev build of just those, which is never published.
 
     A step that raises leaves its partial file behind, and the next build's pruning removes it."""
     builds = builds or Builds()
@@ -92,10 +135,11 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
             db.execute("PRAGMA journal_mode = OFF")  # an unfinished build is thrown away, so no rollback journal
             db.execute("PRAGMA synchronous = OFF")
             db.executescript(SCHEMA.read_text(encoding="utf-8"))
-            build = Build(db, reader, curation_dir, log)
+            build = Build(db, reader, curation_dir, log, events, auto_merges)
             build.info.update(build_id=build_id, started_at=stamp(started), as_of=reader.as_of,
                               cache_cutoff=reader.cutoff(), **code_version(),
-                              curation=json.dumps(curation_hashes(curation_dir)))
+                              curation=json.dumps(curation_hashes(curation_dir, auto_merges)),
+                              scope="all events" if events is None else json.dumps(sorted(events)))
             log(f"Build {build_id}: responses fetched up to {reader.as_of}; the newest is from {build.info['cache_cutoff']}")
             for name, step in steps:
                 begun = time.monotonic()
@@ -117,11 +161,11 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
         if not passed:
             log(f"Build {build_id} failed its checks, so it's kept as {builds.path(build_id, 'failed').name}"
                 " and the live build stays")
-        elif publish:
+        elif publish and events is None:
             builds.publish(build_id)
             log(f"Build {build_id} is live")
         else:
-            log(f"Build {build_id} passed; not published, as asked")
+            log(f"Build {build_id} passed; not published ({'a dev build' if events is not None else 'as asked'})")
         builds.prune(log)
     return build_id, passed
 
@@ -177,9 +221,12 @@ def main():
                         help="build from the responses fetched up to TIME (ISO 8601; UTC unless it gives a zone);"
                              " such a build never goes live")
     parser.add_argument("--no-publish", action="store_true", help="build and check, but leave the live build as it is")
+    parser.add_argument("--event", action="append", metavar="ID",
+                        help="a dev build of just this event (repeat for more); never published")
+    parser.add_argument("--dev", action="store_true", help="a dev build of the awkward cases in DEV_EVENTS; never published")
     args = parser.parse_args()
-    if args.command != "build" and (args.as_of or args.no_publish):
-        parser.error("--as-of and --no-publish go with build")
+    if args.command != "build" and (args.as_of or args.no_publish or args.event or args.dev):
+        parser.error("--as-of, --no-publish, --event and --dev go with build")
     if args.as_of:
         try:
             utc_stamp(args.as_of)
@@ -197,11 +244,18 @@ def main():
             sys.exit(str(e))
         return
     log = make_logger()
+    events = (args.event or []) + (DEV_EVENTS if args.dev else []) or None
     try:
-        _, passed = make_build(builds, as_of=args.as_of, publish=not (args.no_publish or args.as_of), log=log)
+        _, passed = make_build(builds, as_of=args.as_of, publish=not (args.no_publish or args.as_of), log=log,
+                               events=events)
     except BuildRunning as e:
         log(str(e))
         sys.exit(2)
+    except CurationError as e:
+        log("The build stopped, and the live build stays. Fix these first:")
+        for problem in e.problems:
+            log(f"  {problem}")
+        sys.exit(1)
     sys.exit(0 if passed else 1)
 
 

@@ -9,7 +9,7 @@ The plan builds on [`schema-proposal.md`](schema-proposal.md) (the schema, rules
 1. **Sets with a winner but no score count as a win and a loss with no games.** start.gg has 259 completed sets where the organizer reported only the winner (see "What the cache showed").
    - **Storage:** `matches.side1_score` and `side2_score` may be NULL, and a new `reported_winner_side` holds the platform's own winner. `winner_side` falls back on it when a score is missing.
    - **Games are unknown, not zero.** In any game-based stat (games won or lost, game win rates, question 11's dominance ranking), these sets are left out of the game counts, and the affected result is flagged: "includes sets with no recorded score".
-   - **A win with unscored sets never looks like a perfect run.** The views expose how many unscored sets a result includes, and question 11's ranking puts a run with any unscored set after every fully scored run.
+   - **A win with unscored sets never looks like a perfect run.** The views expose how many unscored sets a result includes. Question 11's ranking puts a run with any unscored set after every fully scored run. If such a run would have ranked near the top on its scored games alone, the answer mentions it in one line, so it isn't silently buried.
    - **Challengermode forfeits stay no-contests.** A Challengermode match with no scores is a no-show (decided 2026-10-04), so it's still stored as 0–0. A start.gg set with only a winner was played.
 2. **Merges found by an unattended run go to `data/review/auto_merges.csv`,** a machine-owned file the builder applies and the review list shows. Only the strongest tier (tier 1) is accepted automatically. The updater never edits committed files.
    - Running `merge_candidates.py` by hand still appends tier 1 to `curation/player_merges.csv`.
@@ -105,7 +105,7 @@ The builder reads only the cache (the response files, plus the request log in `c
 - **Merges:**
   - Sources: `player_merges.csv`, plus the automatic merges in `data/review/auto_merges.csv` that no curated row contradicts.
   - Chains (A→B→C) are collapsed, and a cycle stops the build.
-- **New tables beyond the schema proposal:** `event_sources`, `build_info` and `build_checks`.
+- **New tables beyond the schema proposal:** `event_terms` (step 2), `event_sources`, `build_info` and `build_checks`.
 - **Schema changes from decision 1:** nullable scores and `reported_winner_side` on `matches`.
 
 **Code** (all in `ingest/`):
@@ -136,6 +136,7 @@ Tables keep what the platforms reported. Curated values live in their own column
 | `events.csv` | `format_override`, `mode_override`, `competition_id`, `phase_order` on `events`; `v_events` applies them | Event exists; known format; mode 1v1 or 2v2; each competition has at least two phases with distinct orders |
 | `format_rules.csv` (new, seeded from §2's starting rules) | `format_rules` → `v_events.format` | Valid pattern and priority |
 | `event_aliases.csv` (new, seeded with "bcx 2017" to "bcx 2025", "worlds 2019" and similar) | `event_aliases` | Event exists |
+| `event_terms.csv` (new: words people use for words in event names, such as "ltc" and "winters") | `event_terms` | A term doesn't mean itself; a phrase no event has yet is logged |
 | `player_aliases.csv` | Rows of kind `nickname`, source `curated`, winning over generated aliases | Player exists |
 | `player_merges.csv` | `player_merges` → `v_player_ids` | Both records exist; no cycles; the pair isn't also rejected |
 | `merge_rejections.csv` | Read by `merge_candidates.py`; the builder checks it against the merges, manual and automatic | Both records exist |
@@ -247,8 +248,8 @@ One commit per step, pushed after each, with a report after each step for review
 | Step | Work | Status |
 |---|---|---|
 | 1 | Cache reader, `names.py`, the tables (`schema.sql`), and the build skeleton with publish, pointer and rollback | Done 2026-10-05 |
-| 2 | Curation loading and validation; events, format rules and event aliases | Next |
-| 3 | Players, lookups and negative IDs; standings | |
+| 2 | Curation loading and validation; events, format rules and event aliases | Done 2026-10-05 |
+| 3 | Players, lookups and negative IDs; standings | Next |
 | 4 | Placements, teams and the Pro Series placements | |
 | 5 | Matches and match players | |
 | 6 | Aliases, merges, PR and earnings | |
@@ -269,3 +270,32 @@ One commit per step, pushed after each, with a report after each step for review
   - The reader indexes all 21,000 requests in 1.6 s.
   - Every Phase 1 endpoint reads in full, including all 297 `PhasePools` requests: 290 in the current version and the pilot's 7.
   - The first real build, with the empty schema, took about a second and is live.
+
+**Step 2 (2026-10-05):**
+- **Curation loading:** `curation.py` loads every curated file the builder reads and checks its structure before the cache is read. It reports every problem at once, by file and line.
+  - **Columns:** a missing column, an unknown one (a typo), or a row with more fields than columns (an unquoted comma).
+  - **Values:** unknown formats or modes, a competition with one phase or a repeated phase order, duplicate rows, IDs that aren't numbers.
+  - **Merges:** self-merges, a record merged twice, loops, and merges that make two rejected records one person.
+  - **Automatic merges** in `data/review/auto_merges.csv` lose to a curated merge of the same record, a rejection or a loop. They're dropped and logged rather than stopping the build (decision 2).
+  - **Whether named events and players exist** is checked by the step that applies each file: events here, players from step 3.
+- **Events step:** `build_events.py` fills `events`, `format_rules` and `event_aliases` from the full ListEvents listings and `curation/`.
+  - A curated row naming an unknown event, or a competition whose phases are in different modes, stops the build.
+  - `event_sources` gets each event's platform here; the steps reading the platforms fill in the rest.
+- **New curation files:**
+  - `format_rules.csv`: the schema proposal's ten starting rules. On the cache, they classify the 622 events as 601 standard, 9 crew battles (6 by rule, plus the three Pro Series finals by override), and 3 each of 3v3, Brawlball, Triples and Kung Foot, as the appendix lists them. Five rules match nothing yet; they wait for future side formats. The 2022 Crew Battle Invitationals ("Crew Battle 3v3") match two rules, and priority makes them crew battles.
+  - `event_aliases.csv`: 46 rows.
+    - "bcx 2017" and "bcx 2022" to "bcx 2025" name both modes of each BCX.
+    - "worlds 2017" to "worlds 2025" name each year's World Championship. For 2020 and 2021, that's the five regional championships, without the Last Chance Qualifiers (decided).
+    - "world championship 2018" names DreamHack Atlanta 2018, whose events are named just "Brawlhalla 1v1" and "Brawlhalla 2v2". It was the 2018 World Championship (confirmed by the user).
+  - `event_terms.csv` (community names, added at the user's request): words people use for words in event names, so they keep working for future events.
+    - "ltc" means "low tier city": Low Tier City 7 (2019) and Low Tier City Midseason Online (2020).
+    - "winters", "springs", "summers" and "autumns" mean "<season> championship" and "<season> doubles championship" (the 2024 seasonals were 2v2 only). They don't mean the bare season word, which also appears in the Royales, DreamHack Winter and the Summer Slam.
+    - "msi" means "midseason invitational". No official event has that name, and no Midseason Championship 2025 exists either. The official midseason events are LTC Midseason Online 2020, the Brawlhalla Midseason Championship 2022 and the Midseason Championship 2026.
+      - The note warns that some people say MSI for the Midseason Championship 2025, so an answer should check which event was meant and never swap one in silently.
+      - The build logs that the phrase matches no event yet.
+    - How the agent uses them: it normalizes the user's words and replaces a term with each phrase it means, then matches those against event names. The event aliases cover the irregular cases.
+- **Dev builds:** `--event ID` builds only the named events, and `--dev` builds the awkward cases in `DEV_EVENTS` (16 events). Neither ever goes live, but both check every curated row, as a full build does. `build_info` records the build's scope.
+- **For later steps:**
+  - `v_events` should order matching rules by priority, then pattern, so a tie can't change between builds (step 7).
+  - An event matched by two rules of the same lowest priority, with different formats, goes to the review list (step 8).
+- **Tests:** 15 new; the suite (104) passes. On the cache, a full build loads 622 events (375 listed as 1v1, 247 as 2v2), the 8 curated rows, 46 aliases and 10 event terms, and the dev build loads its 16 events.

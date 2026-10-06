@@ -10,7 +10,7 @@ import build  # noqa: E402
 from builds import Builds  # noqa: E402
 from cache import ResponseCache  # noqa: E402
 
-TABLES = {"players", "player_aliases", "player_merges", "tiers", "events", "event_aliases", "format_rules",
+TABLES = {"players", "player_aliases", "player_merges", "tiers", "events", "event_aliases", "event_terms", "format_rules",
           "event_sources", "teams", "placements", "matches", "match_players", "pr_snapshots", "player_earnings",
           "standings", "build_info", "build_checks"}
 
@@ -32,8 +32,11 @@ class MakeBuildTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def make(self, **kwargs):
+        """A build with no steps unless some are given: these tests are about the build around them."""
+        kwargs.setdefault("steps", [])
         return build.make_build(self.builds, log=self.log.append, cache_dir=self.root / "cache",
-                                crawl_db=self.root / "crawl.sqlite", curation_dir=self.root / "curation", **kwargs)
+                                crawl_db=self.root / "crawl.sqlite", curation_dir=self.root / "curation",
+                                auto_merges=None, **kwargs)
 
     def info(self, build_id, state="passed"):
         db = sqlite3.connect(self.builds.path(build_id, state))

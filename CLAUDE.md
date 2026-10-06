@@ -45,9 +45,11 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 - The crawl: `crawl.py` holds the stages and `status`. `tasks.py` holds the resumable task queue and per-API run locks.
 - `merge_candidates.py` builds the merge review list.
 - The builder (`docs/build-plan.md`), as far as its order of work has gone:
-  - `build.py` runs a build (`python ingest/build.py`, plus `status` and `rollback`);
+  - `build.py` runs a build: `python ingest/build.py`, plus `status` and `rollback`. Dev builds use `--dev` or `--event ID` and never go live;
   - `builds.py` handles the build files, the pointer and rollback;
   - `cache_reader.py` gives read-only access to the cache;
+  - `curation.py` loads and checks the curated files;
+  - `build_events.py` is the events step;
   - `schema.sql` holds the tables;
   - `names.py` holds the name normalization shared with `merge_candidates.py`.
 
@@ -57,6 +59,10 @@ Curation (`curation/`, committed):
 - `merge_rejections.csv`: empty so far.
 - `external_ids.csv`: Esports Earnings links.
 - `events.csv`: the three Pro Series finals as crew battles, CEO Dreamland 2017's doubles as 2v2, and the two Brawl League Masters Season 4 phase splits.
+- `format_rules.csv`: name patterns that mark side formats (crew battles, 3v3, Triples, Brawlball, Kung Foot, …); the lowest priority wins.
+- `event_aliases.csv`: names people use for events that the data doesn't, such as "bcx 2022" and "worlds 2019". Worlds 2018 was DreamHack Atlanta 2018. The Last Chance Qualifiers aren't Worlds.
+- `event_terms.csv`: words people use for words in event names, such as "ltc" (Low Tier City) and "winters" (the winter championships).
+  - "msi" means the Midseason Invitational, which isn't an official event. Some people use it for the Midseason Championship 2025 by mistake, so check which was meant.
 - `tiers.csv`: a skeleton only (see the tiers rule below).
 
 Merge review: **`data/review/merge_candidates.csv`** (git-ignored; regenerate with `python ingest/merge_candidates.py`, which makes no requests).
@@ -106,6 +112,8 @@ Explain the builder's design before implementing it, and keep it in small steps.
 - A tournament split into phases (e.g. Swiss stage + Top 8 Finals) counts once, using the last phase reached.
 - "The last event a player entered" counts every official event. If the newest is a side format (Kung Foot, Triples, etc.), the answer also gives the newest 1v1 or 2v2 event.
 - A tournament win's dominance is measured by games lost across the run: the fewest is the most dominant (3-0 in every set, then one dropped game, and so on). Ties go to fewer sets dropped, then to more games won.
+  - A run with any unscored set (below) ranks after every fully scored run (decided 2026-10-05).
+  - If such a run would have ranked near the top on its scored games alone, the answer mentions it in one line, so it isn't silently buried.
 - A DQ (a `-1` game score) or a forfeit (a Challengermode match with no scores, which the Stats API shows as 0-0) is a no-contest, flagged by `matches.is_no_contest`. It counts as neither a win nor a loss and contributes no games.
 - A set with a reported winner but no game score (259 start.gg sets, mostly 2017–2019) counts as a win and a loss (decided 2026-10-05). Unlike a forfeit, it was played. Its games are unknown, not zero:
   - game-based stats (games won or lost, game win rates, dominance) leave it out of the game counts;

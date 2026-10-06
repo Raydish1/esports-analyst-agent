@@ -1,0 +1,11 @@
+pattern,format,priority,note
+%crew battle%,crew_battle,1,"Checked first, because crew battle events are named ""... Crew Battle 3v3"""
+%triples%,triples,2,
+%trios%,triples,2,
+%brawlball%,brawlball,2,
+%kung foot%,kung_foot,2,
+%volleybrawl%,volleybrawl,2,
+%snowbrawl%,snowbrawl,2,
+%capture the flag%,capture_the_flag,2,
+%morph%,morph,2,
+%3v3%,3v3,3,"Last, so a crew battle named ""... 3v3"" stays a crew battle"

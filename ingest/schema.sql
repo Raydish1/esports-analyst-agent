@@ -5,7 +5,7 @@
 -- Changes from the proposal, decided in the build plan:
 --   * match scores may be NULL, with the platform's reported winner as the fallback;
 --   * merges record whether a person or an unattended run decided them;
---   * three new tables: event_sources, build_info, build_checks.
+--   * four new tables: event_terms, event_sources, build_info, build_checks.
 -- Foreign keys aren't enforced while a build loads; the checks verify them.
 
 -- Players (§1)
@@ -85,6 +85,13 @@ CREATE TABLE event_aliases (       -- curated: names people use for events
   alias     TEXT NOT NULL,         -- normalized, e.g. 'bcx 2022', 'worlds 2019'
   event_id  TEXT NOT NULL REFERENCES events (event_id),
   PRIMARY KEY (alias, event_id)
+);
+
+CREATE TABLE event_terms (         -- new (build plan), curated: words people use for words in event names
+  term   TEXT NOT NULL,            -- normalized like an event alias, e.g. 'ltc', 'winters'
+  means  TEXT NOT NULL,            -- the words it stands for in event names, normalized, e.g. 'low tier city'
+  note   TEXT,                     -- e.g. a common mix-up the answer should check
+  PRIMARY KEY (term, means)        -- a term can stand for several phrases ('winters': two kinds of seasonal)
 );
 
 CREATE TABLE format_rules (        -- curated, from curation/format_rules.csv; lowest priority wins (§2)

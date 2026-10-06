@@ -24,7 +24,12 @@ python ingest/build.py status      # the live build and the builds kept
 python ingest/build.py rollback    # make the build that was live before live again
 ```
 
-The builder makes no requests. `data/db/current.json` names the live build, which the agent opens read-only. A build also takes `--no-publish`, and `--as-of TIME` for a build of the past.
+The builder makes no requests. `data/db/current.json` names the live build, which the agent opens read-only. A build also takes:
+- `--no-publish`;
+- `--as-of TIME`, for a build of the past;
+- `--dev` or `--event ID`, for a quick build of a few events.
+
+Builds made with `--as-of`, `--dev` or `--event` never go live.
 
 The crawl runs one stage at a time:
 

@@ -720,7 +720,7 @@ The full list is in the [appendix](#appendix-official-events): 622 official even
 | Community tournament | `community_tournament` | 1 | C |
 
 Defaults that will need overrides:
-- **DreamHack Atlanta 2018** was, as far as I know, the 2018 World Championship. Its events are named just "Brawlhalla 1v1" and "Brawlhalla 2v2", so it's detected as a partner event (A). Confirm, then override it to S.
+- **DreamHack Atlanta 2018** was the 2018 World Championship (confirmed 2026-10-05; the alias "worlds 2018" names it). Its events are named just "Brawlhalla 1v1" and "Brawlhalla 2v2", so it's detected as a partner event (A). Override it to S when tiers are picked up.
 - **The 2020 and 2021 online Worlds** ran in five regions each, and all ten are in the World Championship family (S). They may deserve a lower tier than BCX.
 - **Every partner event defaults to A,** including small ones such as GoTE 4TheKids 2017 and SLAM 2017.
 
