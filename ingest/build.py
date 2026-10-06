@@ -33,11 +33,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import build_events
+import build_players
 import curation
 from builds import BuildRunning, Builds
 from cache import CACHE_DIR, CRAWL_DB, ROOT
 from cache_reader import CacheReader, utc_stamp
-from curation import AUTO_MERGES, CURATION_DIR, CurationError
+from curation import AUTO_MERGES, CURATION_DIR
+from problems import BuildStop
 
 SCHEMA = Path(__file__).resolve().parent / "schema.sql"
 LOG_DIR = ROOT / "data" / "logs"
@@ -70,6 +72,7 @@ class Build:
         self.events = set(events) if events is not None else None
         self.auto_merges = auto_merges
         self.curation = None  # set by the curation step
+        self.players = None  # the player registry, set by the players step
         self.info = {}
 
 
@@ -87,6 +90,8 @@ def load_curation(build):
 STEPS = [  # (name, function(build)) in the build plan's order; each fills its tables
     ("curation", load_curation),
     ("events", build_events.step),
+    ("players", build_players.players_step),
+    ("standings", build_players.standings_step),
 ]
 CHECKS = []  # functions(build) returning Outcomes
 
@@ -251,7 +256,7 @@ def main():
     except BuildRunning as e:
         log(str(e))
         sys.exit(2)
-    except CurationError as e:
+    except BuildStop as e:  # a curation error, or data the build can't work around
         log("The build stopped, and the live build stays. Fix these first:")
         for problem in e.problems:
             log(f"  {problem}")

@@ -249,8 +249,8 @@ One commit per step, pushed after each, with a report after each step for review
 |---|---|---|
 | 1 | Cache reader, `names.py`, the tables (`schema.sql`), and the build skeleton with publish, pointer and rollback | Done 2026-10-05 |
 | 2 | Curation loading and validation; events, format rules and event aliases | Done 2026-10-05 |
-| 3 | Players, lookups and negative IDs; standings | Next |
-| 4 | Placements, teams and the Pro Series placements | |
+| 3 | Players, lookups and negative IDs; standings | Done 2026-10-05 |
+| 4 | Placements, teams and the Pro Series placements | Next |
 | 5 | Matches and match players | |
 | 6 | Aliases, merges, PR and earnings | |
 | 7 | Views, with the approved fixes | |
@@ -265,7 +265,7 @@ One commit per step, pushed after each, with a report after each step for review
   - `schema.sql` has every Phase 1 table. `player_merges` gains a `source` column ('curated' or 'auto', for decision 2).
   - `builds.py` handles the build files, the pointer, rollback, pruning and the lock.
   - `build.py` runs the build, with `status` and `rollback`. Steps and checks are empty lists that the next steps fill.
-- **Tests:** 25 new; the whole suite (89) passes.
+- **Tests:** 26 new; the whole suite (89) passes.
 - **On the real cache:**
   - The reader indexes all 21,000 requests in 1.6 s.
   - Every Phase 1 endpoint reads in full, including all 297 `PhasePools` requests: 290 in the current version and the pilot's 7.
@@ -298,4 +298,23 @@ One commit per step, pushed after each, with a report after each step for review
 - **For later steps:**
   - `v_events` should order matching rules by priority, then pattern, so a tie can't change between builds (step 7).
   - An event matched by two rules of the same lowest priority, with different formats, goes to the review list (step 8).
-- **Tests:** 15 new; the suite (104) passes. On the cache, a full build loads 622 events (375 listed as 1v1, 247 as 2v2), the 8 curated rows, 46 aliases and 10 event terms, and the dev build loads its 16 events.
+- **Tests:** 13 new; the suite (102) passes. On the cache, a full build loads 622 events (375 listed as 1v1, 247 as 2v2), the 8 curated rows, 46 aliases and 10 event terms, and the dev build loads its 16 events.
+
+**Step 3 (2026-10-05):**
+- **Built:**
+  - `build_players.py` holds two build steps: players (step 3) and standings (step 4).
+  - `sources.py` lists the query versions the builder reads.
+  - `problems.py` defines `BuildStop`, for data the build can't work around, such as two players with one negative ID. Curation errors are one kind of it.
+- **Players:** 145,608 Stats API records, from 1,523 ListPlayers responses, teammate records and PR rows.
+  - A lookup answers an ID it doesn't know with an all-null record. There are 98 of those, one per platform player without a record, and they're skipped.
+  - No platform ID is claimed by two records, and no value differs between responses.
+  - Every platform player in the standings and entrant lists was looked up.
+- **Platform-only players:** 27 start.gg players and 1 Challengermode player who placed have no record, so they get negative IDs.
+  - The 15 who only played, at the three events missing standings, come with the matches step.
+  - The registry that assigns IDs is kept on the build, so later steps add players through it.
+- **Standings:** 346,146 rows at 618 events (start.gg 329,353, Challengermode 16,793).
+  - Every start.gg event's placed entrants equal start.gg's own count. CEO Dreamland 2020 has none.
+  - 27 (event, player) pairs are entered twice: P.V player, both members of the ThousandCut/Thepokymater team, and 24 more. Step 4 keeps one placement each.
+- **For check 5 (step 8):** Challengermode's `reported_entrants` is the roster's `lineupCount`. In 26 events it exceeds the placed lineups, by 1 to 9 (41 in all), because it counts lineups that registered but never played. So check 5 compares brackets with entrant lists, as the crawl's check does, rather than this count.
+- **Speed:** the players step takes 6 s, the standings step 17 s. The dev build has standings at 12 of its 16 events: the Pro Series finals and CEO Dreamland 2020 have none.
+- **Tests:** 6 new; the suite (108) passes.

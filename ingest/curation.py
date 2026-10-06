@@ -28,6 +28,7 @@ from pathlib import Path
 
 from cache import ROOT
 from names import normalize, normalize_words
+from problems import CurationError
 
 CURATION_DIR = ROOT / "curation"
 AUTO_MERGES = ROOT / "data" / "review" / "auto_merges.csv"
@@ -50,12 +51,6 @@ EventAlias = namedtuple("EventAlias", "alias event_id line")
 EventTerm = namedtuple("EventTerm", "term means note")
 PlayerAlias = namedtuple("PlayerAlias", "alias player_id note line")
 Merge = namedtuple("Merge", "player_id canonical_player_id source note line")  # source: 'curated' | 'auto'
-
-
-class CurationError(Exception):
-    def __init__(self, problems):
-        super().__init__("\n".join(problems))
-        self.problems = problems
 
 
 class Curation:

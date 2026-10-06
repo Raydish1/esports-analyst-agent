@@ -50,6 +50,9 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `cache_reader.py` gives read-only access to the cache;
   - `curation.py` loads and checks the curated files;
   - `build_events.py` is the events step;
+  - `build_players.py` holds the players and standings steps;
+  - `sources.py` lists the query versions the builder reads;
+  - `problems.py` defines `BuildStop` (and `CurationError`), which end a build with a list of problems;
   - `schema.sql` holds the tables;
   - `names.py` holds the name normalization shared with `merge_candidates.py`.
 
