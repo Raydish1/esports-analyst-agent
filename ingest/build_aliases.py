@@ -18,6 +18,8 @@ curated row contradicts (curation.py).
 - A merge that, once resolved, loops or makes two rejected records one person stops the build if it's
   curated, and is dropped if it's automatic.
 - Chains (A -> B -> C) are collapsed, so every record points straight at its canonical player.
+- players.canonical_id gets each merged record's canonical player, so the views can find all of a
+  person's records through an index.
 
 A curated row naming a player the cache has no record of is skipped and listed (build_info
 'curated_rows_skipped'), not a reason to stop. Such a row may be a typo, or may name a real record with no
@@ -26,8 +28,6 @@ player can't change any result.
 
 A dev build writes only the rows whose players it has.
 """
-
-import json
 
 import sources
 from curation import CurationError, chain_end, merge_conflict
@@ -129,9 +129,9 @@ def merges_step(build):
         kept.append((pid, m))
     rows = [(pid, chain_end(merges, pid), m.source, m.note) for pid, m in kept]
     have = set(players.written)
-    db.executemany("INSERT INTO player_merges (player_id, canonical_player_id, source, note) VALUES (?, ?, ?, ?)",
-                   [r for r in rows if r[0] in have and r[1] in have])
+    written = [r for r in rows if r[0] in have and r[1] in have]
+    db.executemany("INSERT INTO player_merges (player_id, canonical_player_id, source, note) VALUES (?, ?, ?, ?)", written)
+    db.executemany("UPDATE players SET canonical_id = ? WHERE player_id = ?", [(r[1], r[0]) for r in written])
     chained = sum(1 for pid, canonical, *_ in rows if canonical != merges[pid])
-    build.info["curated_rows_skipped"] = json.dumps(build.skipped)
     build.log(f"  {len(rows)} merges ({sum(1 for r in rows if r[2] == 'auto')} automatic, {chained} through a chain)"
               f" into {len({r[1] for r in rows})} canonical players")

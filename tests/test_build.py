@@ -12,7 +12,7 @@ from cache import ResponseCache  # noqa: E402
 
 TABLES = {"players", "player_aliases", "player_merges", "tiers", "events", "event_aliases", "event_terms", "format_rules",
           "event_sources", "teams", "placements", "matches", "match_players", "pr_snapshots", "player_earnings",
-          "standings", "build_info", "build_checks"}
+          "standings", "unplaced_entries", "build_info", "build_checks"}
 
 
 class MakeBuildTest(unittest.TestCase):

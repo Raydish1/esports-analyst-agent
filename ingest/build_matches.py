@@ -24,7 +24,8 @@ Challengermode
   reported_winner_side is the lineup the match result places first.
 - The players are the match lineups' members.
 
-event_sources gets start.gg's own set total and its phases' states.
+event_sources gets start.gg's own set total and its phases' states, and unplaced_entries the players who
+played at an event without a placement there.
 """
 
 import collections
@@ -214,6 +215,9 @@ def step(build):
                    " VALUES (?, ?, ?, 'stats_api', ?)",
                    [(e, p, place, at) for (e, p), (place, at) in sorted(found.items()) if (e, p) in unplaced])
     written = build.players.flush(db)
+    db.execute("INSERT INTO unplaced_entries (event_id, player_id) SELECT DISTINCT m.event_id, mp.player_id"
+               " FROM match_players mp JOIN matches m ON m.match_id = mp.match_id WHERE NOT EXISTS"
+               " (SELECT 1 FROM placements p WHERE p.event_id = m.event_id AND p.player_id = mp.player_id)")
 
     by_source = dict(db.execute("SELECT source, COUNT(*) FROM matches GROUP BY source"))
     build.info["matches"] = str(sum(by_source.values()))

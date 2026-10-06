@@ -6,7 +6,9 @@
 --   * match scores may be NULL, with the platform's reported winner as the fallback;
 --   * merges record whether a person or an unattended run decided them;
 --   * event aliases, events and player aliases keep their curated note, and events a curated status;
---   * four new tables: event_terms, event_sources, build_info, build_checks.
+--   * players.canonical_id: the canonical record, set by the merges step, so the views can find a person's
+--     records through an index;
+--   * new tables: event_terms, event_sources, unplaced_entries, build_info, build_checks.
 -- Foreign keys aren't enforced while a build loads; the checks verify them.
 
 -- Players (§1)
@@ -22,9 +24,12 @@ CREATE TABLE players (
   twitch         TEXT,
   in_stats_api   INTEGER GENERATED ALWAYS AS (player_id > 0) VIRTUAL,
   source         TEXT NOT NULL DEFAULT 'stats_api',  -- 'stats_api' | 'startgg' | 'challengermode'
-  updated_at     TEXT NOT NULL          -- fetch time of the response this row came from
+  updated_at     TEXT NOT NULL,         -- fetch time of the response this row came from
+  canonical_id   INTEGER NOT NULL       -- new (build plan): the person's canonical record, player_merges applied
+                                        -- (player_id itself unless merged); v_player_ids reads it
 );
 CREATE INDEX players_sgg ON players (sgg_player_id);
+CREATE INDEX players_canonical ON players (canonical_id);
 CREATE INDEX players_cm  ON players (cm_player_id);
 
 CREATE TABLE player_aliases (
@@ -136,6 +141,12 @@ CREATE TABLE placements (
   PRIMARY KEY (event_id, player_id)
 );
 CREATE INDEX placements_player ON placements (player_id);
+
+CREATE TABLE unplaced_entries (    -- new (build plan): players who played at an event but have no placement there
+  event_id   TEXT NOT NULL REFERENCES events (event_id),   -- (SEA League Week 1/4's and MAX MODE 2025's entrants
+  player_id  INTEGER NOT NULL REFERENCES players (player_id),  -- missing from their standings)
+  PRIMARY KEY (event_id, player_id)
+);
 
 -- Matches (§1). Scores as reported: games won; -1 = DQ'd; 0-0 = a Challengermode forfeit (a match
 -- with no scores). NULL = no score reported: a start.gg set with only a winner counts as a win and

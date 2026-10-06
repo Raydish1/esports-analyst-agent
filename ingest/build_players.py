@@ -147,11 +147,11 @@ class Players:
             sgg = value("sgg")
             return (pid, value("name") or str(pid), int(sgg) if sgg is not None else None, value("cm"),
                     value("brawlhalla"), None, value("twitter"), value("twitch"), "stats_api",
-                    max(at for at, _ in fields.values()))
+                    max(at for at, _ in fields.values()), pid)
         p = self.platform_only[pid]
         return (pid, p["name"], int(p["platform_id"]) if p["platform"] == "startgg" else None,
                 p["platform_id"] if p["platform"] == "challengermode" else None, None, None, None, None,
-                p["platform"], p["seen"][1])
+                p["platform"], p["seen"][1], pid)
 
     def flush(self, db, everyone=False):
         """Write the players met since the last flush, or whose row changed. `everyone` adds every Stats API
@@ -163,7 +163,8 @@ class Players:
         ids |= self.referenced & self.platform_only.keys()
         changed = [row for row in map(self.row, sorted(ids)) if self.written.get(row[0]) != row]
         db.executemany("INSERT OR REPLACE INTO players (player_id, name, sgg_player_id, cm_player_id, brawlhalla_id,"
-                       " country, twitter, twitch, source, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", changed)
+                       " country, twitter, twitch, source, updated_at, canonical_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                       changed)  # canonical_id is the player's own ID until the merges step
         self.written.update((row[0], row) for row in changed)
         return len(changed)
 

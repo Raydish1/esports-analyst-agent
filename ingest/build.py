@@ -47,6 +47,7 @@ from curation import AUTO_MERGES, CURATION_DIR
 from problems import BuildStop
 
 SCHEMA = Path(__file__).resolve().parent / "schema.sql"
+VIEWS = Path(__file__).resolve().parent / "views.sql"
 LOG_DIR = ROOT / "data" / "logs"
 DEV_EVENTS = [  # awkward cases for a dev build (docs/build-plan.md §6)
     "tournament/brawlhalla-world-championship-expo-2022/event/1v1",  # BCX 2022: big, with many DQs
@@ -176,17 +177,20 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
             begun = time.monotonic()
             db.executescript(indexes)  # once the rows are in: faster than keeping them up to date row by row
             log(f"  indexes: {time.monotonic() - begun:.1f} s")
+            log(f"  views: {create_views(db)} created, and each compiles")
             outcomes = [outcome for check in checks for outcome in check(build)]
             db.executemany("INSERT INTO build_checks (check_id, gate, subject, outcome, detail) VALUES (?, ?, ?, ?, ?)",
                            outcomes)
             passed = not any(o.gate == "blocking" and o.outcome == "fail" for o in outcomes)
             build.info.update(finished_at=stamp(datetime.now(timezone.utc)), verdict="pass" if passed else "fail")
+            build.info["curated_rows_skipped"] = json.dumps(build.skipped)
             db.executemany("INSERT INTO build_info (key, value) VALUES (?, ?)", sorted(build.info.items()))
             db.commit()
             db.execute("PRAGMA journal_mode = DELETE")  # readers get one self-contained file
         finally:
             db.close()
             reader.close()
+        report_skipped(build.skipped, log)
         builds.finish(build_id, passed)
         if not passed:
             log(f"Build {build_id} failed its checks, so it's kept as {builds.path(build_id, 'failed').name}"
@@ -198,6 +202,25 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
             log(f"Build {build_id} passed; not published ({'a dev build' if events is not None else 'as asked'})")
         builds.prune(log)
     return build_id, passed
+
+
+def create_views(db):
+    """Create the views (views.sql), and compile each one, so a view that doesn't work stops the build.
+    Returns how many there are."""
+    db.executescript(VIEWS.read_text(encoding="utf-8"))
+    names = [name for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'view' ORDER BY name")]
+    for name in names:
+        db.execute(f"EXPLAIN SELECT * FROM {name}").fetchall()
+    return len(names)
+
+
+def report_skipped(skipped, log):
+    """Curated rows skipped because the cache has no record of the player they name: listed at the end of
+    every build, and in `status`, so a typo gets caught (decided 2026-10-06)."""
+    if skipped:
+        log(f"!! {len(skipped)} curated row(s) skipped. Check each for a typo:")
+        for row in skipped:
+            log(f"!!   {row}")
 
 
 def read_info(path):
@@ -218,6 +241,7 @@ def show_status(builds):
         before = [b for b in live["history"][:-1] if builds.path(b).exists()]
         print(f"Live build: {live['build']} ({live['how']} {live['at']}). Earlier live builds kept for a rollback:"
               f" {', '.join(reversed(before)) or 'none'}")
+        report_skipped(json.loads(read_info(builds.live_path()).get("curated_rows_skipped") or "[]"), print)
     else:
         print("No build is live yet.")
     files = builds.files()
