@@ -6,8 +6,10 @@ This module checks each file's structure: columns, values, duplicate keys, and r
 each other. Whether an event or player a row names exists is checked by the build step that applies
 the file.
 
-    events.csv            mode and format overrides, phase splits, and events that weren't held
-                          (status 'cancelled'). A row with no override records that an event's detected
+    events.csv            mode and format overrides, phase splits, events that weren't held (status
+                          'cancelled'), and events whose placements are unreliable ('placements_unreliable':
+                          its matches count, its placements don't). A row with no override records that an
+                          event's detected
                           format and mode were checked (the review list, §5). Its note goes into the
                           database, so an answer can give the reason.
     format_rules.csv      LIKE patterns on an event's lowercase name, each mapped to a format;
@@ -38,7 +40,8 @@ from problems import CurationError
 CURATION_DIR = ROOT / "curation"
 AUTO_MERGES = ROOT / "data" / "review" / "auto_merges.csv"
 MODES = ("1v1", "2v2")
-STATUSES = ("cancelled",)  # events.csv status: an official event that was never held
+STATUSES = ("cancelled",  # events.csv status: an official event that was never held
+            "placements_unreliable")  # its standings are wrong, so its placements aren't results; its matches are
 CHECK_IDS = (  # the checks of the build plan's §3, by ID
     "event_totals", "winners", "pr_cross_check", "teams", "completeness", "match_presence", "earnings",
     "stats_api_placements", "no_contests", "snapshot_fallbacks", "pro_series", "integrity", "entrant_sizes",
@@ -198,7 +201,7 @@ def load_events(rows, cur, problems):
             problems.append(f"{where}: mode_override must be 1v1 or 2v2, not {mode!r}")
         status = row.get("status", "")
         if status and status not in STATUSES:
-            problems.append(f"{where}: status must be empty or {', '.join(STATUSES)}, not {status!r}")
+            problems.append(f"{where}: status must be empty or one of {', '.join(STATUSES)}, not {status!r}")
         competition, order = row.get("competition_id", ""), row.get("phase_order", "")
         phase = None
         if bool(competition) != bool(order):

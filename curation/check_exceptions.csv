@@ -1,2 +1,9 @@
 check,subject,note
 winners,tournament/ceo-dreamland-2020/event/brawlhalla-1v1,"Not held: cancelled due to COVID-19 (events.csv), so it has no winner (decided 2026-10-05)"
+completeness,tournament/sea-league-week-1-4/event/brawlhalla-singles,"start.gg's standings hold 37 of its 74 entrants; the other 37 played without a placement. Their entrant lists were fetched (P1b) and the Stats API places none of them (3c), so they stay unplaced (decided 2026-10-05). Its placements are left out of results anyway (events.csv)"
+completeness,tournament/max-mode-2025/event/brawlhalla-1v1,"start.gg's standings hold only 8 of its 41 entrants; the other 33 played without a placement. The Stats API places none of them (3c), so they stay unplaced (decided 2026-10-05)"
+match_presence,series/pro-series-2019-na,"No platform has the Pro Series finals: their placements come from the Stats API, which has no matches for them"
+match_presence,series/pro-series-2019-eu,"No platform has the Pro Series finals: their placements come from the Stats API, which has no matches for them"
+match_presence,series/pro-series-2021-na,"No platform has the Pro Series finals: their placements come from the Stats API, which has no matches for them"
+match_presence,tournament/brawl-league-masters-season-4-na-1/event/swiss,"start.gg lists 33 sets for the Swiss stage but has results for only 5, so 10 of its 16 players have no match"
+match_presence,tournament/brawl-league-masters-season-4-eu-1/event/brawlhalla-singles-1v1,"start.gg lists 33 sets for the Swiss stage but has results for only 8, so 10 of its 16 players have no match"

@@ -96,7 +96,8 @@ def event_totals(build):
 def winners(build):
     """Check 2: one 1st place per counted event: one player in 1v1, a pair sharing a team in 2v2, one crew in a crew
     battle. The Pro Series finals, whose placements come from the Stats API without entrants, need a team of at
-    least two (check 11 checks the teams)."""
+    least two (check 11 checks the teams). An event whose placements are unreliable (status) has no results to
+    check."""
     rows = build.db.execute("""
         SELECT v.event_id, v.counts_as, v.format,
                (SELECT COUNT(*) FROM placements p WHERE p.event_id = v.event_id AND p.placement = 1),
@@ -105,7 +106,8 @@ def winners(build):
                (SELECT COUNT(*) FROM placements p WHERE p.event_id = v.event_id AND p.placement = 1
                   AND p.team_id IS NULL),
                EXISTS (SELECT 1 FROM standings s WHERE s.event_id = v.event_id)
-        FROM v_events v WHERE v.counts_as IS NOT NULL ORDER BY v.start_time, v.event_id""").fetchall()
+        FROM v_events v WHERE v.counts_as IS NOT NULL AND COALESCE(v.status, '') <> 'placements_unreliable'
+        ORDER BY v.start_time, v.event_id""").fetchall()
     out = []
     for event_id, mode, fmt, first, entrants, teams, teamless, standings in rows:
         if first == 0:
@@ -122,7 +124,7 @@ def winners(build):
                        "the 1st-place players are in different teams" if teams != 1 else None)
         if problem:
             out.append(fail("winners", BLOCKING, event_id, problem))
-    return [summary("winners", BLOCKING, f"{len(rows)} counted events")] + out
+    return [summary("winners", BLOCKING, f"{len(rows)} counted events with placements that count")] + out
 
 
 # Check 3

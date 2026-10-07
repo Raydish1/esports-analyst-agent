@@ -32,7 +32,8 @@ class ViewsTest(unittest.TestCase):
             ("kungfoot", "Kung Foot", 1, 500, None, None, None, None),
             ("filed1v1", "Doubles", 0, 600, "2v2", None, None, None),
             ("ab", "Alpha Beta Cup", 0, 700, None, None, None, None),
-            ("cancelled", "Dreamland", 0, 800, None, None, None, "cancelled")]
+            ("cancelled", "Dreamland", 0, 800, None, None, None, "cancelled"),
+            ("unreliable", "League Week 1", 0, 900, None, None, None, "placements_unreliable")]
         db.executemany("INSERT INTO events (event_id, host, tournament_name, year, start_time, is_official, is_twos,"
                        " is_online, mode_override, competition_id, phase_order, status, fetched_at)"
                        " VALUES (?, 'SGG', ?, 2020, ?, 1, ?, 0, ?, ?, ?, ?, 't')",
@@ -44,7 +45,8 @@ class ViewsTest(unittest.TestCase):
                       ("e2", A, 1, 1), ("e2", B, 1, 1), ("e2", C, 2, 2), ("e2", D, 2, 2),
                       ("e2b", B, 3, 3), ("e2b", A2, 3, 3),
                       ("swiss", A, 2, None), ("swiss", B, 5, None), ("top8", A, 2, None), ("top8", C, 1, None),
-                      ("crew", A, 1, None), ("crew", B, 1, None), ("crew", C, 1, None), ("kungfoot", A, 1, None)]
+                      ("crew", A, 1, None), ("crew", B, 1, None), ("crew", C, 1, None), ("kungfoot", A, 1, None),
+                      ("unreliable", C, 1, None), ("unreliable", D, 1, None)]  # both "won": its standings are wrong
         db.executemany("INSERT INTO placements VALUES (?, ?, ?, ?, 'startgg', 't')", placements)
         db.execute("INSERT INTO unplaced_entries VALUES ('e1', ?)", (E,))
         matches = [  # (ID, event, score 1, score 2, reported winner, side 1, side 2)
@@ -55,7 +57,8 @@ class ViewsTest(unittest.TestCase):
             ("m7", "e1", 0, 0, 1, [A], [B]),  # a forfeit
             ("m8", "e1", 1, 1, 1, [A], [B]),  # a tie
             ("m9", "e2", 3, 2, 1, [A, B], [C, D]),
-            ("m10", "swiss", 2, 0, 1, [A], [B]), ("m11", "top8", 0, 3, 2, [A], [C])]
+            ("m10", "swiss", 2, 0, 1, [A], [B]), ("m11", "top8", 0, 3, 2, [A], [C]),
+            ("m12", "unreliable", 2, 0, 1, [C], [D])]
         db.executemany("INSERT INTO matches (match_id, event_id, side1_score, side2_score, reported_winner_side,"
                        " source, fetched_at) VALUES (?, ?, ?, ?, ?, 'startgg', 't')", [m[:5] for m in matches])
         db.executemany("INSERT INTO match_players VALUES (?, ?, ?)",
@@ -87,6 +90,14 @@ class ViewsTest(unittest.TestCase):
                                    ("e2b", "2v2", 3, A2), ("top8", "1v1", 2, A)])  # no swiss, no Kung Foot, no 9th
         self.assertEqual(self.rows("SELECT event_id, placement FROM v_results WHERE player_id = ? AND competition_key"
                                    " = 'league'", B), [("swiss", 5)])  # the last phase B reached
+
+    def test_an_event_with_unreliable_placements_keeps_its_matches_but_not_its_results(self):
+        self.assertEqual(self.rows("SELECT COUNT(*) FROM v_results WHERE event_id = 'unreliable'"), [(0,)])
+        self.assertNotIn(("unreliable",), self.rows("SELECT event_id FROM v_official_wins WHERE player_id = ?", C))
+        self.assertIn(("unreliable", None), self.rows("SELECT event_id, placement FROM v_entries WHERE player_id = ?", C))
+        self.assertEqual(self.rows("SELECT won FROM v_match_results WHERE match_id = 'm12' AND player_id = ?", C), [(1,)])
+        self.assertEqual(self.rows("SELECT flag FROM v_event_coverage WHERE event_id = 'unreliable'"),
+                         [("placements unreliable",)])
 
     def test_entries_include_side_formats_and_players_who_played_unplaced(self):
         self.assertIn(("kungfoot", None, 1),

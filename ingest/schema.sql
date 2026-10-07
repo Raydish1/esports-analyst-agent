@@ -77,7 +77,8 @@ CREATE TABLE events (
   mode_override        TEXT CHECK (mode_override IN ('1v1', '2v2')),
   competition_id       TEXT,              -- shared by the phases of one competition
   phase_order          INTEGER,           -- 1, 2, ... within a competition
-  status               TEXT CHECK (status IN ('cancelled')),  -- new (build plan): an official event never held
+  status               TEXT CHECK (status IN ('cancelled', 'placements_unreliable')),  -- new (build plan):
+                                          -- an official event never held, or one whose placements are unreliable
   note                 TEXT,              -- new (build plan): events.csv's note, e.g. why an event wasn't held
   -- set by the build, not curated
   held_out             TEXT,              -- new (build plan, decision 3): why a new event (no row in events.csv) stays

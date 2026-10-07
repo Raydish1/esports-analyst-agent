@@ -67,11 +67,17 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames.
-- `player_merges.csv`: 2 merges decided by hand and 670 accepted automatically (tier 1).
+- `player_merges.csv`: 3 merges decided by hand (Remmy, hardymj and karuzzi) and 670 accepted automatically (tier 1).
 - `merge_rejections.csv`: empty so far.
 - `external_ids.csv`: Esports Earnings links.
-- `events.csv`: the three Pro Series finals as crew battles, CEO Dreamland 2017's doubles as 2v2, the two Brawl League Masters Season 4 phase splits, and CEO Dreamland 2020 as `cancelled` (not held).
-- `check_exceptions.csv`: known check failures with their explanation, by check ID (the build plan's §3). So far, CEO Dreamland 2020 having no winner.
+- `events.csv`: a row for every official event (2026-10-06). A row without overrides records that the event's detected mode and format were checked, so only events fetched later are new. The overrides:
+  - the three Pro Series finals as crew battles, and CEO Dreamland 2017's doubles as 2v2;
+  - the two Brawl League Masters Season 4 phase splits;
+  - CEO Dreamland 2020 as `cancelled` (not held), and SEA League Week 1/4 as `placements_unreliable`.
+- `check_exceptions.csv`: known check failures with their explanation, by check ID and subject (the build plan's §3):
+  - CEO Dreamland 2020 having no winner;
+  - the players who played without a placement at SEA League Week 1/4 and MAX MODE 2025 (completeness);
+  - the missing match data of the three Pro Series finals and the Brawl League Masters Season 4 Swiss stages (match presence).
 - `format_rules.csv`: name patterns that mark side formats (crew battles, 3v3, Triples, Brawlball, Kung Foot, …); the lowest priority wins.
 - `event_aliases.csv`: names people use for events that the data doesn't, such as "bcx 2022" and "worlds 2019". Worlds 2018 was DreamHack Atlanta 2018. The Last Chance Qualifiers aren't Worlds.
   - "msi" (or "midseason invitational") defaults to the 2022 Brawlhalla Midseason Championship (decided 2026-10-05). Someone may mean another midseason event, so the answer says which one it used.
@@ -83,11 +89,15 @@ Curation (`curation/`, committed):
 
 Merge review: **`data/review/merge_candidates.csv`** (git-ignored; regenerate with `python ingest/merge_candidates.py`, which makes no requests).
 - It holds 434 tier-2 and 1,753 tier-3 pairs, strongest first, for the user to review at their own pace.
+- By impact (2026-10-06), under the curation policy below:
+  - 64 pairs involve a top 8 or better: 16 in tier 2 and 48 in tier 3, 8 with official wins and 16 with medals;
+  - 860 more involve a ranked player but no top 8, though only 178 of those players rank in their region's top 100;
+  - 1,263 are low-impact.
 - Decisions go in `curation/player_merges.csv` (merge) or `curation/merge_rejections.csv` (not one person).
 - To undo an automatic merge, move its row from the first file to the second.
 
 The review list: **`data/review/review.csv`** (git-ignored), rewritten by every full build.
-- It holds everything waiting for the user, most pressing first: curated rows skipped (marked `!!`), held-out events, unused check exceptions, possible phase splits, new events (every event without a row in `events.csv`: 613 today), automatic merges, and the merge candidates not yet decided.
+- It holds everything waiting for the user, most pressing first: curated rows skipped (marked `!!`), held-out events, unused check exceptions, possible phase splits, new events (without a row in `events.csv`: none since every event got one, 2026-10-06), automatic merges, and the merge candidates not yet decided.
 - Each row has a key that stays the same from build to build, and says what settles it.
 
 Decisions so far: the domain definitions below, plus these.
@@ -124,6 +134,11 @@ Decisions so far: the domain definitions below, plus these.
     - The agent reads each view's rules from its definition.
     - Question 11's dominance ordering is documented in `v_win_runs` for the agent to apply; the view has no rank column.
     - Views must stay fast when filtered by a player: no window or GROUP BY between the filter and the indexed tables.
+- Curation policy (2026-10-06):
+  - Low-impact cases (no official wins, medals or top placements): follow the data evidence and Claude's recommendation, with the evidence in the curated row's note.
+  - High-impact cases (ranked players, top 8s, wins, medals): bring them to the user.
+  - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
+- SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
 Next step: **the builder, following `docs/build-plan.md`'s order of work.**
 - One step per commit, pushed after each.
@@ -144,6 +159,7 @@ Explain the builder's design before implementing it, and keep it in small steps.
   - A run with any unscored set (below) ranks after every fully scored run (decided 2026-10-05).
   - If such a run would have ranked near the top on its scored games alone, the answer mentions it in one line, so it isn't silently buried.
 - An official event that wasn't held (`events.status = 'cancelled'`, such as CEO Dreamland 2020, cancelled due to COVID-19): answers say it wasn't held, not that its results are missing.
+- An event whose standings are wrong (`events.status = 'placements_unreliable'`; so far SEA League Week 1/4, 2017, where start.gg placed 24 entrants 1st): its placements are left out of results (wins, medals, top 8s), its matches still count, and answers say why (decided 2026-10-06).
 - A DQ (a `-1` game score) or a forfeit (a Challengermode match with no scores, which the Stats API shows as 0-0) is a no-contest, flagged by `matches.is_no_contest`. It counts as neither a win nor a loss and contributes no games.
 - A set with a reported winner but no game score (259 start.gg sets, mostly 2017–2019) counts as a win and a loss (decided 2026-10-05). Unlike a forfeit, it was played. Its games are unknown, not zero:
   - game-based stats (games won or lost, game win rates, dominance) leave it out of the game counts;

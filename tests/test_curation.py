@@ -69,7 +69,8 @@ class CurationTest(unittest.TestCase):
         self.write("events.csv", "e1,,,,,postponed,", header=header)
         self.write("check_exceptions.csv", "winners,e1,", "made_up,e1,", "winners,,", "winners,e1,again")
         found = "\n".join(self.problems())
-        self.assertIn("events.csv:2: status must be empty or cancelled, not 'postponed'", found)
+        self.assertIn("events.csv:2: status must be empty or one of cancelled, placements_unreliable, not 'postponed'",
+                      found)
         self.assertIn("check_exceptions.csv:3: unknown check 'made_up'", found)
         self.assertIn("check_exceptions.csv:4: no subject", found)
         self.assertIn("check_exceptions.csv:5: winners for e1 is listed twice", found)

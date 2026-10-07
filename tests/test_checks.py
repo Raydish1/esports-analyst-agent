@@ -64,7 +64,8 @@ class ChecksTest(unittest.TestCase):
             ("gone", "SGG", "Dreamland", 0, 700, "dream", None, "cancelled"),
             ("ab", "SGG", "Alpha Beta Cup", 0, 800, "ab", None, None),  # two rules tie
             ("s1", "SGG", "League Swiss", 0, 900, "league", None, None),  # s2 is its top two
-            ("s2", "SGG", "League Finals", 0, 905, "league", None, None)]
+            ("s2", "SGG", "League Finals", 0, 905, "league", None, None),
+            ("u", "SGG", "Weekly", 0, 950, "weekly", None, "placements_unreliable")]  # two 1st places, but no results
         db.executemany("INSERT INTO events (event_id, host, tournament_name, is_twos, start_time, sgg_tournament_slug,"
                        " format_override, status, year, is_official, is_online, fetched_at)"
                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2020, 1, 0, 't')", events)
@@ -75,7 +76,8 @@ class ChecksTest(unittest.TestCase):
             ("c", "c1", 1, 1), ("c", "c1", 2, 1), ("c", "c1", 3, 1),
             ("c2", "k1", 4, 1), ("c2", "k1", 5, 1), ("c2", "k1", 6, 1),
             ("d", "d1", 1, 1), ("d", "d2", 2, 2),
-            ("e", "e1", 5, 1), ("e", "e2", 6, 1), ("e", "e3", 8, 3)]
+            ("e", "e1", 5, 1), ("e", "e2", 6, 1), ("e", "e3", 8, 3),
+            ("u", "u1", 7, 1), ("u", "u2", 9, 1)]
         db.executemany("INSERT INTO standings (event_id, entrant_key, platform_player, player_id, placement, source,"
                        " fetched_at) VALUES (?, ?, ?, ?, ?, 'startgg', 't')",
                        [(e, k, str(p), p, place) for e, k, p, place in standings])
@@ -120,7 +122,8 @@ class ChecksTest(unittest.TestCase):
         old.close()
 
         cur = Curation()
-        cur.events = [override("c2", 2), override(PRO, 3, fmt="crew_battle"), override("gone", 4, status="cancelled")]
+        cur.events = [override("c2", 2), override(PRO, 3, fmt="crew_battle"), override("gone", 4, status="cancelled"),
+                      override("u", 5, status="placements_unreliable")]
         cur.check_exceptions = [CheckException("winners", "gone", "not held", 2),
                                 CheckException("teams", "nowhere", "a typo", 3)]
         players = Players()
@@ -161,7 +164,8 @@ class ChecksTest(unittest.TestCase):
         self.assertEqual(found["c2"], ("fail", "3 players placed 1st"))
         self.assertEqual(found["gone"][0], "explained")  # check_exceptions.csv
         self.assertIn("check_exceptions.csv:2: not held", found["gone"][1])
-        self.assertEqual(set(found) - {""}, {"e", "c2", "gone"})  # a, b's pair, d, the crews and the league pass
+        self.assertEqual(set(found) - {""}, {"e", "c2", "gone"})  # a, b's pair, d, the crews and the league pass,
+        # and u's two 1st places aren't results
         self.assertEqual(found[""][0], "fail")
 
     def test_pr_cross_check_uses_the_newest_list_and_pr_own_rule(self):

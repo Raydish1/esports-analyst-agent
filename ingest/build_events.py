@@ -4,7 +4,8 @@
 Events come from the full ListEvents listings, every page of both modes. The per-year listings are
 check 1's cross-check. An event listed in several responses takes the newest one.
 
-curation/events.csv fills the curated columns, including an event's status ('cancelled': never held) and
+curation/events.csv fills the curated columns, including an event's status ('cancelled': never held;
+'placements_unreliable': its placements aren't results, its matches still count) and
 its note, which an answer can quote. A curated row naming an event the listings don't have
 stops the build, and so does a competition whose phases are in different modes. A dev build (--event,
 --dev) loads only the chosen events, but it still checks every curated row, so it fails where a full

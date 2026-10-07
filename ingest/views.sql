@@ -20,8 +20,11 @@ CREATE VIEW v_events AS
 --   counts_as  '1v1' or '2v2'. Crew battles count as 1v1. Other non-standard formats (3v3, Triples,
 --              Brawlball, Kung Foot, ...) count toward neither and have NULL here. So does a held-out event.
 --   status     'cancelled' for an official event that was never held (CEO Dreamland 2020, cancelled due
---              to COVID-19). An answer says it wasn't held, not that its results are missing. note
---              gives the reason.
+--              to COVID-19). An answer says it wasn't held, not that its results are missing.
+--              'placements_unreliable' for an event whose standings are wrong (SEA League Week 1/4, 2017:
+--              24 entrants placed 1st). Its placements aren't results, so wins, medals and top 8s leave it
+--              out (v_results); its matches still count. An answer about it says why.
+--              note gives the reason.
 --   held_out   why a new event stays out of the counts until a person reviews it: its entrants' sizes don't
 --              fit its mode and format (e.g. a "1v1" event whose entrants have three players). NULL for every
 --              other event. An answer that would include it says it was left out and why.
@@ -53,6 +56,7 @@ SELECT player_id, canonical_id FROM players;
 CREATE VIEW v_results AS
 -- One result per player (canonical) per competition that counts toward 1v1 or 2v2.
 --   * Side formats are left out (v_events.counts_as is NULL); v_entries has them.
+--   * An event whose placements are unreliable (v_events.status 'placements_unreliable') is left out.
 --   * A competition in phases counts once, at the last phase reached.
 --   * If two of a person's records placed in one event, the better placement counts.
 --   * mode is what the event counts as: a crew battle's placement is the crew's, counted as 1v1, and an
@@ -67,7 +71,7 @@ SELECT pl.canonical_id AS player_id, p.player_id AS record_id, v.event_id, v.com
 FROM placements p
 JOIN players pl ON pl.player_id = p.player_id
 JOIN v_events v ON v.event_id = p.event_id
-WHERE v.counts_as IS NOT NULL
+WHERE v.counts_as IS NOT NULL AND COALESCE(v.status, '') <> 'placements_unreliable'
   AND NOT EXISTS (  -- another of the person's records placed better in the same event
         SELECT 1 FROM players q
         JOIN placements p2 ON p2.event_id = p.event_id AND p2.player_id = q.player_id
@@ -84,11 +88,13 @@ CREATE VIEW v_entries AS
 -- For "last event entered" questions. If the newest is a side format, the answer also gives the newest
 -- event with a mode (1v1 or 2v2).
 --   * Entered means placed or played. placement is NULL for a player who played without a placement
---     (unplaced_entries: the entrants missing from SEA League Week 1/4's and MAX MODE 2025's standings).
+--     (unplaced_entries: the entrants missing from SEA League Week 1/4's and MAX MODE 2025's standings), and
+--     at an event whose placements are unreliable (v_events.status).
 --   * A cancelled event has no entrants, so it never shows here.
 --   * A person whose two records both entered one event has two rows for it.
 SELECT pl.canonical_id AS player_id, v.event_id, v.tournament_name, v.event_name, v.start_date, v.start_time,
-       v.format, v.counts_as AS mode, v.is_official, p.placement
+       v.format, v.counts_as AS mode, v.is_official,
+       CASE WHEN COALESCE(v.status, '') <> 'placements_unreliable' THEN p.placement END AS placement
 FROM placements p
 JOIN players pl ON pl.player_id = p.player_id
 JOIN v_events v ON v.event_id = p.event_id
@@ -272,6 +278,7 @@ CREATE VIEW v_event_coverage AS
 --   placed_without_match  placed players with no stored match.
 --   flag  NULL when nothing is missing. Otherwise short phrases joined by '; ', for an answer to mention:
 --           'not held'               the event was cancelled (status);
+--           'placements unreliable'  its placements aren't results (status), though its matches count;
 --           'held out for review'    a new event left out of the counts (held_out);
 --           'no placements';
 --           'placements incomplete'  players who played have no placement;
@@ -281,7 +288,8 @@ CREATE VIEW v_event_coverage AS
 -- (placed_without_match is placements - players_with_matches + played_unplaced, which needs no per-player
 -- lookup, so the view stays fast: about a second for every event.)
 SELECT c.*,
-       NULLIF(rtrim(CASE WHEN c.status = 'cancelled' THEN 'not held; ' ELSE '' END
+       NULLIF(rtrim(CASE c.status WHEN 'cancelled' THEN 'not held; '
+                                  WHEN 'placements_unreliable' THEN 'placements unreliable; ' ELSE '' END
                     || CASE WHEN c.held_out IS NOT NULL THEN 'held out for review; ' ELSE '' END
                     || CASE WHEN c.status IS NULL AND c.placements = 0 THEN 'no placements; ' ELSE '' END
                     || CASE WHEN c.played_unplaced > 0 THEN 'placements incomplete; ' ELSE '' END

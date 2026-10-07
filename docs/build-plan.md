@@ -26,6 +26,14 @@ The plan builds on [`schema-proposal.md`](schema-proposal.md) (the schema, rules
    - A check exception (`winners`) explains why it has no winner.
    - Answers say it wasn't held, not that its results are missing.
 8. **Player aliases keep their curated note (decided after step 5),** as event aliases do. For example, "flowers" is also the display name of a different player, and the answer can mention them.
+9. **SEA League Week 1/4's placements aren't results (decided after step 8).** start.gg's standings put 24 entrants in 1st place.
+   - A new curated status, `placements_unreliable`, keeps the event's matches but leaves its placements out of `v_results`, so out of wins, medals and top 8s.
+   - The winners check skips such an event, so it needs no exception.
+10. **Every event has a row in `events.csv` (decided after step 8),** so all 622 count as reviewed, and only events fetched later are new.
+11. **Curation policy (decided after step 8):**
+    - low-impact cases follow the data evidence and Claude's recommendation;
+    - high-impact ones (ranked players, top 8s, wins, medals) go to the user;
+    - high-impact cases outside NA are flagged, so the user can ask someone from that scene.
 
 ## What the cache showed
 
@@ -142,7 +150,7 @@ Tables keep what the platforms reported. Curated values live in their own column
 
 | File | Applied as | Validated for |
 |---|---|---|
-| `events.csv` | `format_override`, `mode_override`, `competition_id`, `phase_order`, `status` and `note` on `events`; `v_events` applies them | Event exists; known format; mode 1v1 or 2v2; status empty or `cancelled`; each competition has at least two phases with distinct orders |
+| `events.csv` | `format_override`, `mode_override`, `competition_id`, `phase_order`, `status` and `note` on `events`; `v_events` applies them | Event exists; known format; mode 1v1 or 2v2; status empty, `cancelled` or `placements_unreliable`; each competition has at least two phases with distinct orders |
 | `format_rules.csv` (new, seeded from §2's starting rules) | `format_rules` → `v_events.format` | Valid pattern and priority |
 | `event_aliases.csv` (new, seeded with "bcx 2017" to "bcx 2025", "worlds 2019" and similar) | `event_aliases` | Event exists |
 | `event_terms.csv` (new: words people use for words in event names, such as "ltc" and "winters") | `event_terms` | A term doesn't mean itself; a phrase no event has yet is logged |
@@ -264,7 +272,7 @@ One commit per step, pushed after each, with a report after each step for review
 | 6 | Aliases, merges, PR and earnings | Done 2026-10-05 |
 | 7 | Views, with the approved fixes | Done 2026-10-06 |
 | 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | Done 2026-10-06 |
-| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | Next |
+| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | In progress |
 
 **Step 1 (2026-10-05):**
 - **Built:**
@@ -523,3 +531,25 @@ One commit per step, pushed after each, with a report after each step for review
   - indexes and statistics 8 s;
   - checks 18 s, the longest being `integrity` (foreign keys) at 4 s.
 - **Tests:** 22 new (`test_checks.py`, one database exercising every check and the coverage view; `test_report.py`; and in `test_build.py` and `test_build_matches.py`). The suite (152) passes.
+
+**Step 9 (started 2026-10-06):**
+- **The step 8 review's decisions, applied:**
+  - **SEA League Week 1/4:** `status = placements_unreliable` (decision 9).
+    - `v_results` leaves it out, and `v_entries` shows no placement for it.
+    - `v_event_coverage` flags 'placements unreliable', and the winners check skips it.
+  - **Check exceptions:**
+    - completeness, for SEA League Week 1/4 and MAX MODE 2025;
+    - match presence, for the three Pro Series finals and the two Brawl League Masters Season 4 Swiss stages.
+  - **A curated merge:** start.gg player 2951348 ('Dark E', -2951348) into karuzzi (18198), on the start.gg name history.
+  - **`events.csv` has a row for every one of the 622 events** (decision 10). That also cleared the possible phase split of SEA League Weeks 3/4 and 4/4.
+- **The build passes every check and is live** (`20261007T014521Z`).
+  - Explained: CEO Dreamland 2020's winner, the two completeness failures and the five match gaps.
+  - The "no worse" baselines are now the PR cross-check's 41 rows and check 9's three matches.
+  - The review list holds 2,188 items: the hardymj row and 2,187 merge candidates.
+  - The survey answers are unchanged: Raydish's 6 official wins, BBBalloonBoy's 27 medals, Boomie's 80 and Hexoo's one 1v1 top 8.
+- **Merge candidates by impact** (decision 11):
+  - 64 pairs involve a top 8 or better, 8 of them with official wins and 16 with medals;
+  - 860 more involve a ranked player only, and 178 of those players rank in their region's top 100;
+  - 1,263 are low-impact.
+- **Tests:** 1 new, for the new status; the suite (153) passes.
+- **Next:** `known_events.csv` with the user, then its check, `freeze`, and the docs.
