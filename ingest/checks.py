@@ -18,6 +18,7 @@ Subjects, as check_exceptions.csv names them:
   '<player ID> <mode>'     pr_cross_check, e.g. '148006 1v1'
   '<event ID> <player ID>' stats_api_placements
   a match ID               no_contests
+  an event ID              known_events: every row is listed, passing or not
   integrity                '<table> -> <parent>', '<column> <value>', '<platform> player <ID>', 'standings',
                            'players.canonical_id'; and, listed for review, the curated rows skipped and the
                            exceptions that explain nothing ('<file>:<line>')
@@ -31,6 +32,7 @@ from collections import Counter, defaultdict, namedtuple
 
 import build_events
 from build_events import players
+from names import normalize, normalize_full
 
 Outcome = namedtuple("Outcome", "check_id gate subject outcome detail")  # a row of build_checks
 BLOCKING, NO_WORSE, REVIEW = "blocking", "no_worse", "review"
@@ -452,6 +454,71 @@ def regression(build):
     return [summary("regression", BLOCKING, f"{len(before)} events compared with the live build {build.live.stem}")] + out
 
 
+def people_named(db, name):
+    """The canonical players any of whose aliases is this name, as the agent finds players."""
+    found = set()
+    for alias in {normalize(name), normalize_full(name)} - {""}:
+        found |= {pid for (pid,) in db.execute("SELECT DISTINCT q.canonical_id FROM player_aliases a JOIN players q"
+                                                " USING (player_id) WHERE a.alias = ?", (alias,))}
+    return found
+
+
+def known_events(build):
+    """The events a person knows well (curation/known_events.csv, the schema proposal's §4): the winner, the
+    runner-up and the top 8 at the placements given, each name resolved through player_aliases as the agent
+    resolves names, and each 2v2 pair placed as one team. Every row gets an outcome, passing or not, with how many
+    entrants the standings hold and how many of the top 8 have match data. A name no alias matches fails too: the
+    agent couldn't find that player either."""
+    rows = [k for k in (build.curation.known_events if build.curation else [])
+            if build.events is None or k.event_id in build.events]
+    if not rows:
+        return [summary("known_events", BLOCKING, "no known events (curation/known_events.csv)")]
+    db, out = build.db, []
+    for k in rows:
+        mode = db.execute("SELECT mode FROM v_events WHERE event_id = ?", (k.event_id,)).fetchone()[0]
+        held, teams, holders = defaultdict(set), defaultdict(set), defaultdict(list)
+        for pid, place, team, name in db.execute(
+                "SELECT q.canonical_id, p.placement, p.team_id, c.name FROM placements p JOIN players q USING (player_id)"
+                " JOIN players c ON c.player_id = q.canonical_id WHERE p.event_id = ?", (k.event_id,)):
+            held[pid].add(place)
+            holders[place].append(name)
+            if team is not None:
+                teams[pid].add(team)
+        problems = [] if mode == k.mode else [f"it's a {mode} event, not {k.mode}"]
+        for place, names in k.expected:
+            found = []
+            for name in names:
+                people = people_named(db, name)
+                here = [p for p in people if place in held.get(p, ())]
+                if here:
+                    found.append(here)
+                    continue
+                elsewhere = sorted({other for p in people for other in held.get(p, ())})
+                problems.append(f"{ordinal(place)} {'/'.join(names)}: "
+                                + (f"no player goes by {name!r}" if not people else
+                                   f"{name!r} placed {' and '.join(map(ordinal, elsewhere))}" if elsewhere else
+                                   f"no {name!r} placed here")
+                                + f"; {ordinal(place)} here: {', '.join(sorted(holders[place])) or 'nobody'}")
+            if len(found) == 2 and not any(teams.get(a, set()) & teams.get(b, set()) for a in found[0] for b in found[1]
+                                           if a != b):
+                problems.append(f"{ordinal(place)} {'/'.join(names)}: both placed {ordinal(place)}, but not as one team")
+        entrants = db.execute("SELECT COUNT(DISTINCT entrant_key) FROM standings WHERE event_id = ?",
+                              (k.event_id,)).fetchone()[0]
+        played = {pid for (pid,) in db.execute(
+            "SELECT DISTINCT q.canonical_id FROM matches m JOIN match_players mp ON mp.match_id = m.match_id"
+            " JOIN players q ON q.player_id = mp.player_id WHERE m.event_id = ?", (k.event_id,))}
+        top = {p for p, places in held.items() if min(places) <= 8}
+        facts = (f"{entrants} entrants" + (f" (given: about {k.entrants})" if k.entrants else "")
+                 + f"; match data for {len(top & played)} of the top {len(top)}")
+        given = f"{k.event!r}, known_events.csv:{k.line}"
+        if problems:
+            out.append(fail("known_events", BLOCKING, k.event_id, f"{given}: {'; '.join(problems)}; {facts}"))
+        else:
+            out.append(Outcome("known_events", BLOCKING, k.event_id, "pass",
+                               f"{given}: all {len(k.expected)} placements given match; {facts}"))
+    return [summary("known_events", BLOCKING, f"{len(rows)} known events")] + out
+
+
 # Review checks: what a person should look at, never a reason to stop
 
 def rules_matched(db):
@@ -551,7 +618,7 @@ def phase_splits(build):
 
 
 CHECKS = [event_totals, winners, pr_cross_check, teams, completeness, match_presence, stats_api_placements, no_contests,
-          pro_series, integrity, entrant_sizes, regression, new_events, format_rule_ties, phase_splits]
+          pro_series, integrity, entrant_sizes, regression, known_events, new_events, format_rule_ties, phase_splits]
 
 
 # The runner

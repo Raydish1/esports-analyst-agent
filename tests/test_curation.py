@@ -75,6 +75,25 @@ class CurationTest(unittest.TestCase):
         self.assertIn("check_exceptions.csv:4: no subject", found)
         self.assertIn("check_exceptions.csv:5: winners for e1 is listed twice", found)
 
+    def test_known_events(self):
+        header = "event,event_id,mode,winner,runner_up,top8,entrants,notes\n"
+        self.assertEqual(self.load().known_events, [])  # the file is optional
+        self.write("known_events.csv", "Cup NA,e1,1v1,A,B,C;D;E+F;G+H,600,",
+                   "Duos,e2,2v2,A/B,,C/D+E/F,,", header=header)
+        cup, duos = self.load().known_events
+        self.assertEqual(cup.expected, [(1, ("A",)), (2, ("B",)), (3, ("C",)), (4, ("D",)), (5, ("E",)), (5, ("F",)),
+                                        (7, ("G",)), (7, ("H",))])  # placement order; '+' joins a tie
+        self.assertEqual((cup.event, cup.entrants), ("Cup NA", 600))
+        self.assertEqual(duos.expected, [(1, ("A", "B")), (3, ("C", "D")), (3, ("E", "F"))])
+        self.write("known_events.csv", "x,e1,1v1,A/B,,,,", "x,e2,3v3,A,,,,", "x,e1,1v1,A,,,,", "x,e3,2v2,A,,C/D;,about 9,",
+                   header=header)
+        found = "\n".join(self.problems())
+        self.assertIn("known_events.csv:2: winner 'A/B' should be one name, with no '/'", found)
+        self.assertIn("known_events.csv:3: mode must be 1v1 or 2v2, not '3v3'", found)
+        self.assertIn("known_events.csv:4: e1 is listed twice", found)
+        self.assertIn("known_events.csv:5: winner 'A' should be two names joined by '/'", found)
+        self.assertIn("known_events.csv:5: entrants isn't a number: 'about 9'", found)
+
     def test_overrides_phases_aliases_and_merges_load(self):
         self.write("events.csv", "series/finals,crew_battle,,,,", "e2v2,,2v2,,,filed as 1v1",
                    "swiss,,,league,1,", "top8,,,league,2,", 'checked,,,,,"detection checked, no override"')

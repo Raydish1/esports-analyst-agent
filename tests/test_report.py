@@ -79,7 +79,9 @@ class ReviewListTest(unittest.TestCase):
             rows = list(csv.DictReader(f))
         self.assertEqual(rows[0]["key"], "curated_row_skipped:player_merges.csv:632566:145900")
         self.assertEqual(list(rows[0]), ["key", "kind", "subject", "detail", "resolve"])
-        heads = [Outcome("winners", "blocking", "", "fail", "3 counted events; 1 failed")]
+        heads = [Outcome("winners", "blocking", "", "fail", "3 counted events; 1 failed"),
+                 Outcome("known_events", "blocking", "", "pass", "1 known events"),
+                 Outcome("known_events", "blocking", "e3", "pass", "'Dreamland 2020': all 2 placements given match")]
         path = report.write_report(self.root / "reports" / "b1", "b1", {"scope": "all events"}, heads + self.outcomes,
                                    items, "data/review/review.csv", "It's kept.", self.build.skipped,
                                    {"e3": "Dreamland (2020-03-01)"})
@@ -88,7 +90,8 @@ class ReviewListTest(unittest.TestCase):
         self.assertIn("**Failed:** winners. It's kept.", text)
         self.assertIn("- `e3` (Dreamland (2020-03-01)): no 1st place", text)
         self.assertIn("### 1 curated row skipped", text)
-        self.assertEqual(len((path.parent / "checks.csv").read_text(encoding="utf-8").splitlines()), 8)
+        self.assertIn("- **pass** `e3` (Dreamland (2020-03-01)): 'Dreamland 2020': all 2 placements given match", text)
+        self.assertEqual(len((path.parent / "checks.csv").read_text(encoding="utf-8").splitlines()), 10)
         report.prune(self.root / "reports", kept={"b2"})
         self.assertFalse(path.parent.exists())
 

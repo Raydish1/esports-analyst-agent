@@ -169,6 +169,10 @@ def write_report(folder, build_id, info, outcomes, items, review_path, outcome_n
               + (": " + ", ".join(named(kind, n) for kind, n in kinds.items()) if items else ""),
               "", "## Checks", "", "| Check | Gate | Result | Detail |", "|---|---|---|---|"]
     lines += [f"| {o.check_id} | {o.gate} | {o.outcome} | {cell(o.detail)} |" for o in heads]
+    known = [o for o in outcomes if o.check_id == "known_events" and o.subject]
+    if known:
+        lines += ["", "## Known events (curation/known_events.csv)", ""]
+        lines += [f"- **{o.outcome}** {labelled(o.subject, events)}: {o.detail}" for o in known]
     for title, wanted in (("Failures", "fail"), ("Explained by check_exceptions.csv", "explained")):
         rows = [o for o in outcomes if o.subject and o.outcome == wanted]
         if not rows:

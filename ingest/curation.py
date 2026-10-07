@@ -26,6 +26,17 @@ the file.
     check_exceptions.csv  known check failures that are explained (§3): check ID, subject, note. A row that
                           explains no failure, because it was fixed or its subject has a typo, is listed for
                           review (checks.py).
+    known_events.csv      events a person knows well, with their winner, runner-up and top 8 (schema
+                          proposal §4), for the known_events check. Optional.
+                            event      what the person called it, e.g. 'Trial of Laufey NA'
+                            event_id   the event it names
+                            mode       1v1 or 2v2
+                            winner, runner_up  a name or alias; a 2v2 pair as two joined by '/'
+                            top8       from 3rd down, in placement order: ';' between placements, '+' joining
+                                       players or pairs tied at one, e.g. 'A;B;C+D;E+F' is 3rd, 4th, 5th, 5th,
+                                       7th, 7th
+                            entrants   roughly how many, if known
+                            notes
 """
 
 import csv
@@ -58,6 +69,7 @@ COLUMNS = {  # file: (required columns, optional ones); any other column is a ty
     "player_merges.csv": (("player_id", "canonical_player_id"), ("note",)),
     "merge_rejections.csv": (("player_id", "other_player_id"), ("note",)),
     "check_exceptions.csv": (("check", "subject"), ("note",)),
+    "known_events.csv": (("event", "event_id", "mode", "winner"), ("runner_up", "top8", "entrants", "notes")),
 }
 
 FormatRule = namedtuple("FormatRule", "pattern format priority")
@@ -68,6 +80,8 @@ EventTerm = namedtuple("EventTerm", "term means note")
 PlayerAlias = namedtuple("PlayerAlias", "alias shown_as player_id note line")
 Merge = namedtuple("Merge", "player_id canonical_player_id source note line")  # source: 'curated' | 'auto'
 CheckException = namedtuple("CheckException", "check subject note line")
+KnownEvent = namedtuple("KnownEvent", "event event_id mode expected entrants notes line")  # expected: (placement,
+# (names,)) for the winner, the runner-up and each of the top 8 given, one name per player
 
 
 class Skipped(namedtuple("Skipped", "where reason key")):
@@ -88,6 +102,7 @@ class Curation:
         self.rejections = set()   # frozensets of two player IDs
         self.dropped_auto = []    # (Merge, reason) for automatic merges a curated row overrode
         self.check_exceptions = []
+        self.known_events = []
 
     def formats(self):
         """Every format an override may name."""
@@ -155,6 +170,7 @@ def load(curation_dir=CURATION_DIR, auto_merges=AUTO_MERGES):
                 read(Path(auto_merges), "data/review/auto_merges.csv", problems, optional=True) if auto_merges else [],
                 cur, problems)
     load_check_exceptions(read(curation_dir / "check_exceptions.csv", "check_exceptions.csv", problems), cur, problems)
+    load_known_events(read(curation_dir / "known_events.csv", "known_events.csv", problems, optional=True), cur, problems)
     if problems:
         raise CurationError(problems)
     return cur
@@ -220,6 +236,47 @@ def load_events(rows, cur, problems):
             problems.append(f"events.csv:{members[0][1]}: competition {competition!r} has only one phase")
         elif len(set(orders)) < len(orders):
             problems.append(f"events.csv:{members[0][1]}: competition {competition!r} repeats a phase_order")
+
+
+def load_known_events(rows, cur, problems):
+    seen = set()
+    for line, row in rows:
+        where = f"known_events.csv:{line}"
+        event_id, mode = row["event_id"], row["mode"]
+        if not event_id or not row["winner"]:
+            problems.append(f"{where}: needs an event_id and a winner")
+            continue
+        if event_id in seen:
+            problems.append(f"{where}: {event_id} is listed twice")
+            continue
+        seen.add(event_id)
+        if mode not in MODES:
+            problems.append(f"{where}: mode must be 1v1 or 2v2, not {mode!r}")
+            continue
+        size, expected, wrong = (2 if mode == "2v2" else 1), [], []
+
+        def entrant(text, column):
+            names = tuple(name.strip() for name in text.split("/"))
+            if len(names) != size or not all(names):
+                wrong.append(f"{where}: {column} {text!r} should be "
+                             + ("two names joined by '/'" if size == 2 else "one name, with no '/'"))
+            return names
+        expected.append((1, entrant(row["winner"], "winner")))
+        if row.get("runner_up"):
+            expected.append((2, entrant(row["runner_up"], "runner_up")))
+        place = 3
+        for group in (row.get("top8") or "").split(";"):
+            if group.strip():
+                tied = [entrant(member, "top8") for member in group.split("+")]
+                expected += [(place, names) for names in tied]
+                place += len(tied)
+        entrants = row.get("entrants") or ""
+        if entrants and not entrants.isdigit():
+            wrong.append(f"{where}: entrants isn't a number: {entrants!r}")
+        problems += wrong
+        if not wrong:
+            cur.known_events.append(KnownEvent(row["event"], event_id, mode, expected,
+                                               int(entrants) if entrants else None, row.get("notes") or None, line))
 
 
 def load_check_exceptions(rows, cur, problems):

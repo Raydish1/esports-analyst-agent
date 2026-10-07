@@ -66,7 +66,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `names.py` holds the name normalization shared with `merge_candidates.py`.
 
 Curation (`curation/`, committed):
-- `player_aliases.csv`: nicknames.
+- `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
 - `player_merges.csv`: 3 merges decided by hand (Remmy, hardymj and karuzzi) and 670 accepted automatically (tier 1).
 - `merge_rejections.csv`: empty so far.
 - `external_ids.csv`: Esports Earnings links.
@@ -78,6 +78,9 @@ Curation (`curation/`, committed):
   - CEO Dreamland 2020 having no winner;
   - the players who played without a placement at SEA League Week 1/4 and MAX MODE 2025 (completeness);
   - the missing match data of the three Pro Series finals and the Brawl League Masters Season 4 Swiss stages (match presence).
+- `known_events.csv`: events the user knows well (13, all passing since 2026-10-07), with the winner, runner-up and top 8 the `known_events` check compares, names resolved through aliases.
+  - Format: `event` (as the user named it), `event_id`, `mode`, `winner`, `runner_up`, `top8`, `entrants`, `notes`.
+  - `top8` goes from 3rd down in placement order: `;` between placements, `+` joining players or pairs tied at one, `/` joining 2v2 partners.
 - `format_rules.csv`: name patterns that mark side formats (crew battles, 3v3, Triples, Brawlball, Kung Foot, …); the lowest priority wins.
 - `event_aliases.csv`: names people use for events that the data doesn't, such as "bcx 2022" and "worlds 2019". Worlds 2018 was DreamHack Atlanta 2018. The Last Chance Qualifiers aren't Worlds.
   - "msi" (or "midseason invitational") defaults to the 2022 Brawlhalla Midseason Championship (decided 2026-10-05). Someone may mean another midseason event, so the answer says which one it used.

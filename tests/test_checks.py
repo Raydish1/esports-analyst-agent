@@ -12,7 +12,7 @@ import checks  # noqa: E402
 from build_players import Players  # noqa: E402
 from cache import ResponseCache  # noqa: E402
 from cache_reader import CacheReader  # noqa: E402
-from curation import CheckException, Curation, EventOverride, Skipped  # noqa: E402
+from curation import CheckException, Curation, EventOverride, KnownEvent, Skipped  # noqa: E402
 
 PRO = "series/pro-series-x"
 
@@ -51,6 +51,8 @@ class ChecksTest(unittest.TestCase):
                        " VALUES (?, ?, ?, 'stats_api', 't', ?)",
                        [(i, f"p{i}", 444 if i in (4, 5) else None, 3 if i == 10 else i) for i in range(1, 11)])
         db.execute("INSERT INTO player_aliases VALUES ('ghost', 99, 'nickname', 'Ghost', 'curated', NULL)")  # no player 99
+        db.executemany("INSERT INTO player_aliases VALUES (?, ?, 'display_name', ?, 'stats_api', NULL)",
+                       [(f"p{i}", i, f"p{i}") for i in range(1, 11)])
         db.executemany("INSERT INTO format_rules VALUES (?, ?, ?)",
                        [("%crew battle%", "crew_battle", 1), ("%alpha%", "aaa", 2), ("%beta%", "bbb", 2)])
         events = [  # (ID, host, name, is_twos, start, slug, format_override, status)
@@ -65,11 +67,12 @@ class ChecksTest(unittest.TestCase):
             ("ab", "SGG", "Alpha Beta Cup", 0, 800, "ab", None, None),  # two rules tie
             ("s1", "SGG", "League Swiss", 0, 900, "league", None, None),  # s2 is its top two
             ("s2", "SGG", "League Finals", 0, 905, "league", None, None),
-            ("u", "SGG", "Weekly", 0, 950, "weekly", None, "placements_unreliable")]  # two 1st places, but no results
+            ("u", "SGG", "Weekly", 0, 950, "weekly", None, "placements_unreliable"),  # two 1st places, but no results
+            ("t", "SGG", "Pairs", 1, 960, "pairs", None, None)]  # two pairs tie for 3rd
         db.executemany("INSERT INTO events (event_id, host, tournament_name, is_twos, start_time, sgg_tournament_slug,"
                        " format_override, status, year, is_official, is_online, fetched_at)"
                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 2020, 1, 0, 't')", events)
-        db.executemany("INSERT INTO teams VALUES (?, ?, ?)", [(1, 1, 2), (2, 3, 4)])
+        db.executemany("INSERT INTO teams VALUES (?, ?, ?)", [(1, 1, 2), (2, 3, 4), (3, 5, 6), (4, 7, 8)])
         standings = [  # (event, entrant, player, placement)
             ("a", "a1", 1, 1), ("a", "a2", 2, 2), ("a", "a3", 3, 3),
             ("b", "b1", 1, 1), ("b", "b1", 2, 1), ("b", "b2", 3, 2), ("b", "b2", 4, 2),
@@ -77,11 +80,14 @@ class ChecksTest(unittest.TestCase):
             ("c2", "k1", 4, 1), ("c2", "k1", 5, 1), ("c2", "k1", 6, 1),
             ("d", "d1", 1, 1), ("d", "d2", 2, 2),
             ("e", "e1", 5, 1), ("e", "e2", 6, 1), ("e", "e3", 8, 3),
-            ("u", "u1", 7, 1), ("u", "u2", 9, 1)]
+            ("u", "u1", 7, 1), ("u", "u2", 9, 1),
+            ("t", "t1", 5, 1), ("t", "t1", 6, 1), ("t", "t2", 7, 2), ("t", "t2", 8, 2), ("t", "t3", 1, 3), ("t", "t3", 2, 3),
+            ("t", "t4", 3, 3), ("t", "t4", 4, 3)]
         db.executemany("INSERT INTO standings (event_id, entrant_key, platform_player, player_id, placement, source,"
                        " fetched_at) VALUES (?, ?, ?, ?, ?, 'startgg', 't')",
                        [(e, k, str(p), p, place) for e, k, p, place in standings])
-        team = {("b", 1): 1, ("b", 2): 1, ("b", 3): 2, ("b", 4): 2}
+        team = {("b", 1): 1, ("b", 2): 1, ("b", 3): 2, ("b", 4): 2, ("t", 5): 3, ("t", 6): 3, ("t", 7): 4, ("t", 8): 4,
+                ("t", 1): 1, ("t", 2): 1, ("t", 3): 2, ("t", 4): 2}
         placements = [(e, p, place, team.get((e, p)), "startgg") for e, _, p, place in standings]
         placements += [(PRO, p, 1 if p <= 3 else 2 if p <= 6 else 3, None, "stats_api") for p in range(1, 9)]
         placements += [("s1", p, p, None, "startgg") for p in range(1, 5)] + [("s2", 1, 1, None, "startgg"),
@@ -123,7 +129,13 @@ class ChecksTest(unittest.TestCase):
 
         cur = Curation()
         cur.events = [override("c2", 2), override(PRO, 3, fmt="crew_battle"), override("gone", 4, status="cancelled"),
-                      override("u", 5, status="placements_unreliable")]
+                      override("u", 5, status="placements_unreliable"), override("t", 6)]
+        cur.known_events = [
+            KnownEvent("Cup", "a", "1v1", [(1, ("p1",)), (2, ("p2",)), (3, ("p3",))], 3, None, 2),
+            KnownEvent("Duos", "b", "2v2", [(1, ("p1", "p2")), (2, ("P3", "p4"))], None, None, 3),
+            KnownEvent("Open", "e", "1v1", [(1, ("p5",)), (2, ("p6",)), (3, ("nobody",))], None, None, 4),
+            KnownEvent("Pairs", "t", "2v2", [(1, ("p5", "p6")), (2, ("p7", "p8")), (3, ("p1", "p3")), (3, ("p2", "p4"))],
+                       None, None, 5)]
         cur.check_exceptions = [CheckException("winners", "gone", "not held", 2),
                                 CheckException("teams", "nowhere", "a typo", 3)]
         players = Players()
@@ -231,6 +243,16 @@ class ChecksTest(unittest.TestCase):
                          "matched by '%alpha%' (aaa), '%beta%' (bbb) at priority 2; '%alpha%' wins")
         self.assertEqual(set(self.found("phase_splits")), {"", "s1 s2"})
         self.assertIn("2 of its 2 players placed in the other's top 4", self.found("phase_splits")["s1 s2"][1])
+
+    def test_known_events(self):
+        found = self.found("known_events")
+        self.assertEqual({e: outcome for e, (outcome, _) in found.items()}, {"": "fail", "a": "pass", "b": "pass",
+                                                                             "e": "fail", "t": "fail"})
+        self.assertEqual(found["a"][1], "'Cup', known_events.csv:2: all 3 placements given match; 3 entrants (given:"
+                                        " about 3); match data for 3 of the top 3")
+        self.assertIn("2nd p6: 'p6' placed 1st; 2nd here: nobody", found["e"][1])
+        self.assertIn("3rd nobody: no player goes by 'nobody'; 3rd here: p8", found["e"][1])
+        self.assertIn("3rd p1/p3: both placed 3rd, but not as one team", found["t"][1])  # p1 and p3 were in other pairs
 
     def test_event_coverage(self):
         flags = dict(self.db.execute("SELECT event_id, flag FROM v_event_coverage"))

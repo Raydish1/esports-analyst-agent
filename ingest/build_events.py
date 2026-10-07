@@ -61,6 +61,8 @@ def step(build):
     problems += [f"events.csv:{o.line}: no such event: {o.event_id}" for o in cur.events if o.event_id not in listed]
     problems += [f"event_aliases.csv:{a.line}: no such event: {a.event_id}"
                  for a in cur.event_aliases if a.event_id not in listed]
+    problems += [f"known_events.csv:{k.line}: no such event: {k.event_id}"
+                 for k in cur.known_events if k.event_id not in listed]
     competitions = defaultdict(list)
     for o in cur.events:
         if o.competition_id and o.event_id in listed:

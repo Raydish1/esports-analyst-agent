@@ -552,4 +552,22 @@ One commit per step, pushed after each, with a report after each step for review
   - 860 more involve a ranked player only, and 178 of those players rank in their region's top 100;
   - 1,263 are low-impact.
 - **Tests:** 1 new, for the new status; the suite (153) passes.
-- **Next:** `known_events.csv` with the user, then its check, `freeze`, and the docs.
+- **`known_events.csv` (2026-10-07):** 13 events the user knows, from memory.
+  - **Format:** `event` (as the user named it), `event_id` (resolved by hand; each named exactly one official event), `mode`, `winner`, `runner_up`, `top8`, `entrants`, `notes`.
+    - `top8` goes from 3rd down in placement order: `;` between placements, `+` joining players or pairs tied at one, `/` joining 2v2 partners. So `A;B;C+D;E+F` is 3rd, 4th, 5th, 5th, 7th, 7th.
+    - A row naming an unknown event stops the build, like any curated row.
+  - **The `known_events` check** (blocking):
+    - every placement given must match, each name resolved through `player_aliases` as the agent resolves names, and a 2v2 pair placed as one team;
+    - a name no alias matches fails, since the agent couldn't find that player either;
+    - every row is reported, passing or not, with the entrants held and how many of the top 8 have match data;
+    - `report.md` has a section listing the rows.
+  - **First run** (build `20261007T221324Z`, kept as failed, the live build stays):
+    - 9 of 13 rows pass, and every placement given matches;
+    - 4 fail on names no alias matches: "Bunny" (Bunny meow, 5th at Trial of Laufey NA), "Vem" (V3M_T4NQUIL0, 1st at SA 2v2 Spring 2026 and 5th at BCX 2025) and "halloween!" (7th at Summer EU 2026, where our 7th besides Sgrape is Pink | Teehee).
+  - **Settled (2026-10-07):** the user confirmed all three, so `player_aliases.csv` has three new nicknames:
+    - "bunny" for Bunny meow (113110), with a note naming the six other records the name matches;
+    - "vem" for V3M_T4NQUIL0 (71736);
+    - "halloween!" for Pink | Teehee (149587), who has used that name.
+  - **The build passes every check, all 13 known events included, and is live** (`20261007T222930Z`).
+  - **Tests:** 2 new; the suite (155) passes.
+- **Next:** the rest of Phase 1's done criteria (§3): the §8 regression queries, two identical builds, `freeze`, and the docs.
