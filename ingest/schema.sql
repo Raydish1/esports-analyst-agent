@@ -8,6 +8,7 @@
 --   * event aliases, events and player aliases keep their curated note, and events a curated status;
 --   * players.canonical_id: the canonical record, set by the merges step, so the views can find a person's
 --     records through an index;
+--   * events.held_out: a new event left out of the counts until reviewed, set by the hold-outs step;
 --   * new tables: event_terms, event_sources, unplaced_entries, build_info, build_checks.
 -- Foreign keys aren't enforced while a build loads; the checks verify them.
 
@@ -78,6 +79,9 @@ CREATE TABLE events (
   phase_order          INTEGER,           -- 1, 2, ... within a competition
   status               TEXT CHECK (status IN ('cancelled')),  -- new (build plan): an official event never held
   note                 TEXT,              -- new (build plan): events.csv's note, e.g. why an event wasn't held
+  -- set by the build, not curated
+  held_out             TEXT,              -- new (build plan, decision 3): why a new event (no row in events.csv) stays
+                                          -- out of the counts until reviewed: its entrant sizes don't fit its mode
   bracket_url          TEXT GENERATED ALWAYS AS (
                          CASE
                            WHEN host = 'SGG' AND event_id LIKE 'tournament/%'
@@ -117,6 +121,12 @@ CREATE TABLE event_sources (       -- new (build plan): what the host platform r
   state              TEXT,           -- Challengermode's tournament state; start.gg's phase states, e.g. 'ACTIVE,COMPLETED'
   reported_entrants  INTEGER,        -- start.gg's standings total / Challengermode's roster lineupCount
   reported_sets      INTEGER,        -- start.gg's set total; NULL for Challengermode, which reports none
+  -- what the cached pages held, for check 5 (completeness) and v_event_coverage:
+  sets_seen          INTEGER,        -- sets (start.gg) or matches (Challengermode) on the pages, stored or not
+                                     -- (byes, sets never played and cancelled matches aren't stored)
+  entrants_unknown   INTEGER,        -- start.gg set entrants in neither the standings nor an entrant list (their sets
+                                     -- lack players); Challengermode bracket lineups missing from the entrant list
+  series_without_match INTEGER,      -- Challengermode series between two lineups with no match
   fetched_at         TEXT NOT NULL   -- the newest response these came from
 );
 
@@ -243,11 +253,13 @@ CREATE TABLE build_info (          -- what this build was made from, one value p
   value  TEXT
 );
 
-CREATE TABLE build_checks (        -- each check's outcome, written when the checks run
+CREATE TABLE build_checks (        -- each check's outcome, written when the checks run (checks.py)
   check_id  TEXT NOT NULL,         -- e.g. 'winners', 'pr_cross_check'
   gate      TEXT NOT NULL CHECK (gate IN ('blocking', 'no_worse', 'review')),
-  subject   TEXT NOT NULL DEFAULT '',  -- an event or player ID; '' for the check as a whole
+  subject   TEXT NOT NULL DEFAULT '',  -- what failed or is listed, e.g. an event ID; '' for the check as a whole,
+                                       -- whose outcome is the check's verdict under its gate
   outcome   TEXT NOT NULL CHECK (outcome IN ('pass', 'fail', 'explained', 'listed')),
+                                   -- 'explained': a failure check_exceptions.csv explains; 'listed': for review
   detail    TEXT,
   PRIMARY KEY (check_id, subject)
 );

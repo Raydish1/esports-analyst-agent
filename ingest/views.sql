@@ -9,7 +9,8 @@
 --   * v_results settles ties by the better placement, and picks a person's result with NOT EXISTS
 --     rather than a window function, so the views on top of it stay fast when filtered by player;
 --   * v_entries also has players who played without a placement;
---   * v_win_runs is new.
+--   * v_events leaves a held-out event out of the counts (decision 3);
+--   * v_win_runs is new, and v_event_coverage computes per event what the schema proposal's §4 listed.
 
 CREATE VIEW v_events AS
 -- Every official event with its effective mode and format, and what it counts toward (decided rules).
@@ -17,10 +18,13 @@ CREATE VIEW v_events AS
 --   format     events.csv's format_override if set, else the first matching format rule (lowest
 --              priority, then pattern), else 'standard'.
 --   counts_as  '1v1' or '2v2'. Crew battles count as 1v1. Other non-standard formats (3v3, Triples,
---              Brawlball, Kung Foot, ...) count toward neither and have NULL here.
+--              Brawlball, Kung Foot, ...) count toward neither and have NULL here. So does a held-out event.
 --   status     'cancelled' for an official event that was never held (CEO Dreamland 2020, cancelled due
 --              to COVID-19). An answer says it wasn't held, not that its results are missing. note
 --              gives the reason.
+--   held_out   why a new event stays out of the counts until a person reviews it: its entrants' sizes don't
+--              fit its mode and format (e.g. a "1v1" event whose entrants have three players). NULL for every
+--              other event. An answer that would include it says it was left out and why.
 --   competition_key  shared by the phases of one competition (e.g. a Swiss stage and its Top 8 Finals).
 -- (The events are classified once per query, MATERIALIZED, rather than once per row that joins them.)
 WITH classified AS MATERIALIZED (
@@ -35,7 +39,8 @@ WITH classified AS MATERIALIZED (
   FROM events e
 )
 SELECT x.*,
-       CASE x.format WHEN 'standard' THEN x.mode WHEN 'crew_battle' THEN '1v1' END AS counts_as,
+       CASE WHEN x.held_out IS NULL THEN CASE x.format WHEN 'standard' THEN x.mode WHEN 'crew_battle' THEN '1v1' END
+       END AS counts_as,
        date(x.start_time, 'unixepoch') AS start_date
 FROM classified x;
 
@@ -244,3 +249,61 @@ SELECT w.player_id, w.event_id, w.competition_key, w.tournament_name, w.event_na
          WHERE xi.canonical_id = w.player_id
            AND COALESCE(xe.competition_id, xe.event_id) = w.competition_key) AS no_contests
 FROM v_official_wins w;
+
+CREATE VIEW v_event_coverage AS
+-- What the database holds for each official event against what its platform reported, and a short flag an
+-- answer can quote when something is missing. Counts are of player records, before merges.
+--   platform              'startgg', 'challengermode', or 'stats_api' for the Pro Series finals: no platform has
+--                         them, so their placements come from the Stats API and they have no matches.
+--   platform_state        start.gg's phase states (e.g. 'ACTIVE,COMPLETED'), or Challengermode's tournament state.
+--   entrants_reported     start.gg's standings total, or Challengermode's roster count, which also counts lineups
+--                         that registered but never played.
+--   entrants_placed       entrants (start.gg) or lineups (Challengermode) with a placement.
+--   placements, worst_placement  the player placements held, and the worst of them.
+--   matches_reported      start.gg's set total, which counts byes and sets never played. NULL for Challengermode,
+--                         which reports none.
+--   matches_seen          sets (start.gg) or matches (Challengermode) on the cached pages. Byes, sets never
+--                         played and cancelled matches aren't stored, so matches_held can be lower.
+--   matches_held          matches stored, DQs and forfeits included.
+--   players_with_matches  player records in at least one stored match.
+--   played_unplaced       players who played but have no placement, because their entrants are missing from the
+--                         standings.
+--   twos_without_team     2v2 placements without a team.
+--   placed_without_match  placed players with no stored match.
+--   flag  NULL when nothing is missing. Otherwise short phrases joined by '; ', for an answer to mention:
+--           'not held'               the event was cancelled (status);
+--           'held out for review'    a new event left out of the counts (held_out);
+--           'no placements';
+--           'placements incomplete'  players who played have no placement;
+--           'no match data'          placements but no matches;
+--           'match data incomplete'  placed players without a match, or sets missing from the cached pages;
+--           'teams incomplete'       2v2 placements without a team.
+-- (placed_without_match is placements - players_with_matches + played_unplaced, which needs no per-player
+-- lookup, so the view stays fast: about a second for every event.)
+SELECT c.*,
+       NULLIF(rtrim(CASE WHEN c.status = 'cancelled' THEN 'not held; ' ELSE '' END
+                    || CASE WHEN c.held_out IS NOT NULL THEN 'held out for review; ' ELSE '' END
+                    || CASE WHEN c.status IS NULL AND c.placements = 0 THEN 'no placements; ' ELSE '' END
+                    || CASE WHEN c.played_unplaced > 0 THEN 'placements incomplete; ' ELSE '' END
+                    || CASE WHEN c.placements > 0 AND c.matches_held = 0 THEN 'no match data; '
+                            WHEN c.placed_without_match > 0 OR c.matches_seen < c.matches_reported
+                              THEN 'match data incomplete; '
+                            ELSE '' END
+                    || CASE WHEN c.twos_without_team > 0 THEN 'teams incomplete; ' ELSE '' END, '; '), '') AS flag
+FROM (
+  SELECT x.*, x.placements - x.players_with_matches + x.played_unplaced AS placed_without_match
+  FROM (
+    SELECT v.event_id, v.tournament_name, v.event_name, v.start_date, v.mode, v.format, v.counts_as, v.status,
+           v.held_out, s.platform, s.state AS platform_state, s.reported_entrants AS entrants_reported,
+           (SELECT COUNT(DISTINCT st.entrant_key) FROM standings st WHERE st.event_id = v.event_id) AS entrants_placed,
+           (SELECT COUNT(*) FROM placements p WHERE p.event_id = v.event_id) AS placements,
+           (SELECT MAX(p.placement) FROM placements p WHERE p.event_id = v.event_id) AS worst_placement,
+           s.reported_sets AS matches_reported, s.sets_seen AS matches_seen,
+           (SELECT COUNT(*) FROM matches m WHERE m.event_id = v.event_id) AS matches_held,
+           (SELECT COUNT(DISTINCT mp.player_id) FROM matches m JOIN match_players mp ON mp.match_id = m.match_id
+             WHERE m.event_id = v.event_id) AS players_with_matches,
+           (SELECT COUNT(*) FROM unplaced_entries u WHERE u.event_id = v.event_id) AS played_unplaced,
+           (SELECT COUNT(*) FROM placements p WHERE p.event_id = v.event_id AND p.team_id IS NULL AND v.mode = '2v2')
+             AS twos_without_team
+    FROM v_events v
+    LEFT JOIN event_sources s ON s.event_id = v.event_id) x) c;

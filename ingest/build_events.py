@@ -15,9 +15,16 @@ responses fill in the rest: platform ID, state, and the platform's own totals.
 
 `event_terms` stand for words in event names, so a term whose phrase matches no event yet (MSI) is
 logged, not an error. Such a term still tells the agent what people mean.
+
+The hold-outs step, after the matches step, applies decision 3: a new event whose entrant sizes don't fit its
+mode and format stays out of the counts until a person reviews it. "New" means it has no row in events.csv;
+adding one, with overrides or without, records the review (docs/build-plan.md §5). A held-out event keeps its
+rows, and events.held_out says why, which v_events turns into counts_as NULL. Only the formats that count are
+held to a size: a standard event's entrants have the mode's one or two players, a crew battle's at least two.
+Side formats count toward neither mode, so their sizes change no count.
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from curation import CurationError
 from names import normalize_words
@@ -96,3 +103,71 @@ def step(build):
     build.log(f"  {len(rows)} events ({len(rows) - twos} listed as 1v1, {twos} as 2v2), {curated} with a curated row;"
               f" {len(cur.format_rules)} format rules; {sum(1 for a in cur.event_aliases if a.event_id in chosen)}"
               f" event aliases")
+
+
+def entrant_sizes(db):
+    """{event ID: (entrant sizes, match side sizes)}, each a Counter of players -> how many, for every event with
+    standings or matches. An entrant's size is its players in the standings; a side's, its players in a stored
+    match. A side with no players is left to check 5, which counts entrants whose players are unknown."""
+    sizes = defaultdict(lambda: (Counter(), Counter()))
+    for event_id, size, n in db.execute(  # in the standings' key order, so no sort
+            "SELECT event_id, size, COUNT(*) FROM (SELECT event_id, entrant_key, COUNT(*) AS size FROM standings"
+            " GROUP BY event_id, entrant_key) GROUP BY event_id, size"):
+        sizes[event_id][0][size] += n
+    for event_id, side1, side2, n in db.execute(  # in match_players' key order, so no sort
+            "SELECT m.event_id, x.side1, x.side2, COUNT(*) FROM (SELECT match_id, SUM(side = 1) AS side1,"
+            " SUM(side = 2) AS side2 FROM match_players GROUP BY match_id) x JOIN matches m USING (match_id)"
+            " GROUP BY m.event_id, x.side1, x.side2"):
+        for size in (side1, side2):
+            if size:
+                sizes[event_id][1][size] += n
+    return dict(sizes)
+
+
+def fitting_sizes(mode, fmt):
+    """(fewest, most) players per entrant that fit an event's mode and format; most is None for no limit. None if
+    any size fits: a side format counts toward neither mode."""
+    if fmt == "standard":
+        return (2, 2) if mode == "2v2" else (1, 1)
+    if fmt == "crew_battle":
+        return 2, None
+    return None
+
+
+def players(n):
+    return f"{n} player{'s' if n != 1 else ''}"
+
+
+def size_problems(db, sizes=None):
+    """{event ID: why its entrant sizes don't fit} for the events that count, as detected (held_out aside)."""
+    sizes = entrant_sizes(db) if sizes is None else sizes
+    problems = {}
+    for event_id, mode, fmt in db.execute("SELECT event_id, mode, format FROM v_events ORDER BY start_time, event_id"):
+        fits = fitting_sizes(mode, fmt)
+        if fits is None or event_id not in sizes:
+            continue
+        fewest, most = fits
+        wrong = []
+        for what, found in zip(("entrants", "match sides"), sizes[event_id]):
+            bad = {n: k for n, k in found.items() if n < fewest or (most is not None and n > most)}
+            if bad:
+                wrong.append(f"{what} of {', '.join(f'{players(n)} ({k} of {sum(found.values())})' for n, k in sorted(bad.items()))}")
+        if wrong:
+            expect = players(fewest) if most == fewest else f"at least {players(fewest)}"
+            label = mode if fmt == "standard" else f"{mode} {fmt.replace('_', ' ')}"
+            problems[event_id] = f"a {label} event should have entrants of {expect}, but it has {' and '.join(wrong)}"
+    return problems
+
+
+def hold_out_step(build):
+    """New events whose entrant sizes don't fit their mode and format stay out of the counts until reviewed."""
+    build.entrant_sizes = entrant_sizes(build.db)
+    build.size_problems = size_problems(build.db, build.entrant_sizes)
+    reviewed = {o.event_id for o in build.curation.events}
+    held = {event_id: why for event_id, why in build.size_problems.items() if event_id not in reviewed}
+    build.db.executemany("UPDATE events SET held_out = ? WHERE event_id = ?", [(why, e) for e, why in held.items()])
+    for event_id, why in held.items():
+        build.log(f"  held out until reviewed (a row in events.csv): {event_id}: {why}")
+    build.info["held_out"] = str(len(held))
+    build.log(f"  {len(build.entrant_sizes)} events with entrants or matches; {len(build.size_problems)} counted events"
+              f" whose sizes don't fit, {len(held)} of them new and held out")

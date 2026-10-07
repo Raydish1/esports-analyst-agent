@@ -24,8 +24,11 @@ Challengermode
   reported_winner_side is the lineup the match result places first.
 - The players are the match lineups' members.
 
-event_sources gets start.gg's own set total and its phases' states, and unplaced_entries the players who
-played at an event without a placement there.
+event_sources gets start.gg's own set total and its phases' states, and what the cached pages held for check 5
+(completeness): every set or match seen, stored or not; entrants whose players are unknown (start.gg set entrants
+in neither the standings nor an entrant list, Challengermode bracket lineups missing from the entrant list); and
+Challengermode series between two lineups with no match. unplaced_entries gets the players who played at an
+event without a placement there.
 """
 
 import collections
@@ -122,12 +125,13 @@ def startgg_set_pages(reader, events, counts):
 def startgg_matches(build, starts, counts):
     """Store every played start.gg set of the chosen events. Returns the attributor."""
     db, who = build.db, Attributor(build, starts)
-    stored = set()
+    stored, seen = set(), collections.defaultdict(set)
     pages, firsts = startgg_set_pages(build.reader, starts, counts)
     for event_id, fetched_at, body in pages:
         data = body["data"]
         matches, players, repeats = [], [], []
         for s in ((data.get("event") or data.get("phaseGroup") or {}).get("sets") or {}).get("nodes") or []:
+            seen[event_id].add(str(s["id"]))
             slots = [x for x in sorted(s.get("slots") or [], key=lambda x: x.get("slotIndex") or 0) if x.get("entrant")]
             if len(slots) < 2:
                 counts["start.gg byes"] += 1
@@ -155,29 +159,39 @@ def startgg_matches(build, starts, counts):
     db.executemany("UPDATE event_sources SET reported_sets = ?, state = COALESCE(?, state),"
                    " fetched_at = MAX(fetched_at, ?) WHERE event_id = ?",
                    [(total, states, at, event_id) for event_id, (total, states, at) in firsts.items()])
+    unknown = collections.Counter(event_id for event_id, _ in who.unknown)
+    db.executemany("UPDATE event_sources SET sets_seen = ?, entrants_unknown = ? WHERE event_id = ?",
+                   [(len(ids), unknown[event_id], event_id) for event_id, ids in seen.items()])
     counts["start.gg entrants in neither standings nor an entrant list"] = len(who.unknown)
     return who
 
 
 def cm_matches(build, starts, counts):
     """Store every completed Challengermode match of the chosen events."""
-    db, usernames = build.db, {}
+    db, usernames, rosters = build.db, {}, {}
     for response in build.reader.responses("challengermode/Roster", sources.ROSTER):
-        for lineup in ((((response.body["data"].get("tournament") or {}).get("attendance") or {})
-                        .get("roster") or {}).get("lineups") or []):
-            for member in (lineup or {}).get("members") or []:
+        lineups = [lineup for lineup in ((((response.body["data"].get("tournament") or {}).get("attendance") or {})
+                                          .get("roster") or {}).get("lineups") or []) if lineup]
+        rosters[response.params["id"]] = {lineup.get("id") for lineup in lineups}
+        for lineup in lineups:
+            for member in lineup.get("members") or []:
                 user = member.get("user") or {}
                 if user.get("id"):
                     usernames[user["id"].lower()] = user.get("username")
+    found = {}  # event ID -> (matches seen, bracket lineups missing from the entrant list, series without a match)
     for response in build.reader.responses("challengermode/Bracket", sources.BRACKET):
         event_id = response.params["id"]
         if event_id not in starts:
             continue
-        matches, players = [], []
+        matches, players, seen, unlisted, empty = [], [], set(), set(), 0
         for series in cm_series(response.body["data"].get("tournament") or {}):
-            if sum(1 for lineup in series.get("lineups") or [] if lineup) < 2:
+            seen.update(m["id"] for m in series.get("matches") or [] if m)
+            lineups = [lineup for lineup in series.get("lineups") or [] if lineup]
+            unlisted.update(lineup.get("id") for lineup in lineups if lineup.get("id") not in rosters.get(event_id, ()))
+            if len(lineups) < 2:
                 counts["Challengermode byes"] += 1
                 continue
+            empty += not series.get("matches")
             for match in series.get("matches") or []:
                 if match.get("state") != "COMPLETED":
                     counts["Challengermode matches not completed (cancelled)"] += 1
@@ -199,6 +213,9 @@ def cm_matches(build, starts, counts):
                             players.append((match["id"], lineup["number"] + 1, pid))
         db.executemany(f"INSERT OR REPLACE INTO matches ({MATCH_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", matches)
         db.executemany("INSERT OR IGNORE INTO match_players (match_id, side, player_id) VALUES (?, ?, ?)", players)
+        found[event_id] = (len(seen), len(unlisted), empty)  # responses come oldest first, so the newest stays
+    db.executemany("UPDATE event_sources SET sets_seen = ?, entrants_unknown = ?, series_without_match = ?"
+                   " WHERE event_id = ?", [(*figures, event_id) for event_id, figures in found.items()])
 
 
 def step(build):

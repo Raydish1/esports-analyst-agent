@@ -49,15 +49,17 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `builds.py` handles the build files, the pointer and rollback;
   - `cache_reader.py` gives read-only access to the cache;
   - `curation.py` loads and checks the curated files;
-  - `build_events.py` is the events step;
+  - `build_events.py` holds the events step and the hold-outs step: a new event (no row in `events.csv`) whose entrant sizes don't fit its mode stays out of the counts until reviewed;
   - `build_players.py` holds the players and standings steps;
   - `build_placements.py` fills placements and 2v2 teams, including the Pro Series finals' placements from the Stats API;
   - `build_matches.py` fills matches and match players from start.gg sets and Challengermode matches;
   - `build_aliases.py` fills player aliases (curated nicknames, display names, names without tags, former names) and merges;
   - `build_rankings.py` fills PR snapshots and Stats API career earnings;
-  - `views.sql` holds the 13 views the agent queries:
+  - `views.sql` holds the 14 views the agent queries, `v_event_coverage` included:
     - each documents its counting rules inside its definition, which SQLite keeps in `sqlite_master`;
     - the build compiles every view, then runs `ANALYZE`, without which some views take minutes;
+  - `checks.py` holds the checks, their gates and the verdict;
+  - `report.py` writes each build's report (`data/reports/<build>/report.md`) and the review list;
   - `sources.py` lists the query versions the builder reads;
   - `problems.py` defines `BuildStop` (and `CurationError`), which end a build with a list of problems;
   - `schema.sql` holds the tables;
@@ -83,6 +85,10 @@ Merge review: **`data/review/merge_candidates.csv`** (git-ignored; regenerate wi
 - It holds 434 tier-2 and 1,753 tier-3 pairs, strongest first, for the user to review at their own pace.
 - Decisions go in `curation/player_merges.csv` (merge) or `curation/merge_rejections.csv` (not one person).
 - To undo an automatic merge, move its row from the first file to the second.
+
+The review list: **`data/review/review.csv`** (git-ignored), rewritten by every full build.
+- It holds everything waiting for the user, most pressing first: curated rows skipped (marked `!!`), held-out events, unused check exceptions, possible phase splits, new events (every event without a row in `events.csv`: 613 today), automatic merges, and the merge candidates not yet decided.
+- Each row has a key that stays the same from build to build, and says what settles it.
 
 Decisions so far: the domain definitions below, plus these.
 - Career earnings: the Stats API figure first. For players without one, the fallback is the Esports Earnings snapshot (source `esportsearnings_manual`, as of 2026-10-04), linked to players through `player_aliases`. Each figure is stored with its source and as-of date. The Esports Earnings API is blocked (its account login isn't working).

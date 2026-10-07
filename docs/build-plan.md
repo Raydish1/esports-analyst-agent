@@ -121,7 +121,8 @@ The builder reads only the cache (the response files, plus the request log in `c
 - `cache_reader.py`: read-only access to the cache, as above;
 - `builds.py`: build files, the pointer, rollback and pruning;
 - `names.py`: name normalization, moved out of `merge_candidates.py`;
-- `checks.py`;
+- `checks.py`: the checks, their gates and the verdict (step 8);
+- `report.py`: the build report and the review list (step 8);
 - `schema.sql` and `views.sql`.
 
 Tests use small JSON fixtures, like `test_crawl.py`.
@@ -262,8 +263,8 @@ One commit per step, pushed after each, with a report after each step for review
 | 5 | Matches and match players | Done 2026-10-05 |
 | 6 | Aliases, merges, PR and earnings | Done 2026-10-05 |
 | 7 | Views, with the approved fixes | Done 2026-10-06 |
-| 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | Next |
-| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | |
+| 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | Done 2026-10-06 |
+| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | Next |
 
 **Step 1 (2026-10-05):**
 - **Built:**
@@ -456,3 +457,69 @@ One commit per step, pushed after each, with a report after each step for review
   - megD's partners, led by Raydish (20 events, best 2nd) and hardymj (4).
 - **Raydish's win runs (question 11's input):** the Trial of Laufey has the fewest games lost (2, over 9 sets with none dropped). The 2026 crew battle win is flagged `is_crew_battle`.
 - **Tests:** 9 new in `test_views.py`, one database exercising every rule the views apply; the suite (130) passes.
+
+**Step 8 (2026-10-06):**
+- **Built:**
+  - **`checks.py`:** the checks of §3 with their gates, except `known_events` (step 9). Each check gives one row per subject that fails or is listed, and one row for the check as a whole, which holds its verdict. A build passes when every check does.
+    - **Exceptions:** a failure that `check_exceptions.csv` names becomes "explained", with the row's note. A row that explains nothing is listed for review: the problem was fixed, or the subject has a typo.
+    - **No worse:** a check fails only if it has more unexplained failures than the live build had. With no live build that ran the check, there's nothing to compare, and it passes.
+    - **Subjects,** as `check_exceptions.csv` names them: an event ID for most checks; `<player ID> <mode>` for the PR cross-check; `<event ID> <player ID>` for check 8; a match ID for check 9.
+  - **Three review checks,** which never block, find the review list's items: `new_events`, `format_rule_ties` (step 2's note) and `phase_splits`.
+  - **The report:** every build writes `data/reports/<build>/report.md` and `checks.csv`, removed when the build is pruned. The report gives the verdict and what the build was made from, every failure and explained failure (each event with its name), and the review items.
+  - **The review list,** `data/review/review.csv`, is rewritten by every full build of the current cache. A dev build or a build of the past writes its own into its report folder, so the main list stays whole.
+    - **Columns:** `key`, `kind`, `subject`, `detail` and `resolve` (what settles it). A key names an item by its content (kind and subject), not by line, so it stays the same from build to build.
+    - **Kinds, most pressing first:** curated rows skipped; held-out events; unused check exceptions; format rule ties; possible phase splits; new events; automatic merges; merge candidates. The merge candidates come from `merge_candidates.py`'s list, without the pairs decided since.
+  - **Skipped curated rows** are listed:
+    - at the top of every report (`!!`);
+    - first in the review list (`!!`);
+    - as `integrity` rows for review;
+    - last in every build log, and in `status`, as before.
+  - **Decision 3, holding out new events:** a hold-outs step after the matches step.
+    - A counted event's entrants and match sides must fit its mode and format: one player in standard 1v1, two in 2v2, at least two in a crew battle. Side formats count toward nothing, so their sizes aren't held to anything.
+    - A new event (no row in `events.csv`) that doesn't fit gets `events.held_out`, the reason, and `v_events.counts_as` is NULL for it.
+    - A reviewed event that doesn't fit fails `entrant_sizes`.
+  - **`v_event_coverage`:** per event, the plan's figures (§3) and a flag to quote: 'not held', 'held out for review', 'no placements', 'placements incomplete', 'no match data', 'match data incomplete', 'teams incomplete'. It needs no per-player lookups, so it takes 1 s for every event and 8 ms for one.
+  - **`event_sources` records what the cached pages held,** for check 5: sets or matches seen (stored or not), entrants whose players are unknown, and Challengermode series without a match.
+  - **The views are created right after the tables,** so a step can use `v_events`, and compiled at the end as before.
+- **Choices made in this step (for review):**
+  - **Check 5** also fails an event where players played without a placement. That's how SEA League Week 1/4 and MAX MODE 2025 (the plan's "events missing standings") need their expected exception.
+  - **Check 8** compares people (canonical IDs), not records, so a merge can settle a mismatch.
+  - **Check 3 counts by PR's own rule:** the Stats API's own mode, standard format only (crew battles and side formats left out), Community Tournament #2 left out, and the newest PR list. The survey's examples (§3) show PR leaves out Triples and Brawlball too.
+  - **Check 9** fails on a scored set whose reported winner differs from the scores, a tie other than a 0-0 forfeit, and a 0-0 on start.gg. It only counts the rest (unscored sets, DQs, DQs whose reported winner is the DQ'd side), since they change no record.
+  - **Possible phase splits:** two events in one mode, in one start.gg tournament within 31 days or with near-identical names within 7 days, where at least 75% of the smaller one's players placed in the other's top 2n. A pair leaves the list when both events have a row in `events.csv`.
+    - A looser rule flagged qualifier-to-finals pairs, such as the 2021 regional Worlds and their Autumn Championships.
+    - The 31 days are needed because Brawl League Masters Season 4 NA's phases were 15 days apart.
+  - **Dev builds** skip the PR cross-check, which needs every event, and aren't compared with the live build's counts. Their regression check covers only their events. Builds of the past aren't compared at all.
+- **The first full build** (`20261007T012524Z`) failed, as expected, so it's kept as failed and the live build (step 7's) stays.
+  - **Passed:**
+    - `event_totals`: 375 and 247 events;
+    - `pro_series`: eight teams of three at each 2019 final, six of six in 2021;
+    - `entrant_sizes`: every counted event fits, so nothing is held out;
+    - `regression`: 622 events, none lost or smaller;
+    - `teams`, `integrity`.
+  - **Failed, blocking:**
+    - `winners`: SEA League (Week 1/4), 2017. start.gg's standings put 24 entrants in 1st place (and 8 at 9th, 5 at 17th), so 24 players get an official win from it. Its bracket has one undefeated player, 160768, at 6-0. CEO Dreamland 2020's missing winner is explained by its exception.
+    - `completeness`: SEA League Week 1/4 (37 players played without a placement) and MAX MODE 2025 (33). This is the expected exception.
+    - `stats_api_placements`: 1 of 6,093.
+      - The Stats API places karuzzi (18198) 33rd at Brawl League Masters NA Qualifier #2 (2017).
+      - start.gg's standings have "Dark E" there: start.gg player 2951348, who has no Stats API record (-2951348) and no other official event.
+      - karuzzi's own start.gg account played as "Dark E" from 2017 to 2020, and the Stats API credits this placement to karuzzi, so the two are probably one person.
+  - **No worse** (each becomes a baseline once a build goes live):
+    - `pr_cross_check`: 41 of 6,209 PR rows. Some look like PR counting only events in the player's region: marker_bh1's PR counts only their MENA events.
+    - `match_presence`: 5 events. The three Pro Series finals have no match data. The Brawl League Masters Season 4 Swiss stages (NA, EU) have matches for only 6 of their 16 players: start.gg lists 33 sets for each, of which only 5 and 8 have results.
+    - `no_contests`: step 5's three, a start.gg 2-0 reported the other way and two Challengermode 1-1 ties. Also counted: 258,886 start.gg DQs (106,899 double), 260 unscored sets with a winner, 11 DQs whose reported winner is the DQ'd side, 2,012 forfeits and 22 0-0 draws on Challengermode.
+  - **Review list:** 2,802 items.
+    - The hardymj row (curated row skipped).
+    - SEA League Weeks 3/4 and 4/4 as a possible phase split (they aren't one).
+    - 613 new events: every event without a row in `events.csv`, as §5 defines them.
+    - 2,187 merge candidates.
+  - **`v_event_coverage` flags 8 events:**
+    - 'not held': CEO Dreamland 2020;
+    - 'placements incomplete': SEA League Week 1/4, MAX MODE 2025;
+    - 'no match data': the three Pro Series finals;
+    - 'match data incomplete': the two Swiss stages.
+- **Speed:** a full build took just under 2 minutes:
+  - steps 91 s, of which matches 52 s and hold-outs 6 s;
+  - indexes and statistics 8 s;
+  - checks 18 s, the longest being `integrity` (foreign keys) at 4 s.
+- **Tests:** 22 new (`test_checks.py`, one database exercising every check and the coverage view; `test_report.py`; and in `test_build.py` and `test_build_matches.py`). The suite (152) passes.

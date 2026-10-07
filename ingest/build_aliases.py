@@ -30,7 +30,7 @@ A dev build writes only the rows whose players it has.
 """
 
 import sources
-from curation import CurationError, chain_end, merge_conflict
+from curation import CurationError, Skipped, chain_end, merge_conflict
 from names import normalize, normalize_full
 
 KINDS = {"nickname": 0, "display_name": 1, "without_tag": 2, "former_name": 3}  # strongest first
@@ -49,8 +49,8 @@ class Aliases:
             self.rows[(alias, pid)] = new
 
 
-def skip(build, where, reason):
-    build.skipped.append(f"{where}: {reason}")
+def skip(build, where, reason, key):
+    build.skipped.append(Skipped(where, reason, key))
     build.log(f"  skipped {where}: {reason}")
 
 
@@ -83,7 +83,8 @@ def aliases_step(build):
     for a in build.curation.player_aliases:
         pid = players.current_id(a.player_id)
         if pid is None:
-            skip(build, f"player_aliases.csv:{a.line}", f"the cache has no player {a.player_id}")
+            skip(build, f"player_aliases.csv:{a.line}", f"the cache has no player {a.player_id}",
+                 f"player_aliases.csv:{a.alias}:{a.player_id}")
         elif pid in have:
             aliases.add(a.alias, pid, "nickname", a.shown_as, "curated", a.note)
     rows = [(alias, pid, kind, shown, source, note) for (alias, pid), (_, _, kind, shown, source, note)
@@ -106,14 +107,15 @@ def merges_step(build):
             rejections.add(frozenset(resolved))
     merges, kept = {}, []
     for m in cur.merges:  # curated first, then the automatic ones
-        where = f"{'player_merges.csv' if m.source == 'curated' else 'data/review/auto_merges.csv'}:{m.line}"
+        file = "player_merges.csv" if m.source == "curated" else "data/review/auto_merges.csv"
+        where, key = f"{file}:{m.line}", f"{file}:{m.player_id}:{m.canonical_player_id}"
         pid, canonical = players.current_id(m.player_id), players.current_id(m.canonical_player_id)
         if pid is None or canonical is None:
             missing = m.player_id if pid is None else m.canonical_player_id
-            skip(build, where, f"the cache has no player {missing}")
+            skip(build, where, f"the cache has no player {missing}", key)
             continue
         if pid == canonical:
-            skip(build, where, f"{m.player_id} and {m.canonical_player_id} are now the same player, {pid}")
+            skip(build, where, f"{m.player_id} and {m.canonical_player_id} are now the same player, {pid}", key)
             continue
         problem = f"{pid} is already merged into {merges[pid]}" if pid in merges else None
         if not problem:
@@ -124,7 +126,7 @@ def merges_step(build):
         if problem and m.source == "curated":
             raise CurationError([f"{where}: once IDs are resolved, {problem}"])
         if problem:
-            skip(build, where, f"once IDs are resolved, {problem}")
+            skip(build, where, f"once IDs are resolved, {problem}", key)
             continue
         kept.append((pid, m))
     rows = [(pid, chain_end(merges, pid), m.source, m.note) for pid, m in kept]

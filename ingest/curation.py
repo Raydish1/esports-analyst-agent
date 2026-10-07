@@ -21,8 +21,9 @@ the file.
     merge_rejections.csv  two records that aren't
     data/review/auto_merges.csv  tier-1 merges an unattended run found (decision 2). A curated merge
                           of the same record, a rejection, or a loop drops one.
-    check_exceptions.csv  known check failures that are explained (§3): check ID, subject, note. Whether
-                          the subject exists is checked by the checks.
+    check_exceptions.csv  known check failures that are explained (§3): check ID, subject, note. A row that
+                          explains no failure, because it was fixed or its subject has a typo, is listed for
+                          review (checks.py).
 """
 
 import csv
@@ -64,6 +65,15 @@ EventTerm = namedtuple("EventTerm", "term means note")
 PlayerAlias = namedtuple("PlayerAlias", "alias shown_as player_id note line")
 Merge = namedtuple("Merge", "player_id canonical_player_id source note line")  # source: 'curated' | 'auto'
 CheckException = namedtuple("CheckException", "check subject note line")
+
+
+class Skipped(namedtuple("Skipped", "where reason key")):
+    """A curated row the build skipped because the cache has no record of a player it names (decided
+    2026-10-06). where is its file and line; key names the row by its content, so the review list's key stays the
+    same when other rows are edited."""
+
+    def __str__(self):
+        return f"{self.where}: {self.reason}"
 
 
 class Curation:

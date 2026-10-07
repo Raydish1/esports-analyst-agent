@@ -142,7 +142,8 @@ class EventsStepTest(unittest.TestCase):
     def test_a_full_build_with_these_steps_goes_live_but_a_dev_build_never_does(self):
         builds = Builds(self.root / "db")
         kwargs = dict(builds=builds, log=self.log.append, cache_dir=self.root / "cache",
-                      crawl_db=self.root / "crawl.sqlite", curation_dir=self.curation, auto_merges=None)
+                      crawl_db=self.root / "crawl.sqlite", curation_dir=self.curation, auto_merges=None,
+                      checks=[])  # every step, but no checks: these events have no results to check
         full, passed = build.make_build(**kwargs)
         self.assertTrue(passed)
         dev, passed = build.make_build(events=["cm-1"], **kwargs)

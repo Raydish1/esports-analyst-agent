@@ -95,7 +95,8 @@ class IdentityStepsTest(unittest.TestCase):
     def test_a_curated_nickname_wins_and_keeps_its_note(self):
         b = self.run_steps(nicknames=[("godly", "Godly", 3, "Zivai's old name"), ("ghost", "Ghost", 999, None)])
         self.assertIn(("godly", "nickname", "Godly", "curated", "Zivai's old name"), self.aliases(3))
-        self.assertEqual(b.skipped, ["player_aliases.csv:3: the cache has no player 999"])
+        self.assertEqual([str(s) for s in b.skipped], ["player_aliases.csv:3: the cache has no player 999"])
+        self.assertEqual(b.skipped[0].key, "player_aliases.csv:ghost:999")  # the row, for the review list
 
     def test_merges_resolve_ids_and_collapse_chains(self):
         b = self.run_steps(merges=[(4, 5, "curated"), (5, 6, "curated"), (-700, 1, "auto"), (-100, 3, "curated"),
@@ -103,7 +104,7 @@ class IdentityStepsTest(unittest.TestCase):
         self.assertEqual(self.db.execute("SELECT player_id, canonical_player_id, source FROM player_merges"
                                          " ORDER BY player_id").fetchall(),
                          [(-700, 3, "auto"), (1, 3, "curated"), (4, 6, "curated"), (5, 6, "curated")])  # chains collapsed
-        self.assertIn("player_merges.csv:6: the cache has no player 888", b.skipped)  # -100 is now record 1
+        self.assertIn("player_merges.csv:6: the cache has no player 888", map(str, b.skipped))  # -100 is now record 1
 
     def test_a_curated_merge_that_conflicts_once_resolved_stops_the_build(self):
         with self.assertRaises(CurationError) as caught:
@@ -111,7 +112,7 @@ class IdentityStepsTest(unittest.TestCase):
         self.assertIn("would be one person", caught.exception.problems[0])
         b = self.run_steps(merges=[(4, 5, "auto")], rejections=[(-400, 5)], steps=("merges",))
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM player_merges").fetchone()[0], 0)
-        self.assertTrue(any("would be one person" in s for s in b.skipped))
+        self.assertTrue(any("would be one person" in s.reason for s in b.skipped))
 
     def test_pr_rows_and_career_earnings(self):
         self.run_steps(steps=("rankings",))

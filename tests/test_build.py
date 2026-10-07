@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "ingest"))
 import build  # noqa: E402
 from builds import Builds  # noqa: E402
 from cache import ResponseCache  # noqa: E402
+from curation import Skipped  # noqa: E402
 
 TABLES = {"players", "player_aliases", "player_merges", "tiers", "events", "event_aliases", "event_terms", "format_rules",
           "event_sources", "teams", "placements", "matches", "match_players", "pr_snapshots", "player_earnings",
@@ -75,13 +76,35 @@ class MakeBuildTest(unittest.TestCase):
         self.assertEqual(self.builds.live()["build"], first)
         db = sqlite3.connect(self.builds.path(second, "failed"))
         try:
-            self.assertEqual(db.execute("SELECT check_id, outcome FROM build_checks ORDER BY check_id").fetchall(),
-                             [("phase_splits", "listed"), ("winners", "fail")])
+            self.assertEqual(db.execute("SELECT check_id, subject, outcome FROM build_checks ORDER BY check_id, subject")
+                             .fetchall(), [("phase_splits", "", "pass"), ("phase_splits", "e2", "listed"),
+                                           ("winners", "", "fail"), ("winners", "e1", "fail")])  # '': the verdict
         finally:
             db.close()
         third, passed = self.make(checks=[listed])  # a review item never blocks
         self.assertTrue(passed)
         self.assertEqual(self.builds.live()["build"], third)
+
+    def test_reports_and_the_review_list(self):
+        skip = ("aliases", lambda b: b.skipped.append(Skipped("player_aliases.csv:2", "the cache has no player 9",
+                                                              "player_aliases.csv:x:9")))
+        full, _ = self.make(steps=[skip])
+        self.assertTrue((self.root / "reports" / full / "report.md").exists())
+        self.assertEqual(self.log[-2:], ["!! 1 curated row(s) skipped. Check each for a typo:",
+                                         "!!   player_aliases.csv:2: the cache has no player 9"])  # last in the log
+        review = self.root / "review" / "review.csv"
+        self.assertEqual(review.read_text(encoding="utf-8").splitlines()[1].split(",")[:2],
+                         ["curated_row_skipped:player_aliases.csv:x:9", "curated_row_skipped"])
+        before = review.read_text(encoding="utf-8")
+        past, _ = self.make(as_of="2000-01-01T00:00:00Z", publish=False)  # a build of the past keeps its own list
+        self.assertTrue((self.root / "reports" / past / "review.csv").exists())
+        self.assertEqual(review.read_text(encoding="utf-8"), before)
+        db = sqlite3.connect(self.builds.path(past))
+        try:
+            self.assertIn("not compared", dict(db.execute("SELECT check_id, detail FROM build_checks"
+                                                          " WHERE subject = ''"))["regression"])
+        finally:
+            db.close()
 
     def test_a_step_that_raises_leaves_the_live_build_alone(self):
         first, _ = self.make()

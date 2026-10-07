@@ -15,9 +15,12 @@ does. Without --as-of, the cutoff is the build's start, so a response fetched du
 isn't used. Each build records what it was made from in its build_info table: the cutoff, the
 newest response it saw, the code commit and a hash of every curation file.
 
-The steps fill the tables in the build plan's order (§1), and the checks then decide whether the
-build goes live (§3). Both arrive one step of the plan's order of work at a time. A check returns
-outcomes, each with a gate, and for now a build passes unless a blocking check fails.
+The steps fill the tables in the build plan's order (§1), and the checks (checks.py) then decide whether the
+build goes live (§3): it passes when no blocking check fails and no "no worse" count got worse than the live
+build's. Every build writes a report to data/reports/<build ID>/ (report.py). A full build of the current cache
+also rewrites the review list, data/review/review.csv: everything waiting for a person, such as curated rows
+skipped, new events, held-out events and merge candidates. Curated rows skipped are listed prominently (!!) at
+the end of the log, at the top of the report, and first in the review list.
 """
 
 import argparse
@@ -29,7 +32,6 @@ import sqlite3
 import subprocess
 import sys
 import time
-from collections import namedtuple
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -39,10 +41,13 @@ import build_matches
 import build_placements
 import build_players
 import build_rankings
+import checks as checking
 import curation
+import report
 from builds import BuildRunning, Builds
 from cache import CACHE_DIR, CRAWL_DB, ROOT
 from cache_reader import CacheReader, utc_stamp
+from checks import Outcome  # noqa: F401 (a build_checks row; tests and callers use build.Outcome)
 from curation import AUTO_MERGES, CURATION_DIR
 from problems import BuildStop
 
@@ -66,9 +71,6 @@ DEV_EVENTS = [  # awkward cases for a dev build (docs/build-plan.md §6)
     "tournament/ceo-dreamland-2020/event/brawlhalla-1v1",
 ]
 
-Outcome = namedtuple("Outcome", "check_id gate subject outcome detail")  # a row of build_checks
-
-
 class Build:
     """What a step works with: the new database, the cache, the curation files, the events chosen for a
     dev build (None: all), the log, and build_info to add to."""
@@ -79,7 +81,10 @@ class Build:
         self.auto_merges = auto_merges
         self.curation = None  # set by the curation step
         self.players = None  # the player registry, set by the players step
-        self.skipped = []  # curated rows skipped, by file and line, with the reason
+        self.skipped = []  # curation.Skipped: curated rows skipped, by file and line, with the reason
+        self.entrant_sizes = self.size_problems = None  # set by the hold-outs step
+        self.live, self.live_reason = None, "not compared"  # the live build's file, to compare with, or why not
+        self.unused_exceptions = []  # check_exceptions.csv rows that explain no failure, set by the checks
         self.info = {}
 
 
@@ -101,11 +106,12 @@ STEPS = [  # (name, function(build)) in the build plan's order; each fills its t
     ("standings", build_players.standings_step),
     ("placements", build_placements.step),
     ("matches", build_matches.step),
+    ("hold-outs", build_events.hold_out_step),
     ("aliases", build_aliases.aliases_step),
     ("merges", build_aliases.merges_step),
     ("rankings", build_rankings.step),
 ]
-CHECKS = []  # functions(build) returning Outcomes
+CHECKS = checking.CHECKS  # functions(build) returning Outcomes
 
 
 def stamp(moment):
@@ -147,10 +153,12 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
     """Make a build, and publish it if its checks pass and `publish` is set. Returns (build ID, passed).
     With `events`, a dev build of just those, which is never published.
 
-    A step that raises leaves its partial file behind, and the next build's pruning removes it."""
+    The report goes to data/reports/<build ID>/, next to data/db/, and so does the review list of a dev build or
+    a build of the past; a full build of the current cache rewrites data/review/review.csv. A step that raises
+    leaves its partial file behind, and the next build's pruning removes it."""
     builds = builds or Builds()
     steps = STEPS if steps is None else steps
-    checks = CHECKS if checks is None else checks
+    data = builds.db_dir.parent  # data/, where the reports and the review list are
     with builds.lock(log=log):
         started = datetime.now(timezone.utc)
         build_id = builds.new_id(started)
@@ -163,7 +171,9 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
             db.execute("PRAGMA temp_store = MEMORY")  # sorts for windows and GROUP BYs stay off the disk
             tables, indexes = schema_parts()
             db.executescript(tables)
+            db.executescript(VIEWS.read_text(encoding="utf-8"))  # now, so a step can classify events with v_events
             build = Build(db, reader, curation_dir, log, events, auto_merges)
+            compare_with(build, builds, as_of)
             build.info.update(build_id=build_id, started_at=stamp(started), as_of=reader.as_of,
                               cache_cutoff=reader.cutoff(), **code_version(),
                               curation=json.dumps(curation_hashes(curation_dir, auto_merges)),
@@ -179,37 +189,68 @@ def make_build(builds=None, as_of=None, publish=True, log=print, cache_dir=CACHE
             db.execute("ANALYZE")  # statistics for the query planner: without them a view can take minutes
             db.commit()
             log(f"  indexes and statistics: {time.monotonic() - begun:.1f} s")
-            log(f"  views: {create_views(db)} created, and each compiles")
-            outcomes = [outcome for check in checks for outcome in check(build)]
+            log(f"  views: {compile_views(db)} created, and each compiles")
+            begun = time.monotonic()
+            outcomes = checking.run(build, checks, log)
             db.executemany("INSERT INTO build_checks (check_id, gate, subject, outcome, detail) VALUES (?, ?, ?, ?, ?)",
                            outcomes)
-            passed = not any(o.gate == "blocking" and o.outcome == "fail" for o in outcomes)
+            passed = checking.passed(outcomes)
+            log(f"  checks: {time.monotonic() - begun:.1f} s")
+            items = report.review_items(build, outcomes, data / "review" / "merge_candidates.csv")
+            names = checking.events_named(db)  # for the report
             build.info.update(finished_at=stamp(datetime.now(timezone.utc)), verdict="pass" if passed else "fail")
-            build.info["curated_rows_skipped"] = json.dumps(build.skipped)
+            build.info["curated_rows_skipped"] = json.dumps([str(s) for s in build.skipped])
             db.executemany("INSERT INTO build_info (key, value) VALUES (?, ?)", sorted(build.info.items()))
             db.commit()
             db.execute("PRAGMA journal_mode = DELETE")  # readers get one self-contained file
         finally:
             db.close()
             reader.close()
-        report_skipped(build.skipped, log)
+        for o in outcomes:
+            if o.subject == "":
+                log(f"  {'FAILED ' if o.outcome == 'fail' else ''}{o.check_id} ({o.gate}): {o.detail}")
         builds.finish(build_id, passed)
         if not passed:
-            log(f"Build {build_id} failed its checks, so it's kept as {builds.path(build_id, 'failed').name}"
-                " and the live build stays")
+            note = f"It's kept as builds/{builds.path(build_id, 'failed').name}, and the live build stays."
         elif publish and events is None:
             builds.publish(build_id)
-            log(f"Build {build_id} is live")
+            note = "It's live."
         else:
-            log(f"Build {build_id} passed; not published ({'a dev build' if events is not None else 'as asked'})")
+            note = f"It's not published: {'a dev build' if events is not None else 'as asked'}."
+        log(f"Build {build_id} {'passed' if passed else 'failed its checks'}. {note}")
         builds.prune(log)
+        current = events is None and as_of is None  # a full build of the current cache
+        review = data / "review" / "review.csv" if current else data / "reports" / build_id / "review.csv"
+        report.write_review(review, items)
+        path = report.write_report(data / "reports" / build_id, build_id, build.info, outcomes, items,
+                                   shown(review, data), note, build.skipped, names)
+        report.prune(data / "reports", {b for b, _ in builds.files()})
+        log(f"Report: {shown(path, data)}; review list: {shown(review, data)} ({len(items)} items)")
+        report_skipped([str(s) for s in build.skipped], log)  # last, so it can't be missed
     return build_id, passed
 
 
-def create_views(db):
-    """Create the views (views.sql), and compile each one, so a view that doesn't work stops the build.
-    Returns how many there are."""
-    db.executescript(VIEWS.read_text(encoding="utf-8"))
+def shown(path, data):
+    """A path as the log and report show it: from the project root, e.g. data/review/review.csv."""
+    return path.relative_to(data.parent).as_posix()
+
+
+def compare_with(build, builds, as_of):
+    """Point the build at the live build it's compared with, or say why there's none."""
+    live = builds.live_path()
+    if as_of:
+        build.live_reason = "a build of the past (--as-of) isn't compared with the live build"
+    elif live is None or not live.exists():
+        build.live_reason = "there's no live build"
+    else:
+        build.live = live
+    build.info["compared_with"] = (f"nothing: {build.live_reason}" if build.live is None else
+                                   f"the live build {live.stem}" + ("" if build.events is None else
+                                                                     ", on this dev build's events only"))
+
+
+def compile_views(db):
+    """Compile every view, so a view that doesn't work stops the build. Returns how many there are."""
     names = [name for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'view' ORDER BY name")]
     for name in names:
         db.execute(f"EXPLAIN SELECT * FROM {name}").fetchall()
@@ -243,6 +284,9 @@ def show_status(builds):
         before = [b for b in live["history"][:-1] if builds.path(b).exists()]
         print(f"Live build: {live['build']} ({live['how']} {live['at']}). Earlier live builds kept for a rollback:"
               f" {', '.join(reversed(before)) or 'none'}")
+        report_path = builds.db_dir.parent / "reports" / live["build"] / "report.md"
+        if report_path.exists():
+            print(f"Its report: {shown(report_path, builds.db_dir.parent)}")
         report_skipped(json.loads(read_info(builds.live_path()).get("curated_rows_skipped") or "[]"), print)
     else:
         print("No build is live yet.")

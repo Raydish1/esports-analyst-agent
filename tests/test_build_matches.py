@@ -71,8 +71,8 @@ class MatchesStepTest(unittest.TestCase):
             {"id": 12, "participants": [{"id": 120, "gamerTag": "Late", "player": {"id": 400}}]},
             {"id": 13, "participants": [{"id": 130, "gamerTag": "Known", "player": {"id": 401}}]}]}}}})
         store("challengermode/Roster", crawl.CM_ROSTER_QUERY, {"id": CM, "limit": 2000}, {"data": {"tournament": {
-            "attendance": {"roster": {"lineups": [{"members": [{"user": {"id": ALICE, "username": "alice"}}]},
-                                                  {"members": [{"user": {"id": BOB, "username": "bob"}}]}]}}}}})
+            "attendance": {"roster": {"lineups": [{"id": "L1", "members": [{"user": {"id": ALICE, "username": "alice"}}]},
+                                                  {"id": "L2", "members": [{"user": {"id": BOB, "username": "bob"}}]}]}}}}})
         lineups = [{"id": "L1"}, {"id": "L2"}]
         store("challengermode/Bracket", crawl.CM_BRACKET_QUERY, {"id": CM}, {"data": {"tournament": {"stages": [{
             "brackets": [{"rounds": [{"matchSeries": [
@@ -81,7 +81,8 @@ class MatchesStepTest(unittest.TestCase):
                              cm_match("m1", "COMPLETED", (1, BOB, 1, 2), (0, ALICE, 2, 1))]},
                 {"lineups": [{"id": "L1"}, None], "matches": []},  # a bye
                 {"lineups": lineups, "matches": [cm_match("m3", "COMPLETED", (0, ALICE, None, None),
-                                                          (1, BOB, None, None))]}]}]}]}]}}})  # a forfeit
+                                                          (1, BOB, None, None))]},  # a forfeit
+                {"lineups": [{"id": "L1"}, {"id": "L3"}], "matches": []}]}]}]}]}}})  # L3 isn't in the roster
         cache.store("/player/placement", {"playerIds": 4, "gameMode": 1, "isOfficial": True}, "u", 200,
                     json.dumps({"playerPlacements": [{"placement": 9, "tournament": {"id": A}}]}).encode(), 5)
         cache.db.close()
@@ -161,6 +162,14 @@ class MatchesStepTest(unittest.TestCase):
                          (int(datetime(2026, 8, 30, 17, 7, 52, tzinfo=timezone.utc).timestamp()),))  # the series start
         self.assertEqual(self.db.execute("SELECT name FROM players WHERE player_id = ?",
                                          (negative_id("challengermode", BOB),)).fetchone(), ("bob",))
+
+    def test_what_the_pages_held(self):
+        self.run_step()
+        self.assertEqual(self.db.execute("SELECT event_id, sets_seen, entrants_unknown, series_without_match"
+                                         " FROM event_sources ORDER BY event_id").fetchall(),
+                         [(CM, 3, 1, 1),  # m0, m1 and m3; L3; the series with no match
+                          (A, 9, 0, None),  # 1001-1008 and the preview, stored or not
+                          (BIG, 2, 0, None)])  # its event page and its pool's page share 2001
 
     def test_a_dev_build_reads_only_its_events(self):
         self.db.execute("DELETE FROM events WHERE event_id <> ?", (CM,))
