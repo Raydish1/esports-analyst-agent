@@ -7,8 +7,11 @@ curation/ alone.
                                           unless it gives a zone); such a build of the past never goes live
     python ingest/build.py --event ID     a dev build of the events named (repeatable), never published
     python ingest/build.py --dev          a dev build of DEV_EVENTS, the awkward cases, never published
-    python ingest/build.py status         the live build and the builds kept
+    python ingest/build.py status         the live build, the builds kept and the frozen snapshots
     python ingest/build.py rollback       make the build that was live before live again
+    python ingest/build.py compare A B    whether two builds hold the same data: each a build ID, 'live', or a file
+    python ingest/build.py freeze NAME    copy the live build to data/db/eval/NAME.sqlite, read-only: a frozen
+                                          evaluation snapshot, such as eval-v1. A name is never reused
 
 It makes no requests and doesn't read the crawl's planning tables, so it can run while a crawl
 does. Without --as-of, the cutoff is the build's start, so a response fetched during the build
@@ -25,6 +28,7 @@ the end of the log, at the top of the report, and first in the review list.
 
 import argparse
 import hashlib
+import itertools
 import json
 import logging
 import re
@@ -266,6 +270,63 @@ def report_skipped(skipped, log):
             log(f"!!   {row}")
 
 
+SKIPPED_TABLES = ("build_info", "build_checks")  # what a build was made from, when, and how its checks went
+# (including which live build it was compared with), so they differ between any two builds by design
+
+
+def build_file(builds, name):
+    """A build's file from 'live', a build ID (in any state) or a path."""
+    if name == "live":
+        if builds.live_path() is None:
+            raise ValueError("no build is live")
+        return builds.live_path()
+    for build_id, state in builds.files():
+        if build_id == name:
+            return builds.path(build_id, state)
+    if Path(name).is_file():
+        return Path(name)
+    raise ValueError(f"no build {name!r}: give a build ID, 'live' or a file")
+
+
+def compare(a, b, log=print):
+    """Whether two build files hold the same data: the same schema (tables, views and indexes) and the same rows
+    in every table but build_info and build_checks (SKIPPED_TABLES), compared in sorted order, so the order rows
+    were written in doesn't matter. Two builds from the same cache, curation and code must be identical (Phase 1's
+    done criteria, docs/build-plan.md §3). Returns True if they are."""
+    dbs = [sqlite3.connect(Path(p).resolve().as_uri() + "?mode=ro", uri=True) for p in (a, b)]
+    try:
+        schema = "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name"
+        schemas = [{(kind, name): sql for kind, name, sql in db.execute(schema)} for db in dbs]
+        changed = sorted(k for k in schemas[0].keys() | schemas[1].keys() if schemas[0].get(k) != schemas[1].get(k))
+        if changed:
+            log(f"  schemas differ: {', '.join(f'{kind} {name}' for kind, name in changed)}")
+        same = not changed
+        tables = sorted({name for kind, name in schemas[0].keys() & schemas[1].keys() if kind == "table"}
+                        - set(SKIPPED_TABLES))
+        for table in tables:
+            width = len(dbs[0].execute(f"SELECT * FROM {table} LIMIT 0").description)
+            order = f"SELECT * FROM {table} ORDER BY {', '.join(str(i) for i in range(1, width + 1))}"
+            digests = []
+            for db in dbs:
+                digest, n = hashlib.sha256(), 0
+                for row in db.execute(order):
+                    digest.update(repr(row).encode("utf-8"))
+                    n += 1
+                digests.append((n, digest.hexdigest()))
+            if digests[0] == digests[1]:
+                log(f"  {table}: {digests[0][0]} rows, identical")
+                continue
+            same = False
+            first = next(((x, y) for x, y in itertools.zip_longest(dbs[0].execute(order), dbs[1].execute(order))
+                          if x != y), None)
+            log(f"  {table}: {digests[0][0]} rows against {digests[1][0]}, and they differ; first: {first[0]!r}"
+                f" against {first[1]!r}")
+        return same
+    finally:
+        for db in dbs:
+            db.close()
+
+
 def read_info(path):
     """A build file's build_info, or {} if it can't be read."""
     try:
@@ -300,6 +361,12 @@ def show_status(builds):
         mark = "  (live)" if live and build_id == live["build"] else ""
         print(f"{build_id:<20}{state:<9}{path.stat().st_size / 1e6:>7.1f}MB  {info.get('as_of') or '-':<34}"
               f"{info.get('cache_cutoff') or '-'}{mark}")
+    frozen = builds.frozen()
+    if frozen:
+        print("\nFrozen evaluation snapshots (data/db/eval/):")
+        for name, path in frozen:
+            info = read_info(path)
+            print(f"  {name}: build {info.get('build_id', '?')}, frozen {info.get('frozen_at', '?')}")
 
 
 def make_logger():
@@ -316,7 +383,9 @@ def make_logger():
 def main():
     sys.stdout.reconfigure(errors="replace")  # player names can't always be printed in the console's code page
     parser = argparse.ArgumentParser(description="Build the database from the cache and curation/, or manage builds.")
-    parser.add_argument("command", nargs="?", default="build", choices=["build", "status", "rollback"])
+    parser.add_argument("command", nargs="?", default="build", choices=["build", "status", "rollback", "compare", "freeze"])
+    parser.add_argument("names", nargs="*", metavar="NAME",
+                        help="compare: two builds (build IDs, 'live' or files); freeze: the snapshot's name, e.g. eval-v1")
     parser.add_argument("--as-of", metavar="TIME",
                         help="build from the responses fetched up to TIME (ISO 8601; UTC unless it gives a zone);"
                              " such a build never goes live")
@@ -327,6 +396,9 @@ def main():
     args = parser.parse_args()
     if args.command != "build" and (args.as_of or args.no_publish or args.event or args.dev):
         parser.error("--as-of, --no-publish, --event and --dev go with build")
+    wanted = {"compare": 2, "freeze": 1}.get(args.command, 0)
+    if len(args.names) != wanted:
+        parser.error(f"{args.command} takes {wanted or 'no'} name{'s' if wanted != 1 else ''}")
     if args.as_of:
         try:
             utc_stamp(args.as_of)
@@ -342,6 +414,22 @@ def main():
             print(f"Live build: {builds.rollback()} (rolled back from {was})")
         except ValueError as e:
             sys.exit(str(e))
+        return
+    if args.command == "compare":
+        try:
+            a, b = (build_file(builds, name) for name in args.names)
+        except ValueError as e:
+            sys.exit(str(e))
+        print(f"Comparing {a.name} with {b.name}, every table but {' and '.join(SKIPPED_TABLES)}:")
+        same = compare(a, b)
+        print("They hold the same data." if same else "They differ.")
+        sys.exit(0 if same else 1)
+    if args.command == "freeze":
+        try:
+            path = builds.freeze(args.names[0])
+        except ValueError as e:
+            sys.exit(str(e))
+        print(f"Froze the live build {read_info(path).get('build_id')} as {args.names[0]}: {path}")
         return
     log = make_logger()
     events = (args.event or []) + (DEV_EVENTS if args.dev else []) or None

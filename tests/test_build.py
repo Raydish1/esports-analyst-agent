@@ -106,6 +106,21 @@ class MakeBuildTest(unittest.TestCase):
         finally:
             db.close()
 
+    def test_two_builds_from_the_same_inputs_hold_the_same_data(self):
+        rule = lambda pattern: ("events", lambda b: b.db.execute("INSERT INTO format_rules VALUES (?, 'x', 1)",  # noqa: E731
+                                                                  (pattern,)))
+        first, _ = self.make(steps=[rule("%x%")])
+        second, _ = self.make(steps=[rule("%x%")])
+        log = []
+        self.assertTrue(build.compare(self.builds.path(first), self.builds.path(second), log.append))
+        self.assertIn("  format_rules: 1 rows, identical", log)  # build_info and build_checks aren't compared
+        third, _ = self.make(steps=[rule("%y%")])
+        log = []
+        self.assertFalse(build.compare(build.build_file(self.builds, first), build.build_file(self.builds, "live"),
+                                       log.append))
+        self.assertIn("  format_rules: 1 rows against 1, and they differ; first: ('%x%', 'x', 1) against ('%y%', 'x', 1)",
+                      log)
+
     def test_a_step_that_raises_leaves_the_live_build_alone(self):
         first, _ = self.make()
 

@@ -33,7 +33,8 @@ The plan builds on [`schema-proposal.md`](schema-proposal.md) (the schema, rules
 11. **Curation policy (decided after step 8):**
     - low-impact cases follow the data evidence and Claude's recommendation;
     - high-impact ones (ranked players, top 8s, wins, medals) go to the user;
-    - high-impact cases outside NA are flagged, so the user can ask someone from that scene.
+    - high-impact cases outside NA are flagged, so the user can ask someone from that scene;
+    - "ranked" means in a region's top 100 PR (decided 2026-10-07).
 
 ## What the cache showed
 
@@ -142,7 +143,8 @@ Tests use small JSON fixtures, like `test_crawl.py`.
 - `--event ID`: a dev build of the named events, never published (from step 2);
 - `status`: the live build and the builds kept;
 - `rollback`: make the build that was live before live again;
-- `freeze NAME`: copy the live build to `data/db/eval/` as a frozen snapshot (step 9).
+- `freeze NAME`: copy the live build to `data/db/eval/` as a frozen snapshot (step 9). A name is a version and is never reused;
+- `compare A B`: whether two builds hold the same data, every table but `build_info` and `build_checks` (step 9).
 
 ## 2. Curation files
 
@@ -198,7 +200,7 @@ Checks 7 (`earnings`) and 10 (`snapshot_fallbacks`) wait for Phase 2's prize dat
 - players who played but have no placement (the 151 entrants of the three events missing standings);
 - a short flag the agent can quote, such as "placements incomplete" or "no match data".
 
-**Phase 1 is done when:**
+**Phase 1 is done when** (all met on 2026-10-07, step 9):
 - a full build passes every blocking check, with each exception in `check_exceptions.csv` with a note. Two are expected: the three events missing standings, and the Pro Series finals, which have no match data;
 - the known-events report is clean;
 - the §8 queries for questions 1–4, 6–8 and 10–12 give the survey's answers, such as Raydish's 6 official wins, Balloonboy's 27 medals and Hexoo's one 1v1 top 8. This is a regression check, not independent verification (decision 6);
@@ -272,7 +274,7 @@ One commit per step, pushed after each, with a report after each step for review
 | 6 | Aliases, merges, PR and earnings | Done 2026-10-05 |
 | 7 | Views, with the approved fixes | Done 2026-10-06 |
 | 8 | Checks, the report, the review list and `v_event_coverage`, then the first full build, reviewed together | Done 2026-10-06 |
-| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | In progress |
+| 9 | `known_events.csv` with the user, the check exceptions, `freeze`, and the docs | Done 2026-10-07 |
 
 **Step 1 (2026-10-05):**
 - **Built:**
@@ -570,4 +572,25 @@ One commit per step, pushed after each, with a report after each step for review
     - "halloween!" for Pink | Teehee (149587), who has used that name.
   - **The build passes every check, all 13 known events included, and is live** (`20261007T222930Z`).
   - **Tests:** 2 new; the suite (155) passes.
-- **Next:** the rest of Phase 1's done criteria (§3): the §8 regression queries, two identical builds, `freeze`, and the docs.
+- **The target questions' regression check,** `ingest/target_questions.py`, asks the ten Phase 1 questions (1-4, 6-8 and 10-12) the way the agent should, and gives all ten expected answers. It's labeled as a regression check, not the evaluation gold set: its expected answers come from our own data. Sources:
+  - The survey's answers: questions 1, 2, 7 and 10. Our 2025-26 data doesn't change Boomie's last event.
+  - The survey's, adjusted to official events where it counted community events:
+    - question 3, Hexoo's one 1v1 top 8 rather than 8;
+    - question 4, Impala's 2-1 record against BBBalloonBoy over 23 shared 1v1 events, not 32;
+    - question 6, megD's 17 partners, Raydish first with 20 events.
+  - Our own, where the survey gave none:
+    - question 8, V3M_T4NQUIL0's 3-2 against Marckiem00, the best with at least 5 matches;
+    - question 11, the Trial of Laufey NA, 2 games lost over 9 sets;
+    - question 12, flowerVS's 7th at BCX 2024, after a 7th in 2v2.
+- **`compare`:** two builds hold the same data when their schemas match and every table but `build_info` and `build_checks` has the same rows. Those two record what a build was made from, when, and which live build it was compared with.
+  - Builds `20261007T222930Z` (live) and `20261007T224531Z` were made from the same cache cutoff and curation files, in separate processes.
+  - They are identical: 17 tables, 3.1 million rows, compared in 43 s.
+- **`freeze eval-v1`:**
+  - The live build is now `data/db/eval/eval-v1.sqlite`, read-only, with `frozen_as` and `frozen_at` in its `build_info`.
+  - A name is never reused, so a freeze after the merge review is `eval-v2`.
+  - The target questions give the same answers on it.
+- **Docs:**
+  - the schema proposal: its status note, §1's recounted set table, the as-built notes in §2 and §4, and Phase 1 marked done in §9;
+  - CLAUDE.md and the README.
+- **Tests:** 3 new; the suite (158) passes.
+- **Phase 1 is done:** every criterion in §3 is met.

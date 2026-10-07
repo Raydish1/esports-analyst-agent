@@ -1,6 +1,12 @@
 # Database schema proposal
 
-**Status: approved 2026-10-04; Phase 1 is in progress (§9).** Its fetches were complete on 2026-10-05, and the next step is the builder: the database built from the cache and `curation/`. **The builder's plan is [`build-plan.md`](build-plan.md)** (approved 2026-10-05). Its decisions are newer than this proposal where the two differ: scores on `matches` may be NULL, with a stored reported winner, and three of the §2 views are adjusted. The 2026-10-04 revision added the start.gg and Challengermode findings from [`platform-api-survey.md`](platform-api-survey.md), the decisions of that day (majors, tiers, crew battle head-to-heads, forfeits, data terms), the target questions (§8) and a three-phase implementation plan (§9).
+**Status: approved 2026-10-04; Phase 1 is done (2026-10-07, §9).** The builder makes the database from the cache and `curation/`, as [`build-plan.md`](build-plan.md) describes (approved 2026-10-05). The build plan's decisions are newer than this proposal where the two differ:
+- scores on `matches` may be NULL, with the reported winner stored, and a set with a winner but no score counts as a win and a loss whose games are unknown;
+- the views as built are in `ingest/views.sql` (§2), each documenting its rules in its definition;
+- events have a curated `status` (`cancelled`, `placements_unreliable`), and a new event whose entrant sizes don't fit its mode stays out of the counts until reviewed;
+- the checks of §4 run in every build, each with a gate, and a build goes live only if they pass.
+
+The 2026-10-04 revision added the start.gg and Challengermode findings from [`platform-api-survey.md`](platform-api-survey.md), the decisions of that day (majors, tiers, crew battle head-to-heads, forfeits, data terms), the target questions (§8) and a three-phase implementation plan (§9).
 
 **Decisions of 2026-10-04 on stage 6 and placements,** applied throughout:
 1. **Brackets come from the platforms.** Match data is fetched event by event from start.gg (pool by pool for the four 2020 events over start.gg's 10,000-result cap) and Challengermode, not per player from the Stats API. Platform players are matched to Stats API records with batched ID lookups. A platform player with no Stats API record gets a `players` row with a stable negative ID (§1).
@@ -294,19 +300,20 @@ CREATE TABLE match_players (
   - A Challengermode no-show is a match with no scores at all, which the Stats API reports as 0–0. The builder stores it as 0–0 too. The 0–0 doesn't say who advanced (Challengermode's series result does), but under the decided rule a forfeit is neither a win nor a loss anyway.
   - `is_dq` still tells the two apart, so an answer can say "one opponent was DQ'd".
   - No start.gg match in the survey sample was 0–0 (none of 39). A start.gg set with no scores and no winner was never played, so it isn't stored. Check 9 (§4) counts those, and lists any set with a winner but no score for a look.
-  - **In the full fetch (2026-10-05):**
+  - **In the full fetch,** as the builder counts it from the cached responses (check 9 repeats the count in every build):
 
     | start.gg's 536,633 sets | Count |
     |---|---|
-    | A DQ | 258,886 (48%) |
+    | A DQ (a −1 on either side) | 258,886 (48%) |
     | … of which double DQs (−1 against −1) | 106,899 |
-    | One score missing (981 of them a −1 against no score) | 989 |
-    | A winner but no score | 278 |
-    | Never played (no score, no winner) | 173 |
-    | Fewer than two entrants | 189 |
+    | … of which a −1 against no score | 981 |
+    | A winner but no score (one of them with one score) | 260 |
+    | Never played (no score, no winner; not stored) | 44 |
+    | Fewer than two entrants (byes; not stored) | 189 |
 
-    - No start.gg set is 0–0 or any other tie.
-    - Challengermode has 2,176 matches without scores (forfeits) among its 23,948.
+    - The crawl's first count (278 with a winner but no score, 173 never played, 989 with one score missing) differed. The builder's, above, is the one that holds.
+    - No start.gg set is 0–0 or any other tie. One 2–0 set has the other side as its reported winner; the scores decide, and check 9 lists it.
+    - Challengermode: of its 23,948 matches, 164 were cancelled and replayed (not stored), and 2,012 are forfeits with no scores (stored 0–0). Also 22 are 0–0 draws, and 2 are 1–1 ties, which count for nobody.
 
 ### Rankings
 
@@ -331,6 +338,12 @@ CREATE TABLE pr_snapshots (        -- a PR row as the Stats API reported it
 PR rows are kept for questions about current rankings. They are **not** used for medals (survey §3); the earnings tables are in §6.
 
 ## 2. Views that apply the decided rules
+
+**As built (2026-10-06):** `ingest/views.sql` holds 14 views, each documenting its rules in its definition, where the agent reads them. The SQL below is this proposal's. The built views apply the same rules, with the build plan's changes (its decision 5 and step 7):
+- canonical player IDs throughout;
+- each match side's player count;
+- `v_win_runs` and `v_event_coverage`;
+- held-out events, and events whose placements are unreliable.
 
 | Rule | Where it's applied |
 |---|---|
@@ -649,35 +662,41 @@ Both platforms use the same cache, request log and task queue as the Stats API. 
 
 ## 4. Coverage checks
 
+**As built (build plan §3, steps 8 and 9):**
+- Every check runs in every build, with a gate: blocking, no worse than the live build, or review.
+- `curation/check_exceptions.csv` explains known failures.
+- Each build's report is in `data/reports/<build>/`, and everything waiting for a person is in `data/review/review.csv`.
+- Checks 7 and 10 wait for Phase 2.
+
 ### Against events you know
 
-You list events you know well in `curation/known_events.csv`:
+You list events you know well in `curation/known_events.csv`. As built (2026-10-07):
 
 | Column | Example |
 |---|---|
-| `event` | `https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2`, or a name and date |
-| `mode` | `2v2` |
-| `winner`, `runner_up` | `Boomie`, … (names or aliases) |
-| `top8` | optional, `;`-separated |
+| `event` | `Trial of Laufey NA` (what you called it) |
+| `event_id` | `tournament/trial-of-laufey-north-america-moose-wars/event/brawlhalla-1v1`, the one official event it names |
+| `mode` | `1v1` |
+| `winner`, `runner_up` | `Raydish`, `BalloonBoy` (names or aliases; a 2v2 pair as `A/B`) |
+| `top8` | from 3rd down, in placement order: `;` between placements, `+` joining a tie, e.g. `Marckiemoo;Sandstorm;Bunny+Wrenchd;Pier+Sting Ray` |
 | `entrants` | optional, an approximate count |
 | `notes` | anything else |
 
-The check report lists, for each row:
-- whether the event was found (by URL → `event_id`, otherwise by name and date);
-- whether the winner and runner-up match;
-- which top-8 players are missing;
-- how many placements we hold against your entrant count;
+The `known_events` check (blocking) reports, for each row:
+- whether every placement given matches, each name resolved through the aliases as the agent resolves names, and each 2v2 pair placed as one team;
+- how many entrants the standings hold, against your count;
 - how many of the top 8 have match data.
 
-About 20 events spread across eras would cover the known risks:
+A name no alias matches fails the row, since the agent couldn't find that player either. The 13 events listed on 2026-10-07 all pass. That took three new nicknames: "bunny", "vem" and "halloween!".
+
+Community events can't be checked, since they aren't in the database. About 20 events spread across eras would cover the known risks:
 - BCX 2017;
 - the 2019 Worlds at DreamHack Atlanta;
 - one 2020 online regional Worlds;
 - BCX 2022–2024;
 - a 2025 and a 2026 Challengermode championship;
 - Brawl League Masters Season 4 NA (phases);
-- a Crew Battle Invitational;
-- a few community events you played in.
+- a Crew Battle Invitational.
 
 ### Automatic checks (no input needed)
 
@@ -1142,6 +1161,13 @@ There are three phases, and each ends with a database the agent can use. A phase
 
 ### Phase 1: core tables, aliases and rule views
 
+**Done (2026-10-07).** [`build-plan.md`](build-plan.md) records how it was built, step by step.
+- **The build:** 622 events, 145,646 players, 346,199 placements and 560,184 matches. It passes every check, with 8 failures explained in `check_exceptions.csv`.
+- **The known-events report is clean:** 13 of 13.
+- **The target questions' regression check** (`ingest/target_questions.py`) gives the expected answers for all ten Phase 1 questions. Its expected answers come from our own data, so it isn't the evaluation gold set.
+- **Two builds from the same inputs are identical.**
+- **The live build is frozen** as the evaluation snapshot `eval-v1`.
+
 - **Fetch** (§3), all done by 2026-10-05:
   - Stats API: events, PR lists and profiles (stages 0–2), with a 200-player pilot of stages 3–4 (full runs held);
   - start.gg standings (P1);
@@ -1193,9 +1219,11 @@ There are three phases, and each ends with a database the agent can use. A phase
 
 ## Open questions
 
-None block the builder.
+None block Phase 1.
 
 **For you, at your own pace:** the merge review list, `data/review/merge_candidates.csv` (§1, players). It has 434 tier-2 and 1,753 tier-3 pairs, strongest first.
+- The curation policy (2026-10-06) settles the low-impact ones by the evidence, and brings the high-impact ones to you, with those outside NA flagged.
+- High-impact means a ranked player (in a region's top 100 PR), a top 8, a win or a medal.
 
 **Waiting on others:** whether the esports team can share their account-link data (asked 2026-10-04). It would settle most merge candidates (§1).
 

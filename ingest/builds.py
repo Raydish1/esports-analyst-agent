@@ -18,12 +18,18 @@ Pruning, at the end of every build, keeps:
 - the KEEP_FAILED newest failed ones.
 It skips a file still in use, and never touches data/db/eval/, where frozen evaluation snapshots
 live. One build runs at a time: a second one waits for the first one's lock file to go.
+
+Freezing copies the live build to data/db/eval/<name>.sqlite, read-only, with its name and time in
+its build_info: a frozen evaluation snapshot (docs/build-plan.md §5). A name is a version, so it's
+never reused: freeze again under a new name (eval-v2) once the data has changed. Evaluation runs name
+the snapshot's file; nothing else touches the folder.
 """
 
 import json
 import os
 import re
 import sqlite3
+import stat
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -39,6 +45,7 @@ KEEP_FAILED = 2
 HISTORY = 20  # live builds the pointer remembers
 LOCK_WAIT = 20 * 60  # seconds a build waits for another to finish
 BUILD_FILE = re.compile(r"^(\d{8}T\d{6}Z(?:-\d+)?)(\.partial|\.failed)?\.sqlite$")
+VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")  # a frozen snapshot's name, e.g. eval-v1
 STATES = {None: "passed", ".partial": "partial", ".failed": "failed"}
 
 
@@ -58,6 +65,7 @@ class Builds:
         self.dir = self.db_dir / "builds"
         self.pointer = self.db_dir / "current.json"
         self.lock_file = self.dir / "build.lock"
+        self.eval_dir = self.db_dir / "eval"
 
     def path(self, build_id, state="passed"):
         suffix = {"passed": "", "partial": ".partial", "failed": ".failed"}[state]
@@ -165,6 +173,38 @@ class Builds:
                 log(f"Removed {path.name}")
             except PermissionError:
                 log(f"Kept {path.name} for now: it's still in use")
+
+    def frozen(self):
+        """(name, path) of every frozen evaluation snapshot, by name."""
+        return sorted((f.stem, f) for f in self.eval_dir.glob("*.sqlite")) if self.eval_dir.exists() else []
+
+    def freeze(self, name):
+        """Copy the live build to data/db/eval/<name>.sqlite, read-only, and return its path. A name already
+        used is refused: a frozen version is never replaced."""
+        if not VERSION.match(name):
+            raise ValueError(f"a snapshot's name is letters, digits, '.', '-' and '_', such as eval-v1, not {name!r}")
+        target = self.eval_dir / f"{name}.sqlite"
+        if target.exists():
+            raise ValueError(f"{name} is already frozen ({target}); a version is never replaced, so pick a new name")
+        if self.live() is None:
+            raise ValueError("no build is live, so there's nothing to freeze")
+        self.eval_dir.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(target.name + ".tmp")
+        tmp.unlink(missing_ok=True)
+        source, copy = self.connect_live(), sqlite3.connect(tmp)
+        try:
+            source.backup(copy)  # a consistent copy, even if the agent has the live build open
+            copy.execute("CREATE TABLE IF NOT EXISTS build_info (key TEXT PRIMARY KEY, value TEXT)")
+            copy.executemany("INSERT OR REPLACE INTO build_info (key, value) VALUES (?, ?)",
+                             [("frozen_as", name), ("frozen_at", datetime.now(timezone.utc).isoformat(timespec="seconds"))])
+            copy.commit()
+            copy.execute("PRAGMA journal_mode = DELETE")
+        finally:
+            copy.close()
+            source.close()
+        os.replace(tmp, target)
+        os.chmod(target, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+        return target
 
     @contextmanager
     def lock(self, wait=LOCK_WAIT, log=print):

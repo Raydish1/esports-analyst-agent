@@ -12,8 +12,10 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-05)
-Phase 1 of the schema proposal's implementation plan (§9) is in progress on branch `claude/phase-1`. All of Phase 1's fetching is done and checked. **The next step is the builder, following [`docs/build-plan.md`](docs/build-plan.md)** (approved 2026-10-05), one step of its order of work at a time (below).
+## Project status (2026-10-07)
+**Phase 1 of the schema proposal's implementation plan (§9) is done** on branch `claude/phase-1`, ready for the user to merge into `main`.
+- The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
+- The live build passes every check, and it's frozen as the evaluation snapshot `eval-v1`.
 
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -44,8 +46,11 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 - Clients: `statsapi.py`, `startgg.py` and `challengermode.py`, all writing every response to the cache in `cache.py` before parsing.
 - The crawl: `crawl.py` holds the stages and `status`. `tasks.py` holds the resumable task queue and per-API run locks.
 - `merge_candidates.py` builds the merge review list.
-- The builder (`docs/build-plan.md`), as far as its order of work has gone:
-  - `build.py` runs a build: `python ingest/build.py`, plus `status` and `rollback`. Dev builds use `--dev` or `--event ID` and never go live;
+- The builder (`docs/build-plan.md`):
+  - `build.py` runs a build: `python ingest/build.py`. Dev builds use `--dev` or `--event ID` and never go live. It also has these commands:
+    - `status` and `rollback`;
+    - `compare A B`: whether two builds hold the same data;
+    - `freeze NAME`: a read-only evaluation snapshot in `data/db/eval/`. A name is never reused, so a later freeze is a new version (`eval-v2`);
   - `builds.py` handles the build files, the pointer and rollback;
   - `cache_reader.py` gives read-only access to the cache;
   - `curation.py` loads and checks the curated files;
@@ -63,7 +68,8 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `sources.py` lists the query versions the builder reads;
   - `problems.py` defines `BuildStop` (and `CurationError`), which end a build with a list of problems;
   - `schema.sql` holds the tables;
-  - `names.py` holds the name normalization shared with `merge_candidates.py`.
+  - `names.py` holds the name normalization shared with `merge_candidates.py`;
+  - `target_questions.py` is the target questions' regression check (`python ingest/target_questions.py`, optionally `--build PATH`). Its expected answers come from our own data, so it isn't the evaluation gold set. New results change some answers, and the expected ones are then updated on purpose.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
@@ -92,10 +98,10 @@ Curation (`curation/`, committed):
 
 Merge review: **`data/review/merge_candidates.csv`** (git-ignored; regenerate with `python ingest/merge_candidates.py`, which makes no requests).
 - It holds 434 tier-2 and 1,753 tier-3 pairs, strongest first, for the user to review at their own pace.
-- By impact (2026-10-06), under the curation policy below:
+- By impact (2026-10-07), under the curation policy below:
   - 64 pairs involve a top 8 or better: 16 in tier 2 and 48 in tier 3, 8 with official wins and 16 with medals;
-  - 860 more involve a ranked player but no top 8, though only 178 of those players rank in their region's top 100;
-  - 1,263 are low-impact.
+  - 178 more involve a player ranked in their region's top 100;
+  - the other 1,945 are low-impact.
 - Decisions go in `curation/player_merges.csv` (merge) or `curation/merge_rejections.csv` (not one person).
 - To undo an automatic merge, move its row from the first file to the second.
 
@@ -139,16 +145,13 @@ Decisions so far: the domain definitions below, plus these.
     - Views must stay fast when filtered by a player: no window or GROUP BY between the filter and the indexed tables.
 - Curation policy (2026-10-06):
   - Low-impact cases (no official wins, medals or top placements): follow the data evidence and Claude's recommendation, with the evidence in the curated row's note.
-  - High-impact cases (ranked players, top 8s, wins, medals): bring them to the user.
+  - High-impact cases (ranked players, top 8s, wins, medals): bring them to the user. "Ranked" means in a region's top 100 PR (decided 2026-10-07).
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the builder, following `docs/build-plan.md`'s order of work.**
-- One step per commit, pushed after each.
-- Report after each step for review rather than continuing through the list.
-- The plan's status column shows which step is next.
-
-Explain the builder's design before implementing it, and keep it in small steps. The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
+Next step: **the user's call, once `claude/phase-1` is merged:** Phase 2 (per-tournament earnings, schema proposal §9) or the agent.
+- Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
+- The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 
 ## Domain definitions (decided)
 - Data scope for now: official events only (`isOfficial: true`); community events are left out.

@@ -147,6 +147,31 @@ class BuildsTest(unittest.TestCase):
         finally:
             builds_module.pid_alive = alive
 
+    def test_freezing_copies_the_live_build_as_a_named_read_only_version(self):
+        with self.assertRaises(ValueError):
+            self.builds.freeze("eval-v1")  # nothing is live yet
+        self.make(at(19))
+        path = self.builds.freeze("eval-v1")
+        self.assertEqual(path, self.builds.db_dir / "eval" / "eval-v1.sqlite")
+        self.assertFalse(os.access(path, os.W_OK))
+        db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            self.assertEqual(db.execute("SELECT build FROM t").fetchone()[0], at(19))
+            self.assertEqual(dict(db.execute("SELECT key, value FROM build_info"))["frozen_as"], "eval-v1")
+        finally:
+            db.close()
+        self.make(at(20))
+        with self.assertRaises(ValueError):
+            self.builds.freeze("eval-v1")  # a version is never replaced
+        self.builds.freeze("eval-v2")
+        self.assertEqual([name for name, _ in self.builds.frozen()], ["eval-v1", "eval-v2"])
+        with self.assertRaises(ValueError):
+            self.builds.freeze("../elsewhere")
+        for hour in range(21, 27):
+            self.make(at(hour))
+        self.builds.prune(self.log.append)
+        self.assertTrue(path.exists())  # pruning never touches the snapshots
+
     def test_the_live_build_is_read_only(self):
         self.make(at(19))
         db = self.builds.connect_live()

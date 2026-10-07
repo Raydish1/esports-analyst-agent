@@ -16,12 +16,15 @@ Capstone project for a CMU agentic AI course.
 
 ## Status
 
-Building Phase 1 of the plan in [`docs/schema-proposal.md`](docs/schema-proposal.md) (§9). Its fetching is complete (2026-10-05). The builder, which makes the database from the cache, is being built step by step, following [`docs/build-plan.md`](docs/build-plan.md):
+Phase 1 of the plan in [`docs/schema-proposal.md`](docs/schema-proposal.md) (§9) is done (2026-10-07). The database is built from the fetched cache and the hand-made files in `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes:
 
 ```bash
-python ingest/build.py             # build into data/db/builds/, check, and make it live if the checks pass
-python ingest/build.py status      # the live build and the builds kept
-python ingest/build.py rollback    # make the build that was live before live again
+python ingest/build.py                        # build into data/db/builds/, check, and make it live if the checks pass
+python ingest/build.py status                 # the live build, the builds kept and the frozen snapshots
+python ingest/build.py rollback               # make the build that was live before live again
+python ingest/build.py compare live BUILD_ID  # whether two builds hold the same data
+python ingest/build.py freeze eval-v2         # copy the live build to data/db/eval/, read-only, as a new version
+python ingest/target_questions.py             # the target questions' regression check, against the live build
 ```
 
 The builder makes no requests. `data/db/current.json` names the live build, which the agent opens read-only. A build also takes:
@@ -30,6 +33,12 @@ The builder makes no requests. `data/db/current.json` names the live build, whic
 - `--dev` or `--event ID`, for a quick build of a few events.
 
 Builds made with `--as-of`, `--dev` or `--event` never go live.
+
+What a build leaves behind:
+- **A report,** in `data/reports/<build>/report.md`: each check's result, every failure, and the known events (`curation/known_events.csv`).
+- **The review list,** `data/review/review.csv`, rewritten by every full build: everything waiting for a person, most pressing first, such as curated rows that name an unknown player (marked `!!`) and merge candidates.
+
+The evaluation uses a frozen snapshot, `data/db/eval/eval-v1.sqlite`, which nothing changes; a later freeze takes a new name. `ingest/target_questions.py` is a regression check, not the evaluation gold set: its expected answers come from our own data.
 
 The crawl runs one stage at a time:
 
