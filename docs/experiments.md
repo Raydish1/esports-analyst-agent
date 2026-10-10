@@ -78,7 +78,8 @@ Time runs from request to reply, and output tokens include the thinking.
 - The expected answers come from our own data.
 - The checks accept any shape that holds the answer's key facts.
 
-**Decision:** pending.
+**Decision** (the user's, 2026-10-10, after the failure analysis below): **qwen3:8b with thinking on, for development, provisionally.**
+- Once the agent loop and the verified evaluation set exist, the comparison is rerun inside the agent, with qwen3:4b, qwen3:8b and qwen3:14b.
 
 ### Failure analysis
 
@@ -114,3 +115,11 @@ Every query, the reruns run by run, and four example failure logs are in [`model
 - qwen3:8b's two failures weren't only name resolution: question 8 was also wrong logically.
 - Question 6's check passes an answer that lists the player as their own partner.
 - The correct question 8 query took anywhere from 18 s to over 90 s on this machine, so a 90 s limit isn't a reliable cutoff for it.
+
+**For the agent** (decided 2026-10-10):
+- **Name lookup is a separate tool**, not left to the model's SQL.
+- **The head-to-head views store each pairing more than once:** `v_head_to_head_1v1` twice, once from each player's side, and `v_head_to_head_2v2` four times, once for each player in the meeting.
+  - The agent's schema documentation must state how to read them from one side. `v_head_to_head_1v1`'s definition doesn't say it today, and the comparison's prompt didn't either.
+  - The result checker should flag suspicious results, such as every row having the same value.
+  - `v_team_results` also stores each team twice, once from each partner's side. The question 6 errors were in that view.
+- **Player IDs are looked up before head-to-head queries,** to avoid the slow path: 0.1 s with the ID itself, against 18 s to over 90 s with the lookup inside the query.

@@ -20,7 +20,11 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
 **The agent phase has started** (2026-10-10), on branch `claude/agent`. First, a model comparison: one-prompt text-to-SQL on the target questions, logged in [`docs/experiments.md`](docs/experiments.md).
 - qwen3:8b with thinking and qwen3:4b each got 8 of 10, qwen3:8b in about two-thirds of the time. qwen3:8b without thinking got 2 of 10.
 - Most failures were name resolution: the model matched display names instead of using the aliases.
-- The recommendation, which the user hasn't decided yet: qwen3:8b with thinking, with names turned into IDs by a separate step before any SQL.
+- A failure analysis with reruns ([`docs/model-comparison-failures.md`](docs/model-comparison-failures.md)) found that qwen3:8b's misses weren't only name resolution, and set three requirements for the agent, listed in the log:
+  - name lookup as a separate tool;
+  - schema documentation on reading the views that store each pairing more than once, and a result checker that flags suspicious results;
+  - player IDs looked up before head-to-head queries.
+- Decided (2026-10-10), provisionally: qwen3:8b with thinking on, for development. Once the agent loop and the verified evaluation set exist, the comparison is rerun inside the agent with qwen3:4b, qwen3:8b and qwen3:14b.
 
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -162,7 +166,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's choice of model** (`docs/experiments.md`), then the agent's design, explained before it's built.
+Next step: **the verified evaluation set**, which the user starts in a new session; then the agent's design, explained before it's built.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 
