@@ -187,6 +187,12 @@ def mentions(row, name, ids):
     return says(row, name) or ids.get(name) in ints(row)
 
 
+def is_player(value, name, ids):
+    """Whether a cell is the player: exactly their name, ignoring case, or their ID."""
+    value = norm(value)
+    return value == name.casefold() or (value is not None and value == ids.get(name))
+
+
 def check_last_event(rows, expected, ids):  # 1: the newest official event entered
     return bool(rows) and says(rows[0], expected[0][0][1])
 
@@ -214,9 +220,14 @@ def check_head_to_head(rows, expected, ids):  # 4: the 1v1 record (from either s
     return len(rows) == len(sets) and all(any({a, b} <= set(ints(row)) for row in rows) for a, b in sets)
 
 
-def check_partners(rows, expected, ids):  # 6: the top partners, and the first one's number of events
+def check_partners(rows, expected, ids):  # 6: the top partners, the first one's number of events, and never megD
     top = expected[1]
     if not all(any(mentions(row, name, ids) for row in rows) for name, _, _ in top):
+        return False
+    # The columns that hold partners never name megD. A query that reads v_team_results from both sides lists megD as
+    # their own partner once per team result, and leaves the top partners' rows as they are (run 20261010T181126Z)
+    columns = {i for row in rows for i, value in enumerate(row) for name, _, _ in top if mentions([value], name, ids)}
+    if any(is_player(row[i], "megD", ids) for row in rows for i in columns):
         return False
     name, events, _ = top[0]
     theirs = [row for row in rows if mentions(row, name, ids)]
@@ -247,7 +258,7 @@ def check_first_top8(rows, expected, ids):  # 12: the first top 8 in 1v1, or the
 
 CHECKS = {1: check_last_event, 2: check_wins, 3: check_top8, 4: check_head_to_head, 6: check_partners, 7: check_medals,
           8: check_best_record, 10: check_links, 11: check_dominant_win, 12: check_first_top8}
-NAMED = ["Raydish", "hardymj", "Winged_Shell", "V3M_T4NQUIL0"]  # players a query may return by ID instead of name
+NAMED = ["Raydish", "hardymj", "Winged_Shell", "V3M_T4NQUIL0", "megD"]  # players a query may return by ID instead of name
 
 
 def failure(sql, rows, error, done_reason=None):

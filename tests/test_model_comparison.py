@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "eval"))
 import model_comparison as mc  # noqa: E402
 
 EXPECTED = {number: expected for number, _, _, expected in mc.QUESTIONS}
-IDS = {"Raydish": 160000, "hardymj": 145900, "Winged_Shell": 143709, "V3M_T4NQUIL0": 71736}
+IDS = {"Raydish": 160000, "hardymj": 145900, "Winged_Shell": 143709, "V3M_T4NQUIL0": 71736, "megD": 142100}
 
 
 class ExtractTest(unittest.TestCase):
@@ -59,6 +59,21 @@ class ChecksTest(unittest.TestCase):
         self.assertFalse(self.check(8, [("Ahmet_", 3, 1)]))
         self.assertTrue(self.check(11, [("Trial of Laufey - North America (Moose Wars)", 2)]))
         self.assertFalse(self.check(12, []))
+
+    def test_partners_count_in_any_shape_but_the_player_is_never_their_own_partner(self):
+        names = [("Raydish", 2)] * 20 + [("hardymj", 9)] * 4 + [("Winged_Shell", 17)] * 3
+        partner_ids = [(160000, 2)] * 20 + [(145900, 9)] * 4 + [(143709, 17)] * 3
+        grouped = [("Raydish", 20, 2), ("hardymj", 4, 9), ("Winged_Shell", 3, 17)]
+        self.assertTrue(self.check(6, names))
+        self.assertTrue(self.check(6, partner_ids))
+        self.assertTrue(self.check(6, grouped))
+        self.assertTrue(self.check(6, [(142100, *row) for row in partner_ids]))  # megD as the player, in every row
+        self.assertTrue(self.check(6, [(name, "megD", place) for name, place in names]))  # from the partners' side
+        self.assertTrue(self.check(6, [(f"megD / {name}", place) for name, place in names]))  # teams
+        # v_team_results read from both sides: megD listed as their own partner, once per team result
+        self.assertFalse(self.check(6, names + [("megD", 2)] * 20))
+        self.assertFalse(self.check(6, partner_ids + [(142100, 2)] * 20))
+        self.assertFalse(self.check(6, grouped + [("MEGD ", 46, 2)]))
 
     def test_failure_types(self):
         self.assertEqual(mc.failure(None, None, None), "no SQL in the reply")
