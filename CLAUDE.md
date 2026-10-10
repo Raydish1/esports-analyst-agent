@@ -87,7 +87,9 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 Evaluation (`eval/`):
 - `model_comparison.py` runs the model comparison: one prompt and one query per target question, on eval-v1. Results go to `eval/results/` and full replies to `data/experiments/`. It's exploratory, since the expected answers come from our own data.
 - `questions/questions.toml` is the evaluation set (v1, a draft until verified): 45 questions, each with its category, what it tests, the players and events its names mean, a candidate answer, the SQL behind it, and `verified`, which the user fills in (`yes`, or `no: ...` with what's right).
-  - Categories: player records, event results, head-to-heads, multi-step (comparisons, firsts, mosts, rankings) and unanswerable (the data can't answer, or only partly).
+  - Categories: player records, event results, head-to-heads, multi-step (comparisons, firsts, mosts, rankings), partial (what the data shows, then what's missing) and unanswerable (what isn't available, and why).
+  - Where a reasonable definition changes the answer (14 questions), `accept` lists each acceptable answer with the assumption that produces it; an answer gets credit only if it states its assumption.
+  - `tied_to_eval_v1` marks the 7 answers that Phase 2 (or, for legends, Phase 3) will change.
   - It covers the target questions, the known events, names written casually (nicknames, former names, case, misspellings, team tags), event aliases and terms, four paraphrase pairs, and questions the data can't answer.
 - `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
 

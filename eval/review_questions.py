@@ -30,9 +30,11 @@ CATEGORIES = {
     "event_result": "one event's results",
     "head_to_head": "records between players",
     "multi_step": "comparisons, firsts, mosts and rankings",
-    "unanswerable": "the data can't answer it, or only partly",
+    "partial": "the data answers part of it: what it shows, then what's missing",
+    "unanswerable": "the data has nothing that answers it: what isn't available, and why",
 }
 REQUIRED = ("id", "question", "category", "tests", "answer", "query")
+GAPS = ("partial", "unanswerable")  # the categories whose answer must say what's missing
 VERDICTS = ("yes", "no", "partly")
 QUERY_SECONDS = 60
 SLOW_SECONDS = 5  # the agent's queries should be fast; a slower gold query is worth a look
@@ -60,6 +62,15 @@ def problems(data):
             out.append(f"{name}: unknown category {q['category']!r}")
         if q.get("same_answer_as") and q["same_answer_as"] not in ids:
             out.append(f"{name}: same_answer_as names {q['same_answer_as']!r}, which isn't in the set")
+        if q.get("category") in GAPS and not str(q.get("missing", "")).strip():
+            out.append(f"{name}: a {q['category']} question needs missing, what the data lacks")
+        accept = q.get("accept", [])
+        if len(accept) == 1:
+            out.append(f"{name}: accept lists one answer; it needs the candidate's and at least one other")
+        out += [f"{name}: an accepted answer needs both an assumption and an answer" for a in accept
+                if not (str(a.get("assumption", "")).strip() and str(a.get("answer", "")).strip())]
+        if "tied_to_eval_v1" in q and not str(q["tied_to_eval_v1"]).strip():
+            out.append(f"{name}: tied_to_eval_v1 should say what will change")
         verdict = str(q.get("verified", "")).strip().lower()
         if verdict and not verdict.startswith(VERDICTS):
             out.append(f"{name}: verified should be empty, or start with yes, no or partly")
@@ -73,6 +84,11 @@ def cell(value):
     if value is None:
         return "NULL"
     return str(value).replace("|", "\\|").replace("\n", " ")
+
+
+def flat(text):
+    """A field written over several lines, as one line (for a list item)."""
+    return " ".join(str(text).split())
 
 
 def table(columns, rows):
@@ -149,17 +165,26 @@ def _render(data, db, path, log):
            f" (build {data['build']}). Each question shows its candidate answer, the players and events its names were"
            f" resolved to, and the queries behind the answer with their results.",
            "",
-           "**To verify:** check each candidate answer against what you know, or against start.gg, Challengermode or"
-           " Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or `partly: ...` with what's"
-           " right. Then re-run the script to update this page.",
+           "**Accepted answers:** where a reasonable definition changes the answer, the question lists each acceptable"
+           " answer with the assumption that produces it, the candidate answer's first. An answer gets credit only if"
+           " it states its assumption.",
            "",
-           f"**Verified:** {len(verified)} of {len(questions)}.",
+           "**Tied to eval-v1:** every answer is computed on eval-v1. A question marked tied has an answer that Phase 2"
+           " (or Phase 3) will change even without new events.",
+           "",
+           "**To verify:** check each candidate answer, and each accepted one, against what you know, or against"
+           " start.gg, Challengermode or Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or"
+           " `partly: ...` with what's right. Then re-run the script to update this page.",
+           "",
+           f"**Verified:** {len(verified)} of {len(questions)}. **With accepted answers:**"
+           f" {sum(1 for q in questions if q.get('accept'))}. **Tied to eval-v1:**"
+           f" {sum(1 for q in questions if q.get('tied_to_eval_v1'))}.",
            "",
            "| Category | What it covers | Questions |", "|---|---|---|"]
     out += [f"| {c} | {about} | {count[c]} |" for c, about in CATEGORIES.items()]
-    out += ["", "| Id | Question | Category | Verified |", "|---|---|---|---|"]
-    out += [f"| [{q['id']}](#{q['id']}) | {cell(q['question'])} | {q['category']} | {cell(q.get('verified', ''))} |"
-            for q in questions]
+    out += ["", "| Id | Question | Category | Accepted answers | Tied to eval-v1 | Verified |", "|---|---|---|---|---|---|"]
+    out += [f"| [{q['id']}](#{q['id']}) | {cell(q['question'])} | {q['category']} | {len(q.get('accept', [])) or ''} |"
+            f" {'yes' if q.get('tied_to_eval_v1') else ''} | {cell(q.get('verified', ''))} |" for q in questions]
     for q in questions:
         out += ["", f'<a id="{q["id"]}"></a>', "", f"## {q['id']}. {q['question']}", "",
                 " · ".join([q["category"]] + q["tests"]), ""]
@@ -173,7 +198,18 @@ def _render(data, db, path, log):
             if line is None:
                 issues.append(f"{q['id']}: an unknown event among {ids!r} ({name!r})")
             out.append(f"- {line or f'**{name}** → an unknown event'}")
-        out += ["", "**Candidate answer:**", "", q["answer"].strip(), ""]
+        partial = q["category"] == "partial"
+        out += ["", "**Candidate answer** (what the data shows):" if partial else "**Candidate answer:**", "",
+                q["answer"].strip(), ""]
+        if q.get("missing"):
+            label = "**What's missing** (the rest of the expected answer):" if partial else "**What's missing:**"
+            out += [f"{label} {flat(q['missing'])}", ""]
+        if q.get("accept"):
+            out += ["**Accepted answers** (each gets credit only with its assumption stated):", ""]
+            out += [f"- *{flat(a['assumption'])}:* {flat(a['answer'])}" for a in q["accept"]]
+            out.append("")
+        if q.get("tied_to_eval_v1"):
+            out += [f"**Tied to eval-v1:** {flat(q['tied_to_eval_v1'])}", ""]
         if q.get("same_answer_as"):
             out += [f"**Same answer as:** [{q['same_answer_as']}](#{q['same_answer_as']})", ""]
         if q.get("notes", "").strip():
@@ -185,7 +221,7 @@ def _render(data, db, path, log):
                 + (" (slow)" if seconds > SLOW_SECONDS else ""))
             if error:
                 issues.append(f"{q['id']} query {n}: {error}")
-            out += [f"**Query {n}:** {query.get('purpose', '')}", "", "```sql", sql, "```", "",
+            out += [f"**Query {n}:** {flat(query.get('purpose', ''))}", "", "```sql", sql, "```", "",
                     f"Error: `{error}`" if error else table(columns, rows), ""]
         out += [f"**Verified:** {q.get('verified', '').strip() or 'not yet'}"]
     return "\n".join(out) + "\n", issues

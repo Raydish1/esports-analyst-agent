@@ -9,7 +9,9 @@
 #                   event_result   one event's results (winner, top 8, bracket link)
 #                   head_to_head   records between players
 #                   multi_step     comparisons, firsts, mosts and rankings: several steps, or an aggregate
-#                   unanswerable   the data can't answer it, or only partly: the expected answer says what isn't
+#                   partial        the data answers part of it, with known gaps: the expected answer gives what the
+#                                  data shows, then says what's missing
+#                   unanswerable   the data has nothing that answers it: the expected answer says what isn't
 #                                  available, and why
 #   tests           what the question exercises: its source (target question N, known event), how a name is
 #                   written (nickname, former name, case, misspelling, team tag, shared name), event aliases and
@@ -20,9 +22,17 @@
 #   answer          the candidate answer, written from the queries' results, as the agent should give it (the
 #                   answer rules in docs/schema-proposal.md §8: say "official events", name the player and the
 #                   metric, missing isn't zero).
-#   notes           what a verifier should know: acceptable variants, caveats, things worth checking.
-#   query           the SQL behind the answer, one or more queries, each with its purpose. Players are looked up
-#                   first and queried by ID, as the agent will (the head-to-head views are slow otherwise).
+#   accept          where a reasonable definition changes the answer: each acceptable answer, with the assumption
+#                   that produces it. The first is the candidate answer's. An answer gets credit only if it states
+#                   its assumption.
+#   missing         for partial and unanswerable questions: what the data lacks, which the answer must say. A partial
+#                   question's expected answer is its answer (what the data shows) followed by this.
+#   tied_to_eval_v1 an answer that a later phase will change even without new events, and how. Every answer is
+#                   computed on eval-v1; this marks the ones Phase 2 (or Phase 3) will change.
+#   notes           what a verifier should know: caveats, things worth checking.
+#   query           the SQL behind the answer and the accepted answers, one or more queries, each with its purpose.
+#                   Players are looked up first and queried by ID, as the agent will (the head-to-head views are
+#                   slow otherwise).
 #   verified        filled in by the person verifying: "" until checked, then "yes", or "no: ..." / "partly: ..."
 #                   with what's right.
 
@@ -82,9 +92,21 @@ as 1v1
 No 2v2 wins.
 """
 notes = """
-"Majors" are official events (tiers are deferred), and the answer should say "official events".
+"Majors" are official events (tiers are deferred), and the answer should say "official events". A narrower meaning \
+of "major", only the biggest events, can't be computed from the data until tiers exist.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "majors are official events, and a crew battle counts as 1v1 (the decided rules)"
+answer = "6: five 1v1 wins and the 2026 NA Crew Battle Championship, a team result"
+
+[[question.accept]]
+assumption = "individual titles only, the crew battle left out as a team event"
+answer = """
+5: the NA Summer Championship 2022, the NA Winter Championship 2023 and the Trials of Ymir, Heimdall and Laufey \
+(2024)
+"""
 
 [[question.query]]
 purpose = "official wins"
@@ -175,12 +197,10 @@ GROUP BY a.mode ORDER BY a.mode
 [[question]]
 id = "q05"
 question = "List the top 10 highest-earning players in Brawlhalla history."
-category = "unanswerable"
-tests = ["target question 5", "partly answerable", "missing isn't zero", "name the source"]
+category = "partial"
+tests = ["target question 5", "missing isn't zero", "name the source"]
 answer = """
-Only partly: the database's career earnings come from the Stats API (as of 2026-10-02), which has figures only for \
-players with a PR ranking, so players without one, such as Boomie, have no figure and can't be ranked. Among the \
-4,981 players with a figure:
+The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02):
 1. gdsandstorm, $258,984.17
 2. Zivai, $214,458.33
 3. acno?, $189,215.00
@@ -192,9 +212,13 @@ players with a PR ranking, so players without one, such as Boomie, have no figur
 9. lFiend, $94,261.67
 10. Raydish, $83,825.00
 """
-notes = """
-Phase 2 adds the Esports Earnings snapshot as the fallback for players without a Stats API figure, which will change \
-this answer (Esports Earnings has Boomie at #2 with $210,282.67, as of 2026-10-04).
+missing = """
+figures for players without a PR ranking: the Stats API has none for them, so a top earner such as Boomie may be \
+missing from the list
+"""
+tied_to_eval_v1 = """
+Phase 2 adds the Esports Earnings snapshot (2026-10-04) as the fallback for players without a Stats API figure, so \
+unranked earners join the list: Esports Earnings has Boomie at #2 with $210,282.67.
 """
 verified = ""
 
@@ -260,6 +284,18 @@ Silvers in Brawlball and Triples (both 2026) don't count: those formats count to
 """
 verified = ""
 
+[[question.accept]]
+assumption = "top-3 placements at official 1v1 and 2v2 events, a crew battle counting as 1v1 (the decided rules)"
+answer = "27: 15 in 1v1 (2 gold, 8 silver, 5 bronze, a crew battle silver included) and 12 in 2v2 (5, 3 and 4)"
+
+[[question.accept]]
+assumption = "individual results only, the crew battle silver left out as a team result"
+answer = "26: 14 in 1v1 (2 gold, 7 silver, 5 bronze) and 12 in 2v2"
+
+[[question.accept]]
+assumption = "every official event, the side formats (Brawlball, Triples) included"
+answer = "29: the 27, plus silvers at the 2026 NA Brawlball and Triples Championships"
+
 [[question.query]]
 purpose = "medals by mode"
 sql = '''
@@ -291,11 +327,26 @@ and forfeits left out):
 V3M_T4NQUIL0 is the only one of them with a winning record.
 """
 notes = """
-The minimum decides the answer, so the answer must state it. With at least 4 sets, Ahmet_ (3-1, 75%) leads; with at \
-least 3, Ahmet_ and then Dragon! (2-1). An answer with another stated minimum is right if its ranking is right for \
-that minimum. BBBalloonBoy has played Marckiem00 the most (4-13).
+BBBalloonBoy has played Marckiem00 the most (4-13). Raydish has beaten Marckiem00 the most (6-7), but that isn't \
+the best record by win rate or by net wins.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "set win rate, at least 5 sets (the default; game win rate with the same minimum agrees)"
+answer = "V3M_T4NQUIL0, 3-2 (60%); then Raydish 6-7 and gdsandstorm 4-7"
+
+[[question.accept]]
+assumption = "set win rate, at least 3 or 4 sets"
+answer = "Ahmet_, 3-1 (75%)"
+
+[[question.accept]]
+assumption = "set win rate, no minimum"
+answer = "Snowy!!, unbeaten at 2-0; Pink | fi0h and TruckStopBurrito are unbeaten at 1-0"
+
+[[question.accept]]
+assumption = "net sets won (wins minus losses)"
+answer = "Ahmet_ (3-1) and Snowy!! (2-0), tied at +2"
 
 [[question.query]]
 purpose = "records against Marckiem00, at least 5 sets, best win rate first"
@@ -308,12 +359,30 @@ ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 5
 '''
 
 [[question.query]]
-purpose = "the same with at least 3 sets, to show how the minimum matters"
+purpose = "set win rate, at least 3 sets"
 sql = '''
 SELECT p.name, h.wins, h.losses, h.matches
 FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
 WHERE h.opponent_id = 146052 AND h.matches >= 3
 ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 3
+'''
+
+[[question.query]]
+purpose = "no minimum: the players Marckiem00 never beat"
+sql = '''
+SELECT p.name, h.wins, h.losses
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
+WHERE h.opponent_id = 146052 AND h.losses = 0
+ORDER BY h.wins DESC, p.name
+'''
+
+[[question.query]]
+purpose = "net sets won"
+sql = '''
+SELECT p.name, h.wins, h.losses, h.wins - h.losses AS net
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
+WHERE h.opponent_id = 146052
+ORDER BY net DESC, h.wins DESC LIMIT 4
 '''
 
 [[question]]
@@ -327,9 +396,13 @@ The data can't say: the database has no prize money per tournament, only career 
 earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as \
 gdsandstorm's 48 official wins) don't tell how much each paid.
 """
+missing = "prize money per tournament: the database has only career totals"
+tied_to_eval_v1 = """
+Phase 2 adds per-tournament payouts, so the question gets an answer from the events with payout data, with the \
+others named as not available.
+"""
 notes = """
-"sandstorm" is a curated nickname for gdsandstorm; eight other records have that name or had it as a former name. \
-Phase 2 adds per-tournament payouts.
+"sandstorm" is a curated nickname for gdsandstorm; eight other records have that name or had it as a former name.
 """
 verified = ""
 
@@ -385,6 +458,24 @@ win is left out: its sets are crew against crew, so not comparable.
 """
 verified = ""
 
+[[question.accept]]
+assumption = """
+fewest games lost, then fewest sets dropped, then most games won (the decided metric); the highest game win rate \
+and the fewest games lost per set agree
+"""
+answer = "the Trial of Laufey - North America (2024-08-25): 9-0 in sets, 25-2 in games"
+
+[[question.accept]]
+assumption = "largest game differential (games won minus games lost)"
+answer = "the NA Summer Championship 2022: +28 (37-9 in games over 15 sets, one dropped); the Trial of Laufey is +23"
+
+[[question.accept]]
+assumption = "most sets won without dropping one"
+answer = """
+a three-way tie at 10-0: the Trial of Heimdall (27-7 in games), the Trial of Ymir (27-8) and the NA Winter \
+Championship 2023 (25-7)
+"""
+
 [[question.query]]
 purpose = "official wins ranked by dominance, crew battles left out"
 sql = '''
@@ -412,6 +503,17 @@ sql = '''
 SELECT tournament_name, start_date FROM v_win_runs WHERE player_id = 160000 AND is_crew_battle = 1
 '''
 
+[[question.query]]
+purpose = "the other metrics, per run"
+sql = '''
+SELECT tournament_name, sets_played - sets_dropped AS sets_won, sets_dropped,
+       ROUND(100.0 * games_won / (games_won + games_lost), 1) AS game_win_pct,
+       games_won - games_lost AS game_differential
+FROM v_win_runs
+WHERE player_id = 160000 AND is_crew_battle = 0 AND sets_played > 0
+ORDER BY game_differential DESC
+'''
+
 [[question]]
 id = "q12"
 question = "What was flowers' first top 8?"
@@ -419,15 +521,27 @@ category = "multi_step"
 tests = ["target question 12", "nickname", "shared name", "first"]
 players = { flowers = 169119 }
 answer = """
-flowerVS's first top 8 at an official event was 7th in 2v2 at the Summer Doubles Championship - North America \
-(2024-07-21). The first in 1v1 came later: 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15).
+flowerVS's first 1v1 top 8 at an official event was 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, \
+2024-11-15). An earlier top 8 came in 2v2: 7th at the Summer Doubles Championship - North America (2024-07-21).
 
 "flowers" is taken as flowerVS; another player, Flowers (156897), has that display name.
 """
 notes = """
-"flowers'" means "flower's" (decided 2026-10-04): "flower" and "flowers" are curated nicknames for flowerVS.
+"flowers'" means "flower's" (decided 2026-10-04): "flower" and "flowers" are curated nicknames for flowerVS. The \
+schema proposal's rule (§8) is the first 1v1 top 8, with the 2v2 one mentioned if it came earlier.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "the first top 8 in 1v1, with an earlier 2v2 one mentioned (the decided rule)"
+answer = """
+7th at BCX 2024 (2024-11-15); earlier, in 2v2, 7th at the Summer Doubles Championship - North America \
+(2024-07-21)
+"""
+
+[[question.accept]]
+assumption = "the first top 8 in either mode"
+answer = "7th in 2v2 at the Summer Doubles Championship - North America (2024-07-21)"
 
 [[question.query]]
 purpose = "the first top 8 in 1v1"
@@ -636,11 +750,14 @@ category = "multi_step"
 tests = ["known event", "grand final is the last set", "former name"]
 events = { "dreamhack valencia 2023" = "tournament/dreamhack-valencia-2023/event/brawlhalla-1v1" }
 answer = """
-Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023, with no bracket reset. \
-Zivai won all 8 sets at the event, losing 6 games.
+Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket \
+reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the \
+winners' semi-final to luna, came through the losers' side.
 """
 notes = """
-Rounds aren't stored until Phase 3, so the grand final is the winner's last set, which was against the runner-up.
+Checked against start.gg's bracket in the cache (2026-10-10): the Top 8 pool has one Grand Final set, Kingdom | Godly \
+3-0 Impala, and no Grand Final Reset. The database stores no rounds until Phase 3, so its queries find the grand \
+final as the winner's last set, against the runner-up, and the missing reset as the winner never losing a set.
 """
 verified = ""
 
@@ -661,6 +778,17 @@ FROM v_match_results m
 JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side
 JOIN players p ON p.player_id = o.player_id
 WHERE m.event_id = 'tournament/dreamhack-valencia-2023/event/brawlhalla-1v1' AND m.player_id = 147982
+ORDER BY m.start_time
+'''
+
+[[question.query]]
+purpose = "the runner-up's sets: a loss to luna, the losers' side, then the grand final"
+sql = '''
+SELECT m.start_time, p.name AS opponent, m.games_won, m.games_lost, m.won
+FROM v_match_results m
+JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side
+JOIN players p ON p.player_id = o.player_id
+WHERE m.event_id = 'tournament/dreamhack-valencia-2023/event/brawlhalla-1v1' AND m.player_id = 168635
 ORDER BY m.start_time
 '''
 
@@ -738,6 +866,14 @@ They never met in 2v2.
 """
 verified = ""
 
+[[question.accept]]
+assumption = "counted in sets (the default)"
+answer = "even, 3-3"
+
+[[question.accept]]
+assumption = "counted in games"
+answer = "Zivai leads 12-9"
+
 [[question.query]]
 purpose = "the 1v1 record, from Zivai's side"
 sql = '''
@@ -780,6 +916,14 @@ City Midseason Online (2020) is another midseason event someone may mean.
 """
 verified = ""
 
+[[question.accept]]
+assumption = "MSI is the 2022 Brawlhalla Midseason Championship (the decided default)"
+answer = "luna, ahead of megD"
+
+[[question.accept]]
+assumption = "MSI is the latest midseason event, the Midseason Championship 2026"
+answer = "BBBalloonBoy, ahead of Marckiem00"
+
 [[question.query]]
 purpose = "1st and 2nd at the 1v1 event the alias names"
 sql = '''
@@ -798,6 +942,15 @@ sql = '''
 SELECT DISTINCT note FROM event_aliases WHERE alias = 'msi'
 '''
 
+[[question.query]]
+purpose = "1st and 2nd at the Midseason Championship 2026 1v1"
+sql = '''
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'b0245d28-3355-4b87-ffac-08de8b2c5870' AND r.placement <= 2
+ORDER BY r.placement
+'''
+
 # Paraphrases: each must get the same answer as the question it names
 
 [[question]]
@@ -813,6 +966,17 @@ Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 
 a team result, counted as 1v1).
 """
 verified = ""
+
+[[question.accept]]
+assumption = "every official event win, a crew battle counting as 1v1 (the decided rules)"
+answer = "6: five 1v1 wins and the 2026 NA Crew Battle Championship, a team result"
+
+[[question.accept]]
+assumption = "individual titles only, the crew battle left out as a team event"
+answer = """
+5: the NA Summer Championship 2022, the NA Winter Championship 2023 and the Trials of Ymir, Heimdall and Laufey \
+(2024)
+"""
 
 [[question.query]]
 purpose = "official wins"
@@ -836,6 +1000,18 @@ notes = """
 The team tag goes: the name without it, "BalloonBoy", is a former name of BBBalloonBoy.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "official 1v1 and 2v2 events, a crew battle counting as 1v1 (the decided rules)"
+answer = "27: 15 in 1v1 (a crew battle second included) and 12 in 2v2"
+
+[[question.accept]]
+assumption = "individual results only, the crew battle second left out as a team result"
+answer = "26: 14 in 1v1 and 12 in 2v2"
+
+[[question.accept]]
+assumption = "every official event, the side formats (Brawlball, Triples) included"
+answer = "29: the 27, plus seconds at the 2026 NA Brawlball and Triples Championships"
 
 [[question.query]]
 purpose = "top-3 placements by mode"
@@ -922,7 +1098,7 @@ WHERE r.event_id = 'tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1' AND 
 ORDER BY r.placement
 '''
 
-# Questions the data can't answer
+# Questions the data can't answer, or only partly
 
 [[question]]
 id = "q30"
@@ -934,6 +1110,7 @@ answer = """
 Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO \
 Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.
 """
+missing = "results: CEO Dreamland 2020 wasn't held"
 notes = """
 The answer must say the event wasn't held, not that its results are missing. Mentioning the online event is a plus, \
 not required.
@@ -961,13 +1138,15 @@ GROUP BY w.event_id ORDER BY v.start_time
 [[question]]
 id = "q31"
 question = "Who won SEA League Week 1/4?"
-category = "unanswerable"
+category = "partial"
 tests = ["placements unreliable"]
 events = { "SEA League Week 1/4" = "tournament/sea-league-week-1-4/event/brawlhalla-singles" }
 answer = """
-The data can't say who won: start.gg's standings for SEA League (Week 1/4) (2017-04-22) are wrong, with 24 \
-entrants placed 1st, so its placements aren't counted as results. Its matches do count, and in them \
-TigerBrawlhalla was the only player who didn't lose a set (6-0).
+In SEA League (Week 1/4)'s matches (2017-04-22), TigerBrawlhalla was the only player who didn't lose a set: 6-0.
+"""
+missing = """
+a reliable winner: start.gg's standings for the event are wrong, with 24 entrants placed 1st and 37 who played left \
+out, so its placements aren't counted as results
 """
 notes = """
 Naming TigerBrawlhalla as the winner outright is wrong; naming them as the bracket's only undefeated player is right.
@@ -1010,9 +1189,14 @@ answer = """
 The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 \
 (2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.
 """
+missing = "prize money per tournament: the database has none"
+tied_to_eval_v1 = """
+Phase 2 adds prize data per event. MAX MODE 2025's start.gg event has no structured payouts (API survey), so the \
+answer stays that it isn't available unless its split is added by hand, but the reason becomes this event's \
+missing payouts.
+"""
 notes = """
-"vem" is a curated nickname for V3M_T4NQUIL0. MAX MODE 2025's start.gg event has no structured payouts (API \
-survey), so even Phase 2 won't have them. Its standings hold only 8 of the 1v1's 41 entrants.
+"vem" is a curated nickname for V3M_T4NQUIL0. MAX MODE 2025's standings hold only 8 of the 1v1's 41 entrants.
 """
 verified = ""
 
@@ -1036,15 +1220,17 @@ ORDER BY name
 [[question]]
 id = "q33"
 question = "how much money has boomie made from brawlhalla"
-category = "unanswerable"
+category = "partial"
 tests = ["missing isn't zero", "shared name"]
 players = { boomie = 146606 }
 answer = """
-The database has no career earnings figure for Boomie, so it's unknown (not $0). Career figures come from the Stats \
-API, which has them only for players with a PR ranking, and Boomie has none.
+The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the \
+4,981 players with a PR ranking. Boomie has no PR ranking.
 """
-notes = """
-Phase 2's Esports Earnings fallback will have one ($210,282.67 as of 2026-10-04), which changes this answer.
+missing = "Boomie's earnings: there's no figure, so they're unknown, not $0"
+tied_to_eval_v1 = """
+Phase 2's Esports Earnings fallback gives Boomie $210,282.67 (as of 2026-10-04), from a source that counts \
+differently from the Stats API.
 """
 verified = ""
 
@@ -1069,6 +1255,7 @@ answer = """
 The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World \
 Championship isn't in it.
 """
+missing = "anything before February 2017: the data starts on 2017-02-04"
 verified = ""
 
 [[question.query]]
@@ -1085,6 +1272,11 @@ tests = ["no legend data", "former name"]
 players = { godly = 147982 }
 answer = """
 The data can't say: the database has no legend (character) data. Godly is Zivai (147982).
+"""
+missing = "legend (character) data: none in the database"
+tied_to_eval_v1 = """
+Phase 3 adds the legends picked in each game, where the platforms reported them (a minority of matches), so the \
+answer becomes partial.
 """
 notes = """
 An answer from general knowledge, rather than the data, is wrong here.
@@ -1108,6 +1300,7 @@ The data can't say: it covers official events only, with no community tournament
 wins. ("Brawlhalla Community Tournament #2", 2025, is an official event despite its name, and Raydish didn't \
 enter it.)
 """
+missing = "community tournaments: the data covers official events only"
 notes = """
 Counting official events whose name says "Community" is wrong.
 """
@@ -1139,10 +1332,20 @@ gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted sep
 battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.
 """
 notes = """
-Wins are counted per event: a tournament's 1v1 and 2v2 events count separately. Side formats (Triples, Brawlball, \
-...) aren't counted.
+Side formats (Triples, Brawlball, ...) aren't counted. Leaving out crew battles (gdsandstorm 46, Boomie 42) or counting \
+side formats (acno? and Zivai each won a Triples event) keeps gdsandstorm first.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "wins counted per event, a tournament's 1v1 and 2v2 separately (the default)"
+answer = "gdsandstorm, 48; then Boomie 44 and acno? 36"
+
+[[question.accept]]
+assumption = "wins counted per tournament, winning both of a tournament's events counting once"
+answer = """
+Boomie, 42; then gdsandstorm 37 (who won both events at 11 tournaments) and TigerBrawlhalla 28
+"""
 
 [[question.query]]
 purpose = "official wins per player"
@@ -1151,6 +1354,22 @@ SELECT p.name, w.player_id, COUNT(*) AS wins, SUM(w.mode = '1v1') AS wins_1v1, S
        SUM(w.format = 'crew_battle') AS crew_battles
 FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
 GROUP BY w.player_id ORDER BY wins DESC LIMIT 5
+'''
+
+[[question.query]]
+purpose = "tournaments won per player: a start.gg tournament's events share a slug; Challengermode names each with its mode"
+sql = '''
+WITH tournaments AS (
+  SELECT event_id,
+         COALESCE(sgg_tournament_slug,
+                  replace(replace(replace(replace(replace(replace(replace(tournament_name, ' - 2v2 - rerun', ''),
+                    ' - 1v1', ''), ' - 2v2', ''), ' – 1v1', ''), ' – 2v2', ''), ' 1v1', ''), ' 2v2', '')) AS tournament
+  FROM events)
+SELECT p.name, w.player_id, COUNT(DISTINCT t.tournament) AS tournaments_won, COUNT(*) AS event_wins
+FROM v_official_wins w
+JOIN tournaments t ON t.event_id = w.event_id
+JOIN players p ON p.player_id = w.player_id
+GROUP BY w.player_id ORDER BY tournaments_won DESC LIMIT 5
 '''
 
 [[question]]
@@ -1170,6 +1389,17 @@ Crew battles count as 1v1, though they're team results. Without them: gdsandstor
 """
 verified = ""
 
+[[question.accept]]
+assumption = "crew battle wins counted as 1v1 (the decided rule)"
+answer = "gdsandstorm 30, TigerBrawlhalla 26, Zivai 23, Kylar Alice 19, yüz 14"
+
+[[question.accept]]
+assumption = "crew battles left out as team events"
+answer = """
+gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then a three-way tie for 5th at 13: acno?, whoiskyna \
+and yüz
+"""
+
 [[question.query]]
 purpose = "official 1v1 wins per player, crew battles included"
 sql = '''
@@ -1177,6 +1407,15 @@ SELECT p.name, w.player_id, COUNT(*) AS wins_1v1, SUM(w.format = 'crew_battle') 
 FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
 WHERE w.mode = '1v1'
 GROUP BY w.player_id ORDER BY wins_1v1 DESC LIMIT 6
+'''
+
+[[question.query]]
+purpose = "the same without crew battles"
+sql = '''
+SELECT p.name, w.player_id, COUNT(*) AS wins_1v1
+FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
+WHERE w.mode = '1v1' AND w.format = 'standard'
+GROUP BY w.player_id ORDER BY wins_1v1 DESC, p.name LIMIT 7
 '''
 
 [[question]]
@@ -1193,6 +1432,14 @@ Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69
 gdsandstorm has more wins (48 to 44), and Boomie more medals.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "both modes (the default), or 2v2 only"
+answer = "Boomie: 80 to 69 in all, 46 to 27 in 2v2"
+
+[[question.accept]]
+assumption = "1v1 only"
+answer = "gdsandstorm, 42 to 34"
 
 [[question.query]]
 purpose = "medals by player and mode"
@@ -1241,6 +1488,17 @@ The 1v1 world champions by year, as the "worlds YYYY" aliases name them: 2017 ZE
 """
 verified = ""
 
+[[question.accept]]
+assumption = """
+Worlds are the events the "worlds YYYY" aliases name, the 2020 and 2021 regional championships included (the \
+default)
+"""
+answer = "gdsandstorm, 3 (2018, 2019 and North America's 2020 championship); yüz has 2"
+
+[[question.accept]]
+assumption = "only the single worldwide championships, 2020 and 2021's regional ones left out"
+answer = "gdsandstorm and yüz, tied at 2"
+
 [[question.query]]
 purpose = "1v1 wins at the events the worlds aliases name, per player"
 sql = '''
@@ -1252,26 +1510,103 @@ WHERE a.alias LIKE 'worlds %' AND w.mode = '1v1'
 GROUP BY w.player_id ORDER BY titles DESC, p.name LIMIT 5
 '''
 
+[[question.query]]
+purpose = "the same without 2020 and 2021's regional championships"
+sql = '''
+SELECT p.name, w.player_id, COUNT(*) AS titles
+FROM event_aliases a
+JOIN v_official_wins w ON w.event_id = a.event_id
+JOIN players p ON p.player_id = w.player_id
+WHERE a.alias LIKE 'worlds %' AND a.alias NOT IN ('worlds 2020', 'worlds 2021') AND w.mode = '1v1'
+GROUP BY w.player_id ORDER BY titles DESC, p.name LIMIT 3
+'''
+
 [[question]]
 id = "q42"
 question = "what was the biggest official brawlhalla tournament ever?"
 category = "multi_step"
 tests = ["most", "name the metric"]
 answer = """
-By entrants, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City \
-Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.
+By entrants in one event, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier \
+City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.
 """
+tied_to_eval_v1 = "Phase 2 adds prize pools, so the prize-pool reading gets an answer."
 notes = """
-Entrants are as the platform reported them (start.gg's standings total). "Biggest" could mean prize pool, which \
-isn't in the data; the answer names its metric.
+Entrants are as the platform reported them (start.gg's standings total), and a 2v2 event's entrants are teams. \
+Players are distinct people with a placement.
 """
 verified = ""
+
+[[question.accept]]
+assumption = "most entrants in one event (the default)"
+answer = "the North America - SteelSeries Championship 1v1 (2020-08-22): 7,240 entrants"
+
+[[question.accept]]
+assumption = "most players in one tournament, its 1v1 and 2v2 events together"
+answer = """
+Low Tier City Midseason Online (NA), July 2020: 10,451 players; the North America - SteelSeries Championship has 8,597
+"""
+
+[[question.accept]]
+assumption = "a series held in several regions counted as one, by entrants"
+answer = "the 2020 SteelSeries Championship: 18,298 1v1 entrants in five regions (22,269 with the 2v2 teams)"
+
+[[question.accept]]
+assumption = "a series held in several regions counted as one, by players"
+answer = """
+Low Tier City Midseason Online 2020: 22,666 players in five regions, both modes; the 2020 SteelSeries Championship has \
+21,358
+"""
+
+[[question.accept]]
+assumption = "largest prize pool"
+answer = "not in the data, which has no prize pools: the answer says so, and may answer by entrants instead"
 
 [[question.query]]
 purpose = "events with the most entrants"
 sql = '''
 SELECT tournament_name, event_name, start_date, entrants_reported, placements
 FROM v_event_coverage ORDER BY entrants_reported DESC LIMIT 3
+'''
+
+[[question.query]]
+purpose = "tournaments with the most players, 1v1 and 2v2 together (tournaments grouped as in q37)"
+sql = '''
+WITH tournaments AS (
+  SELECT event_id, tournament_name,
+         COALESCE(sgg_tournament_slug,
+                  replace(replace(replace(replace(replace(replace(replace(tournament_name, ' - 2v2 - rerun', ''),
+                    ' - 1v1', ''), ' - 2v2', ''), ' – 1v1', ''), ' – 2v2', ''), ' 1v1', ''), ' 2v2', '')) AS tournament
+  FROM events)
+SELECT MIN(t.tournament_name) AS tournament, COUNT(DISTINCT t.event_id) AS events,
+       COUNT(DISTINCT q.canonical_id) AS players
+FROM tournaments t
+JOIN placements pl ON pl.event_id = t.event_id
+JOIN players q ON q.player_id = pl.player_id
+GROUP BY t.tournament ORDER BY players DESC LIMIT 3
+'''
+
+[[question.query]]
+purpose = """
+series held in several regions, the region taken out of the name, most players first (a series with more 1v1 \
+entrants would have at least as many players, so it would be here too)
+"""
+sql = '''
+WITH named AS (
+  SELECT event_id, year, counts_as,
+         trim(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(tournament_name,
+           'North America - ', ''), 'Europe - ', ''), 'South America - ', ''), 'Southeast Asia - ', ''),
+           'Australia - ', ''), ' (NA)', ''), ' (EU)', ''), ' (SA)', ''), ' (SEA)', ''), ' (AUS)', ''), '  ', ' ')) AS series
+  FROM v_events)
+SELECT n.series, n.year, COUNT(*) AS events,
+       SUM(CASE WHEN n.counts_as = '1v1' THEN c.entrants_reported END) AS entrants_1v1,
+       SUM(c.entrants_reported) AS entrants,
+       (SELECT COUNT(DISTINCT q.canonical_id) FROM named m
+          JOIN placements pl ON pl.event_id = m.event_id
+          JOIN players q ON q.player_id = pl.player_id
+         WHERE m.series = n.series AND m.year = n.year) AS players
+FROM named n JOIN v_event_coverage c ON c.event_id = n.event_id
+GROUP BY n.series, n.year ORDER BY players DESC LIMIT 3
 '''
 
 [[question]]
@@ -1321,17 +1656,22 @@ ORDER BY a.start_time
 [[question]]
 id = "q45"
 question = "who has earned more money, raydish or impala?"
-category = "unanswerable"
-tests = ["comparison", "missing isn't zero", "partly answerable"]
+category = "partial"
+tests = ["comparison", "missing isn't zero"]
 players = { raydish = 160000, impala = 168635 }
 answer = """
-The data can't compare them: Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02), but the database \
-has no figure for Impala, who has no PR ranking. Impala's earnings are unknown, not $0.
+Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).
+"""
+missing = """
+a figure for Impala, who has no PR ranking, so the Stats API has none: the two can't be compared, and Impala's \
+earnings are unknown, not $0
+"""
+tied_to_eval_v1 = """
+Phase 2's Esports Earnings fallback gives Impala $84,730 (as of 2026-10-04), from a source that counts differently \
+from the Stats API, so the comparison becomes possible with that caveat.
 """
 notes = """
-The API survey found $88,095 for Impala through the Stats API's search, which the database doesn't hold. Phase 2's \
-Esports Earnings fallback has $84,730 (2026-10-04), which will change this answer; that source counts differently \
-from the Stats API.
+The API survey found $88,095 for Impala through the Stats API's search, which the database doesn't hold.
 """
 verified = ""
 

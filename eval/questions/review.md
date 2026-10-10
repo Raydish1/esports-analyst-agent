@@ -4,9 +4,13 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 
 45 questions, with candidate answers computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each question shows its candidate answer, the players and events its names were resolved to, and the queries behind the answer with their results.
 
-**To verify:** check each candidate answer against what you know, or against start.gg, Challengermode or Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the script to update this page.
+**Accepted answers:** where a reasonable definition changes the answer, the question lists each acceptable answer with the assumption that produces it, the candidate answer's first. An answer gets credit only if it states its assumption.
 
-**Verified:** 0 of 45.
+**Tied to eval-v1:** every answer is computed on eval-v1. A question marked tied has an answer that Phase 2 (or Phase 3) will change even without new events.
+
+**To verify:** check each candidate answer, and each accepted one, against what you know, or against start.gg, Challengermode or Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the script to update this page.
+
+**Verified:** 0 of 45. **With accepted answers:** 14. **Tied to eval-v1:** 7.
 
 | Category | What it covers | Questions |
 |---|---|---|
@@ -14,55 +18,56 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 | event_result | one event's results | 11 |
 | head_to_head | records between players | 4 |
 | multi_step | comparisons, firsts, mosts and rankings | 11 |
-| unanswerable | the data can't answer it, or only partly | 10 |
+| partial | the data answers part of it: what it shows, then what's missing | 4 |
+| unanswerable | the data has nothing that answers it: what isn't available, and why | 6 |
 
-| Id | Question | Category | Verified |
-|---|---|---|---|
-| [q01](#q01) | What was the last tournament Boomie entered? | player_record |  |
-| [q02](#q02) | How many majors has Raydish won? | player_record |  |
-| [q03](#q03) | Has Hexo ever placed top 8 in 1v1? | player_record |  |
-| [q04](#q04) | What does Impala vs Balloonboy's history look like? | head_to_head |  |
-| [q05](#q05) | List the top 10 highest-earning players in Brawlhalla history. | unanswerable |  |
-| [q06](#q06) | Who has megd played with in 2v2 tournaments, and how did they place? | player_record |  |
-| [q07](#q07) | How many medals does Balloonboy have? | player_record |  |
-| [q08](#q08) | Who has the best record against marckiemoo? | head_to_head |  |
-| [q09](#q09) | What tournament did sandstorm make the most money from? | unanswerable |  |
-| [q10](#q10) | Give me the bracket link of BCX 2022. | event_result |  |
-| [q11](#q11) | What is Raydish's most dominant tournament win? | multi_step |  |
-| [q12](#q12) | What was flowers' first top 8? | multi_step |  |
-| [q13](#q13) | who won winters 2023 na 1v1 | event_result |  |
-| [q14](#q14) | Who made top 8 at Trial of Laufey NA? | event_result |  |
-| [q15](#q15) | did godly win eu summers 2026 | event_result |  |
-| [q16](#q16) | who won sa 2v2 springs 2026 | event_result |  |
-| [q17](#q17) | top 8 at bcx 2025 1v1? | event_result |  |
-| [q18](#q18) | who won 2v2 at autumns 2023 NA? | event_result |  |
-| [q19](#q19) | Who won the Midseason Championship 2026? | event_result |  |
-| [q20](#q20) | what was the score of the 1v1 grand final at dreamhack valencia 2023 | multi_step |  |
-| [q21](#q21) | how many official events has baloonboy won? | player_record |  |
-| [q22](#q22) | did markiemoo ever win worlds | player_record |  |
-| [q23](#q23) | kingdom \| godly vs impala head to head | head_to_head |  |
-| [q24](#q24) | who won msi 1v1 | event_result |  |
-| [q25](#q25) | how many official tournaments has RAYDISH won | player_record |  |
-| [q26](#q26) | How many times has M30W \| BalloonBoy finished top 3 at an official event? | player_record |  |
-| [q27](#q27) | whats bbballoonboy's 1v1 record vs impala | head_to_head |  |
-| [q28](#q28) | who won worlds 2019 1v1 | event_result |  |
-| [q29](#q29) | Who won the 1v1 at DreamHack Atlanta 2019? | event_result |  |
-| [q30](#q30) | who won ceo dreamland 2020 | unanswerable |  |
-| [q31](#q31) | Who won SEA League Week 1/4? | unanswerable |  |
-| [q32](#q32) | how much prize money did vem win at max mode 2025 | unanswerable |  |
-| [q33](#q33) | how much money has boomie made from brawlhalla | unanswerable |  |
-| [q34](#q34) | Who won the 2016 Brawlhalla World Championship? | unanswerable |  |
-| [q35](#q35) | what legend does godly main | unanswerable |  |
-| [q36](#q36) | How many community tournaments has raydish won? | unanswerable |  |
-| [q37](#q37) | Who has won the most official tournaments? | multi_step |  |
-| [q38](#q38) | rank the top 5 players by official 1v1 wins | multi_step |  |
-| [q39](#q39) | who has more medals, boomie or sandstorm? | multi_step |  |
-| [q40](#q40) | who has raydish lost to the most in 1v1 | multi_step |  |
-| [q41](#q41) | Who has won the most 1v1 world championships? | multi_step |  |
-| [q42](#q42) | what was the biggest official brawlhalla tournament ever? | multi_step |  |
-| [q43](#q43) | what was megd's first major win? | multi_step |  |
-| [q44](#q44) | How many times did Ahmet finish second to Godly in 2026? | multi_step |  |
-| [q45](#q45) | who has earned more money, raydish or impala? | unanswerable |  |
+| Id | Question | Category | Accepted answers | Tied to eval-v1 | Verified |
+|---|---|---|---|---|---|
+| [q01](#q01) | What was the last tournament Boomie entered? | player_record |  |  |  |
+| [q02](#q02) | How many majors has Raydish won? | player_record | 2 |  |  |
+| [q03](#q03) | Has Hexo ever placed top 8 in 1v1? | player_record |  |  |  |
+| [q04](#q04) | What does Impala vs Balloonboy's history look like? | head_to_head |  |  |  |
+| [q05](#q05) | List the top 10 highest-earning players in Brawlhalla history. | partial |  | yes |  |
+| [q06](#q06) | Who has megd played with in 2v2 tournaments, and how did they place? | player_record |  |  |  |
+| [q07](#q07) | How many medals does Balloonboy have? | player_record | 3 |  |  |
+| [q08](#q08) | Who has the best record against marckiemoo? | head_to_head | 4 |  |  |
+| [q09](#q09) | What tournament did sandstorm make the most money from? | unanswerable |  | yes |  |
+| [q10](#q10) | Give me the bracket link of BCX 2022. | event_result |  |  |  |
+| [q11](#q11) | What is Raydish's most dominant tournament win? | multi_step | 3 |  |  |
+| [q12](#q12) | What was flowers' first top 8? | multi_step | 2 |  |  |
+| [q13](#q13) | who won winters 2023 na 1v1 | event_result |  |  |  |
+| [q14](#q14) | Who made top 8 at Trial of Laufey NA? | event_result |  |  |  |
+| [q15](#q15) | did godly win eu summers 2026 | event_result |  |  |  |
+| [q16](#q16) | who won sa 2v2 springs 2026 | event_result |  |  |  |
+| [q17](#q17) | top 8 at bcx 2025 1v1? | event_result |  |  |  |
+| [q18](#q18) | who won 2v2 at autumns 2023 NA? | event_result |  |  |  |
+| [q19](#q19) | Who won the Midseason Championship 2026? | event_result |  |  |  |
+| [q20](#q20) | what was the score of the 1v1 grand final at dreamhack valencia 2023 | multi_step |  |  |  |
+| [q21](#q21) | how many official events has baloonboy won? | player_record |  |  |  |
+| [q22](#q22) | did markiemoo ever win worlds | player_record |  |  |  |
+| [q23](#q23) | kingdom \| godly vs impala head to head | head_to_head | 2 |  |  |
+| [q24](#q24) | who won msi 1v1 | event_result | 2 |  |  |
+| [q25](#q25) | how many official tournaments has RAYDISH won | player_record | 2 |  |  |
+| [q26](#q26) | How many times has M30W \| BalloonBoy finished top 3 at an official event? | player_record | 3 |  |  |
+| [q27](#q27) | whats bbballoonboy's 1v1 record vs impala | head_to_head |  |  |  |
+| [q28](#q28) | who won worlds 2019 1v1 | event_result |  |  |  |
+| [q29](#q29) | Who won the 1v1 at DreamHack Atlanta 2019? | event_result |  |  |  |
+| [q30](#q30) | who won ceo dreamland 2020 | unanswerable |  |  |  |
+| [q31](#q31) | Who won SEA League Week 1/4? | partial |  |  |  |
+| [q32](#q32) | how much prize money did vem win at max mode 2025 | unanswerable |  | yes |  |
+| [q33](#q33) | how much money has boomie made from brawlhalla | partial |  | yes |  |
+| [q34](#q34) | Who won the 2016 Brawlhalla World Championship? | unanswerable |  |  |  |
+| [q35](#q35) | what legend does godly main | unanswerable |  | yes |  |
+| [q36](#q36) | How many community tournaments has raydish won? | unanswerable |  |  |  |
+| [q37](#q37) | Who has won the most official tournaments? | multi_step | 2 |  |  |
+| [q38](#q38) | rank the top 5 players by official 1v1 wins | multi_step | 2 |  |  |
+| [q39](#q39) | who has more medals, boomie or sandstorm? | multi_step | 2 |  |  |
+| [q40](#q40) | who has raydish lost to the most in 1v1 | multi_step |  |  |  |
+| [q41](#q41) | Who has won the most 1v1 world championships? | multi_step | 2 |  |  |
+| [q42](#q42) | what was the biggest official brawlhalla tournament ever? | multi_step | 5 | yes |  |
+| [q43](#q43) | what was megd's first major win? | multi_step |  |  |  |
+| [q44](#q44) | How many times did Ahmet finish second to Godly in 2026? | multi_step |  |  |  |
+| [q45](#q45) | who has earned more money, raydish or impala? | partial |  | yes |  |
 
 <a id="q01"></a>
 
@@ -124,7 +129,12 @@ player_record · target question 2 · majors means official events · crew battl
 
 No 2v2 wins.
 
-**Notes:** "Majors" are official events (tiers are deferred), and the answer should say "official events".
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *majors are official events, and a crew battle counts as 1v1 (the decided rules):* 6: five 1v1 wins and the 2026 NA Crew Battle Championship, a team result
+- *individual titles only, the crew battle left out as a team event:* 5: the NA Summer Championship 2022, the NA Winter Championship 2023 and the Trials of Ymir, Heimdall and Laufey (2024)
+
+**Notes:** "Majors" are official events (tiers are deferred), and the answer should say "official events". A narrower meaning of "major", only the biggest events, can't be computed from the data until tiers exist.
 
 **Query 1:** official wins
 
@@ -252,12 +262,12 @@ GROUP BY a.mode ORDER BY a.mode
 
 ## q05. List the top 10 highest-earning players in Brawlhalla history.
 
-unanswerable · target question 5 · partly answerable · missing isn't zero · name the source
+partial · target question 5 · missing isn't zero · name the source
 
 
-**Candidate answer:**
+**Candidate answer** (what the data shows):
 
-Only partly: the database's career earnings come from the Stats API (as of 2026-10-02), which has figures only for players with a PR ranking, so players without one, such as Boomie, have no figure and can't be ranked. Among the 4,981 players with a figure:
+The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02):
 1. gdsandstorm, $258,984.17
 2. Zivai, $214,458.33
 3. acno?, $189,215.00
@@ -269,7 +279,9 @@ Only partly: the database's career earnings come from the Stats API (as of 2026-
 9. lFiend, $94,261.67
 10. Raydish, $83,825.00
 
-**Notes:** Phase 2 adds the Esports Earnings snapshot as the fallback for players without a Stats API figure, which will change this answer (Esports Earnings has Boomie at #2 with $210,282.67, as of 2026-10-04).
+**What's missing** (the rest of the expected answer): figures for players without a PR ranking: the Stats API has none for them, so a top earner such as Boomie may be missing from the list
+
+**Tied to eval-v1:** Phase 2 adds the Esports Earnings snapshot (2026-10-04) as the fallback for players without a Stats API figure, so unranked earners join the list: Esports Earnings has Boomie at #2 with $210,282.67.
 
 **Query 1:** the 10 highest career figures
 
@@ -373,6 +385,12 @@ player_record · target question 7 · former name · medal = top 3 · crew battl
 
 Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.
 
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *top-3 placements at official 1v1 and 2v2 events, a crew battle counting as 1v1 (the decided rules):* 27: 15 in 1v1 (2 gold, 8 silver, 5 bronze, a crew battle silver included) and 12 in 2v2 (5, 3 and 4)
+- *individual results only, the crew battle silver left out as a team result:* 26: 14 in 1v1 (2 gold, 7 silver, 5 bronze) and 12 in 2v2
+- *every official event, the side formats (Brawlball, Triples) included:* 29: the 27, plus silvers at the 2026 NA Brawlball and Triples Championships
+
 **Query 1:** medals by mode
 
 ```sql
@@ -418,7 +436,14 @@ By 1v1 set win rate against Marckiem00 at official events, among players with at
 
 V3M_T4NQUIL0 is the only one of them with a winning record.
 
-**Notes:** The minimum decides the answer, so the answer must state it. With at least 4 sets, Ahmet_ (3-1, 75%) leads; with at least 3, Ahmet_ and then Dragon! (2-1). An answer with another stated minimum is right if its ranking is right for that minimum. BBBalloonBoy has played Marckiem00 the most (4-13).
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *set win rate, at least 5 sets (the default; game win rate with the same minimum agrees):* V3M_T4NQUIL0, 3-2 (60%); then Raydish 6-7 and gdsandstorm 4-7
+- *set win rate, at least 3 or 4 sets:* Ahmet_, 3-1 (75%)
+- *set win rate, no minimum:* Snowy!!, unbeaten at 2-0; Pink | fi0h and TruckStopBurrito are unbeaten at 1-0
+- *net sets won (wins minus losses):* Ahmet_ (3-1) and Snowy!! (2-0), tied at +2
+
+**Notes:** BBBalloonBoy has played Marckiem00 the most (4-13). Raydish has beaten Marckiem00 the most (6-7), but that isn't the best record by win rate or by net wins.
 
 **Query 1:** records against Marckiem00, at least 5 sets, best win rate first
 
@@ -438,7 +463,7 @@ ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 5
 | Mounir | 79853 | 2 | 5 | 7 | 28.6 |
 | yüz | 73254 | 3 | 9 | 12 | 25.0 |
 
-**Query 2:** the same with at least 3 sets, to show how the minimum matters
+**Query 2:** set win rate, at least 3 sets
 
 ```sql
 SELECT p.name, h.wins, h.losses, h.matches
@@ -452,6 +477,37 @@ ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 3
 | Ahmet_ | 3 | 1 | 4 |
 | Dragon! | 2 | 1 | 3 |
 | V3M_T4NQUIL0 | 3 | 2 | 5 |
+
+**Query 3:** no minimum: the players Marckiem00 never beat
+
+```sql
+SELECT p.name, h.wins, h.losses
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
+WHERE h.opponent_id = 146052 AND h.losses = 0
+ORDER BY h.wins DESC, p.name
+```
+
+| name | wins | losses |
+|---|---|---|
+| Snowy!! | 2 | 0 |
+| Pink \| fi0h | 1 | 0 |
+| TruckStopBurrito | 1 | 0 |
+
+**Query 4:** net sets won
+
+```sql
+SELECT p.name, h.wins, h.losses, h.wins - h.losses AS net
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
+WHERE h.opponent_id = 146052
+ORDER BY net DESC, h.wins DESC LIMIT 4
+```
+
+| name | wins | losses | net |
+|---|---|---|---|
+| Ahmet_ | 3 | 1 | 2 |
+| Snowy!! | 2 | 0 | 2 |
+| V3M_T4NQUIL0 | 3 | 2 | 1 |
+| Dragon! | 2 | 1 | 1 |
 
 **Verified:** not yet
 
@@ -467,7 +523,11 @@ unanswerable · target question 9 · nickname · no per-tournament prize data ·
 
 The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.
 
-**Notes:** "sandstorm" is a curated nickname for gdsandstorm; eight other records have that name or had it as a former name. Phase 2 adds per-tournament payouts.
+**What's missing:** prize money per tournament: the database has only career totals
+
+**Tied to eval-v1:** Phase 2 adds per-tournament payouts, so the question gets an answer from the events with payout data, with the others named as not available.
+
+**Notes:** "sandstorm" is a curated nickname for gdsandstorm; eight other records have that name or had it as a former name.
 
 **Query 1:** gdsandstorm's career figure
 
@@ -537,6 +597,12 @@ By games lost across the run (fewest first, then fewest sets dropped, then most 
 
 The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship win is left out: its sets are crew against crew, so not comparable.
 
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *fewest games lost, then fewest sets dropped, then most games won (the decided metric); the highest game win rate and the fewest games lost per set agree:* the Trial of Laufey - North America (2024-08-25): 9-0 in sets, 25-2 in games
+- *largest game differential (games won minus games lost):* the NA Summer Championship 2022: +28 (37-9 in games over 15 sets, one dropped); the Trial of Laufey is +23
+- *most sets won without dropping one:* a three-way tie at 10-0: the Trial of Heimdall (27-7 in games), the Trial of Ymir (27-8) and the NA Winter Championship 2023 (25-7)
+
 **Query 1:** official wins ranked by dominance, crew battles left out
 
 ```sql
@@ -588,6 +654,25 @@ SELECT tournament_name, start_date FROM v_win_runs WHERE player_id = 160000 AND 
 |---|---|
 | Eternal Sports Crew Battle Championship 2026 - North America | 2026-08-30 |
 
+**Query 4:** the other metrics, per run
+
+```sql
+SELECT tournament_name, sets_played - sets_dropped AS sets_won, sets_dropped,
+       ROUND(100.0 * games_won / (games_won + games_lost), 1) AS game_win_pct,
+       games_won - games_lost AS game_differential
+FROM v_win_runs
+WHERE player_id = 160000 AND is_crew_battle = 0 AND sets_played > 0
+ORDER BY game_differential DESC
+```
+
+| tournament_name | sets_won | sets_dropped | game_win_pct | game_differential |
+|---|---|---|---|---|
+| North America - Summer Championship 2022 | 14 | 1 | 80.4 | 28 |
+| Trial of Laufey - North America (Moose Wars) | 9 | 0 | 92.6 | 23 |
+| Trial of Heimdall - North America (NSIG) | 10 | 0 | 79.4 | 20 |
+| Trial of Ymir - North America | 10 | 0 | 77.1 | 19 |
+| North America - Winter Championship 2023 | 10 | 0 | 78.1 | 18 |
+
 **Verified:** not yet
 
 <a id="q12"></a>
@@ -600,11 +685,16 @@ multi_step · target question 12 · nickname · shared name · first
 
 **Candidate answer:**
 
-flowerVS's first top 8 at an official event was 7th in 2v2 at the Summer Doubles Championship - North America (2024-07-21). The first in 1v1 came later: 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15).
+flowerVS's first 1v1 top 8 at an official event was 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15). An earlier top 8 came in 2v2: 7th at the Summer Doubles Championship - North America (2024-07-21).
 
 "flowers" is taken as flowerVS; another player, Flowers (156897), has that display name.
 
-**Notes:** "flowers'" means "flower's" (decided 2026-10-04): "flower" and "flowers" are curated nicknames for flowerVS.
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *the first top 8 in 1v1, with an earlier 2v2 one mentioned (the decided rule):* 7th at BCX 2024 (2024-11-15); earlier, in 2v2, 7th at the Summer Doubles Championship - North America (2024-07-21)
+- *the first top 8 in either mode:* 7th in 2v2 at the Summer Doubles Championship - North America (2024-07-21)
+
+**Notes:** "flowers'" means "flower's" (decided 2026-10-04): "flower" and "flowers" are curated nicknames for flowerVS. The schema proposal's rule (§8) is the first 1v1 top 8, with the 2v2 one mentioned if it came earlier.
 
 **Query 1:** the first top 8 in 1v1
 
@@ -888,9 +978,9 @@ multi_step · known event · grand final is the last set · former name
 
 **Candidate answer:**
 
-Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023, with no bracket reset. Zivai won all 8 sets at the event, losing 6 games.
+Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the winners' semi-final to luna, came through the losers' side.
 
-**Notes:** Rounds aren't stored until Phase 3, so the grand final is the winner's last set, which was against the runner-up.
+**Notes:** Checked against start.gg's bracket in the cache (2026-10-10): the Top 8 pool has one Grand Final set, Kingdom | Godly 3-0 Impala, and no Grand Final Reset. The database stores no rounds until Phase 3, so its queries find the grand final as the winner's last set, against the runner-up, and the missing reset as the winner never losing a set.
 
 **Query 1:** 1st and 2nd
 
@@ -927,6 +1017,30 @@ ORDER BY m.start_time
 | 1688918832 | SiB \| Wess | 3 | 1 | 1 |
 | 1688926278 | luna | 3 | 1 | 1 |
 | 1688930865 | Impala | 3 | 0 | 1 |
+
+**Query 3:** the runner-up's sets: a loss to luna, the losers' side, then the grand final
+
+```sql
+SELECT m.start_time, p.name AS opponent, m.games_won, m.games_lost, m.won
+FROM v_match_results m
+JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side
+JOIN players p ON p.player_id = o.player_id
+WHERE m.event_id = 'tournament/dreamhack-valencia-2023/event/brawlhalla-1v1' AND m.player_id = 168635
+ORDER BY m.start_time
+```
+
+| start_time | opponent | games_won | games_lost | won |
+|---|---|---|---|---|
+| 1688904727 | ExodiA | 3 | 0 | 1 |
+| 1688906209 | Snowb4ll | 3 | 1 | 1 |
+| 1688907586 | Mounir | 3 | 0 | 1 |
+| 1688911142 | Blaze | 3 | 0 | 1 |
+| 1688916718 | megD | 3 | 2 | 1 |
+| 1688920129 | luna | 1 | 3 | 0 |
+| 1688925355 | Sgrape | 3 | 2 | 1 |
+| 1688928635 | loreszz | 3 | 2 | 1 |
+| 1688930038 | luna | 3 | 0 | 1 |
+| 1688930865 | Zivai | 0 | 3 | 0 |
 
 **Verified:** not yet
 
@@ -1019,6 +1133,11 @@ Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at offic
 
 They never met in 2v2.
 
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *counted in sets (the default):* even, 3-3
+- *counted in games:* Zivai leads 12-9
+
 **Query 1:** the 1v1 record, from Zivai's side
 
 ```sql
@@ -1075,6 +1194,11 @@ event_result · event alias · default event · say which event
 
 Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational: luna won its 1v1 (2022-06-12), ahead of megD. If another midseason event was meant: BBBalloonBoy won the Midseason Championship 2026 1v1.
 
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *MSI is the 2022 Brawlhalla Midseason Championship (the decided default):* luna, ahead of megD
+- *MSI is the latest midseason event, the Midseason Championship 2026:* BBBalloonBoy, ahead of Marckiem00
+
 **Notes:** "msi" means the 2022 event by default (decided 2026-10-05), and the answer must say which event it used. Low Tier City Midseason Online (2020) is another midseason event someone may mean.
 
 **Query 1:** 1st and 2nd at the 1v1 event the alias names
@@ -1104,6 +1228,20 @@ SELECT DISTINCT note FROM event_aliases WHERE alias = 'msi'
 |---|
 | Default for MSI: the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational. Someone may mean another midseason event, such as the Midseason Championship 2026 or LTC Midseason Online 2020 (a Midseason Championship 2025 isn't an official event), so the answer says which one it used |
 
+**Query 3:** 1st and 2nd at the Midseason Championship 2026 1v1
+
+```sql
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'b0245d28-3355-4b87-ffac-08de8b2c5870' AND r.placement <= 2
+ORDER BY r.placement
+```
+
+| placement | name |
+|---|---|
+| 1 | BBBalloonBoy |
+| 2 | Marckiem00 |
+
 **Verified:** not yet
 
 <a id="q25"></a>
@@ -1117,6 +1255,11 @@ player_record · paraphrase · case · crew battles count as 1v1
 **Candidate answer:**
 
 6, all counted as 1v1: the NA Summer Championship 2022, the NA Winter Championship 2023, the Trials of Ymir, Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: a team result, counted as 1v1).
+
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *every official event win, a crew battle counting as 1v1 (the decided rules):* 6: five 1v1 wins and the 2026 NA Crew Battle Championship, a team result
+- *individual titles only, the crew battle left out as a team event:* 5: the NA Summer Championship 2022, the NA Winter Championship 2023 and the Trials of Ymir, Heimdall and Laufey (2024)
 
 **Same answer as:** [q02](#q02)
 
@@ -1149,6 +1292,12 @@ player_record · paraphrase · team tag · medal = top 3 · side formats
 **Candidate answer:**
 
 27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.
+
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *official 1v1 and 2v2 events, a crew battle counting as 1v1 (the decided rules):* 27: 15 in 1v1 (a crew battle second included) and 12 in 2v2
+- *individual results only, the crew battle second left out as a team result:* 26: 14 in 1v1 and 12 in 2v2
+- *every official event, the side formats (Brawlball, Triples) included:* 29: the 27, plus seconds at the 2026 NA Brawlball and Triples Championships
 
 **Same answer as:** [q07](#q07)
 
@@ -1288,6 +1437,8 @@ unanswerable · not held
 
 Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.
 
+**What's missing:** results: CEO Dreamland 2020 wasn't held
+
 **Notes:** The answer must say the event wasn't held, not that its results are missing. Mentioning the online event is a plus, not required.
 
 **Query 1:** the event's status
@@ -1323,13 +1474,15 @@ GROUP BY w.event_id ORDER BY v.start_time
 
 ## q31. Who won SEA League Week 1/4?
 
-unanswerable · placements unreliable
+partial · placements unreliable
 
 - **SEA League Week 1/4** → SEA League (Week 1/4) / Brawlhalla Singles (2017-04-22)
 
-**Candidate answer:**
+**Candidate answer** (what the data shows):
 
-The data can't say who won: start.gg's standings for SEA League (Week 1/4) (2017-04-22) are wrong, with 24 entrants placed 1st, so its placements aren't counted as results. Its matches do count, and in them TigerBrawlhalla was the only player who didn't lose a set (6-0).
+In SEA League (Week 1/4)'s matches (2017-04-22), TigerBrawlhalla was the only player who didn't lose a set: 6-0.
+
+**What's missing** (the rest of the expected answer): a reliable winner: start.gg's standings for the event are wrong, with 24 entrants placed 1st and 37 who played left out, so its placements aren't counted as results
 
 **Notes:** Naming TigerBrawlhalla as the winner outright is wrong; naming them as the bracket's only undefeated player is right.
 
@@ -1387,7 +1540,11 @@ unanswerable · no per-tournament prize data · nickname · missing isn't zero
 
 The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 (2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.
 
-**Notes:** "vem" is a curated nickname for V3M_T4NQUIL0. MAX MODE 2025's start.gg event has no structured payouts (API survey), so even Phase 2 won't have them. Its standings hold only 8 of the 1v1's 41 entrants.
+**What's missing:** prize money per tournament: the database has none
+
+**Tied to eval-v1:** Phase 2 adds prize data per event. MAX MODE 2025's start.gg event has no structured payouts (API survey), so the answer stays that it isn't available unless its split is added by hand, but the reason becomes this event's missing payouts.
+
+**Notes:** "vem" is a curated nickname for V3M_T4NQUIL0. MAX MODE 2025's standings hold only 8 of the 1v1's 41 entrants.
 
 **Query 1:** vem's results at MAX MODE 2025
 
@@ -1422,15 +1579,17 @@ ORDER BY name
 
 ## q33. how much money has boomie made from brawlhalla
 
-unanswerable · missing isn't zero · shared name
+partial · missing isn't zero · shared name
 
 - **boomie** → Boomie (146606, 147 results), by the display name; 6 other players with this name, with at most 9 results
 
-**Candidate answer:**
+**Candidate answer** (what the data shows):
 
-The database has no career earnings figure for Boomie, so it's unknown (not $0). Career figures come from the Stats API, which has them only for players with a PR ranking, and Boomie has none.
+The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.
 
-**Notes:** Phase 2's Esports Earnings fallback will have one ($210,282.67 as of 2026-10-04), which changes this answer.
+**What's missing** (the rest of the expected answer): Boomie's earnings: there's no figure, so they're unknown, not $0
+
+**Tied to eval-v1:** Phase 2's Esports Earnings fallback gives Boomie $210,282.67 (as of 2026-10-04), from a source that counts differently from the Stats API.
 
 **Query 1:** Boomie's career figure: none
 
@@ -1463,6 +1622,8 @@ unanswerable · data starts in 2017
 
 The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.
 
+**What's missing:** anything before February 2017: the data starts on 2017-02-04
+
 **Query 1:** the dates the data covers
 
 ```sql
@@ -1486,6 +1647,10 @@ unanswerable · no legend data · former name
 **Candidate answer:**
 
 The data can't say: the database has no legend (character) data. Godly is Zivai (147982).
+
+**What's missing:** legend (character) data: none in the database
+
+**Tied to eval-v1:** Phase 3 adds the legends picked in each game, where the platforms reported them (a minority of matches), so the answer becomes partial.
 
 **Notes:** An answer from general knowledge, rather than the data, is wrong here.
 
@@ -1512,6 +1677,8 @@ unanswerable · official events only · case
 **Candidate answer:**
 
 The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. ("Brawlhalla Community Tournament #2", 2025, is an official event despite its name, and Raydish didn't enter it.)
+
+**What's missing:** community tournaments: the data covers official events only
 
 **Notes:** Counting official events whose name says "Community" is wrong.
 
@@ -1550,7 +1717,12 @@ multi_step · most · crew battles count as 1v1 · both modes
 
 gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.
 
-**Notes:** Wins are counted per event: a tournament's 1v1 and 2v2 events count separately. Side formats (Triples, Brawlball, ...) aren't counted.
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *wins counted per event, a tournament's 1v1 and 2v2 separately (the default):* gdsandstorm, 48; then Boomie 44 and acno? 36
+- *wins counted per tournament, winning both of a tournament's events counting once:* Boomie, 42; then gdsandstorm 37 (who won both events at 11 tournaments) and TigerBrawlhalla 28
+
+**Notes:** Side formats (Triples, Brawlball, ...) aren't counted. Leaving out crew battles (gdsandstorm 46, Boomie 42) or counting side formats (acno? and Zivai each won a Triples event) keeps gdsandstorm first.
 
 **Query 1:** official wins per player
 
@@ -1568,6 +1740,30 @@ GROUP BY w.player_id ORDER BY wins DESC LIMIT 5
 | acno? | 144399 | 36 | 13 | 23 | 0 |
 | TigerBrawlhalla | 160768 | 34 | 26 | 8 | 0 |
 | Zivai | 147982 | 31 | 23 | 8 | 1 |
+
+**Query 2:** tournaments won per player: a start.gg tournament's events share a slug; Challengermode names each with its mode
+
+```sql
+WITH tournaments AS (
+  SELECT event_id,
+         COALESCE(sgg_tournament_slug,
+                  replace(replace(replace(replace(replace(replace(replace(tournament_name, ' - 2v2 - rerun', ''),
+                    ' - 1v1', ''), ' - 2v2', ''), ' – 1v1', ''), ' – 2v2', ''), ' 1v1', ''), ' 2v2', '')) AS tournament
+  FROM events)
+SELECT p.name, w.player_id, COUNT(DISTINCT t.tournament) AS tournaments_won, COUNT(*) AS event_wins
+FROM v_official_wins w
+JOIN tournaments t ON t.event_id = w.event_id
+JOIN players p ON p.player_id = w.player_id
+GROUP BY w.player_id ORDER BY tournaments_won DESC LIMIT 5
+```
+
+| name | player_id | tournaments_won | event_wins |
+|---|---|---|---|
+| Boomie | 146606 | 42 | 44 |
+| gdsandstorm | 74433 | 37 | 48 |
+| TigerBrawlhalla | 160768 | 28 | 34 |
+| Zivai | 147982 | 27 | 31 |
+| acno? | 144399 | 26 | 36 |
 
 **Verified:** not yet
 
@@ -1588,6 +1784,11 @@ multi_step · ranking · crew battles count as 1v1
 
 Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.
 
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *crew battle wins counted as 1v1 (the decided rule):* gdsandstorm 30, TigerBrawlhalla 26, Zivai 23, Kylar Alice 19, yüz 14
+- *crew battles left out as team events:* gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then a three-way tie for 5th at 13: acno?, whoiskyna and yüz
+
 **Query 1:** official 1v1 wins per player, crew battles included
 
 ```sql
@@ -1605,6 +1806,25 @@ GROUP BY w.player_id ORDER BY wins_1v1 DESC LIMIT 6
 | Kylar Alice | 79046 | 19 | 0 |
 | yüz | 73254 | 14 | 1 |
 | acno? | 144399 | 13 | 0 |
+
+**Query 2:** the same without crew battles
+
+```sql
+SELECT p.name, w.player_id, COUNT(*) AS wins_1v1
+FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
+WHERE w.mode = '1v1' AND w.format = 'standard'
+GROUP BY w.player_id ORDER BY wins_1v1 DESC, p.name LIMIT 7
+```
+
+| name | player_id | wins_1v1 |
+|---|---|---|
+| gdsandstorm | 74433 | 28 |
+| TigerBrawlhalla | 160768 | 26 |
+| Zivai | 147982 | 22 |
+| Kylar Alice | 79046 | 19 |
+| acno? | 144399 | 13 |
+| whoiskyna | 135748 | 13 |
+| yüz | 73254 | 13 |
 
 **Verified:** not yet
 
@@ -1624,6 +1844,11 @@ Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69
 - gdsandstorm: 1v1 30, 6 and 6 (42); 2v2 18, 4 and 5 (27)
 
 gdsandstorm has more wins (48 to 44), and Boomie more medals.
+
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *both modes (the default), or 2v2 only:* Boomie: 80 to 69 in all, 46 to 27 in 2v2
+- *1v1 only:* gdsandstorm, 42 to 34
 
 **Query 1:** medals by player and mode
 
@@ -1685,6 +1910,11 @@ multi_step · most · event alias · say what was counted
 
 gdsandstorm, with 3: 2018 (DreamHack Atlanta 2018), 2019 (DreamHack Atlanta 2019) and 2020, when the World Championship was held separately in five regions (gdsandstorm won North America's). yüz has 2 (BCX 2023 and 2024). Counting only the single worldwide championships, leaving out 2020 and 2021's regional ones, gdsandstorm and yüz tie at 2.
 
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *Worlds are the events the "worlds YYYY" aliases name, the 2020 and 2021 regional championships included (the default):* gdsandstorm, 3 (2018, 2019 and North America's 2020 championship); yüz has 2
+- *only the single worldwide championships, 2020 and 2021's regional ones left out:* gdsandstorm and yüz, tied at 2
+
 **Notes:** The 1v1 world champions by year, as the "worlds YYYY" aliases name them: 2017 ZEEKO, 2018 and 2019 gdsandstorm, 2020 and 2021 five regional winners each, 2022 Impala, 2023 and 2024 yüz, 2025 Marckiem00.
 
 **Query 1:** 1v1 wins at the events the worlds aliases name, per player
@@ -1706,6 +1936,23 @@ GROUP BY w.player_id ORDER BY titles DESC, p.name LIMIT 5
 | Dummy | 147120 | 1 | worlds 2020: Australia -  Brawlhalla World Championship 2020 |
 | Impala | 168635 | 1 | worlds 2022: Brawlhalla World Championship Expo 2022 |
 
+**Query 2:** the same without 2020 and 2021's regional championships
+
+```sql
+SELECT p.name, w.player_id, COUNT(*) AS titles
+FROM event_aliases a
+JOIN v_official_wins w ON w.event_id = a.event_id
+JOIN players p ON p.player_id = w.player_id
+WHERE a.alias LIKE 'worlds %' AND a.alias NOT IN ('worlds 2020', 'worlds 2021') AND w.mode = '1v1'
+GROUP BY w.player_id ORDER BY titles DESC, p.name LIMIT 3
+```
+
+| name | player_id | titles |
+|---|---|---|
+| gdsandstorm | 74433 | 2 |
+| yüz | 73254 | 2 |
+| Impala | 168635 | 1 |
+
 **Verified:** not yet
 
 <a id="q42"></a>
@@ -1717,9 +1964,19 @@ multi_step · most · name the metric
 
 **Candidate answer:**
 
-By entrants, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.
+By entrants in one event, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.
 
-**Notes:** Entrants are as the platform reported them (start.gg's standings total). "Biggest" could mean prize pool, which isn't in the data; the answer names its metric.
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *most entrants in one event (the default):* the North America - SteelSeries Championship 1v1 (2020-08-22): 7,240 entrants
+- *most players in one tournament, its 1v1 and 2v2 events together:* Low Tier City Midseason Online (NA), July 2020: 10,451 players; the North America - SteelSeries Championship has 8,597
+- *a series held in several regions counted as one, by entrants:* the 2020 SteelSeries Championship: 18,298 1v1 entrants in five regions (22,269 with the 2v2 teams)
+- *a series held in several regions counted as one, by players:* Low Tier City Midseason Online 2020: 22,666 players in five regions, both modes; the 2020 SteelSeries Championship has 21,358
+- *largest prize pool:* not in the data, which has no prize pools: the answer says so, and may answer by entrants instead
+
+**Tied to eval-v1:** Phase 2 adds prize pools, so the prize-pool reading gets an answer.
+
+**Notes:** Entrants are as the platform reported them (start.gg's standings total), and a 2v2 event's entrants are teams. Players are distinct people with a placement.
 
 **Query 1:** events with the most entrants
 
@@ -1733,6 +1990,55 @@ FROM v_event_coverage ORDER BY entrants_reported DESC LIMIT 3
 | North America - SteelSeries Championship | Brawlhalla Championship 1v1 | 2020-08-22 | 7240 | 7240 |
 | Low Tier City Midseason Online (NA) | Brawlhalla Championship 1v1 | 2020-07-18 | 6972 | 6972 |
 | Europe - SteelSeries Championship | Brawlhalla Championship 1v1 | 2020-08-23 | 6160 | 6160 |
+
+**Query 2:** tournaments with the most players, 1v1 and 2v2 together (tournaments grouped as in q37)
+
+```sql
+WITH tournaments AS (
+  SELECT event_id, tournament_name,
+         COALESCE(sgg_tournament_slug,
+                  replace(replace(replace(replace(replace(replace(replace(tournament_name, ' - 2v2 - rerun', ''),
+                    ' - 1v1', ''), ' - 2v2', ''), ' – 1v1', ''), ' – 2v2', ''), ' 1v1', ''), ' 2v2', '')) AS tournament
+  FROM events)
+SELECT MIN(t.tournament_name) AS tournament, COUNT(DISTINCT t.event_id) AS events,
+       COUNT(DISTINCT q.canonical_id) AS players
+FROM tournaments t
+JOIN placements pl ON pl.event_id = t.event_id
+JOIN players q ON q.player_id = pl.player_id
+GROUP BY t.tournament ORDER BY players DESC LIMIT 3
+```
+
+| tournament | events | players |
+|---|---|---|
+| Low Tier City Midseason Online (NA) | 2 | 10451 |
+| North America - SteelSeries Championship | 2 | 8597 |
+| Low Tier City Midseason Online (EU) | 2 | 7654 |
+
+**Query 3:** series held in several regions, the region taken out of the name, most players first (a series with more 1v1 entrants would have at least as many players, so it would be here too)
+
+```sql
+WITH named AS (
+  SELECT event_id, year, counts_as,
+         trim(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(tournament_name,
+           'North America - ', ''), 'Europe - ', ''), 'South America - ', ''), 'Southeast Asia - ', ''),
+           'Australia - ', ''), ' (NA)', ''), ' (EU)', ''), ' (SA)', ''), ' (SEA)', ''), ' (AUS)', ''), '  ', ' ')) AS series
+  FROM v_events)
+SELECT n.series, n.year, COUNT(*) AS events,
+       SUM(CASE WHEN n.counts_as = '1v1' THEN c.entrants_reported END) AS entrants_1v1,
+       SUM(c.entrants_reported) AS entrants,
+       (SELECT COUNT(DISTINCT q.canonical_id) FROM named m
+          JOIN placements pl ON pl.event_id = m.event_id
+          JOIN players q ON q.player_id = pl.player_id
+         WHERE m.series = n.series AND m.year = n.year) AS players
+FROM named n JOIN v_event_coverage c ON c.event_id = n.event_id
+GROUP BY n.series, n.year ORDER BY players DESC LIMIT 3
+```
+
+| series | year | events | entrants_1v1 | entrants | players |
+|---|---|---|---|---|---|
+| Low Tier City Midseason Online | 2020 | 10 | 15010 | 21378 | 22666 |
+| SteelSeries Championship | 2020 | 10 | 18298 | 22269 | 21358 |
+| Mammoth Cup | 2020 | 10 | 12706 | 15504 | 14829 |
 
 **Verified:** not yet
 
@@ -1799,16 +2105,20 @@ ORDER BY a.start_time
 
 ## q45. who has earned more money, raydish or impala?
 
-unanswerable · comparison · missing isn't zero · partly answerable
+partial · comparison · missing isn't zero
 
 - **raydish** → Raydish (160000, 98 results), by the display name
 - **impala** → Impala (168635, 48 results), by the display name; 1 other player with this name, with at most 1 result
 
-**Candidate answer:**
+**Candidate answer** (what the data shows):
 
-The data can't compare them: Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02), but the database has no figure for Impala, who has no PR ranking. Impala's earnings are unknown, not $0.
+Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).
 
-**Notes:** The API survey found $88,095 for Impala through the Stats API's search, which the database doesn't hold. Phase 2's Esports Earnings fallback has $84,730 (2026-10-04), which will change this answer; that source counts differently from the Stats API.
+**What's missing** (the rest of the expected answer): a figure for Impala, who has no PR ranking, so the Stats API has none: the two can't be compared, and Impala's earnings are unknown, not $0
+
+**Tied to eval-v1:** Phase 2's Esports Earnings fallback gives Impala $84,730 (as of 2026-10-04), from a source that counts differently from the Stats API, so the comparison becomes possible with that caveat.
+
+**Notes:** The API survey found $88,095 for Impala through the Stats API's search, which the database doesn't hold.
 
 **Query 1:** both career figures: only Raydish's exists
 
