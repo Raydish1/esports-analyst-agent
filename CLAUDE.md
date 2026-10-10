@@ -12,10 +12,15 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-07)
-**Phase 1 of the schema proposal's implementation plan (§9) is done** on branch `claude/phase-1`, ready for the user to merge into `main`.
+## Project status (2026-10-10)
+**Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
-- The live build passes every check, and it's frozen as the evaluation snapshot `eval-v1`.
+- The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
+
+**The agent phase has started** (2026-10-10), on branch `claude/agent`. First, a model comparison: one-prompt text-to-SQL on the target questions, logged in [`docs/experiments.md`](docs/experiments.md).
+- qwen3:8b with thinking and qwen3:4b each got 8 of 10, qwen3:8b in about two-thirds of the time. qwen3:8b without thinking got 2 of 10.
+- Most failures were name resolution: the model matched display names instead of using the aliases.
+- The recommendation, which the user hasn't decided yet: qwen3:8b with thinking, with names turned into IDs by a separate step before any SQL.
 
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -26,6 +31,7 @@ Planning and write-ups:
 - Build plan → [`docs/build-plan.md`](docs/build-plan.md): how the builder makes the database.
   - Contents: what the cache showed, the build order, how curation files are applied, the checks and their gates, when Phase 1 is done, support for the scheduled updater, and the order of work with each step's status.
   - Its decisions of 2026-10-05 are newer than the schema proposal where they differ.
+- Experiment log → [`docs/experiments.md`](docs/experiments.md): one entry per experiment, with its setup, results and what it decided.
 
 What's fetched, all complete. Responses are in `data/raw/cache/`, and the request log and crawl tables in `data/db/crawl.sqlite`. `python ingest/crawl.py status` shows every stage.
 - Stats API:
@@ -63,6 +69,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `views.sql` holds the 14 views the agent queries, `v_event_coverage` included:
     - each documents its counting rules inside its definition, which SQLite keeps in `sqlite_master`;
     - the build compiles every view, then runs `ANALYZE`, without which some views take minutes;
+    - the head-to-head views are fast only with a literal player ID: 0.1 s, against about 50 s when the ID comes from a lookup inside the same query (2026-10-10), so look up IDs first;
   - `checks.py` holds the checks, their gates and the verdict;
   - `report.py` writes each build's report (`data/reports/<build>/report.md`) and the review list;
   - `sources.py` lists the query versions the builder reads;
@@ -70,6 +77,9 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `schema.sql` holds the tables;
   - `names.py` holds the name normalization shared with `merge_candidates.py`;
   - `target_questions.py` is the target questions' regression check (`python ingest/target_questions.py`, optionally `--build PATH`). Its expected answers come from our own data, so it isn't the evaluation gold set. New results change some answers, and the expected ones are then updated on purpose.
+
+Evaluation (`eval/`):
+- `model_comparison.py` runs the model comparison: one prompt and one query per target question, on eval-v1. Results go to `eval/results/` and full replies to `data/experiments/`. It's exploratory, since the expected answers come from our own data.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
@@ -113,7 +123,10 @@ Decisions so far: the domain definitions below, plus these.
 - Career earnings: the Stats API figure first. For players without one, the fallback is the Esports Earnings snapshot (source `esportsearnings_manual`, as of 2026-10-04), linked to players through `player_aliases`. Each figure is stored with its source and as-of date. The Esports Earnings API is blocked (its account login isn't working).
 - Per-tournament prize money: start.gg's structured payouts; for Challengermode-era events, the prize split parsed from the tournament description, accepted automatically when it adds up to the stated total and otherwise reviewed by hand. Payouts are never estimated from a total prize pool.
 - Missing isn't zero: when an event has no payout data, or a player has no career figure, answers say so rather than counting $0.
-- API credentials live only in `.env` (see `.env.example`).
+- API credentials, and the Ollama server's address (`OLLAMA_BASE_URL`), live only in `.env` (see `.env.example`).
+- Models (2026-10-10): Ollama 0.40.2 runs on another machine, serving qwen3:4b and qwen3:8b.
+  - qwen3:4b is Qwen3-4B-Thinking-2507, which always thinks: `think: false` doesn't turn thinking off, it only moves the reasoning into the reply.
+  - qwen3:8b is the original hybrid Qwen3-8B, where thinking can be switched off.
 - Stage 6 and placements (2026-10-04; details in the schema proposal's status note, §1 and §3):
   - Matches come from event-level brackets: start.gg sets (pool by pool for the four 2020 events over start.gg's 10,000-result cap) and Challengermode matches. Not per player from the Stats API; stage 6's per-player code is dropped.
   - Placements come from start.gg standings and Challengermode entrant lists. Stats API placements are a cross-check.
@@ -149,7 +162,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's call, once `claude/phase-1` is merged:** Phase 2 (per-tournament earnings, schema proposal §9) or the agent.
+Next step: **the user's choice of model** (`docs/experiments.md`), then the agent's design, explained before it's built.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

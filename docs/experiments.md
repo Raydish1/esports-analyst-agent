@@ -1,0 +1,81 @@
+# Experiment log
+
+One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
+
+## 2026-10-10: model comparison for one-prompt text-to-SQL
+
+**Question:** which local model should the agent start from: qwen3:4b or qwen3:8b, with thinking on or off?
+
+**Exploratory, not the formal baseline.**
+- The expected answers come from our own data, through the target questions' regression check (`ingest/target_questions.py`).
+- So this compares models on the same footing, but it doesn't measure correctness against an independent gold set.
+- Ten questions, one run each.
+
+**Setup** (`eval/model_comparison.py`):
+- **Questions:** the ten target questions Phase 1 answers (1–4, 6–8 and 10–12).
+- **Prompt:** one per question, the same for every model. Its full text is in the results file.
+  - A compact description of the tables and views the questions need: aliases, players, events and nine views.
+  - The counting rules, and a pattern for turning a name into a player's ID through `player_aliases`.
+  - The question, asking for one SQLite query in a code block.
+  - No agent loop, no retries and no examples.
+- **Query:** runs on `data/db/eval/eval-v1.sqlite`, read-only, stopped after 90 s.
+- **Checking:** the result is checked against the key facts of the expected answer, in whatever shape the query returns them. For example, a count of 6 or the six wins listed both count. The checks were validated first with hand-written right and wrong queries.
+- **Models:** Ollama 0.40.2 on another machine, with each model's own sampling defaults (temperature 0.6, top_p 0.95, top_k 20). Seed 0, a 16,384-token context and an 8,192-token output cap.
+- **qwen3:4b can't turn thinking off.** It's Qwen3-4B-Thinking-2507: with `think: false` it still reasons, only in the reply itself instead of in a separate thinking field.
+
+**Results** (run `20261010T062843Z`):
+
+| Model | Thinking | Correct | Mean time (s) | Mean output tokens | Failures |
+|---|---|---|---|---|---|
+| qwen3:4b | off* | 9/10 | 35.6 | 5,642 | empty result 1 |
+| qwen3:4b | on | 8/10 | 34.2 | 5,537 | cut off at the output cap 1, empty result 1 |
+| qwen3:8b | off | 2/10 | 2.1 | 142 | empty result 5, unknown column 2, wrong answer 1 |
+| qwen3:8b | on | 8/10 | 22.2 | 2,603 | empty result 2 |
+
+Time runs from request to reply, and output tokens include the thinking.
+
+\*The two qwen3:4b rows are the same generations, token for token, since the model thinks either way.
+- On question 3, its reply hit the 8,192-token cap before its final query was complete.
+- With thinking off, the reasoning is part of the reply, so the script found a complete draft query in it, which happened to be right.
+- Counted as a failure, both rows are 8/10.
+
+| Question | qwen3:4b off | qwen3:4b on | qwen3:8b off | qwen3:8b on |
+|---|---|---|---|---|
+| 1. Boomie's last tournament | ✓ | ✓ | unknown column | ✓ |
+| 2. Raydish's majors | ✓ | ✓ | ✓ | ✓ |
+| 3. Hexo's 1v1 top 8 | ✓\* | cut off at the output cap | empty result | ✓ |
+| 4. Impala vs Balloonboy | empty result | empty result | empty result | ✓ |
+| 6. megd's 2v2 partners | ✓ | ✓ | unknown column | empty result |
+| 7. Balloonboy's medals | ✓ | ✓ | ✓ | ✓ |
+| 8. Best record against marckiemoo | ✓ | ✓ | empty result | empty result |
+| 10. BCX 2022's bracket links | ✓ | ✓ | empty result | ✓ |
+| 11. Raydish's most dominant win | ✓ | ✓ | wrong answer | ✓ |
+| 12. flowers' first top 8 | ✓ | ✓ | empty result | ✓ |
+
+**What went wrong:**
+- **Name resolution, most of all: 9 of the 13 failures.** Instead of the alias lookup the prompt showed, the query matched:
+  - a name against `players.name` ('megd', 'Balloonboy', 'flowers', 'marckiemoo', 'Hexo');
+  - or an event against `tournament_name` ('BCX').
+
+  It got nothing back, because display names differ in case or spelling: megD, BBBalloonBoy, flowerVS, Marckiem00, Hexoo. qwen3:8b without thinking did this on 5 questions, and both models did it on question 4.
+- **Columns that don't exist** (qwen3:8b without thinking, 2): `v_team_results.mode`, and a subquery's column called by the wrong name.
+- **A wrong ranking** (qwen3:8b without thinking, question 11).
+- **A reply cut off** at the output cap (qwen3:4b, question 3).
+
+**A database finding for the agent:**
+- The head-to-head views are fast with a literal player ID (0.1 s), but slow when the ID comes from a lookup inside the same query (43–50 s on their own). SQLite doesn't push such a filter into the grouped view.
+- Here, seven such queries took 75–84 s. With a 30 s limit, three correct answers would have been timeouts.
+- The agent should look up player IDs first, as a separate step, and query with the IDs.
+
+**Recommendation** (the decision is the user's): **qwen3:8b with thinking on.**
+- It matched qwen3:4b's accuracy here (8 of 10), in about two-thirds of the time and half the output tokens.
+- Both its failures were name resolution, which the agent should take out of the model's hands: a step that turns names into IDs with the alias rules, before any SQL. That step also avoids the slow head-to-head path.
+- qwen3:4b only comes with thinking, writes about 5,600 tokens per answer, and hit the 8,192-token cap once.
+- qwen3:8b without thinking is fast (2 s) but got 2 of 10 on its own. It may do better inside an agent loop with that lookup step and a chance to retry, which this didn't test.
+
+**Caveats:**
+- Ten questions, one seed each, so a difference of one question is noise.
+- The expected answers come from our own data.
+- The checks accept any shape that holds the answer's key facts.
+
+**Decision:** pending.
