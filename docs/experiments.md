@@ -69,7 +69,7 @@ Time runs from request to reply, and output tokens include the thinking.
 
 **Recommendation** (the decision is the user's): **qwen3:8b with thinking on.**
 - It matched qwen3:4b's accuracy here (8 of 10), in about two-thirds of the time and half the output tokens.
-- Both its failures were name resolution, which the agent should take out of the model's hands: a step that turns names into IDs with the alias rules, before any SQL. That step also avoids the slow head-to-head path.
+- Both its failures were name resolution, which the agent should take out of the model's hands: a step that turns names into IDs with the alias rules, before any SQL. That step also avoids the slow head-to-head path. (Only partly: see the failure analysis below.)
 - qwen3:4b only comes with thinking, writes about 5,600 tokens per answer, and hit the 8,192-token cap once.
 - qwen3:8b without thinking is fast (2 s) but got 2 of 10 on its own. It may do better inside an agent loop with that lookup step and a chance to retry, which this didn't test.
 
@@ -79,3 +79,38 @@ Time runs from request to reply, and output tokens include the thinking.
 - The checks accept any shape that holds the answer's key facts.
 
 **Decision:** pending.
+
+### Failure analysis
+
+Every query, the reruns run by run, and four example failure logs are in [`model-comparison-failures.md`](model-comparison-failures.md).
+
+**Why qwen3:8b missed questions 6 and 8**, with thinking on and off:
+- It looked the name up in `players.name`, not `player_aliases`. 'megd' misses `megD` only by case, and 'marckiemoo' is a nickname for `Marckiem00`.
+- It chose the same views as qwen3:4b.
+- On question 6 the rest of the query was right.
+- On question 8 the logic was wrong too, in both configurations, though the empty result hid it.
+  - With thinking off, it returned marckiemoo's own ID.
+  - With thinking on, it read `v_head_to_head_1v1` from both sides, which scores every opponent 0.5.
+
+**Reruns** (run `20261010T181126Z`): questions 6 and 8 again with seeds 1–5, thinking on, otherwise as above.
+
+| Question | qwen3:4b | qwen3:8b |
+|---|---|---|
+| 6. megd's 2v2 partners | 5/5 by the check, 3/5 on inspection | 3/5 |
+| 8. Best record against marckiemoo | 1/5 by the check, 4/5 correct queries | 0/5 (3/5 with the name fixed) |
+
+- qwen3:4b, question 6: two of the answers that passed list megD as their own partner, which the check missed.
+- qwen3:4b, question 8: three misses were correct queries over the 90 s limit (18–28 s when run alone), and one reply hit the output cap.
+
+**Consistent or chance:**
+- **qwen3:8b's name lookup:** chance on question 6, where it used the alias lookup in all five reruns. Consistent on question 8: `players.name` in 5 of 6 tries (seed 0 included), and no right answer in 6.
+- **A second error in both models:** both read views that hold every pairing from both sides as if they held each pairing once. qwen3:8b did it in 4 of its 12 tries at these questions, qwen3:4b in 2.
+  - The prompt doesn't say that each pairing appears twice.
+  - A step that turns names into IDs first wouldn't prevent it.
+- **Correct queries, of ten reruns each:** qwen3:4b wrote 7 and qwen3:8b 3. qwen3:8b would have written 6 with names turned into IDs first.
+- **Time:** on these two questions the models took about as long, 38.8 s and 35.0 s per reply over six seeds.
+
+**Corrections to the entry above:**
+- qwen3:8b's two failures weren't only name resolution: question 8 was also wrong logically.
+- Question 6's check passes an answer that lists the player as their own partner.
+- The correct question 8 query took anywhere from 18 s to over 90 s on this machine, so a 90 s limit isn't a reliable cutoff for it.

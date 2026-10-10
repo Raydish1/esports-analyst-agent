@@ -2,6 +2,7 @@
 
     python eval/model_comparison.py                     every configuration: each model, thinking on and off
     python eval/model_comparison.py --model qwen3:8b --think off --question 2
+    python eval/model_comparison.py --think on --question 6 --seed 1 --seed 2     the same questions, other seeds
 
 For each target question in ingest/target_questions.py, the model gets one prompt (PROMPT): a compact description
 of the tables and views it needs, the counting rules, and the question. It's asked for one SQLite query, with no
@@ -12,10 +13,12 @@ and time-limited, and its result is checked against the key facts of the regress
 It picks a model; it isn't the formal baseline, since the expected answers come from our own data.
 
 Ollama runs on another machine, at OLLAMA_BASE_URL in .env. Sampling uses each model's defaults (temperature 0.6,
-top_p 0.95, top_k 20) with a fixed seed, so a run repeats on the same server.
+top_p 0.95, top_k 20) with a fixed seed, so a run repeats on the same server. The seed is 0 unless --seed gives
+others: each question is then asked once per seed, to see how much an outcome depends on sampling.
 
-Results go to eval/results/<run>.json: one record per question and configuration, with the outcome, the query, any
-error, the time and the tokens. The replies in full, thinking included, go to data/experiments/<run>/ (git-ignored).
+Results go to eval/results/<run>.json: one record per question, configuration and seed, with the outcome, the query,
+any error, the time and the tokens. The replies in full, thinking included, go to data/experiments/<run>/
+(git-ignored).
 """
 
 import argparse
@@ -41,10 +44,12 @@ SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
 RESULTS = ROOT / "eval" / "results"
 RAW = ROOT / "data" / "experiments"
 MODELS = ["qwen3:4b", "qwen3:8b"]
-OPTIONS = {"seed": 0, "num_ctx": 16384, "num_predict": 8192}  # the models' own sampling defaults otherwise
+OPTIONS = {"num_ctx": 16384, "num_predict": 8192}  # plus the seed; the models' own sampling defaults otherwise
+SEEDS = [0]
 QUERY_SECONDS = 90  # a query running longer is stopped and counts as a timeout. The head-to-head views take about
 # 50 s when the player's ID comes from a lookup inside the same query (0.1 s with the ID itself), so a correct query
-# of that shape still finishes
+# of that shape usually finishes, but not always: its time varies, and three such queries timed out in run
+# 20261010T181126Z (docs/model-comparison-failures.md)
 REQUEST_SECONDS = 900
 MAX_ROWS = 1000
 
@@ -116,9 +121,9 @@ def ollama(path, payload=None, timeout=60):
         return json.load(response)
 
 
-def ask(model, think, question):
+def ask(model, think, question, seed):
     """One request: (reply text, thinking, the server's figures, seconds from request to reply)."""
-    payload = {"model": model, "stream": False, "think": think, "options": OPTIONS,
+    payload = {"model": model, "stream": False, "think": think, "options": {**OPTIONS, "seed": seed},
                "messages": [{"role": "user", "content": PROMPT.format(question=question)}]}
     begun = time.monotonic()
     reply = ollama("/api/chat", payload, timeout=REQUEST_SECONDS)
@@ -293,6 +298,21 @@ def table(summary):
     return "\n".join(lines)
 
 
+def question_table(records):
+    """Per question and configuration: how many of the seeds got it right."""
+    configs = list(dict.fromkeys((r["model"], r["think"]) for r in records))
+    counts = Counter()
+    for r in records:
+        counts[r["question"], r["model"], r["think"], "n"] += 1
+        counts[r["question"], r["model"], r["think"], "correct"] += r["correct"]
+    lines = ["| Question | " + " | ".join(f"{model} {'on' if think else 'off'}" for model, think in configs) + " |",
+             "|---|" + "---|" * len(configs)]
+    for number in dict.fromkeys(r["question"] for r in records):
+        lines.append(f"| {number} | " + " | ".join(f"{counts[number, m, t, 'correct']}/{counts[number, m, t, 'n']}"
+                                                  for m, t in configs) + " |")
+    return "\n".join(lines)
+
+
 def main():
     sys.stdout.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(description="Compare models on one-prompt text-to-SQL for the target questions"
@@ -300,11 +320,13 @@ def main():
     parser.add_argument("--model", action="append", help=f"a model (repeatable; default: {', '.join(MODELS)})")
     parser.add_argument("--think", action="append", choices=["off", "on"], help="thinking off or on (default: both)")
     parser.add_argument("--question", action="append", type=int, help="a question number (default: all ten)")
+    parser.add_argument("--seed", action="append", type=int, help="a sampling seed (repeatable; default: 0)")
     parser.add_argument("--results", metavar="DIR", default=str(RESULTS), help="where the results go (default: eval/results)")
     args = parser.parse_args()
     load_env()
     models, thinks = args.model or MODELS, [t == "on" for t in (args.think or ["off", "on"])]
     questions = [q for q in QUESTIONS if not args.question or q[0] in args.question]
+    seeds = args.seed or SEEDS
     run = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     snapshot = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     build = dict(snapshot.execute("SELECT key, value FROM build_info WHERE key IN ('build_id', 'code_commit')"))
@@ -318,40 +340,41 @@ def main():
         variants[model] = " ".join(str(info.get(k)) for k in ("general.basename", "general.size_label",
                                                                "general.finetune", "general.version") if info.get(k))
     print(f"Run {run}: Ollama {server}; snapshot {SNAPSHOT.name} (build {build.get('build_id')});"
-          f" {len(questions)} questions; models {variants}")
+          f" {len(questions)} questions; seeds {seeds}; models {variants}")
     records, raw = [], []
     for model in models:
         ollama("/api/generate", {"model": model, "prompt": "", "keep_alive": "10m"}, timeout=REQUEST_SECONDS)  # load it
         for think in thinks:
             for number, question, _, expected in questions:
-                record = {"model": model, "variant": variants[model], "think": think, "question": number,
-                          "text": question}
-                try:
-                    reply, thinking, figures, seconds = ask(model, think, question)
-                except (urllib.error.URLError, TimeoutError) as e:
-                    reply, thinking, figures, seconds = "", "", {}, float(REQUEST_SECONDS)
-                    record["request_error"] = str(e)
-                sql = extract_sql(reply)
-                rows, columns, error, query_seconds = run_query(sql) if sql else (None, None, None, 0.0)
-                correct = rows is not None and CHECKS[number](rows, expected, ids)
-                record.update(correct=correct, sql=sql,
-                              failure=None if correct else failure(sql, rows, error, figures.get("done_reason")),
-                              error=error, columns=columns, rows=len(rows) if rows is not None else None,
-                              result=preview(rows), model_seconds=round(seconds, 2),
-                              query_seconds=round(query_seconds, 3), prompt_tokens=figures.get("prompt_eval_count"),
-                              output_tokens=figures.get("eval_count"), thinking_chars=len(thinking),
-                              reply_chars=len(reply), done_reason=figures.get("done_reason"))
-                records.append(record)
-                raw.append({"model": model, "think": think, "question": number, "reply": reply, "thinking": thinking,
-                            "figures": figures})
-                print(f"  {model} thinking {'on ' if think else 'off'} Q{number:>2}: {'correct' if correct else record['failure']}"
-                      f" ({seconds:.1f} s, {record['output_tokens']} tokens)")
+                for seed in seeds:
+                    record = {"model": model, "variant": variants[model], "think": think, "question": number,
+                              "seed": seed, "text": question}
+                    try:
+                        reply, thinking, figures, seconds = ask(model, think, question, seed)
+                    except (urllib.error.URLError, TimeoutError) as e:
+                        reply, thinking, figures, seconds = "", "", {}, float(REQUEST_SECONDS)
+                        record["request_error"] = str(e)
+                    sql = extract_sql(reply)
+                    rows, columns, error, query_seconds = run_query(sql) if sql else (None, None, None, 0.0)
+                    correct = rows is not None and CHECKS[number](rows, expected, ids)
+                    record.update(correct=correct, sql=sql,
+                                  failure=None if correct else failure(sql, rows, error, figures.get("done_reason")),
+                                  error=error, columns=columns, rows=len(rows) if rows is not None else None,
+                                  result=preview(rows), model_seconds=round(seconds, 2),
+                                  query_seconds=round(query_seconds, 3), prompt_tokens=figures.get("prompt_eval_count"),
+                                  output_tokens=figures.get("eval_count"), thinking_chars=len(thinking),
+                                  reply_chars=len(reply), done_reason=figures.get("done_reason"))
+                    records.append(record)
+                    raw.append({"model": model, "think": think, "question": number, "seed": seed, "reply": reply,
+                                "thinking": thinking, "figures": figures})
+                    print(f"  {model} thinking {'on ' if think else 'off'} Q{number:>2} seed {seed}:"
+                          f" {'correct' if correct else record['failure']} ({seconds:.1f} s, {record['output_tokens']} tokens)")
     results = Path(args.results)
     results.mkdir(parents=True, exist_ok=True)
     out = results / f"{run}-model-comparison.json"
     out.write_text(json.dumps({
         "run": run, "kind": "exploratory model comparison (expected answers from our own data; not the formal baseline)",
-        "ollama": server, "models": variants, "options": OPTIONS, "query_seconds": QUERY_SECONDS,
+        "ollama": server, "models": variants, "options": OPTIONS, "seeds": seeds, "query_seconds": QUERY_SECONDS,
         "snapshot": {"file": str(SNAPSHOT.relative_to(ROOT).as_posix()), **build},
         "prompt_sha256": hashlib.sha256(PROMPT.encode("utf-8")).hexdigest()[:16], "prompt": PROMPT,
         "records": records}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -361,6 +384,8 @@ def main():
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
     print(f"\nResults: {out}; replies in full: data/experiments/{run}/replies.jsonl\n")
     print(table(summarize(records)))
+    if len(seeds) > 1:
+        print("\n" + question_table(records))
 
 
 if __name__ == "__main__":
