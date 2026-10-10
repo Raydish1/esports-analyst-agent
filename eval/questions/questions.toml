@@ -1,0 +1,1343 @@
+# The evaluation set, v1: questions a user would ask, with candidate answers computed from the frozen snapshot
+# eval-v1. Review them in review.md, which `python eval/review_questions.py` makes from this file with each query's
+# result; edit this file, never review.md.
+#
+# Each question has:
+#   id              q01, q02, ...: stable, never reused.
+#   question        as a user would type it.
+#   category        player_record  one player's results (wins, medals, top 8s, last event, partners)
+#                   event_result   one event's results (winner, top 8, bracket link)
+#                   head_to_head   records between players
+#                   multi_step     comparisons, firsts, mosts and rankings: several steps, or an aggregate
+#                   unanswerable   the data can't answer it, or only partly: the expected answer says what isn't
+#                                  available, and why
+#   tests           what the question exercises: its source (target question N, known event), how a name is
+#                   written (nickname, former name, case, misspelling, team tag, shared name), event aliases and
+#                   terms, paraphrases, and the counting rules involved.
+#   players         each name in the question and the player (canonical ID) it means.
+#   events          each event name in the question and the event IDs it means.
+#   same_answer_as  for a paraphrase: the question it must answer the same way.
+#   answer          the candidate answer, written from the queries' results, as the agent should give it (the
+#                   answer rules in docs/schema-proposal.md §8: say "official events", name the player and the
+#                   metric, missing isn't zero).
+#   notes           what a verifier should know: acceptable variants, caveats, things worth checking.
+#   query           the SQL behind the answer, one or more queries, each with its purpose. Players are looked up
+#                   first and queried by ID, as the agent will (the head-to-head views are slow otherwise).
+#   verified        filled in by the person verifying: "" until checked, then "yes", or "no: ..." / "partly: ..."
+#                   with what's right.
+
+snapshot = "data/db/eval/eval-v1.sqlite"
+build = "20261007T230135Z"
+
+# Target questions (docs/schema-proposal.md §8)
+
+[[question]]
+id = "q01"
+question = "What was the last tournament Boomie entered?"
+category = "player_record"
+tests = ["target question 1", "shared name", "last event entered"]
+players = { Boomie = 146606 }
+answer = """
+Boomie last entered an official event on 2024-03-10: the Winter Doubles Championship - North America (2v2), \
+placing 2nd. Boomie's last 1v1 event was the Brawlhalla World Championship Expo 2023 (BCX 2023, 2023-11-03), 49th.
+"""
+notes = """
+The newest event is 2v2, not a side format, so the newest 1v1 event is extra: answer rule 2 asks for it only after a \
+side format.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the newest official event entered, side formats included"
+sql = '''
+SELECT start_date, tournament_name, event_name, mode, format, placement
+FROM v_entries WHERE player_id = 146606
+ORDER BY start_time DESC LIMIT 1
+'''
+
+[[question.query]]
+purpose = "the newest 1v1 event"
+sql = '''
+SELECT start_date, tournament_name, event_name, mode, placement
+FROM v_entries WHERE player_id = 146606 AND mode = '1v1'
+ORDER BY start_time DESC LIMIT 1
+'''
+
+[[question]]
+id = "q02"
+question = "How many majors has Raydish won?"
+category = "player_record"
+tests = ["target question 2", "majors means official events", "crew battles count as 1v1"]
+players = { Raydish = 160000 }
+answer = """
+6 official event wins, all counted as 1v1:
+- North America - Summer Championship 2022 (2022-07-31)
+- North America - Winter Championship 2023 (2023-02-05)
+- Trial of Ymir - North America (2024-02-18)
+- Trial of Heimdall - North America (NSIG) (2024-07-14)
+- Trial of Laufey - North America (Moose Wars) (2024-08-25)
+- Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted \
+as 1v1
+
+No 2v2 wins.
+"""
+notes = """
+"Majors" are official events (tiers are deferred), and the answer should say "official events".
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins"
+sql = '''
+SELECT start_date, tournament_name, event_name, mode, format
+FROM v_official_wins WHERE player_id = 160000
+ORDER BY start_time
+'''
+
+[[question]]
+id = "q03"
+question = "Has Hexo ever placed top 8 in 1v1?"
+category = "player_record"
+tests = ["target question 3", "nickname", "official events only"]
+players = { Hexo = 169084 }
+answer = """
+Yes, once at an official event: Hexoo placed 5th at Brawlhalla Community Tournament #2 (2025-09-28). Community \
+events aren't in the data, so top 8s there aren't counted.
+"""
+notes = """
+"Hexo" is a curated nickname for Hexoo. The API survey's "8 times" counted community events. Brawlhalla Community \
+Tournament #2 is an official event despite its name.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1v1 top 8s at official events"
+sql = '''
+SELECT start_date, tournament_name, event_name, placement
+FROM v_results WHERE player_id = 169084 AND mode = '1v1' AND placement <= 8
+ORDER BY start_time
+'''
+
+[[question]]
+id = "q04"
+question = "What does Impala vs Balloonboy's history look like?"
+category = "head_to_head"
+tests = ["target question 4", "former name", "shared name", "no-contests left out"]
+players = { Impala = 168635, Balloonboy = 149305 }
+answer = """
+Impala leads BBBalloonBoy 2-1 in 1v1 sets at official events (8-4 in games), DQs and forfeits left out:
+- Trial of Frigg - North America (Moose Wars), 2024-03-17: Impala won 3-0
+- Trial of Skuld - North America, 2024-08-04: Impala won 3-1
+- Brawlhalla World Championship Expo 2024 (BCX 2024), 2024-11-15: BBBalloonBoy won 3-2
+
+They never met in 2v2. Both placed at 23 of the same official 1v1 events and 3 of the same 2v2 events.
+"""
+notes = """
+"Balloonboy" is a former name of BBBalloonBoy (LGN | BalloonBoy). Another record named Impala has one result. q27 \
+asks the same from BBBalloonBoy's side.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the 1v1 record, from Impala's side"
+sql = '''
+SELECT wins, losses, matches, games_won, games_lost, unscored_matches
+FROM v_head_to_head_1v1 WHERE player_id = 168635 AND opponent_id = 149305
+'''
+
+[[question.query]]
+purpose = "the sets, from Impala's side"
+sql = '''
+SELECT a.start_date, v.tournament_name, a.games_won, a.games_lost
+FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+JOIN v_events v ON v.event_id = a.event_id
+WHERE a.player_id = 168635 AND b.player_id = 149305 AND a.mode = '1v1' AND a.side_players = 1
+ORDER BY a.start_time
+'''
+
+[[question.query]]
+purpose = "2v2 meetings"
+sql = '''
+SELECT COUNT(*) AS meetings FROM v_head_to_head_2v2
+WHERE player_id = 168635 AND 149305 IN (opponent1_id, opponent2_id)
+'''
+
+[[question.query]]
+purpose = "official events both placed at, by mode"
+sql = '''
+SELECT a.mode, COUNT(*) AS events
+FROM v_results a JOIN v_results b ON b.event_id = a.event_id
+WHERE a.player_id = 168635 AND b.player_id = 149305
+GROUP BY a.mode ORDER BY a.mode
+'''
+
+[[question]]
+id = "q05"
+question = "List the top 10 highest-earning players in Brawlhalla history."
+category = "unanswerable"
+tests = ["target question 5", "partly answerable", "missing isn't zero", "name the source"]
+answer = """
+Only partly: the database's career earnings come from the Stats API (as of 2026-10-02), which has figures only for \
+players with a PR ranking, so players without one, such as Boomie, have no figure and can't be ranked. Among the \
+4,981 players with a figure:
+1. gdsandstorm, $258,984.17
+2. Zivai, $214,458.33
+3. acno?, $189,215.00
+4. whoiskyna, $161,110.00
+5. SiB | Wess, $131,481.67
+6. yüz, $131,421.67
+7. Blaze, $120,207.83
+8. loreszz, $102,600.00
+9. lFiend, $94,261.67
+10. Raydish, $83,825.00
+"""
+notes = """
+Phase 2 adds the Esports Earnings snapshot as the fallback for players without a Stats API figure, which will change \
+this answer (Esports Earnings has Boomie at #2 with $210,282.67, as of 2026-10-04).
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the 10 highest career figures"
+sql = '''
+SELECT name, earnings_usd, source, as_of
+FROM v_career_earnings ORDER BY earnings_usd DESC LIMIT 10
+'''
+
+[[question.query]]
+purpose = "how many players have a figure, and where from"
+sql = '''
+SELECT source, COUNT(*) AS players, MIN(as_of) AS as_of
+FROM v_career_earnings GROUP BY source
+'''
+
+[[question]]
+id = "q06"
+question = "Who has megd played with in 2v2 tournaments, and how did they place?"
+category = "player_record"
+tests = ["target question 6", "case", "merged records"]
+players = { megd = 142100 }
+answer = """
+megD has had 17 partners at official 2v2 events. The most frequent:
+- Raydish: 20 events, best 2nd
+- hardymj: 4 events, best 9th
+- Winged_Shell: 3 events, best 17th
+- bestjava and buko pandan: 2 events each, best 5th
+- Walshy and Moni-: 2 events each, best 7th
+- JuicyDiaper: 2 events, best 25th
+
+and nine more with one event each: Snowy!! (7th), Anon Alex, Cody Travis and flowerVS (9th), Ultra and warmsink26 \
+(13th), wubz (17th), iLLu and .kira (25th).
+"""
+notes = """
+hardymj's two records (a start.gg one and a Challengermode one) are one person through player_merges, so hardymj \
+counts once. megD never appears as their own partner.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "partners at official 2v2 events, with events together and best placement"
+sql = '''
+SELECT p.name AS partner, t.partner_id, COUNT(*) AS events, MIN(t.placement) AS best_placement
+FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
+WHERE t.player_id = 142100
+GROUP BY t.partner_id ORDER BY events DESC, best_placement, partner
+'''
+
+[[question]]
+id = "q07"
+question = "How many medals does Balloonboy have?"
+category = "player_record"
+tests = ["target question 7", "former name", "medal = top 3", "crew battles count as 1v1", "side formats"]
+players = { Balloonboy = 149305 }
+answer = """
+27 medals (top-3 placements at official events) for BBBalloonBoy:
+- 1v1: 2 gold, 8 silver, 5 bronze (15), including a crew battle silver, a team result
+- 2v2: 5 gold, 3 silver, 4 bronze (12)
+
+Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "medals by mode"
+sql = '''
+SELECT mode, gold, silver, bronze, medals
+FROM v_player_medals WHERE player_id = 149305 ORDER BY mode
+'''
+
+[[question.query]]
+purpose = "top-3 placements in side formats and crew battles"
+sql = '''
+SELECT start_date, tournament_name, format, mode, placement
+FROM v_entries WHERE player_id = 149305 AND format <> 'standard' AND placement <= 3
+ORDER BY start_time
+'''
+
+[[question]]
+id = "q08"
+question = "Who has the best record against marckiemoo?"
+category = "head_to_head"
+tests = ["target question 8", "nickname", "name the metric", "ranking", "no-contests left out"]
+players = { marckiemoo = 146052 }
+answer = """
+By 1v1 set win rate against Marckiem00 at official events, among players with at least 5 sets against them (DQs \
+and forfeits left out):
+1. V3M_T4NQUIL0: 3-2 (60%)
+2. Raydish: 6-7 (46%)
+3. gdsandstorm: 4-7 (36%)
+
+V3M_T4NQUIL0 is the only one of them with a winning record.
+"""
+notes = """
+The minimum decides the answer, so the answer must state it. With at least 4 sets, Ahmet_ (3-1, 75%) leads; with at \
+least 3, Ahmet_ and then Dragon! (2-1). An answer with another stated minimum is right if its ranking is right for \
+that minimum. BBBalloonBoy has played Marckiem00 the most (4-13).
+"""
+verified = ""
+
+[[question.query]]
+purpose = "records against Marckiem00, at least 5 sets, best win rate first"
+sql = '''
+SELECT p.name, h.player_id, h.wins, h.losses, h.matches,
+       ROUND(100.0 * h.wins / h.matches, 1) AS win_pct
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
+WHERE h.opponent_id = 146052 AND h.matches >= 5
+ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 5
+'''
+
+[[question.query]]
+purpose = "the same with at least 3 sets, to show how the minimum matters"
+sql = '''
+SELECT p.name, h.wins, h.losses, h.matches
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
+WHERE h.opponent_id = 146052 AND h.matches >= 3
+ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 3
+'''
+
+[[question]]
+id = "q09"
+question = "What tournament did sandstorm make the most money from?"
+category = "unanswerable"
+tests = ["target question 9", "nickname", "no per-tournament prize data", "missing isn't zero"]
+players = { sandstorm = 74433 }
+answer = """
+The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career \
+earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as \
+gdsandstorm's 48 official wins) don't tell how much each paid.
+"""
+notes = """
+"sandstorm" is a curated nickname for gdsandstorm; eight other records have that name or had it as a former name. \
+Phase 2 adds per-tournament payouts.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "gdsandstorm's career figure"
+sql = '''
+SELECT name, earnings_usd, source, as_of FROM v_career_earnings WHERE player_id = 74433
+'''
+
+[[question.query]]
+purpose = "tables and views about money: career figures only, nothing per tournament"
+sql = '''
+SELECT type, name FROM sqlite_master
+WHERE type IN ('table', 'view') AND (name LIKE '%prize%' OR name LIKE '%payout%' OR name LIKE '%earning%')
+ORDER BY name
+'''
+
+[[question]]
+id = "q10"
+question = "Give me the bracket link of BCX 2022."
+category = "event_result"
+tests = ["target question 10", "event alias"]
+events = { "BCX 2022" = ["tournament/brawlhalla-world-championship-expo-2022/event/1v1", "tournament/brawlhalla-world-championship-expo-2022/event/2v2"] }
+answer = """
+BCX 2022 is the Brawlhalla World Championship Expo 2022 (2022-11-04), with two events:
+- 1v1: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets
+- 2v2: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the events the alias names, with their links"
+sql = '''
+SELECT v.tournament_name, v.event_name, v.start_date, v.bracket_url
+FROM event_aliases a JOIN v_events v USING (event_id)
+WHERE a.alias = 'bcx 2022' ORDER BY v.bracket_url
+'''
+
+[[question]]
+id = "q11"
+question = "What is Raydish's most dominant tournament win?"
+category = "multi_step"
+tests = ["target question 11", "ranking", "name the metric", "crew battles left out of dominance"]
+players = { Raydish = 160000 }
+answer = """
+By games lost across the run (fewest first, then fewest sets dropped, then most games won): the Trial of Laufey - \
+North America (Moose Wars) (2024-08-25), where Raydish won all 9 sets, 25 games to 2: two 2-0s, then 3-0, 3-1, \
+3-0, 3-0, 3-0 (Bunny meow), 3-0 and 3-1 (both against BBBalloonBoy).
+
+The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of \
+Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship \
+win is left out: its sets are crew against crew, so not comparable.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins ranked by dominance, crew battles left out"
+sql = '''
+SELECT tournament_name, start_date, sets_played, sets_dropped, games_won, games_lost, unscored_sets, no_contests
+FROM v_win_runs
+WHERE player_id = 160000 AND is_crew_battle = 0 AND sets_played > 0
+ORDER BY unscored_sets > 0, games_lost, sets_dropped, games_won DESC
+'''
+
+[[question.query]]
+purpose = "the top run's sets"
+sql = '''
+SELECT m.start_time, p.name AS opponent, m.games_won, m.games_lost
+FROM v_match_results m
+JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side
+JOIN players p ON p.player_id = o.player_id
+WHERE m.player_id = 160000
+  AND m.competition_key = 'tournament/trial-of-laufey-north-america-moose-wars/event/brawlhalla-1v1'
+ORDER BY m.start_time
+'''
+
+[[question.query]]
+purpose = "crew battle wins, left out"
+sql = '''
+SELECT tournament_name, start_date FROM v_win_runs WHERE player_id = 160000 AND is_crew_battle = 1
+'''
+
+[[question]]
+id = "q12"
+question = "What was flowers' first top 8?"
+category = "multi_step"
+tests = ["target question 12", "nickname", "shared name", "first"]
+players = { flowers = 169119 }
+answer = """
+flowerVS's first top 8 at an official event was 7th in 2v2 at the Summer Doubles Championship - North America \
+(2024-07-21). The first in 1v1 came later: 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15).
+
+"flowers" is taken as flowerVS; another player, Flowers (156897), has that display name.
+"""
+notes = """
+"flowers'" means "flower's" (decided 2026-10-04): "flower" and "flowers" are curated nicknames for flowerVS.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the first top 8 in 1v1"
+sql = '''
+SELECT mode, start_date, tournament_name, event_name, placement
+FROM v_results WHERE player_id = 169119 AND mode = '1v1' AND placement <= 8
+ORDER BY start_time LIMIT 1
+'''
+
+[[question.query]]
+purpose = "the first top 8 in 2v2"
+sql = '''
+SELECT mode, start_date, tournament_name, event_name, placement
+FROM v_results WHERE player_id = 169119 AND mode = '2v2' AND placement <= 8
+ORDER BY start_time LIMIT 1
+'''
+
+# Questions built from curation/known_events.csv
+
+[[question]]
+id = "q13"
+question = "who won winters 2023 na 1v1"
+category = "event_result"
+tests = ["known event", "event term"]
+events = { "winters 2023 na 1v1" = "tournament/north-america-winter-championship-2023/event/brawlhalla-championship-1v1" }
+answer = """
+Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.
+"""
+notes = """
+"winters" means the seasonal Winter Championship (event_terms), not the Winter Royale.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd"
+sql = '''
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'tournament/north-america-winter-championship-2023/event/brawlhalla-championship-1v1'
+  AND r.placement <= 2
+ORDER BY r.placement
+'''
+
+[[question]]
+id = "q14"
+question = "Who made top 8 at Trial of Laufey NA?"
+category = "event_result"
+tests = ["known event", "event term", "tied placements"]
+events = { "Trial of Laufey NA" = "tournament/trial-of-laufey-north-america-moose-wars/event/brawlhalla-1v1" }
+answer = """
+Trial of Laufey - North America (Moose Wars), 1v1, 2024-08-25:
+- 1st: Raydish
+- 2nd: BBBalloonBoy
+- 3rd: Marckiem00
+- 4th: gdsandstorm
+- 5th: Bunny meow and wrenchd
+- 7th: STING RAY and antireplay
+"""
+notes = """
+Double elimination: 5th and 7th are shared.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the top 8"
+sql = '''
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'tournament/trial-of-laufey-north-america-moose-wars/event/brawlhalla-1v1'
+  AND r.placement <= 8
+ORDER BY r.placement, p.name
+'''
+
+[[question]]
+id = "q15"
+question = "did godly win eu summers 2026"
+category = "event_result"
+tests = ["known event", "former name", "shared name", "event term", "both modes"]
+players = { godly = 147982 }
+events = { "eu summers 2026" = ["44268709-24b7-405c-6d14-08dea8b61f65", "eb136372-9608-404d-e246-08deac38d3d7"] }
+answer = """
+Yes, both events. Zivai (formerly Kingdom | Godly) won the Summer Championship - Europe 2026 - 1v1 (2026-07-18), \
+ahead of Ahmet_, and the 2v2 (2026-07-25) with bamya, ahead of acno? and Blaze.
+"""
+notes = """
+"Godly" is a former name of Zivai; three other records are named Godly, with 5 results or fewer. The known event is \
+the 1v1; the 2v2 is the same tournament's other event.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd in both events"
+sql = '''
+SELECT v.tournament_name, v.start_date, r.placement, GROUP_CONCAT(p.name, ' / ') AS players
+FROM v_results r
+JOIN players p ON p.player_id = r.player_id
+JOIN v_events v ON v.event_id = r.event_id
+WHERE r.event_id IN ('44268709-24b7-405c-6d14-08dea8b61f65', 'eb136372-9608-404d-e246-08deac38d3d7')
+  AND r.placement <= 2
+GROUP BY r.event_id, r.placement, COALESCE(r.team_id, r.player_id)
+ORDER BY v.start_time, r.placement
+'''
+
+[[question]]
+id = "q16"
+question = "who won sa 2v2 springs 2026"
+category = "event_result"
+tests = ["known event", "event term", "2v2"]
+events = { "sa 2v2 springs 2026" = "9ea32cbc-e2b0-4039-d80c-08de6a223b1e" }
+answer = """
+SiB | Wess and V3M_T4NQUIL0 (vem) won the Spring Championship - South America 2026 - 2v2 (2026-05-02), ahead of \
+loreszz and whoiskyna.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd"
+sql = '''
+SELECT r.placement, GROUP_CONCAT(p.name, ' / ') AS team
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = '9ea32cbc-e2b0-4039-d80c-08de6a223b1e' AND r.placement <= 2
+GROUP BY r.placement, r.team_id
+ORDER BY r.placement
+'''
+
+[[question]]
+id = "q17"
+question = "top 8 at bcx 2025 1v1?"
+category = "event_result"
+tests = ["known event", "event alias", "tied placements"]
+events = { "bcx 2025 1v1" = "c979b223-7428-4534-97f9-08dd8e232c2e" }
+answer = """
+Brawlhalla World Championship Expo 2025 - 1v1 (2025-11-22):
+- 1st: Marckiem00
+- 2nd: BBBalloonBoy
+- 3rd: Raydish
+- 4th: STING RAY
+- 5th: V3M_T4NQUIL0 and Zivai
+- 7th: Mounir and yüz
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the top 8"
+sql = '''
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'c979b223-7428-4534-97f9-08dd8e232c2e' AND r.placement <= 8
+ORDER BY r.placement, p.name
+'''
+
+[[question]]
+id = "q18"
+question = "who won 2v2 at autumns 2023 NA?"
+category = "event_result"
+tests = ["known event", "event term", "2v2"]
+events = { "autumns 2023 NA" = "tournament/north-america-autumn-championship-2023/event/brawlhalla-championship-2v2" }
+answer = """
+bestjava and fakey7 won the North America - Autumn Championship 2023 2v2 (2023-10-01); megD and Raydish were 2nd.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd"
+sql = '''
+SELECT r.placement, GROUP_CONCAT(p.name, ' / ') AS team
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'tournament/north-america-autumn-championship-2023/event/brawlhalla-championship-2v2'
+  AND r.placement <= 2
+GROUP BY r.placement, r.team_id
+ORDER BY r.placement
+'''
+
+[[question]]
+id = "q19"
+question = "Who won the Midseason Championship 2026?"
+category = "event_result"
+tests = ["known event", "both modes", "not the msi default"]
+events = { "Midseason Championship 2026" = ["b0245d28-3355-4b87-ffac-08de8b2c5870", "658feb16-e07e-403f-c375-08de8b2c6a40"] }
+answer = """
+BBBalloonBoy won both events (2026-06-12): the 1v1, ahead of Marckiem00, and the 2v2 with Mounir, ahead of loreszz \
+and whoiskyna.
+"""
+notes = """
+The year rules out "MSI", whose default is the 2022 Brawlhalla Midseason Championship.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd in both events"
+sql = '''
+SELECT v.tournament_name, r.placement, GROUP_CONCAT(p.name, ' / ') AS players
+FROM v_results r
+JOIN players p ON p.player_id = r.player_id
+JOIN v_events v ON v.event_id = r.event_id
+WHERE r.event_id IN ('b0245d28-3355-4b87-ffac-08de8b2c5870', '658feb16-e07e-403f-c375-08de8b2c6a40')
+  AND r.placement <= 2
+GROUP BY r.event_id, r.placement, COALESCE(r.team_id, r.player_id)
+ORDER BY v.counts_as, r.placement
+'''
+
+[[question]]
+id = "q20"
+question = "what was the score of the 1v1 grand final at dreamhack valencia 2023"
+category = "multi_step"
+tests = ["known event", "grand final is the last set", "former name"]
+events = { "dreamhack valencia 2023" = "tournament/dreamhack-valencia-2023/event/brawlhalla-1v1" }
+answer = """
+Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023, with no bracket reset. \
+Zivai won all 8 sets at the event, losing 6 games.
+"""
+notes = """
+Rounds aren't stored until Phase 3, so the grand final is the winner's last set, which was against the runner-up.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd"
+sql = '''
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'tournament/dreamhack-valencia-2023/event/brawlhalla-1v1' AND r.placement <= 2
+ORDER BY r.placement
+'''
+
+[[question.query]]
+purpose = "the winner's sets, in order: the last is the grand final"
+sql = '''
+SELECT m.start_time, p.name AS opponent, m.games_won, m.games_lost, m.won
+FROM v_match_results m
+JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side
+JOIN players p ON p.player_id = o.player_id
+WHERE m.event_id = 'tournament/dreamhack-valencia-2023/event/brawlhalla-1v1' AND m.player_id = 147982
+ORDER BY m.start_time
+'''
+
+# Names and events written casually
+
+[[question]]
+id = "q21"
+question = "how many official events has baloonboy won?"
+category = "player_record"
+tests = ["misspelling"]
+players = { baloonboy = 149305 }
+answer = """
+BBBalloonBoy has won 7 official events: 5 in 2v2 and 2 in 1v1.
+- 2v2: Autumn Doubles Championship - North America (2024-10-06), Winter Championship - North America 2025 \
+(2025-03-02), Winter Championship - North America 2026 (2026-03-01), Midseason Championship 2026 (2026-06-12), \
+Summer Championship - North America 2026 (2026-07-26)
+- 1v1: Midseason Championship 2026 (2026-06-12), Autumn Championship - North America 2026 (2026-09-20)
+"""
+notes = """
+No alias matches "baloonboy": the agent has to find BBBalloonBoy by a close match (Balloonboy) and say which player \
+it used.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins"
+sql = '''
+SELECT start_date, tournament_name, mode, format
+FROM v_official_wins WHERE player_id = 149305 ORDER BY start_time
+'''
+
+[[question]]
+id = "q22"
+question = "did markiemoo ever win worlds"
+category = "player_record"
+tests = ["misspelling", "event alias"]
+players = { markiemoo = 146052 }
+answer = """
+Yes: Marckiem00 won the 1v1 at the Brawlhalla World Championship Expo 2025 (worlds 2025, 2025-11-22), ahead of \
+BBBalloonBoy. Marckiem00's other world championship results: 7th in the 2025 2v2, and 3rd in both the 1v1 and the \
+2v2 at BCX 2024.
+"""
+notes = """
+"markiemoo" misspells the curated nickname "marckiemoo", and no alias matches it. "Worlds" are the events the \
+"worlds YYYY" event aliases name.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "results at the events the worlds aliases name"
+sql = '''
+SELECT a.alias, v.tournament_name, v.event_name, v.counts_as, r.placement
+FROM event_aliases a
+JOIN v_events v USING (event_id)
+JOIN v_results r ON r.event_id = v.event_id AND r.player_id = 146052
+WHERE a.alias LIKE 'worlds %'
+ORDER BY v.start_time, v.counts_as
+'''
+
+[[question]]
+id = "q23"
+question = "kingdom | godly vs impala head to head"
+category = "head_to_head"
+tests = ["team tag", "former name", "shared name"]
+players = { "kingdom | godly" = 147982, impala = 168635 }
+answer = """
+Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at official events, 12-9 in games to Zivai:
+- Brawlhalla World Championship Expo 2022 (2022-11-04): Impala won 3-0 and 3-1
+- DreamHack San Diego 2023 (2023-04-07): Impala won 3-2
+- DreamHack Valencia 2023 (2023-07-07): Zivai won 3-0
+- Brawlhalla World Championship Expo 2023 (2023-11-03): Zivai won 3-0
+- Brawlhalla World Championship Expo 2024 (2024-11-15): Zivai won 3-0
+
+They never met in 2v2.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the 1v1 record, from Zivai's side"
+sql = '''
+SELECT wins, losses, matches, games_won, games_lost, unscored_matches
+FROM v_head_to_head_1v1 WHERE player_id = 147982 AND opponent_id = 168635
+'''
+
+[[question.query]]
+purpose = "the sets, from Zivai's side"
+sql = '''
+SELECT a.start_date, v.tournament_name, a.games_won, a.games_lost
+FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+JOIN v_events v ON v.event_id = a.event_id
+WHERE a.player_id = 147982 AND b.player_id = 168635 AND a.mode = '1v1' AND a.side_players = 1
+ORDER BY a.start_time
+'''
+
+[[question.query]]
+purpose = "2v2 meetings"
+sql = '''
+SELECT COUNT(*) AS meetings FROM v_head_to_head_2v2
+WHERE player_id = 147982 AND 168635 IN (opponent1_id, opponent2_id)
+'''
+
+[[question]]
+id = "q24"
+question = "who won msi 1v1"
+category = "event_result"
+tests = ["event alias", "default event", "say which event"]
+events = { msi = "tournament/brawlhalla-midseason-championship/event/brawlhalla-championship-1v1" }
+answer = """
+Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational: luna won \
+its 1v1 (2022-06-12), ahead of megD. If another midseason event was meant: BBBalloonBoy won the Midseason \
+Championship 2026 1v1.
+"""
+notes = """
+"msi" means the 2022 event by default (decided 2026-10-05), and the answer must say which event it used. Low Tier \
+City Midseason Online (2020) is another midseason event someone may mean.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd at the 1v1 event the alias names"
+sql = '''
+SELECT v.tournament_name, v.event_name, v.start_date, r.placement, p.name
+FROM event_aliases a
+JOIN v_events v USING (event_id)
+JOIN v_results r ON r.event_id = v.event_id
+JOIN players p ON p.player_id = r.player_id
+WHERE a.alias = 'msi' AND v.counts_as = '1v1' AND r.placement <= 2
+ORDER BY r.placement
+'''
+
+[[question.query]]
+purpose = "the alias's note"
+sql = '''
+SELECT DISTINCT note FROM event_aliases WHERE alias = 'msi'
+'''
+
+# Paraphrases: each must get the same answer as the question it names
+
+[[question]]
+id = "q25"
+question = "how many official tournaments has RAYDISH won"
+category = "player_record"
+tests = ["paraphrase", "case", "crew battles count as 1v1"]
+same_answer_as = "q02"
+players = { RAYDISH = 160000 }
+answer = """
+6, all counted as 1v1: the NA Summer Championship 2022, the NA Winter Championship 2023, the Trials of Ymir, \
+Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: \
+a team result, counted as 1v1).
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins"
+sql = '''
+SELECT start_date, tournament_name, mode, format
+FROM v_official_wins WHERE player_id = 160000 ORDER BY start_time
+'''
+
+[[question]]
+id = "q26"
+question = "How many times has M30W | BalloonBoy finished top 3 at an official event?"
+category = "player_record"
+tests = ["paraphrase", "team tag", "medal = top 3", "side formats"]
+same_answer_as = "q07"
+players = { "M30W | BalloonBoy" = 149305 }
+answer = """
+27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 \
+(5, 3 and 4). Seconds in Brawlball and Triples aren't counted.
+"""
+notes = """
+The team tag goes: the name without it, "BalloonBoy", is a former name of BBBalloonBoy.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "top-3 placements by mode"
+sql = '''
+SELECT mode, gold, silver, bronze, medals
+FROM v_player_medals WHERE player_id = 149305 ORDER BY mode
+'''
+
+[[question]]
+id = "q27"
+question = "whats bbballoonboy's 1v1 record vs impala"
+category = "head_to_head"
+tests = ["paraphrase", "case", "read the view from one side"]
+same_answer_as = "q04"
+players = { bbballoonboy = 149305, impala = 168635 }
+answer = """
+BBBalloonBoy is 1-2 against Impala in 1v1 sets at official events (4-8 in games): lost 0-3 at the Trial of Frigg \
+NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 2024 (2024-11-15).
+"""
+notes = """
+The same three sets as q04, from the other side. A query that reads v_head_to_head_1v1 from both sides double-counts.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the 1v1 record, from BBBalloonBoy's side"
+sql = '''
+SELECT wins, losses, matches, games_won, games_lost, unscored_matches
+FROM v_head_to_head_1v1 WHERE player_id = 149305 AND opponent_id = 168635
+'''
+
+[[question.query]]
+purpose = "the sets, from BBBalloonBoy's side"
+sql = '''
+SELECT a.start_date, v.tournament_name, a.games_won, a.games_lost
+FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+JOIN v_events v ON v.event_id = a.event_id
+WHERE a.player_id = 149305 AND b.player_id = 168635 AND a.mode = '1v1' AND a.side_players = 1
+ORDER BY a.start_time
+'''
+
+[[question]]
+id = "q28"
+question = "who won worlds 2019 1v1"
+category = "event_result"
+tests = ["paraphrase", "event alias"]
+events = { "worlds 2019 1v1" = "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1" }
+answer = """
+gdsandstorm won the 2019 World Championship 1v1 (DreamHack Atlanta 2019, 2019-11-15); simpLe was 2nd.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd at the 1v1 event the alias names"
+sql = '''
+SELECT v.tournament_name, v.event_name, r.placement, p.name
+FROM event_aliases a
+JOIN v_events v USING (event_id)
+JOIN v_results r ON r.event_id = v.event_id
+JOIN players p ON p.player_id = r.player_id
+WHERE a.alias = 'worlds 2019' AND v.counts_as = '1v1' AND r.placement <= 2
+ORDER BY r.placement
+'''
+
+[[question]]
+id = "q29"
+question = "Who won the 1v1 at DreamHack Atlanta 2019?"
+category = "event_result"
+tests = ["paraphrase"]
+same_answer_as = "q28"
+events = { "DreamHack Atlanta 2019" = "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1" }
+answer = """
+gdsandstorm won DreamHack Atlanta 2019's 1v1, the Brawlhalla World Championship 1v1 (2019-11-15); simpLe was 2nd.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1st and 2nd"
+sql = '''
+SELECT r.placement, p.name
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1' AND r.placement <= 2
+ORDER BY r.placement
+'''
+
+# Questions the data can't answer
+
+[[question]]
+id = "q30"
+question = "who won ceo dreamland 2020"
+category = "unanswerable"
+tests = ["not held"]
+events = { "ceo dreamland 2020" = "tournament/ceo-dreamland-2020/event/brawlhalla-1v1" }
+answer = """
+Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO \
+Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.
+"""
+notes = """
+The answer must say the event wasn't held, not that its results are missing. Mentioning the online event is a plus, \
+not required.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the event's status"
+sql = '''
+SELECT tournament_name, start_date, status, note
+FROM v_events WHERE event_id = 'tournament/ceo-dreamland-2020/event/brawlhalla-1v1'
+'''
+
+[[question.query]]
+purpose = "the online event that followed"
+sql = '''
+SELECT v.tournament_name, v.event_name, v.start_date, GROUP_CONCAT(p.name, ' / ') AS winners
+FROM v_official_wins w
+JOIN v_events v ON v.event_id = w.event_id
+JOIN players p ON p.player_id = w.player_id
+WHERE w.event_id LIKE 'tournament/brawlhalla-ceo-dreamland-online/%'
+GROUP BY w.event_id ORDER BY v.start_time
+'''
+
+[[question]]
+id = "q31"
+question = "Who won SEA League Week 1/4?"
+category = "unanswerable"
+tests = ["placements unreliable"]
+events = { "SEA League Week 1/4" = "tournament/sea-league-week-1-4/event/brawlhalla-singles" }
+answer = """
+The data can't say who won: start.gg's standings for SEA League (Week 1/4) (2017-04-22) are wrong, with 24 \
+entrants placed 1st, so its placements aren't counted as results. Its matches do count, and in them \
+TigerBrawlhalla was the only player who didn't lose a set (6-0).
+"""
+notes = """
+Naming TigerBrawlhalla as the winner outright is wrong; naming them as the bracket's only undefeated player is right.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the event's status"
+sql = '''
+SELECT tournament_name, start_date, status, note
+FROM v_events WHERE event_id = 'tournament/sea-league-week-1-4/event/brawlhalla-singles'
+'''
+
+[[question.query]]
+purpose = "the standings as start.gg reported them"
+sql = '''
+SELECT placement, COUNT(*) AS entrants
+FROM placements WHERE event_id = 'tournament/sea-league-week-1-4/event/brawlhalla-singles'
+GROUP BY placement ORDER BY placement LIMIT 3
+'''
+
+[[question.query]]
+purpose = "players who won every set they played"
+sql = '''
+SELECT p.name, SUM(m.won) AS sets_won, SUM(1 - m.won) AS sets_lost
+FROM v_match_results m JOIN players p ON p.player_id = m.player_id
+WHERE m.event_id = 'tournament/sea-league-week-1-4/event/brawlhalla-singles'
+GROUP BY m.player_id HAVING sets_lost = 0
+ORDER BY sets_won DESC
+'''
+
+[[question]]
+id = "q32"
+question = "how much prize money did vem win at max mode 2025"
+category = "unanswerable"
+tests = ["no per-tournament prize data", "nickname", "missing isn't zero"]
+players = { vem = 71736 }
+events = { "max mode 2025" = ["tournament/max-mode-2025/event/brawlhalla-1v1", "tournament/max-mode-2025/event/brawlhalla-2v2-1"] }
+answer = """
+The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 \
+(2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.
+"""
+notes = """
+"vem" is a curated nickname for V3M_T4NQUIL0. MAX MODE 2025's start.gg event has no structured payouts (API \
+survey), so even Phase 2 won't have them. Its standings hold only 8 of the 1v1's 41 entrants.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "vem's results at MAX MODE 2025"
+sql = '''
+SELECT v.tournament_name, v.event_name, v.start_date, r.placement
+FROM v_results r JOIN v_events v ON v.event_id = r.event_id
+WHERE r.player_id = 71736 AND v.tournament_name = 'MAX MODE 2025'
+ORDER BY v.start_time
+'''
+
+[[question.query]]
+purpose = "tables and views about money: career figures only, nothing per tournament"
+sql = '''
+SELECT type, name FROM sqlite_master
+WHERE type IN ('table', 'view') AND (name LIKE '%prize%' OR name LIKE '%payout%' OR name LIKE '%earning%')
+ORDER BY name
+'''
+
+[[question]]
+id = "q33"
+question = "how much money has boomie made from brawlhalla"
+category = "unanswerable"
+tests = ["missing isn't zero", "shared name"]
+players = { boomie = 146606 }
+answer = """
+The database has no career earnings figure for Boomie, so it's unknown (not $0). Career figures come from the Stats \
+API, which has them only for players with a PR ranking, and Boomie has none.
+"""
+notes = """
+Phase 2's Esports Earnings fallback will have one ($210,282.67 as of 2026-10-04), which changes this answer.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "Boomie's career figure: none"
+sql = '''
+SELECT name, earnings_usd, source, as_of FROM v_career_earnings WHERE player_id = 146606
+'''
+
+[[question.query]]
+purpose = "Boomie's PR rows: none"
+sql = '''
+SELECT COUNT(*) AS pr_rows FROM pr_snapshots WHERE player_id = 146606
+'''
+
+[[question]]
+id = "q34"
+question = "Who won the 2016 Brawlhalla World Championship?"
+category = "unanswerable"
+tests = ["data starts in 2017"]
+answer = """
+The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World \
+Championship isn't in it.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "the dates the data covers"
+sql = '''
+SELECT MIN(start_date) AS first_event, MAX(start_date) AS last_event, COUNT(*) AS events FROM v_events
+'''
+
+[[question]]
+id = "q35"
+question = "what legend does godly main"
+category = "unanswerable"
+tests = ["no legend data", "former name"]
+players = { godly = 147982 }
+answer = """
+The data can't say: the database has no legend (character) data. Godly is Zivai (147982).
+"""
+notes = """
+An answer from general knowledge, rather than the data, is wrong here.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "matches with legend data: none"
+sql = '''
+SELECT COUNT(*) AS matches, SUM(legends_json IS NOT NULL) AS with_legends FROM matches
+'''
+
+[[question]]
+id = "q36"
+question = "How many community tournaments has raydish won?"
+category = "unanswerable"
+tests = ["official events only", "case"]
+players = { raydish = 160000 }
+answer = """
+The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event \
+wins. ("Brawlhalla Community Tournament #2", 2025, is an official event despite its name, and Raydish didn't \
+enter it.)
+"""
+notes = """
+Counting official events whose name says "Community" is wrong.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "events by is_official: all official"
+sql = '''
+SELECT is_official, COUNT(*) AS events FROM v_events GROUP BY is_official
+'''
+
+[[question.query]]
+purpose = "official events named Community, and Raydish's result there"
+sql = '''
+SELECT v.tournament_name, v.start_date, v.is_official,
+       (SELECT r.placement FROM v_results r WHERE r.event_id = v.event_id AND r.player_id = 160000) AS raydish
+FROM v_events v WHERE lower(v.tournament_name) LIKE '%community%'
+'''
+
+# Multi-step: comparisons, firsts, mosts and rankings
+
+[[question]]
+id = "q37"
+question = "Who has won the most official tournaments?"
+category = "multi_step"
+tests = ["most", "crew battles count as 1v1", "both modes"]
+answer = """
+gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew \
+battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.
+"""
+notes = """
+Wins are counted per event: a tournament's 1v1 and 2v2 events count separately. Side formats (Triples, Brawlball, \
+...) aren't counted.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins per player"
+sql = '''
+SELECT p.name, w.player_id, COUNT(*) AS wins, SUM(w.mode = '1v1') AS wins_1v1, SUM(w.mode = '2v2') AS wins_2v2,
+       SUM(w.format = 'crew_battle') AS crew_battles
+FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
+GROUP BY w.player_id ORDER BY wins DESC LIMIT 5
+'''
+
+[[question]]
+id = "q38"
+question = "rank the top 5 players by official 1v1 wins"
+category = "multi_step"
+tests = ["ranking", "crew battles count as 1v1"]
+answer = """
+1. gdsandstorm, 30 (2 of them crew battles)
+2. TigerBrawlhalla, 26
+3. Zivai, 23 (1 crew battle)
+4. Kylar Alice, 19
+5. yüz, 14 (1 crew battle)
+
+Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai \
+22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official 1v1 wins per player, crew battles included"
+sql = '''
+SELECT p.name, w.player_id, COUNT(*) AS wins_1v1, SUM(w.format = 'crew_battle') AS crew_battles
+FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
+WHERE w.mode = '1v1'
+GROUP BY w.player_id ORDER BY wins_1v1 DESC LIMIT 6
+'''
+
+[[question]]
+id = "q39"
+question = "who has more medals, boomie or sandstorm?"
+category = "multi_step"
+tests = ["comparison", "nickname", "shared name", "medal = top 3"]
+players = { boomie = 146606, sandstorm = 74433 }
+answer = """
+Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69:
+- Boomie: 1v1 12 gold, 11 silver, 11 bronze (34); 2v2 32, 8 and 6 (46)
+- gdsandstorm: 1v1 30, 6 and 6 (42); 2v2 18, 4 and 5 (27)
+
+gdsandstorm has more wins (48 to 44), and Boomie more medals.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "medals by player and mode"
+sql = '''
+SELECT p.name, m.mode, m.gold, m.silver, m.bronze, m.medals
+FROM v_player_medals m JOIN players p ON p.player_id = m.player_id
+WHERE m.player_id IN (146606, 74433)
+ORDER BY p.name, m.mode
+'''
+
+[[question]]
+id = "q40"
+question = "who has raydish lost to the most in 1v1"
+category = "multi_step"
+tests = ["most", "head-to-head", "case"]
+players = { raydish = 160000 }
+answer = """
+gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against \
+them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).
+"""
+verified = ""
+
+[[question.query]]
+purpose = "Raydish's 1v1 records, most losses first"
+sql = '''
+SELECT p.name, h.opponent_id, h.losses, h.wins, h.matches
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.opponent_id
+WHERE h.player_id = 160000
+ORDER BY h.losses DESC, h.matches DESC LIMIT 5
+'''
+
+[[question]]
+id = "q41"
+question = "Who has won the most 1v1 world championships?"
+category = "multi_step"
+tests = ["most", "event alias", "say what was counted"]
+answer = """
+gdsandstorm, with 3: 2018 (DreamHack Atlanta 2018), 2019 (DreamHack Atlanta 2019) and 2020, when the World \
+Championship was held separately in five regions (gdsandstorm won North America's). yüz has 2 (BCX 2023 and 2024). \
+Counting only the single worldwide championships, leaving out 2020 and 2021's regional ones, gdsandstorm and yüz \
+tie at 2.
+"""
+notes = """
+The 1v1 world champions by year, as the "worlds YYYY" aliases name them: 2017 ZEEKO, 2018 and 2019 gdsandstorm, \
+2020 and 2021 five regional winners each, 2022 Impala, 2023 and 2024 yüz, 2025 Marckiem00.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1v1 wins at the events the worlds aliases name, per player"
+sql = '''
+SELECT p.name, w.player_id, COUNT(*) AS titles, GROUP_CONCAT(a.alias || ': ' || w.tournament_name, '; ') AS events
+FROM event_aliases a
+JOIN v_official_wins w ON w.event_id = a.event_id
+JOIN players p ON p.player_id = w.player_id
+WHERE a.alias LIKE 'worlds %' AND w.mode = '1v1'
+GROUP BY w.player_id ORDER BY titles DESC, p.name LIMIT 5
+'''
+
+[[question]]
+id = "q42"
+question = "what was the biggest official brawlhalla tournament ever?"
+category = "multi_step"
+tests = ["most", "name the metric"]
+answer = """
+By entrants, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City \
+Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.
+"""
+notes = """
+Entrants are as the platform reported them (start.gg's standings total). "Biggest" could mean prize pool, which \
+isn't in the data; the answer names its metric.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "events with the most entrants"
+sql = '''
+SELECT tournament_name, event_name, start_date, entrants_reported, placements
+FROM v_event_coverage ORDER BY entrants_reported DESC LIMIT 3
+'''
+
+[[question]]
+id = "q43"
+question = "what was megd's first major win?"
+category = "multi_step"
+tests = ["first", "case", "majors means official events"]
+players = { megd = 142100 }
+answer = """
+megD's first official event win was the Summer Championship - North America 2026 - 1v1 (2026-07-19). The second \
+came on 2026-08-30, at the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle).
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins, oldest first"
+sql = '''
+SELECT start_date, tournament_name, mode, format
+FROM v_official_wins WHERE player_id = 142100 ORDER BY start_time
+'''
+
+[[question]]
+id = "q44"
+question = "How many times did Ahmet finish second to Godly in 2026?"
+category = "multi_step"
+tests = ["comparison", "former name", "shared name"]
+players = { Ahmet = 75405, Godly = 147982 }
+answer = """
+3 times, all in 1v1 at official events, each won by Zivai (formerly Godly) with Ahmet_ 2nd: the Spring (2026-04-25), \
+Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.
+"""
+notes = """
+"Ahmet" also names a record with one result; Ahmet_ is the ranked player.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "2026 events Zivai won with Ahmet_ 2nd"
+sql = '''
+SELECT a.start_date, a.tournament_name, a.mode
+FROM v_results a
+JOIN v_results b ON b.event_id = a.event_id AND b.player_id = 75405 AND b.placement = 2
+WHERE a.player_id = 147982 AND a.placement = 1 AND a.start_date LIKE '2026-%'
+ORDER BY a.start_time
+'''
+
+[[question]]
+id = "q45"
+question = "who has earned more money, raydish or impala?"
+category = "unanswerable"
+tests = ["comparison", "missing isn't zero", "partly answerable"]
+players = { raydish = 160000, impala = 168635 }
+answer = """
+The data can't compare them: Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02), but the database \
+has no figure for Impala, who has no PR ranking. Impala's earnings are unknown, not $0.
+"""
+notes = """
+The API survey found $88,095 for Impala through the Stats API's search, which the database doesn't hold. Phase 2's \
+Esports Earnings fallback has $84,730 (2026-10-04), which will change this answer; that source counts differently \
+from the Stats API.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "both career figures: only Raydish's exists"
+sql = '''
+SELECT player_id, name, earnings_usd, source, as_of
+FROM v_career_earnings WHERE player_id IN (160000, 168635)
+'''

@@ -26,6 +26,8 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - player IDs looked up before head-to-head queries.
 - Decided (2026-10-10), provisionally: qwen3:8b with thinking on, for development. Once the agent loop and the verified evaluation set exist, the comparison is rerun inside the agent with qwen3:4b, qwen3:8b and qwen3:14b.
 
+**The evaluation set is drafted** (2026-10-10): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1, waiting for the user's verification.
+
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
 - start.gg and Challengermode survey (`ingest/survey_platforms.py`, clients in `ingest/platform_clients.py`) → `docs/platform-api-survey.md`: brackets, full standings and prize data those platforms add.
@@ -84,6 +86,10 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 
 Evaluation (`eval/`):
 - `model_comparison.py` runs the model comparison: one prompt and one query per target question, on eval-v1. Results go to `eval/results/` and full replies to `data/experiments/`. It's exploratory, since the expected answers come from our own data.
+- `questions/questions.toml` is the evaluation set (v1, a draft until verified): 45 questions, each with its category, what it tests, the players and events its names mean, a candidate answer, the SQL behind it, and `verified`, which the user fills in (`yes`, or `no: ...` with what's right).
+  - Categories: player records, event results, head-to-heads, multi-step (comparisons, firsts, mosts, rankings) and unanswerable (the data can't answer, or only partly).
+  - It covers the target questions, the known events, names written casually (nicknames, former names, case, misspellings, team tags), event aliases and terms, four paraphrase pairs, and questions the data can't answer.
+- `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
@@ -166,7 +172,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the verified evaluation set**, which the user starts in a new session; then the agent's design, explained before it's built.
+Next step: **verifying the evaluation set**, which the user does at their own pace (`verified` in `eval/questions/questions.toml`); then the agent's design, explained before it's built.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 
