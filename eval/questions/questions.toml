@@ -1377,7 +1377,7 @@ answer = """
 Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai \
 22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.
 """
-verified = ""
+verified = "yes: Boomie's 12 official 1v1 wins (tied 8th) correctly keep him out of the top 5"
 
 [[question.accept]]
 assumption = "crew battle wins counted as 1v1 (the decided rule)"

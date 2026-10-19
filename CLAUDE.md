@@ -36,10 +36,11 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
 
   The seed runs come next, when the user asks.
 
-**The evaluation set is verified, all but one question** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
-- The user's verdicts: 41 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
-- q38 (the top 5 by official 1v1 wins) waits on the user. Boomie, with 12 official 1v1 wins (10 without crew battles), is tied 8th in the data, so the candidate answer leaves him out.
+**The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
+- The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
+- q38 (the top 5 by official 1v1 wins): Boomie's 12 official 1v1 wins (tied 8th) keep him out of the top 5.
 - From the review: q08 no longer accepts "no minimum" (Snowy!!), and q24 accepts the 2026 reading of "msi" only if the answer says "msi" is ambiguous.
+- The answers hold for eval-v1 only. A merge decided before eval-v2 can change them, as Boomie's proposal (in the merge review) would change q37 and q39.
 
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -99,7 +100,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 
 Evaluation (`eval/`):
 - `model_comparison.py` runs the model comparison: one prompt and one query per target question, on eval-v1. Results go to `eval/results/` and full replies to `data/experiments/`. It's exploratory, since the expected answers come from our own data.
-- `questions/questions.toml` is the evaluation set (v1, verified 2026-10-19 but for q38): 45 questions, each with its category, what it tests, the players and events its names mean, a candidate answer, the SQL behind it, and `verified`, which the user fills in (`yes`, `yes: ...` with a note, or `no: ...` / `partly: ...` with what's right).
+- `questions/questions.toml` is the evaluation set (v1, verified 2026-10-19): 45 questions, each with its category, what it tests, the players and events its names mean, a candidate answer, the SQL behind it, and `verified`, which the user fills in (`yes`, `yes: ...` with a note, or `no: ...` / `partly: ...` with what's right).
   - Categories: player records, event results, head-to-heads, multi-step (comparisons, firsts, mosts, rankings), partial (what the data shows, then what's missing) and unanswerable (what isn't available, and why).
   - Where a reasonable definition changes the answer (14 questions), `accept` lists each acceptable answer with the assumption that produces it; an answer gets credit only if it states its assumption.
   - `tied_to_eval_v1` marks the 7 answers that Phase 2 (or, for legends, Phase 3) will change.
@@ -118,6 +119,9 @@ Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
 - `player_merges.csv`: 3 merges decided by hand (Remmy, hardymj and karuzzi) and 670 accepted automatically (tier 1).
 - `merge_rejections.csv`: empty so far.
+- `merge_proposals.csv`: pairs found by hand that the merge tiers can't see, with their evidence, waiting for the user's decision. `merge_candidates.py` puts them first in the merge review. The build doesn't read them.
+  - So far, one: Boomie's second start.gg account (31626 → 146606). It won the 2017 Brawl League Open Cup 2v2 March Finals (US) with ZEEKO, his usual partner.
+  - It's high-impact: it changes q37 and q39, so it's decided with the other high-impact merges before eval-v2 (2026-10-19).
 - `external_ids.csv`: Esports Earnings links.
 - `events.csv`: a row for every official event (2026-10-06). A row without overrides records that the event's detected mode and format were checked, so only events fetched later are new. The overrides:
   - the three Pro Series finals as crew battles, and CEO Dreamland 2017's doubles as 2v2;
@@ -140,12 +144,13 @@ Curation (`curation/`, committed):
 - `tiers.csv`: a skeleton only (see the tiers rule below).
 
 Merge review: **`data/review/merge_candidates.csv`** (git-ignored; regenerate with `python ingest/merge_candidates.py`, which makes no requests).
-- It holds 434 tier-2 and 1,753 tier-3 pairs, strongest first, for the user to review at their own pace.
+- It holds the pairs proposed by hand (`curation/merge_proposals.csv`, 1 so far), then 434 tier-2 and 1,753 tier-3 pairs, strongest first, for the user to review at their own pace.
 - By impact (2026-10-07), under the curation policy below:
   - 64 pairs involve a top 8 or better: 16 in tier 2 and 48 in tier 3, 8 with official wins and 16 with medals;
   - 178 more involve a player ranked in their region's top 100;
   - the other 1,945 are low-impact.
-- Decisions go in `curation/player_merges.csv` (merge) or `curation/merge_rejections.csv` (not one person).
+- Decisions go in `curation/player_merges.csv` (merge) or `curation/merge_rejections.csv` (not one person). A proposal's row moves out of `merge_proposals.csv` when it's decided.
+- The high-impact pairs are decided before eval-v2 is frozen, since a merge can change verified answers (decided 2026-10-19).
 - To undo an automatic merge, move its row from the first file to the second.
 
 The review list: **`data/review/review.csv`** (git-ignored), rewritten by every full build.
@@ -195,7 +200,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the prototype's seed runs** on questions 4, 6 and 8, when the user asks (the Ollama server must be reachable). Meanwhile, the user's verdict on q38, the one question of the evaluation set not yet verified; then the agent's design, explained before it's built.
+Next step: **the prototype's seed runs** on questions 4, 6 and 8, when the user asks (the Ollama server must be reachable). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

@@ -24,6 +24,12 @@ Tiers 2 and 3 go to data/review/merge_candidates.csv, strongest first and, withi
 prominent players first. A decision goes in curation/player_merges.csv (merge) or
 curation/merge_rejections.csv (not one person), and the pair isn't proposed again.
 
+Pairs the tiers can't see are proposed by hand in curation/merge_proposals.csv, with the evidence in
+their note (the columns of player_merges.csv). The case: Boomie's second start.gg account, used at one
+event with his usual partner, while other records share his name and his activity overlaps it. Each
+undecided proposal goes first in the review list, as tier 'proposed'. To decide one, move its row to
+player_merges.csv, or the pair to merge_rejections.csv.
+
 A record's region is its PR region, or else the region most of its official events name. Its
 activity is every official event it placed in or played: start.gg standings and entrant lists,
 Challengermode entrant lists (placed lineups only), and the Stats API placements of stages 3b and
@@ -45,6 +51,7 @@ from names import normalize
 
 MERGES = ROOT / "curation" / "player_merges.csv"
 REJECTIONS = ROOT / "curation" / "merge_rejections.csv"
+PROPOSALS = ROOT / "curation" / "merge_proposals.csv"
 REVIEW = ROOT / "data" / "review" / "merge_candidates.csv"
 MIN_EVENTS = 3  # same-platform pairs: one record needs at least this many official events
 REGION_WORDS = [  # (region, phrases in an event name, words in it); the first match wins
@@ -157,8 +164,30 @@ def candidates(people, merged, rejected):
     return [c[:4] for c in found]
 
 
+def proposed(rows, people, merged, rejected):
+    """The undecided rows of merge_proposals.csv as (note, record that would stay, record that would go), and the
+    rows naming a record the crawl doesn't hold, as problems. A proposal is decided once its pair is merged or
+    rejected."""
+    found, problems = [], []
+    for n, row in enumerate(rows, 2):
+        pid, keep = int(row["player_id"]), int(row["canonical_player_id"])
+        missing = [i for i in (pid, keep) if i not in people]
+        if missing:
+            problems.append(f"merge_proposals.csv:{n}: the crawl has no record {missing[0]}")
+        elif frozenset((pid, keep)) not in rejected and merged.get(pid, pid) != merged.get(keep, keep):
+            found.append((row.get("note") or "no note", people[keep], people[pid]))
+    return found, problems
+
+
 def date(stamp):
     return datetime.fromtimestamp(stamp, timezone.utc).strftime("%Y-%m-%d") if stamp is not None else ""
+
+
+def columns(person):
+    """A record's columns in the review list: ID, name, platform, region, first and last event, events, best."""
+    span = person.span or (None, None)
+    return [person.id, person.name, person.platform, person.region or "", date(span[0]), date(span[1]),
+            len(person.events), person.best or ""]
 
 
 def describe(p):
@@ -232,6 +261,10 @@ def main():
         REJECTIONS.write_text("player_id,other_player_id,note\n", encoding="utf-8")
     rejected = {frozenset((int(r["player_id"]), int(r["other_player_id"]))) for r in read_csv(REJECTIONS)}
     found = candidates(people, merged, rejected)
+    proposals, problems = proposed(read_csv(PROPOSALS), people, merged, rejected)
+    for problem in problems:
+        print(f"skipped {problem}")
+    proposed_pairs = {frozenset((keep.id, other.id)) for _, keep, other in proposals}
 
     accepted = [(keep, other) for tier, evidence, keep, other in found if tier == 1]
     text = MERGES.read_text(encoding="utf-8")
@@ -243,22 +276,18 @@ def main():
             writer.writerow([other.id, keep.id, f"auto: tier 1 ({describe(other)}; {describe(keep)}; both {keep.region})"])
 
     REVIEW.parent.mkdir(parents=True, exist_ok=True)
-    columns = ["name", "platform", "region", "first_event", "last_event", "events", "best_placement"]
+    names = ["name", "platform", "region", "first_event", "last_event", "events", "best_placement"]
     with open(REVIEW, "w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(["tier", "evidence", "player_id", *columns, "other_player_id", *(f"other_{c}" for c in columns)])
+        writer.writerow(["tier", "evidence", "player_id", *names, "other_player_id", *(f"other_{c}" for c in names)])
+        for note, keep, other in proposals:
+            writer.writerow(["proposed", note, *columns(keep), *columns(other)])
         for tier, evidence, keep, other in found:
-            if tier == 1:
-                continue
-            row = [tier, evidence]
-            for person in (keep, other):
-                span = person.span or (None, None)
-                row += [person.id, person.name, person.platform, person.region or "", date(span[0]), date(span[1]),
-                        len(person.events), person.best or ""]
-            writer.writerow(row)
+            if tier != 1 and frozenset((keep.id, other.id)) not in proposed_pairs:
+                writer.writerow([tier, evidence, *columns(keep), *columns(other)])
     tiers = collections.Counter(tier for tier, *_ in found)
-    print(f"{len(people)} records; candidates: tier 1 {tiers[1]} (added to {MERGES.name}), tier 2 {tiers[2]},"
-          f" tier 3 {tiers[3]} (in {REVIEW.relative_to(ROOT).as_posix()})")
+    print(f"{len(people)} records; candidates: proposed by hand {len(proposals)}, tier 1 {tiers[1]} (added to"
+          f" {MERGES.name}), tier 2 {tiers[2]}, tier 3 {tiers[3]} (in {REVIEW.relative_to(ROOT).as_posix()})")
 
 
 if __name__ == "__main__":

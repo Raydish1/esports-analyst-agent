@@ -10,7 +10,7 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 
 **To verify:** check each candidate answer, and each accepted one, against what you know, or against start.gg, Challengermode or Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the script to update this page.
 
-**Verified:** 44 of 45. **With accepted answers:** 14. **Tied to eval-v1:** 7.
+**Verified:** 45 of 45. **With accepted answers:** 14. **Tied to eval-v1:** 7.
 
 | Category | What it covers | Questions |
 |---|---|---|
@@ -60,7 +60,7 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 | [q35](#q35) | what legend does godly main | unanswerable |  | yes | yes: unanswerable as written |
 | [q36](#q36) | How many community tournaments has raydish won? | unanswerable |  |  | yes: unanswerable as written |
 | [q37](#q37) | Who has won the most official tournaments? | multi_step | 2 |  | yes |
-| [q38](#q38) | rank the top 5 players by official 1v1 wins | multi_step | 2 |  |  |
+| [q38](#q38) | rank the top 5 players by official 1v1 wins | multi_step | 2 |  | yes: Boomie's 12 official 1v1 wins (tied 8th) correctly keep him out of the top 5 |
 | [q39](#q39) | who has more medals, boomie or sandstorm? | multi_step | 2 |  | yes |
 | [q40](#q40) | who has raydish lost to the most in 1v1 | multi_step |  |  | yes |
 | [q41](#q41) | Who has won the most 1v1 world championships? | multi_step | 2 |  | yes |
@@ -1810,7 +1810,7 @@ GROUP BY w.player_id ORDER BY wins_1v1 DESC, p.name LIMIT 7
 | whoiskyna | 135748 | 13 |
 | yüz | 73254 | 13 |
 
-**Verified:** not yet
+**Verified:** yes: Boomie's 12 official 1v1 wins (tied 8th) correctly keep him out of the top 5
 
 <a id="q39"></a>
 

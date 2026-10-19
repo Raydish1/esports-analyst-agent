@@ -17,7 +17,8 @@ The review list, data/review/review.csv, is everything waiting for a person, one
              phase_split             two events that may be phases of one competition
              new_event               an event without a row in events.csv, with its detected mode and format
              auto_merge              a tier-1 merge from data/review/auto_merges.csv, applied or dropped
-             merge_candidate         an undecided pair from data/review/merge_candidates.csv
+             merge_candidate         an undecided pair from data/review/merge_candidates.csv (those proposed by hand
+                                     in curation/merge_proposals.csv first)
   subject, detail
   resolve  what settles it
 A full build of the current cache rewrites the list. A dev build or a build of the past writes its own into its
@@ -103,8 +104,9 @@ def candidate_items(build, path):
         if frozenset((a, b)) in build.curation.rejections or canonical.get(a, a) == canonical.get(b, b):
             continue
 
+        tier = "proposed by hand" if row["tier"] == "proposed" else f"tier {row['tier']}"  # curation/merge_proposals.csv
         found.append(item("merge_candidate", f"{min(a, b)} {max(a, b)}", f"{a} {b}",
-                          f"tier {row['tier']}: {row['evidence']}; {described(row, '')} and {described(row, 'other_')}"))
+                          f"{tier}: {row['evidence']}; {described(row, '')} and {described(row, 'other_')}"))
     return found
 
 

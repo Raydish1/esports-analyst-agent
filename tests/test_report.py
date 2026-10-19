@@ -66,6 +66,17 @@ class ReviewListTest(unittest.TestCase):
         self.assertTrue(items[0].detail.startswith("!! "))
         self.assertIn("'x' (Challengermode, region unknown, 2025-01-01, 1 events, best -)", items[-1].detail)
 
+    def test_a_pair_proposed_by_hand_says_so(self):
+        path = self.root / "proposed.csv"
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(CANDIDATE_COLUMNS)
+            writer.writerow(["proposed", "one event, with his usual partner", 7, "Boomie", "start.gg", "NA", "2017-02-04",
+                             "2024-03-10", 147, 1, 8, "Boomie", "start.gg", "", "2017-04-01", "2017-04-01", 1, 1])
+        [found] = report.candidate_items(self.build, path)
+        self.assertEqual(found.key, "merge_candidate:7 8")
+        self.assertTrue(found.detail.startswith("proposed by hand: one event, with his usual partner; 'Boomie' (start.gg, NA,"))
+
     def test_a_dev_build_lists_no_merge_candidates(self):
         self.build.events = {"e1"}
         self.assertNotIn("merge_candidate", {i.kind for i in report.review_items(self.build, self.outcomes,

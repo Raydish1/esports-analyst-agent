@@ -81,5 +81,22 @@ class CandidatesTest(unittest.TestCase):
         self.assertIn("already in player_merges.csv", evidence)
 
 
+class ProposalsTest(unittest.TestCase):
+    def test_undecided_proposals_come_with_their_note_and_unknown_records_are_problems(self):
+        main = person(146606, "Boomie", sgg=153043, region="NA", years=(2017, 2024), best=1)
+        second = person(31626, "Boomie", sgg=1162033, years=(2017,), best=1)
+        people = {p.id: p for p in (main, second)}
+        rows = [{"player_id": "31626", "canonical_player_id": "146606", "note": "one event, with his usual partner"},
+                {"player_id": "999", "canonical_player_id": "146606", "note": "a typo"}]
+        found, problems = mc.proposed(rows, people, {}, set())
+        self.assertEqual([(note, keep.id, other.id) for note, keep, other in found],
+                         [("one event, with his usual partner", 146606, 31626)])
+        self.assertEqual(problems, ["merge_proposals.csv:3: the crawl has no record 999"])
+        self.assertEqual(mc.proposed(rows[:1], people, {31626: 146606, 146606: 146606}, set())[0], [])  # merged
+        self.assertEqual(mc.proposed(rows[:1], people, {}, {frozenset((31626, 146606))})[0], [])  # rejected
+        day = mc.date(second.span[0])
+        self.assertEqual(mc.columns(second), [31626, "Boomie", "start.gg", "", day, day, 1, 1])
+
+
 if __name__ == "__main__":
     unittest.main()
