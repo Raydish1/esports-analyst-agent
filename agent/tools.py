@@ -15,8 +15,14 @@ prompt's rule. The status:
 - ambiguous  several exact or swap matches with results (a shared name, such as Boomie or Impala), or only prefix or
              fuzzy matches;
 - not_found  nothing matched.
+It takes names only. A name of digits only, or an ID written out ('71736', '#71736', 'player_id 71736'), gets an
+error that says how to get a player_id's name with run_sql: in the prototype's first run, the model passed an ID as a
+name, and the swaps and fuzzy matching made '71736' another player, tike36 (docs/experiments.md). On eval-v1, the 464
+players whose only aliases are digits (25 official results at most) can't be found by name.
 
-run_sql(query) runs one query read-only, stopped after a time limit, and returns at most 20 rows with the total.
+run_sql(query) runs one query read-only, stopped after a time limit, and returns at most 20 rows with the total. A
+bigger result is marked incomplete, with a note not to answer from it but to query again: in the first run, the
+model answered from the 20 rows shown of 46.
 """
 
 import bisect
@@ -45,8 +51,13 @@ MATCH = {"nickname": "curated nickname", "display_name": "display name", "withou
          "former_name": "former name", "swap": "spelling variant (character swaps)",
          "prefix": "name starting with it", "fuzzy": "similar spelling"}
 KINDS = {"nickname": 0, "display_name": 1, "without_tag": 2, "former_name": 3}  # strongest first, as build_aliases.py
+CURRENT = {"nickname", "display_name", "without_tag"}  # the names an answer should call a player by
 SYMBOLS = str.maketrans({"$": "s", "@": "a"})
 SWAPS = str.maketrans({"0": "o", "1": "i", "l": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"})
+ID_WRITTEN = re.compile(r"(?:player[\s_-]*)?id\s*[:#=]?\s*(-?\d+)", re.I)
+INCOMPLETE = ("Incomplete: only the first {rows} of {total} rows are shown. Don't answer from this result: aggregate"
+              " (GROUP BY with COUNT, SUM, MIN or MAX), filter (WHERE) or limit (ORDER BY ... LIMIT) in SQL, and query"
+              " again.")
 
 
 def skeleton(name):
@@ -57,11 +68,25 @@ def skeleton(name):
     return re.sub(r"(.)\1+", r"\1", normalize((name or "").translate(SYMBOLS)).translate(SWAPS))
 
 
+def as_player_id(name):
+    """The player_id a name is written as, or None: digits only ('71736', '#71736', '-42', '71 736') or an ID spelled
+    out ('player_id 71736', 'ID: 5')."""
+    text = name.strip()
+    written = ID_WRITTEN.fullmatch(text)
+    if written:
+        return int(written.group(1))
+    digits = normalize_full(text)
+    if re.fullmatch(r"[0-9]+", digits):
+        return -int(digits) if text.lstrip("#").lstrip().startswith("-") else int(digits)
+    return None
+
+
 class Resolver:
     """Every alias, with each person's official results, read once from the database: names resolve in memory."""
 
     def __init__(self, db):
         self.names = dict(db.execute("SELECT player_id, name FROM players WHERE player_id = canonical_id"))
+        self.canonical = dict(db.execute("SELECT player_id, canonical_id FROM players"))
         self.results = {pid: (n, first, last) for pid, n, first, last in db.execute(
             "SELECT player_id, COUNT(*), MIN(start_date), MAX(start_date) FROM v_results GROUP BY player_id")}
         self.aliases = defaultdict(list)  # alias -> [(canonical ID, kind, shown_as, note)]
@@ -75,7 +100,13 @@ class Resolver:
         self.forms = sorted(self.skeletons)
 
     def resolve(self, name):
-        """{name, status, note, candidates}: the players the name may mean, best first (the module docstring)."""
+        """{name, status, note, candidates}: the players the name may mean, best first (the module docstring); or
+        {name, error} for an ID."""
+        number = as_player_id(name)
+        if number is not None:
+            return {"name": name, "error": f"{name!r} looks like a player_id, not a name, and resolve_player takes names"
+                                          f" only. To get a player_id's name, use run_sql: SELECT player_id, name FROM"
+                                          f" players WHERE player_id = {number}"}
         found = {}  # canonical ID -> (tier, kind, shown_as, note, closeness)
 
         def add(alias, tier, closeness=0.0):
@@ -131,6 +162,12 @@ class Resolver:
             out["note"] = note
         return out
 
+    def called(self, name):
+        """The players this name is the current name of: a display name, with or without its team tag, or a curated
+        nickname (not a former name), compared as aliases are."""
+        return {pid for alias in {normalize(name), normalize_full(name)} - {""}
+                for pid, kind, _, _ in self.aliases.get(alias, ()) if kind in CURRENT}
+
 
 def cell(value):
     if isinstance(value, float):
@@ -142,7 +179,7 @@ def cell(value):
 
 def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
     """One query on the snapshot, read-only (no other database can be attached) and stopped after `seconds`:
-    {columns, rows (at most SQL_ROWS), row_count}, or {error}."""
+    {complete, columns, rows (at most SQL_ROWS), row_count}, with a note first if it's incomplete; or {error}."""
     db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
     db.execute("PRAGMA query_only = ON")
     db.set_authorizer(lambda action, *_: sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_ATTACH else sqlite3.SQLITE_OK)
@@ -159,8 +196,8 @@ def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
         return {"error": f"{type(e).__name__}: {e}"}
     finally:
         db.close()
-    out = {"columns": columns, "rows": [[cell(v) for v in row] for row in rows[:SQL_ROWS]],
-           "row_count": len(rows) if len(rows) <= COUNTED_ROWS else f"more than {COUNTED_ROWS}"}
-    if len(rows) > SQL_ROWS:
-        out["note"] = f"only the first {SQL_ROWS} rows are shown: aggregate, or order and limit, in SQL"
-    return out
+    total = len(rows) if len(rows) <= COUNTED_ROWS else f"more than {COUNTED_ROWS}"
+    shown = {"columns": columns, "rows": [[cell(v) for v in row] for row in rows[:SQL_ROWS]], "row_count": total}
+    if len(rows) <= SQL_ROWS:
+        return {"complete": True, **shown}
+    return {"complete": False, "note": INCOMPLETE.format(rows=SQL_ROWS, total=total), **shown}  # the warning first

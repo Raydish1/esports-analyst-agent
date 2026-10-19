@@ -15,7 +15,8 @@ import tools  # noqa: E402
 PLAYERS = [  # (player_id, name, canonical_id, official results)
     (1, "Impala", 1, 3), (2, "Impala", 2, 1), (3, "BBBalloonBoy", 3, 5), (4, "Marckiem00", 4, 4),
     (5, "flowerVS", 5, 2), (6, "Flowers", 6, 1), (7, "megD", 7, 2), (8, "megdee", 7, 0), (9, "Boomie", 9, 2),
-    (10, "Boomie", 10, 0), (11, "Raydish", 11, 6), (12, "lFiend", 12, 1), (13, "Ca$h", 13, 1)]
+    (10, "Boomie", 10, 0), (11, "Raydish", 11, 6), (12, "lFiend", 12, 1), (13, "Ca$h", 13, 1), (14, "tike36", 14, 3),
+    (15, "exact", 15, 2), (16, "7th", 16, 1), (17, "Notes", 17, 1), (18, "1234", 18, 1)]
 ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("impala", 1, "display_name", "Impala", None), ("impala", 2, "display_name", "Impala", None),
     ("bbballoonboy", 3, "display_name", "BBBalloonBoy", None), ("balloonboy", 3, "former_name", "LGN | BalloonBoy", None),
@@ -24,7 +25,10 @@ ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("flowers", 6, "display_name", "Flowers", None), ("megd", 7, "display_name", "megD", None),
     ("megdee", 8, "display_name", "megdee", None), ("boomie", 9, "display_name", "Boomie", None),
     ("boomie", 10, "display_name", "Boomie", None), ("raydish", 11, "display_name", "Raydish", None),
-    ("lfiend", 12, "display_name", "lFiend", None), ("cah", 13, "display_name", "Ca$h", None)]
+    ("lfiend", 12, "display_name", "lFiend", None), ("cah", 13, "display_name", "Ca$h", None),
+    ("tike36", 14, "display_name", "tike36", None), ("exact", 15, "display_name", "exact", None),
+    ("7th", 16, "display_name", "7th", None), ("notes", 17, "display_name", "Notes", None),
+    ("1234", 18, "display_name", "1234", None)]
 
 
 def snapshot(path):
@@ -105,14 +109,27 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("zzqqxx"), ("not_found", []))
         self.assertEqual(self.resolve("!!"), ("not_found", []))
 
+    def test_ids_and_digit_only_names_are_refused_with_how_to_get_the_name(self):
+        for name in ("71736", " #71736 ", "71 736", "player_id 71736", "ID: 71736", "Player-ID=71736"):
+            out = self.resolver.resolve(name)
+            self.assertNotIn("candidates", out)
+            self.assertIn("takes names only", out["error"])
+            self.assertIn("SELECT player_id, name FROM players WHERE player_id = 71736", out["error"])
+        self.assertIn("player_id = -42", self.resolver.resolve("-42")["error"])
+        self.assertIn("error", self.resolver.resolve("1234"))  # a player named 1234 can't be found by name
+        self.assertEqual(self.resolve("tike36"), ("confident", [14]))  # letters with the digits make a name
+        self.assertEqual(self.resolve("7th"), ("confident", [16]))
+
 
 class RunSqlTest(Fixture):
-    def test_at_most_20_rows_with_the_total_and_numbers_kept_short(self):
+    def test_at_most_20_rows_with_the_total_and_an_incomplete_result_marked_first(self):
         out = tools.run_sql("SELECT a, b FROM t ORDER BY a", self.path)
-        self.assertEqual((out["columns"], len(out["rows"]), out["row_count"]), (["a", "b"], 20, 25))
+        self.assertEqual(list(out)[:2], ["complete", "note"])
+        self.assertEqual((out["complete"], out["columns"], len(out["rows"]), out["row_count"]), (False, ["a", "b"], 20, 25))
+        self.assertIn("only the first 20 of 25 rows are shown. Don't answer from this result", out["note"])
         self.assertEqual(out["rows"][1], [1, 0.3333])
-        self.assertIn("first 20 rows", out["note"])
-        self.assertNotIn("note", tools.run_sql("SELECT a FROM t LIMIT 3", self.path))
+        self.assertEqual(tools.run_sql("SELECT a FROM t ORDER BY a LIMIT 3", self.path),
+                         {"complete": True, "columns": ["a"], "rows": [[0], [1], [2]], "row_count": 3})
         long = tools.run_sql("SELECT replace(hex(zeroblob(200)), '0', 'x')", self.path)["rows"][0][0]
         self.assertTrue(long.startswith("x" * 300) and long.endswith("(400 characters)"))
 
@@ -123,6 +140,31 @@ class RunSqlTest(Fixture):
         self.assertTrue(tools.run_sql(forever, self.path, seconds=0.5)["error"].startswith("stopped after 0.5 s"))
         self.assertIn("no such column: nope", tools.run_sql("SELECT nope FROM t", self.path)["error"])
         self.assertIn("one statement", tools.run_sql("SELECT 1; SELECT 2", self.path)["error"])
+
+
+class AnswerCheckTest(Fixture):
+    def shown(self):
+        """A conversation that has returned Marckiem00 (4) by the resolver and BBBalloonBoy (3) by ID only."""
+        shown = react.Shown(self.resolver, "You answer questions about official events, in 1v1 and 2v2.",
+                            "Who has the best record against marckiemoo?")
+        shown.observe("resolve_player", self.resolver.resolve("marckiemoo"))
+        shown.observe("run_sql", tools.run_sql("SELECT 3 AS player_id, 2 AS wins", self.path))
+        return shown
+
+    def test_names_are_looked_for_in_words_shaped_like_gamer_tags_and_in_bold_text(self):
+        spans = react.name_spans("**Raydish** beat tike36's rival V3M_T4NQUIL0 and megD 3-2; **Notes:** none, the **best record**.")
+        self.assertEqual(spans, ["tike36", "V3M_T4NQUIL0", "megD", "Raydish", "best record"])
+
+    def test_an_answer_naming_a_player_no_tool_returned_is_flagged(self):
+        shown = self.shown()
+        self.assertEqual(shown.unreturned("**tike36** has the best record: 3-2."), {"tike36": [14]})
+        self.assertEqual(shown.unreturned("tike36's record against them is 3-2."), {"tike36": [14]})
+        self.assertEqual(shown.unreturned("**BBBalloonBoy** is 3-2 against **Marckiem00**."), {})  # by ID, by the resolver
+        # numbers, ordinals, formats and labels aren't names, though some players have them as display names
+        self.assertEqual(shown.unreturned("No exact figures: 7th place, **7th**, 2v2 and **Notes:** none."), {})
+        self.assertEqual(shown.unreturned("Raydish has the best record."), {})  # a plain name isn't looked for
+        shown.observe("run_sql", {"complete": True, "columns": ["name"], "rows": [["tike36"]], "row_count": 1})
+        self.assertEqual(shown.unreturned("**tike36** has the best record."), {})  # a name a tool showed counts
 
 
 def reply(content="", calls=(), thinking="", done="stop"):
@@ -162,6 +204,32 @@ class LoopTest(Fixture):
                          ("assistant", "Find megd first.", "tool", "resolve_player"))
         self.assertEqual(json.loads(observation["content"]), json.loads(first["observation"]))
         self.assertEqual((trace["output_tokens"], trace["largest_context"]), (30, 110))
+        self.assertEqual(trace["unreturned_names"], {})  # megD was returned
+
+    def test_an_answer_naming_a_player_no_tool_returned_goes_back_once(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]),
+                       reply("**tike36** has the best record against Marckiem00."), reply("**tike36** has it."))
+        trace = react.run("Who has the best record against marckiemoo?", self.tools, ask=ask, log=lambda *_: None)
+        first, second = trace["steps"][1]["answer_check"], trace["steps"][2]["answer_check"]
+        self.assertEqual((first["names"], first["action"], second["action"]),
+                         ({"tike36": [14]}, "sent back", "kept: sent back once already"))
+        self.assertEqual((trace["outcome"], trace["answer"], trace["unreturned_names"], trace["steps_used"]),
+                         ("answered", "**tike36** has it.", {"tike36": [14]}, 3))
+        flagged, message = ask.sent[2][-2:]
+        self.assertEqual((flagged["role"], flagged["content"]), ("assistant", "**tike36** has the best record against Marckiem00."))
+        self.assertEqual(message["role"], "user")
+        self.assertIn("it names 'tike36', which no tool returned", message["content"])
+        self.assertNotIn(react.LAST_STEP, message["content"])
+
+    def test_a_flagged_answer_is_kept_on_the_last_step_and_a_send_back_before_it_says_so(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("**tike36**."))
+        trace = react.run("q", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
+        self.assertEqual((trace["steps"][1]["answer_check"]["action"], trace["unreturned_names"]),
+                         ("kept: no steps left", {"tike36": [14]}))
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("**tike36**."), reply("Marckiem00."))
+        trace = react.run("q", self.tools, ask=ask, max_steps=3, log=lambda *_: None)
+        self.assertIn(react.LAST_STEP, trace["steps"][1]["answer_check"]["message"])
+        self.assertEqual((trace["outcome"], trace["answer"], trace["unreturned_names"]), ("answered", "Marckiem00.", {}))
 
     def test_text_beside_tool_calls_is_traced_but_left_out_of_the_history(self):
         ask = Scripted(reply("Let me look them up.", calls=[("resolve_player", {"name": "megd"})]), reply("Done."))
@@ -197,14 +265,20 @@ class LoopTest(Fixture):
     def test_traces_are_written_in_full_and_summarized_without_the_thinking(self):
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT a FROM t"})], thinking="Count them."), reply("25."))
         trace = {"number": 6, **react.run("How many?", self.tools, ask=ask, log=lambda *_: None)}
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("**tike36**."), reply("Marckiem00."))
+        checked = {"number": 8, **react.run("Who?", self.tools, ask=ask, log=lambda *_: None)}
         header = {"run": "R", "model": "m", "variant": "v", "think": True, "seed": 0, "max_steps": 8, "ollama": "x",
                   "snapshot": {"file": "f", "build_id": "b"}}
-        page = react.markdown([trace], header)
-        for text in ("## Question 6: How many?", "Count them.", "**Tool call:** `run_sql`", "SELECT a FROM t", "### Answer"):
+        page = react.markdown([trace, checked], header)
+        for text in ("## Question 6: How many?", "Count them.", "**Tool call:** `run_sql`", "SELECT a FROM t", "### Answer",
+                     "**Reply**\n\n**tike36**.", "**Answer check:** it names tike36 (14), which no tool returned. Sent back",
+                     "> Before this answer is final"):
             self.assertIn(text, page)
         summary = react.summary(trace)
-        self.assertEqual(summary["tool_calls"][0]["result"][:9], "25 rows: ")
+        self.assertTrue(summary["tool_calls"][0]["result"].startswith("25 rows, incomplete (20 shown): [[0], [1], [2]]"))
+        self.assertEqual((summary["unreturned_names"], summary["answer_checks"]), ({}, []))
         self.assertNotIn("Count them.", json.dumps(summary))
+        self.assertEqual(react.summary(checked)["answer_checks"], [{"step": 2, "names": {"tike36": [14]}, "action": "sent back"}])
 
 
 class PromptTest(unittest.TestCase):

@@ -73,8 +73,26 @@ The baseline took 19.6, 12.6 and 44.1 s per reply on these questions, plus 82 s 
 **For the agent** (proposals; the decisions are the user's):
 - `resolve_player` should take names only. A name of digits only should get no swaps or fuzzy matching, and an answer that it looks like an ID, with how to get the name.
 - An answer shouldn't rest on a cut-off result. Options: a firmer note in the observation, a higher cap, or the result checker flagging an answer built on one.
-- The result checker could also flag an answer that names a player no observation returned, as question 8's did.
+- The result checker could also flag an answer that names a player no observation returned.
+  - Correction (2026-10-19): question 8's answer wouldn't have been flagged. The resolver itself had returned tike36, from the ID.
+  - Such a check catches that case only once `resolve_player` refuses IDs.
 - Rerun with seeds 1–5, as the comparison's reruns did, before reading anything into rates.
+
+**Decision** (the user's, 2026-10-19): all three proposals, plus guidance on writing the answer. They're implemented and unit-tested, but not yet run: the Ollama server was unreachable. The seed runs come next, when the user asks.
+- **`resolve_player` takes names only.**
+  - A name of digits only, or an ID written out ("71736", "#71736", "player_id 71736"), gets an error saying how to get the name with `run_sql`.
+  - On eval-v1, 464 players whose only aliases are digits can't be found by name. Each has at most 25 official results.
+- **Cut-off results:**
+  - A result of more than 20 rows comes back marked incomplete (`"complete": false`), with its first 20 rows. A note before the rows says not to answer from it, but to aggregate, filter or limit in SQL and query again.
+  - The prompt says the same, and to aggregate in SQL when counting or summarizing.
+- **An answer check:** a final answer that names a player no tool returned goes back to the model once, with the names. The next answer counts either way, and the trace records what the check found.
+  - Most ordinary words are some player's display name: "best", "me" and "Winter" all are. So without a dictionary, the check looks only where a name can be told apart:
+    - words shaped like gamer tags: letters with digits, an underscore, or a capital inside (tike36, V3M_T4NQUIL0, megD);
+    - bold text that isn't a label.
+  - Numbers, ordinals and any words the conversation already showed don't count.
+  - A plain name outside bold, such as Raydish, isn't checked.
+  - Replayed through the new tools on this run's three answers and a smoke test's (question 7), it flags only question 8's tike36.
+- **Answer guidance in the prompt:** players' current display names, the scope ("at official events, in 1v1"), which player an ambiguous name was taken to mean, and the main facts the question asks for.
 
 ## 2026-10-10: model comparison for one-prompt text-to-SQL
 

@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-18)
+## Project status (2026-10-19)
 **Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
 - The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
@@ -28,6 +28,13 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
 - A minimal ReAct prototype (2026-10-18, `agent/`): qwen3:8b with thinking, two tools (`resolve_player`, `run_sql`), at most 8 steps. On questions 4, 6 and 8, one run each (in the log):
   - every name resolved and every query was right (3 of 3 by the comparison's check, against the baseline's 1 of 3);
   - but only question 4's answer was: question 6 was answered from the 20 rows shown of 46, and question 8 sent an ID to `resolve_player`, which fuzzy-matched it to another player.
+- Decided (2026-10-19): the log's three proposals and answer guidance, implemented and unit-tested but not yet run, since the Ollama server was unreachable:
+  - `resolve_player` takes names only;
+  - a cut-off result is marked incomplete;
+  - an answer naming a player no tool returned goes back once;
+  - the prompt says how to write the answer.
+
+  The seed runs come next, when the user asks.
 
 **The evaluation set is drafted** (2026-10-10): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1, waiting for the user's verification.
 
@@ -97,10 +104,12 @@ Evaluation (`eval/`):
 - `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
 
 Agent (`agent/`, a prototype):
-- `react.py` is the ReAct loop: `python agent/react.py "question"`, or `--target N` for target questions. Traces go to `data/experiments/<run>/`, and a run of target questions also writes a summary to `eval/results/`.
+- `react.py` is the ReAct loop: `python agent/react.py "question"`, or `--target N` for target questions.
+  - Traces go to `data/experiments/<run>/`, and a run of target questions also writes a summary to `eval/results/`.
+  - The answer check: an answer naming a player no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold text, since most ordinary words are some player's display name.
 - `tools.py` holds the tools:
-  - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found);
-  - `run_sql` runs one read-only query on eval-v1, stopped after 30 s, and returns at most 20 rows with the total.
+  - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only;
+  - `run_sql` runs one read-only query on eval-v1, stopped after 30 s, and returns at most 20 rows with the total. A bigger result is marked incomplete, with a note not to answer from it.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
@@ -183,7 +192,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **verifying the evaluation set**, which the user does at their own pace (`verified` in `eval/questions/questions.toml`); then the agent's design, explained before it's built.
+Next step: **the prototype's seed runs** on questions 4, 6 and 8, when the user asks (the Ollama server must be reachable). Meanwhile, **verifying the evaluation set**, which the user does at their own pace (`verified` in `eval/questions/questions.toml`); then the agent's design, explained before it's built.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

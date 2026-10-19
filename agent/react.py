@@ -6,10 +6,11 @@ run_sql (agent/tools.py), through Ollama's native tool calling.
 
 Each step is one model reply: its thinking, then either tool calls, whose results go back as observations, or the
 answer. A question ends at the answer, or after MAX_STEPS replies; the observation before the last step says it's
-the last. The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md), with its own
-sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the comparison
-prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player and a
-section on the views that hold each pairing more than once.
+the last. An answer that names a player no tool returned goes back to the model once, with the names, before it
+counts (Shown.unreturned). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
+with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
+comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
+a section on the views that hold each pairing more than once, and how to use the tools and write the answer.
 
 The console shows each step in short. Every step in full (thinking, reply, tool calls and observations, exactly as
 sent) goes to data/experiments/<run>/traces.jsonl and traces.md (git-ignored). A run of target questions also writes
@@ -20,6 +21,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import sys
 import time
@@ -30,6 +32,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
+from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
 from tools import SNAPSHOT, SQL_ROWS, SQL_SECONDS, Resolver, run_sql  # noqa: E402
 
@@ -53,9 +56,13 @@ Using the tools
   - "ambiguous": use the first candidate unless the question points to another, and say in your answer which player
     you took the name to mean.
   - "not_found": the data has no such player; say so.
+- resolve_player takes names only, never IDs. To get the name of a player_id, query players with run_sql.
 - run_sql runs one read-only SQLite query (a SELECT; WITH is fine) and returns at most {rows} rows, with the total
-  row count. Compute what the answer needs in SQL (aggregate, order, limit) rather than reading every row. If it
-  returns an error, fix the query and try again.
+  row count. If it returns an error, fix the query and try again.
+- To count or summarize (how many, how often, the most, the best), aggregate in SQL with GROUP BY and COUNT, SUM, MIN
+  or MAX, rather than listing raw rows.
+- A result of more than {rows} rows comes back incomplete ("complete": false), with only its first {rows} rows. Never
+  answer from an incomplete result: aggregate, filter or limit in SQL, and query again.
 - The views are fast when filtered by a literal player_id. With a lookup inside the query, the head-to-head views
   take a minute or more, and run_sql stops a query after {seconds} seconds.
 
@@ -113,8 +120,14 @@ Counting rules (the views already apply the first four)
 Answering
 - You have at most {steps} steps, and each reply is one. When you have what the answer needs, reply with the answer
   and no tool call.
-- Answer in plain English. Say "official events" rather than "majors", name players as the data shows them, give the
-  figures the answer rests on, and say what you assumed: which player a name means, and what was counted."""
+- Answer in plain English, and give the main facts the question asks for, with the figures they rest on.
+- Name players by their current display name, spelled as the data spells it: the name resolve_player or the players
+  table returns, not the one the question used. Name only players a tool returned.
+- State the scope: official events (say "official events", not "majors") and the mode, as in "at official events, in
+  1v1".
+- If resolve_player was ambiguous, say which player you took the name to mean, and that other players share or
+  resemble the name.
+- Say what else you assumed, such as what was counted."""
 
 TOOLS = [
     {"type": "function", "function": {
@@ -133,6 +146,10 @@ TOOLS = [
             "query": {"type": "string", "description": "one SQLite SELECT statement"}}}}},
 ]
 LAST_STEP = "You have one step left: reply with your answer, without calling a tool."
+CHECK = ("Before this answer is final: it names {names}, which no tool returned in this conversation. If that means a"
+         " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
+         " the tools return. If it isn't meant as a player, reply with the same answer again.")
+NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
 
 
 # Talking to the model
@@ -184,6 +201,64 @@ class Tools:
         return {"error": f"there is no tool named {name!r}: the tools are resolve_player and run_sql"}
 
 
+# The answer check
+
+def name_spans(answer):
+    """Where an answer may name a player, told apart from ordinary words without a dictionary: words shaped like gamer
+    tags (letters with digits, an underscore, or a capital inside: tike36, V3M_T4NQUIL0, megD), and bold text of up to
+    three words that isn't a label (**Raydish**, not **Notes:**), with a possessive 's dropped. A plain name outside
+    bold, such as Raydish, isn't found: most ordinary words are some player's display name ('best', 'me', 'Winter')."""
+    spans = []
+    for token in answer.split():
+        word = re.sub(r"['’]s$", "", token.strip("*_`'\"()[]{}.,;:!?’"))
+        if re.search(r"[A-Za-z]", word) and re.search(r"\d|_|[a-z][A-Z]", word):
+            spans.append(word)
+    for text in re.findall(r"\*\*(.+?)\*\*", answer):
+        text = re.sub(r"['’]s$", "", text.strip())
+        if text and not text.endswith(":") and len(text.split()) <= 3:
+            spans.append(text)
+    return spans
+
+
+class Shown:
+    """What a question's conversation has shown the model: every word of the prompt, the question and the
+    observations, and the players the tools returned (resolve_player's candidates, and any player ID in a query
+    result)."""
+
+    def __init__(self, resolver, *texts):
+        self.resolver, self.words, self.players = resolver, set(), set()
+        for text in texts:
+            self.read(text)
+
+    def read(self, text):
+        tokens = str(text).split()
+        for n in (1, 2, 3):  # names of up to three words, such as 'Titanium wrath09' or 'SiB | Wess'
+            for i in range(len(tokens) - n + 1):
+                span = " ".join(tokens[i:i + n])
+                self.words |= {normalize(span), normalize_full(span)} - {""}
+
+    def observe(self, name, observation):
+        self.read(json.dumps(observation, ensure_ascii=False))
+        if name == "resolve_player":
+            self.players |= {c["player_id"] for c in observation.get("candidates", ())}
+        canonical = self.resolver.canonical
+        for row in observation.get("rows", ()):
+            self.players |= {canonical[v] for v in row if isinstance(v, int) and v in canonical}
+
+    def unreturned(self, answer):
+        """The names in an answer (name_spans) that are only the current names of players no tool returned:
+        {name: [player IDs]}. Numbers, ordinals and words the conversation already showed don't count."""
+        found = {}
+        for span in name_spans(answer):
+            key = normalize(span)
+            if len(key) < 2 or NUMBERISH.fullmatch(key) or key in self.words or normalize_full(span) in self.words:
+                continue
+            players = self.resolver.called(span)
+            if players and not players & self.players:
+                found[span] = sorted(players)[:5]
+        return found
+
+
 # The loop
 
 def ending(content, done_reason):
@@ -196,11 +271,13 @@ def ending(content, done_reason):
 
 
 def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, **model):
-    """Answer one question. The trace: each step's thinking, reply and tool calls with their observations, then the
-    answer and the outcome ('answered', 'step limit', ...)."""
+    """Answer one question. The trace: each step's thinking, reply and tool calls with their observations, and any
+    answer check; then the answer, the outcome ('answered', 'step limit', ...) and the names in the answer that no tool
+    returned. An answer naming such players goes back once, if a step is left; the next answer counts either way."""
     messages = [{"role": "system", "content": SYSTEM.format(rows=SQL_ROWS, seconds=SQL_SECONDS, steps=max_steps)},
                 {"role": "user", "content": question}]
-    trace = {"question": question, "steps": [], "answer": None, "outcome": None}
+    trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {}}
+    shown, checked = Shown(tools.resolver, messages[0]["content"], question, json.dumps(TOOLS)), False
     for number in range(1, max_steps + 1):
         begun = time.monotonic()
         try:
@@ -218,7 +295,21 @@ def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, **model):
         trace["steps"].append(step)
         log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
         if not calls:
-            trace["answer"], trace["outcome"] = content.strip() or None, ending(content, step["done_reason"])
+            outcome = ending(content, step["done_reason"])
+            names = shown.unreturned(content) if outcome == "answered" else {}
+            if names and not checked and number < max_steps:
+                checked, message = True, CHECK.format(names=" and ".join(f"'{n}'" for n in names))
+                if number == max_steps - 1:
+                    message += " " + LAST_STEP
+                step["answer_check"] = {"names": names, "action": "sent back", "message": message}
+                messages += [{"role": "assistant", "content": content, "thinking": thinking},
+                             {"role": "user", "content": message}]
+                log(f"  answer check: {', '.join(names)} named, but no tool returned them; sent back")
+                continue
+            if names:
+                step["answer_check"] = {"names": names, "action": "kept: sent back once already" if checked
+                                        else "kept: no steps left"}
+            trace["answer"], trace["outcome"], trace["unreturned_names"] = content.strip() or None, outcome, names
             log(f"  {trace['outcome']}: {short(content, 300)}")
             break
         if number == max_steps:
@@ -235,6 +326,7 @@ def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, **model):
             begun = time.monotonic()
             observation = tools.call(name, arguments)
             seconds = time.monotonic() - begun
+            shown.observe(name, observation)
             if number == max_steps - 1 and i == len(calls) - 1:
                 observation = {**observation, "last_step": LAST_STEP}
             text = json.dumps(observation, ensure_ascii=False)
@@ -272,10 +364,18 @@ def markdown(traces, header):
                     "```text", s["thinking"].strip() or "(none)", "```", ""]
             if s["content"].strip() and s["tool_calls"]:
                 out += ["**Reply text beside the tool calls**", "", s["content"].strip(), ""]
+            check = s.get("answer_check")
+            if check:
+                names = ", ".join(f"{n} ({', '.join(map(str, ids))})" for n, ids in check["names"].items())
+                if check["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**Answer check:** it names {names}, which no tool"
+                            " returned. Sent back with:", "", f"> {check['message']}", ""]
+                else:
+                    out += [f"**Answer check:** it names {names}, which no tool returned ({check['action']}).", ""]
             for c in s["tool_calls"]:
                 args = c["arguments"]
-                shown = args.get("query") if c["name"] == "run_sql" and isinstance(args, dict) and "query" in args else json.dumps(args, ensure_ascii=False)
-                out += [f"**Tool call:** `{c['name']}`", "", f"```{'sql' if c['name'] == 'run_sql' else 'json'}", str(shown).strip(), "```", ""]
+                text = args.get("query") if c["name"] == "run_sql" and isinstance(args, dict) and "query" in args else json.dumps(args, ensure_ascii=False)
+                out += [f"**Tool call:** `{c['name']}`", "", f"```{'sql' if c['name'] == 'run_sql' else 'json'}", str(text).strip(), "```", ""]
                 if c["observation"] is None:
                     out += ["**Observation:** not run (step limit)", ""]
                 else:
@@ -295,16 +395,19 @@ def preview(observation, width=200):
         return f"error: {data['error']}"
     if "status" in data:
         return f"{data['status']}: " + ", ".join(f"{c['player_id']} {c['name']}" for c in data["candidates"])
-    text = f"{data['row_count']} rows: {json.dumps(data['rows'][:3], ensure_ascii=False)}"
+    rows = f"{data['row_count']} rows" + ("" if data.get("complete", True) else f", incomplete ({len(data['rows'])} shown)")
+    text = f"{rows}: {json.dumps(data['rows'][:3], ensure_ascii=False)}"
     return text if len(text) <= width else text[:width] + "..."
 
 
 def summary(trace):
-    keep = ("number", "question", "outcome", "answer", "steps_used", "model_seconds", "tool_seconds", "output_tokens",
-            "largest_context")
+    keep = ("number", "question", "outcome", "answer", "unreturned_names", "steps_used", "model_seconds",
+            "tool_seconds", "output_tokens", "largest_context")
     calls = [{"step": s["step"], "name": c["name"], "arguments": c["arguments"], "result": preview(c["observation"])}
              for s in trace["steps"] for c in s["tool_calls"]]
-    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls}
+    checks = [{"step": s["step"], "names": s["answer_check"]["names"], "action": s["answer_check"]["action"]}
+              for s in trace["steps"] if s.get("answer_check")]
+    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks}
 
 
 def main():
