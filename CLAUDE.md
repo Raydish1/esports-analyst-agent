@@ -36,7 +36,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
 
   The seed runs come next, when the user asks.
 
-**The evaluation set is drafted** (2026-10-10): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1, waiting for the user's verification.
+**The evaluation set is verified, all but one question** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
+- The user's verdicts: 41 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
+- q38 (the top 5 by official 1v1 wins) waits on the user. Boomie, with 12 official 1v1 wins (10 without crew battles), is tied 8th in the data, so the candidate answer leaves him out.
+- From the review: q08 no longer accepts "no minimum" (Snowy!!), and q24 accepts the 2026 reading of "msi" only if the answer says "msi" is ambiguous.
 
 Planning and write-ups:
 - Stats API survey (`ingest/survey_api.mjs`) → `docs/api-survey.md`: what the API returns, its bugs and coverage gaps, and which target questions it can answer.
@@ -96,7 +99,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 
 Evaluation (`eval/`):
 - `model_comparison.py` runs the model comparison: one prompt and one query per target question, on eval-v1. Results go to `eval/results/` and full replies to `data/experiments/`. It's exploratory, since the expected answers come from our own data.
-- `questions/questions.toml` is the evaluation set (v1, a draft until verified): 45 questions, each with its category, what it tests, the players and events its names mean, a candidate answer, the SQL behind it, and `verified`, which the user fills in (`yes`, or `no: ...` with what's right).
+- `questions/questions.toml` is the evaluation set (v1, verified 2026-10-19 but for q38): 45 questions, each with its category, what it tests, the players and events its names mean, a candidate answer, the SQL behind it, and `verified`, which the user fills in (`yes`, `yes: ...` with a note, or `no: ...` / `partly: ...` with what's right).
   - Categories: player records, event results, head-to-heads, multi-step (comparisons, firsts, mosts, rankings), partial (what the data shows, then what's missing) and unanswerable (what isn't available, and why).
   - Where a reasonable definition changes the answer (14 questions), `accept` lists each acceptable answer with the assumption that produces it; an answer gets credit only if it states its assumption.
   - `tied_to_eval_v1` marks the 7 answers that Phase 2 (or, for legends, Phase 3) will change.
@@ -192,7 +195,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the prototype's seed runs** on questions 4, 6 and 8, when the user asks (the Ollama server must be reachable). Meanwhile, **verifying the evaluation set**, which the user does at their own pace (`verified` in `eval/questions/questions.toml`); then the agent's design, explained before it's built.
+Next step: **the prototype's seed runs** on questions 4, 6 and 8, when the user asks (the Ollama server must be reachable). Meanwhile, the user's verdict on q38, the one question of the evaluation set not yet verified; then the agent's design, explained before it's built.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

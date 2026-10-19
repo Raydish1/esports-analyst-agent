@@ -33,8 +33,8 @@
 #   query           the SQL behind the answer and the accepted answers, one or more queries, each with its purpose.
 #                   Players are looked up first and queried by ID, as the agent will (the head-to-head views are
 #                   slow otherwise).
-#   verified        filled in by the person verifying: "" until checked, then "yes", or "no: ..." / "partly: ..."
-#                   with what's right.
+#   verified        filled in by the person verifying: "" until checked, then "yes" (or "yes: ..." with a note), or
+#                   "no: ..." / "partly: ..." with what's right.
 
 snapshot = "data/db/eval/eval-v1.sqlite"
 build = "20261007T230135Z"
@@ -55,7 +55,7 @@ notes = """
 The newest event is 2v2, not a side format, so the newest 1v1 event is extra: answer rule 2 asks for it only after a \
 side format.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the newest official event entered, side formats included"
@@ -95,7 +95,7 @@ notes = """
 "Majors" are official events (tiers are deferred), and the answer should say "official events". A narrower meaning \
 of "major", only the biggest events, can't be computed from the data until tiers exist.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "majors are official events, and a crew battle counts as 1v1 (the decided rules)"
@@ -130,7 +130,7 @@ notes = """
 "Hexo" is a curated nickname for Hexoo. The API survey's "8 times" counted community events. Brawlhalla Community \
 Tournament #2 is an official event despite its name.
 """
-verified = ""
+verified = "yes: technically correct: the only top 8 is at Brawlhalla Community Tournament #2, which is an official event"
 
 [[question.query]]
 purpose = "1v1 top 8s at official events"
@@ -158,7 +158,7 @@ notes = """
 "Balloonboy" is a former name of BBBalloonBoy (LGN | BalloonBoy). Another record named Impala has one result. q27 \
 asks the same from BBBalloonBoy's side.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the 1v1 record, from Impala's side"
@@ -220,7 +220,7 @@ tied_to_eval_v1 = """
 Phase 2 adds the Esports Earnings snapshot (2026-10-04) as the fallback for players without a Stats API figure, so \
 unranked earners join the list: Esports Earnings has Boomie at #2 with $210,282.67.
 """
-verified = ""
+verified = "partly: candidate list is right, but Boomie is missing because he has no earnings figure; the answer must name him in what's missing"
 
 [[question.query]]
 purpose = "the 10 highest career figures"
@@ -258,7 +258,7 @@ notes = """
 hardymj's two records (a start.gg one and a Challengermode one) are one person through player_merges, so hardymj \
 counts once. megD never appears as their own partner.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "partners at official 2v2 events, with events together and best placement"
@@ -282,7 +282,7 @@ answer = """
 
 Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "top-3 placements at official 1v1 and 2v2 events, a crew battle counting as 1v1 (the decided rules)"
@@ -330,7 +330,7 @@ notes = """
 BBBalloonBoy has played Marckiem00 the most (4-13). Raydish has beaten Marckiem00 the most (6-7), but that isn't \
 the best record by win rate or by net wins.
 """
-verified = ""
+verified = "yes: the question gives no minimum; the agent must state the threshold it used, per the accept list"
 
 [[question.accept]]
 assumption = "set win rate, at least 5 sets (the default; game win rate with the same minimum agrees)"
@@ -339,10 +339,6 @@ answer = "V3M_T4NQUIL0, 3-2 (60%); then Raydish 6-7 and gdsandstorm 4-7"
 [[question.accept]]
 assumption = "set win rate, at least 3 or 4 sets"
 answer = "Ahmet_, 3-1 (75%)"
-
-[[question.accept]]
-assumption = "set win rate, no minimum"
-answer = "Snowy!!, unbeaten at 2-0; Pink | fi0h and TruckStopBurrito are unbeaten at 1-0"
 
 [[question.accept]]
 assumption = "net sets won (wins minus losses)"
@@ -365,15 +361,6 @@ SELECT p.name, h.wins, h.losses, h.matches
 FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
 WHERE h.opponent_id = 146052 AND h.matches >= 3
 ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 3
-'''
-
-[[question.query]]
-purpose = "no minimum: the players Marckiem00 never beat"
-sql = '''
-SELECT p.name, h.wins, h.losses
-FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
-WHERE h.opponent_id = 146052 AND h.losses = 0
-ORDER BY h.wins DESC, p.name
 '''
 
 [[question.query]]
@@ -404,7 +391,7 @@ others named as not available.
 notes = """
 "sandstorm" is a curated nickname for gdsandstorm; eight other records have that name or had it as a former name.
 """
-verified = ""
+verified = "yes: unanswerable as written"
 
 [[question.query]]
 purpose = "gdsandstorm's career figure"
@@ -431,7 +418,7 @@ BCX 2022 is the Brawlhalla World Championship Expo 2022 (2022-11-04), with two e
 - 1v1: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets
 - 2v2: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the events the alias names, with their links"
@@ -456,7 +443,7 @@ The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championsh
 Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship \
 win is left out: its sets are crew against crew, so not comparable.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = """
@@ -530,7 +517,7 @@ notes = """
 "flowers'" means "flower's" (decided 2026-10-04): "flower" and "flowers" are curated nicknames for flowerVS. The \
 schema proposal's rule (§8) is the first 1v1 top 8, with the 2v2 one mentioned if it came earlier.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "the first top 8 in 1v1, with an earlier 2v2 one mentioned (the decided rule)"
@@ -573,7 +560,7 @@ Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING
 notes = """
 "winters" means the seasonal Winter Championship (event_terms), not the Winter Royale.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd"
@@ -603,7 +590,7 @@ Trial of Laufey - North America (Moose Wars), 1v1, 2024-08-25:
 notes = """
 Double elimination: 5th and 7th are shared.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the top 8"
@@ -630,7 +617,7 @@ notes = """
 "Godly" is a former name of Zivai; three other records are named Godly, with 5 results or fewer. The known event is \
 the 1v1; the 2v2 is the same tournament's other event.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd in both events"
@@ -655,7 +642,7 @@ answer = """
 SiB | Wess and V3M_T4NQUIL0 (vem) won the Spring Championship - South America 2026 - 2v2 (2026-05-02), ahead of \
 loreszz and whoiskyna.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd"
@@ -682,7 +669,7 @@ Brawlhalla World Championship Expo 2025 - 1v1 (2025-11-22):
 - 5th: V3M_T4NQUIL0 and Zivai
 - 7th: Mounir and yüz
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the top 8"
@@ -702,7 +689,7 @@ events = { "autumns 2023 NA" = "tournament/north-america-autumn-championship-202
 answer = """
 bestjava and fakey7 won the North America - Autumn Championship 2023 2v2 (2023-10-01); megD and Raydish were 2nd.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd"
@@ -728,7 +715,7 @@ and whoiskyna.
 notes = """
 The year rules out "MSI", whose default is the 2022 Brawlhalla Midseason Championship.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd in both events"
@@ -759,7 +746,7 @@ Checked against start.gg's bracket in the cache (2026-10-10): the Top 8 pool has
 3-0 Impala, and no Grand Final Reset. The database stores no rounds until Phase 3, so its queries find the grand \
 final as the winner's last set, against the runner-up, and the missing reset as the winner never losing a set.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd"
@@ -811,7 +798,7 @@ notes = """
 No alias matches "baloonboy": the agent has to find BBBalloonBoy by a close match (Balloonboy) and say which player \
 it used.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "official wins"
@@ -835,7 +822,7 @@ notes = """
 "markiemoo" misspells the curated nickname "marckiemoo", and no alias matches it. "Worlds" are the events the \
 "worlds YYYY" event aliases name.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "results at the events the worlds aliases name"
@@ -864,7 +851,7 @@ Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at offic
 
 They never met in 2v2.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "counted in sets (the default)"
@@ -914,14 +901,17 @@ notes = """
 "msi" means the 2022 event by default (decided 2026-10-05), and the answer must say which event it used. Low Tier \
 City Midseason Online (2020) is another midseason event someone may mean.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "MSI is the 2022 Brawlhalla Midseason Championship (the decided default)"
 answer = "luna, ahead of megD"
 
 [[question.accept]]
-assumption = "MSI is the latest midseason event, the Midseason Championship 2026"
+assumption = """
+MSI is the latest midseason event, the Midseason Championship 2026, with the answer acknowledging that "msi" is \
+ambiguous
+"""
 answer = "BBBalloonBoy, ahead of Marckiem00"
 
 [[question.query]]
@@ -965,7 +955,7 @@ answer = """
 Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: \
 a team result, counted as 1v1).
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "every official event win, a crew battle counting as 1v1 (the decided rules)"
@@ -999,7 +989,7 @@ answer = """
 notes = """
 The team tag goes: the name without it, "BalloonBoy", is a former name of BBBalloonBoy.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "official 1v1 and 2v2 events, a crew battle counting as 1v1 (the decided rules)"
@@ -1034,7 +1024,7 @@ NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 20
 notes = """
 The same three sets as q04, from the other side. A query that reads v_head_to_head_1v1 from both sides double-counts.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the 1v1 record, from BBBalloonBoy's side"
@@ -1063,7 +1053,7 @@ events = { "worlds 2019 1v1" = "tournament/dreamhack-atlanta-2019/event/brawlhal
 answer = """
 gdsandstorm won the 2019 World Championship 1v1 (DreamHack Atlanta 2019, 2019-11-15); simpLe was 2nd.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd at the 1v1 event the alias names"
@@ -1087,7 +1077,7 @@ events = { "DreamHack Atlanta 2019" = "tournament/dreamhack-atlanta-2019/event/b
 answer = """
 gdsandstorm won DreamHack Atlanta 2019's 1v1, the Brawlhalla World Championship 1v1 (2019-11-15); simpLe was 2nd.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "1st and 2nd"
@@ -1115,7 +1105,7 @@ notes = """
 The answer must say the event wasn't held, not that its results are missing. Mentioning the online event is a plus, \
 not required.
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "the event's status"
@@ -1151,7 +1141,7 @@ out, so its placements aren't counted as results
 notes = """
 Naming TigerBrawlhalla as the winner outright is wrong; naming them as the bracket's only undefeated player is right.
 """
-verified = ""
+verified = "partly: can't confirm the real winner; kept as a data-quality test, since the expected answer is about unreliable standings"
 
 [[question.query]]
 purpose = "the event's status"
@@ -1198,7 +1188,7 @@ missing payouts.
 notes = """
 "vem" is a curated nickname for V3M_T4NQUIL0. MAX MODE 2025's standings hold only 8 of the 1v1's 41 entrants.
 """
-verified = ""
+verified = "yes: unanswerable as written"
 
 [[question.query]]
 purpose = "vem's results at MAX MODE 2025"
@@ -1232,7 +1222,7 @@ tied_to_eval_v1 = """
 Phase 2's Esports Earnings fallback gives Boomie $210,282.67 (as of 2026-10-04), from a source that counts \
 differently from the Stats API.
 """
-verified = ""
+verified = "yes: not answerable with the current database"
 
 [[question.query]]
 purpose = "Boomie's career figure: none"
@@ -1256,7 +1246,7 @@ The data can't say: it starts in February 2017 (the first official events are on
 Championship isn't in it.
 """
 missing = "anything before February 2017: the data starts on 2017-02-04"
-verified = ""
+verified = "yes: unanswerable as written"
 
 [[question.query]]
 purpose = "the dates the data covers"
@@ -1281,7 +1271,7 @@ answer becomes partial.
 notes = """
 An answer from general knowledge, rather than the data, is wrong here.
 """
-verified = ""
+verified = "yes: unanswerable as written"
 
 [[question.query]]
 purpose = "matches with legend data: none"
@@ -1304,7 +1294,7 @@ missing = "community tournaments: the data covers official events only"
 notes = """
 Counting official events whose name says "Community" is wrong.
 """
-verified = ""
+verified = "yes: unanswerable as written"
 
 [[question.query]]
 purpose = "events by is_official: all official"
@@ -1335,7 +1325,7 @@ notes = """
 Side formats (Triples, Brawlball, ...) aren't counted. Leaving out crew battles (gdsandstorm 46, Boomie 42) or counting \
 side formats (acno? and Zivai each won a Triples event) keeps gdsandstorm first.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "wins counted per event, a tournament's 1v1 and 2v2 separately (the default)"
@@ -1431,7 +1421,7 @@ Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69
 
 gdsandstorm has more wins (48 to 44), and Boomie more medals.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = "both modes (the default), or 2v2 only"
@@ -1460,7 +1450,7 @@ answer = """
 gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against \
 them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "Raydish's 1v1 records, most losses first"
@@ -1486,7 +1476,7 @@ notes = """
 The 1v1 world champions by year, as the "worlds YYYY" aliases name them: 2017 ZEEKO, 2018 and 2019 gdsandstorm, \
 2020 and 2021 five regional winners each, 2022 Impala, 2023 and 2024 yüz, 2025 Marckiem00.
 """
-verified = ""
+verified = "yes"
 
 [[question.accept]]
 assumption = """
@@ -1535,7 +1525,7 @@ notes = """
 Entrants are as the platform reported them (start.gg's standings total), and a 2v2 event's entrants are teams. \
 Players are distinct people with a placement.
 """
-verified = ""
+verified = "yes: technically correct"
 
 [[question.accept]]
 assumption = "most entrants in one event (the default)"
@@ -1619,7 +1609,7 @@ answer = """
 megD's first official event win was the Summer Championship - North America 2026 - 1v1 (2026-07-19). The second \
 came on 2026-08-30, at the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle).
 """
-verified = ""
+verified = "yes"
 
 [[question.query]]
 purpose = "official wins, oldest first"
@@ -1641,7 +1631,7 @@ Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.
 notes = """
 "Ahmet" also names a record with one result; Ahmet_ is the ranked player.
 """
-verified = ""
+verified = "partly: probably correct, not yet confirmed"
 
 [[question.query]]
 purpose = "2026 events Zivai won with Ahmet_ 2nd"
@@ -1673,7 +1663,7 @@ from the Stats API, so the comparison becomes possible with that caveat.
 notes = """
 The API survey found $88,095 for Impala through the Stats API's search, which the database doesn't hold.
 """
-verified = ""
+verified = "yes: not answerable because Impala's earnings are unknown"
 
 [[question.query]]
 purpose = "both career figures: only Raydish's exists"

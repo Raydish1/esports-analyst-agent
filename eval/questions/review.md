@@ -10,7 +10,7 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 
 **To verify:** check each candidate answer, and each accepted one, against what you know, or against start.gg, Challengermode or Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the script to update this page.
 
-**Verified:** 0 of 45. **With accepted answers:** 14. **Tied to eval-v1:** 7.
+**Verified:** 44 of 45. **With accepted answers:** 14. **Tied to eval-v1:** 7.
 
 | Category | What it covers | Questions |
 |---|---|---|
@@ -23,51 +23,51 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 
 | Id | Question | Category | Accepted answers | Tied to eval-v1 | Verified |
 |---|---|---|---|---|---|
-| [q01](#q01) | What was the last tournament Boomie entered? | player_record |  |  |  |
-| [q02](#q02) | How many majors has Raydish won? | player_record | 2 |  |  |
-| [q03](#q03) | Has Hexo ever placed top 8 in 1v1? | player_record |  |  |  |
-| [q04](#q04) | What does Impala vs Balloonboy's history look like? | head_to_head |  |  |  |
-| [q05](#q05) | List the top 10 highest-earning players in Brawlhalla history. | partial |  | yes |  |
-| [q06](#q06) | Who has megd played with in 2v2 tournaments, and how did they place? | player_record |  |  |  |
-| [q07](#q07) | How many medals does Balloonboy have? | player_record | 3 |  |  |
-| [q08](#q08) | Who has the best record against marckiemoo? | head_to_head | 4 |  |  |
-| [q09](#q09) | What tournament did sandstorm make the most money from? | unanswerable |  | yes |  |
-| [q10](#q10) | Give me the bracket link of BCX 2022. | event_result |  |  |  |
-| [q11](#q11) | What is Raydish's most dominant tournament win? | multi_step | 3 |  |  |
-| [q12](#q12) | What was flowers' first top 8? | multi_step | 2 |  |  |
-| [q13](#q13) | who won winters 2023 na 1v1 | event_result |  |  |  |
-| [q14](#q14) | Who made top 8 at Trial of Laufey NA? | event_result |  |  |  |
-| [q15](#q15) | did godly win eu summers 2026 | event_result |  |  |  |
-| [q16](#q16) | who won sa 2v2 springs 2026 | event_result |  |  |  |
-| [q17](#q17) | top 8 at bcx 2025 1v1? | event_result |  |  |  |
-| [q18](#q18) | who won 2v2 at autumns 2023 NA? | event_result |  |  |  |
-| [q19](#q19) | Who won the Midseason Championship 2026? | event_result |  |  |  |
-| [q20](#q20) | what was the score of the 1v1 grand final at dreamhack valencia 2023 | multi_step |  |  |  |
-| [q21](#q21) | how many official events has baloonboy won? | player_record |  |  |  |
-| [q22](#q22) | did markiemoo ever win worlds | player_record |  |  |  |
-| [q23](#q23) | kingdom \| godly vs impala head to head | head_to_head | 2 |  |  |
-| [q24](#q24) | who won msi 1v1 | event_result | 2 |  |  |
-| [q25](#q25) | how many official tournaments has RAYDISH won | player_record | 2 |  |  |
-| [q26](#q26) | How many times has M30W \| BalloonBoy finished top 3 at an official event? | player_record | 3 |  |  |
-| [q27](#q27) | whats bbballoonboy's 1v1 record vs impala | head_to_head |  |  |  |
-| [q28](#q28) | who won worlds 2019 1v1 | event_result |  |  |  |
-| [q29](#q29) | Who won the 1v1 at DreamHack Atlanta 2019? | event_result |  |  |  |
-| [q30](#q30) | who won ceo dreamland 2020 | unanswerable |  |  |  |
-| [q31](#q31) | Who won SEA League Week 1/4? | partial |  |  |  |
-| [q32](#q32) | how much prize money did vem win at max mode 2025 | unanswerable |  | yes |  |
-| [q33](#q33) | how much money has boomie made from brawlhalla | partial |  | yes |  |
-| [q34](#q34) | Who won the 2016 Brawlhalla World Championship? | unanswerable |  |  |  |
-| [q35](#q35) | what legend does godly main | unanswerable |  | yes |  |
-| [q36](#q36) | How many community tournaments has raydish won? | unanswerable |  |  |  |
-| [q37](#q37) | Who has won the most official tournaments? | multi_step | 2 |  |  |
+| [q01](#q01) | What was the last tournament Boomie entered? | player_record |  |  | yes |
+| [q02](#q02) | How many majors has Raydish won? | player_record | 2 |  | yes |
+| [q03](#q03) | Has Hexo ever placed top 8 in 1v1? | player_record |  |  | yes: technically correct: the only top 8 is at Brawlhalla Community Tournament #2, which is an official event |
+| [q04](#q04) | What does Impala vs Balloonboy's history look like? | head_to_head |  |  | yes |
+| [q05](#q05) | List the top 10 highest-earning players in Brawlhalla history. | partial |  | yes | partly: candidate list is right, but Boomie is missing because he has no earnings figure; the answer must name him in what's missing |
+| [q06](#q06) | Who has megd played with in 2v2 tournaments, and how did they place? | player_record |  |  | yes |
+| [q07](#q07) | How many medals does Balloonboy have? | player_record | 3 |  | yes |
+| [q08](#q08) | Who has the best record against marckiemoo? | head_to_head | 3 |  | yes: the question gives no minimum; the agent must state the threshold it used, per the accept list |
+| [q09](#q09) | What tournament did sandstorm make the most money from? | unanswerable |  | yes | yes: unanswerable as written |
+| [q10](#q10) | Give me the bracket link of BCX 2022. | event_result |  |  | yes |
+| [q11](#q11) | What is Raydish's most dominant tournament win? | multi_step | 3 |  | yes |
+| [q12](#q12) | What was flowers' first top 8? | multi_step | 2 |  | yes |
+| [q13](#q13) | who won winters 2023 na 1v1 | event_result |  |  | yes |
+| [q14](#q14) | Who made top 8 at Trial of Laufey NA? | event_result |  |  | yes |
+| [q15](#q15) | did godly win eu summers 2026 | event_result |  |  | yes |
+| [q16](#q16) | who won sa 2v2 springs 2026 | event_result |  |  | yes |
+| [q17](#q17) | top 8 at bcx 2025 1v1? | event_result |  |  | yes |
+| [q18](#q18) | who won 2v2 at autumns 2023 NA? | event_result |  |  | yes |
+| [q19](#q19) | Who won the Midseason Championship 2026? | event_result |  |  | yes |
+| [q20](#q20) | what was the score of the 1v1 grand final at dreamhack valencia 2023 | multi_step |  |  | yes |
+| [q21](#q21) | how many official events has baloonboy won? | player_record |  |  | yes |
+| [q22](#q22) | did markiemoo ever win worlds | player_record |  |  | yes |
+| [q23](#q23) | kingdom \| godly vs impala head to head | head_to_head | 2 |  | yes |
+| [q24](#q24) | who won msi 1v1 | event_result | 2 |  | yes |
+| [q25](#q25) | how many official tournaments has RAYDISH won | player_record | 2 |  | yes |
+| [q26](#q26) | How many times has M30W \| BalloonBoy finished top 3 at an official event? | player_record | 3 |  | yes |
+| [q27](#q27) | whats bbballoonboy's 1v1 record vs impala | head_to_head |  |  | yes |
+| [q28](#q28) | who won worlds 2019 1v1 | event_result |  |  | yes |
+| [q29](#q29) | Who won the 1v1 at DreamHack Atlanta 2019? | event_result |  |  | yes |
+| [q30](#q30) | who won ceo dreamland 2020 | unanswerable |  |  | yes |
+| [q31](#q31) | Who won SEA League Week 1/4? | partial |  |  | partly: can't confirm the real winner; kept as a data-quality test, since the expected answer is about unreliable standings |
+| [q32](#q32) | how much prize money did vem win at max mode 2025 | unanswerable |  | yes | yes: unanswerable as written |
+| [q33](#q33) | how much money has boomie made from brawlhalla | partial |  | yes | yes: not answerable with the current database |
+| [q34](#q34) | Who won the 2016 Brawlhalla World Championship? | unanswerable |  |  | yes: unanswerable as written |
+| [q35](#q35) | what legend does godly main | unanswerable |  | yes | yes: unanswerable as written |
+| [q36](#q36) | How many community tournaments has raydish won? | unanswerable |  |  | yes: unanswerable as written |
+| [q37](#q37) | Who has won the most official tournaments? | multi_step | 2 |  | yes |
 | [q38](#q38) | rank the top 5 players by official 1v1 wins | multi_step | 2 |  |  |
-| [q39](#q39) | who has more medals, boomie or sandstorm? | multi_step | 2 |  |  |
-| [q40](#q40) | who has raydish lost to the most in 1v1 | multi_step |  |  |  |
-| [q41](#q41) | Who has won the most 1v1 world championships? | multi_step | 2 |  |  |
-| [q42](#q42) | what was the biggest official brawlhalla tournament ever? | multi_step | 5 | yes |  |
-| [q43](#q43) | what was megd's first major win? | multi_step |  |  |  |
-| [q44](#q44) | How many times did Ahmet finish second to Godly in 2026? | multi_step |  |  |  |
-| [q45](#q45) | who has earned more money, raydish or impala? | partial |  | yes |  |
+| [q39](#q39) | who has more medals, boomie or sandstorm? | multi_step | 2 |  | yes |
+| [q40](#q40) | who has raydish lost to the most in 1v1 | multi_step |  |  | yes |
+| [q41](#q41) | Who has won the most 1v1 world championships? | multi_step | 2 |  | yes |
+| [q42](#q42) | what was the biggest official brawlhalla tournament ever? | multi_step | 5 | yes | yes: technically correct |
+| [q43](#q43) | what was megd's first major win? | multi_step |  |  | yes |
+| [q44](#q44) | How many times did Ahmet finish second to Godly in 2026? | multi_step |  |  | partly: probably correct, not yet confirmed |
+| [q45](#q45) | who has earned more money, raydish or impala? | partial |  | yes | yes: not answerable because Impala's earnings are unknown |
 
 <a id="q01"></a>
 
@@ -107,7 +107,7 @@ ORDER BY start_time DESC LIMIT 1
 |---|---|---|---|---|
 | 2023-11-03 | Brawlhalla World Championship Expo 2023 | 1v1 | 1v1 | 49 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q02"></a>
 
@@ -153,7 +153,7 @@ ORDER BY start_time
 | 2024-08-25 | Trial of Laufey - North America (Moose Wars) | Brawlhalla 1v1 | 1v1 | standard |
 | 2026-08-30 | Eternal Sports Crew Battle Championship 2026 - North America | NULL | 1v1 | crew_battle |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q03"></a>
 
@@ -181,7 +181,7 @@ ORDER BY start_time
 |---|---|---|---|
 | 2025-09-28 | Brawlhalla Community Tournament #2 | NULL | 5 |
 
-**Verified:** not yet
+**Verified:** yes: technically correct: the only top 8 is at Brawlhalla Community Tournament #2, which is an official event
 
 <a id="q04"></a>
 
@@ -256,7 +256,7 @@ GROUP BY a.mode ORDER BY a.mode
 | 1v1 | 23 |
 | 2v2 | 3 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q05"></a>
 
@@ -314,7 +314,7 @@ FROM v_career_earnings GROUP BY source
 |---|---|---|
 | Stats API | 4981 | 2026-10-02 |
 
-**Verified:** not yet
+**Verified:** partly: candidate list is right, but Boomie is missing because he has no earnings figure; the answer must name him in what's missing
 
 <a id="q06"></a>
 
@@ -367,7 +367,7 @@ GROUP BY t.partner_id ORDER BY events DESC, best_placement, partner
 | .kira | 162681 | 1 | 25 |
 | iLLu | 113714 | 1 | 25 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q07"></a>
 
@@ -417,7 +417,7 @@ ORDER BY start_time
 | 2026-03-29 | Eternal Sports Triples Championship 2026 - North America | triples | NULL | 2 |
 | 2026-08-30 | Eternal Sports Crew Battle Championship 2026 - North America | crew_battle | 1v1 | 2 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q08"></a>
 
@@ -440,7 +440,6 @@ V3M_T4NQUIL0 is the only one of them with a winning record.
 
 - *set win rate, at least 5 sets (the default; game win rate with the same minimum agrees):* V3M_T4NQUIL0, 3-2 (60%); then Raydish 6-7 and gdsandstorm 4-7
 - *set win rate, at least 3 or 4 sets:* Ahmet_, 3-1 (75%)
-- *set win rate, no minimum:* Snowy!!, unbeaten at 2-0; Pink | fi0h and TruckStopBurrito are unbeaten at 1-0
 - *net sets won (wins minus losses):* Ahmet_ (3-1) and Snowy!! (2-0), tied at +2
 
 **Notes:** BBBalloonBoy has played Marckiem00 the most (4-13). Raydish has beaten Marckiem00 the most (6-7), but that isn't the best record by win rate or by net wins.
@@ -478,22 +477,7 @@ ORDER BY 1.0 * h.wins / h.matches DESC, h.matches DESC LIMIT 3
 | Dragon! | 2 | 1 | 3 |
 | V3M_T4NQUIL0 | 3 | 2 | 5 |
 
-**Query 3:** no minimum: the players Marckiem00 never beat
-
-```sql
-SELECT p.name, h.wins, h.losses
-FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.player_id
-WHERE h.opponent_id = 146052 AND h.losses = 0
-ORDER BY h.wins DESC, p.name
-```
-
-| name | wins | losses |
-|---|---|---|
-| Snowy!! | 2 | 0 |
-| Pink \| fi0h | 1 | 0 |
-| TruckStopBurrito | 1 | 0 |
-
-**Query 4:** net sets won
+**Query 3:** net sets won
 
 ```sql
 SELECT p.name, h.wins, h.losses, h.wins - h.losses AS net
@@ -509,7 +493,7 @@ ORDER BY net DESC, h.wins DESC LIMIT 4
 | V3M_T4NQUIL0 | 3 | 2 | 1 |
 | Dragon! | 2 | 1 | 1 |
 
-**Verified:** not yet
+**Verified:** yes: the question gives no minimum; the agent must state the threshold it used, per the accept list
 
 <a id="q09"></a>
 
@@ -552,7 +536,7 @@ ORDER BY name
 | table | player_earnings |
 | view | v_career_earnings |
 
-**Verified:** not yet
+**Verified:** yes: unanswerable as written
 
 <a id="q10"></a>
 
@@ -581,7 +565,7 @@ WHERE a.alias = 'bcx 2022' ORDER BY v.bracket_url
 | Brawlhalla World Championship Expo 2022 | 1v1 | 2022-11-04 | https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets |
 | Brawlhalla World Championship Expo 2022 | 2v2 | 2022-11-04 | https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q11"></a>
 
@@ -673,7 +657,7 @@ ORDER BY game_differential DESC
 | Trial of Ymir - North America | 10 | 0 | 77.1 | 19 |
 | North America - Winter Championship 2023 | 10 | 0 | 78.1 | 18 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q12"></a>
 
@@ -720,7 +704,7 @@ ORDER BY start_time LIMIT 1
 |---|---|---|---|---|
 | 2v2 | 2024-07-21 | Summer Doubles Championship - North America | Brawlhalla Championship 2v2 | 7 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q13"></a>
 
@@ -751,7 +735,7 @@ ORDER BY r.placement
 | 1 | Raydish |
 | 2 | STING RAY |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q14"></a>
 
@@ -794,7 +778,7 @@ ORDER BY r.placement, p.name
 | 7 | STING RAY |
 | 7 | antireplay |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q15"></a>
 
@@ -831,7 +815,7 @@ ORDER BY v.start_time, r.placement
 | Summer Championship - Europe 2026 - 2v2 | 2026-07-25 | 1 | Zivai / bamya |
 | Summer Championship - Europe 2026 - 2v2 | 2026-07-25 | 2 | acno? / Blaze |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q16"></a>
 
@@ -860,7 +844,7 @@ ORDER BY r.placement
 | 1 | SiB \| Wess / V3M_T4NQUIL0 |
 | 2 | loreszz / whoiskyna |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q17"></a>
 
@@ -900,7 +884,7 @@ ORDER BY r.placement, p.name
 | 7 | Mounir |
 | 7 | yüz |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q18"></a>
 
@@ -930,7 +914,7 @@ ORDER BY r.placement
 | 1 | bestjava / fakey7 |
 | 2 | megD / Raydish |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q19"></a>
 
@@ -966,7 +950,7 @@ ORDER BY v.counts_as, r.placement
 | Midseason Championship 2026 – 2v2 | 1 | Mounir / BBBalloonBoy |
 | Midseason Championship 2026 – 2v2 | 2 | loreszz / whoiskyna |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q20"></a>
 
@@ -1042,7 +1026,7 @@ ORDER BY m.start_time
 | 1688930038 | luna | 3 | 0 | 1 |
 | 1688930865 | Zivai | 0 | 3 | 0 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q21"></a>
 
@@ -1077,7 +1061,7 @@ FROM v_official_wins WHERE player_id = 149305 ORDER BY start_time
 | 2026-07-26 | Summer Championship - North America 2026 - 2v2 | 2v2 | standard |
 | 2026-09-20 | Autumn Championship - North America 2026 - 1v1 | 1v1 | standard |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q22"></a>
 
@@ -1111,7 +1095,7 @@ ORDER BY v.start_time, v.counts_as
 | worlds 2025 | Brawlhalla World Championship Expo 2025 - 2v2 | NULL | 2v2 | 7 |
 | worlds 2025 | Brawlhalla World Championship Expo 2025 - 1v1 | NULL | 1v1 | 1 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q23"></a>
 
@@ -1180,7 +1164,7 @@ WHERE player_id = 147982 AND 168635 IN (opponent1_id, opponent2_id)
 |---|
 | 0 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q24"></a>
 
@@ -1197,7 +1181,7 @@ Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the 
 **Accepted answers** (each gets credit only with its assumption stated):
 
 - *MSI is the 2022 Brawlhalla Midseason Championship (the decided default):* luna, ahead of megD
-- *MSI is the latest midseason event, the Midseason Championship 2026:* BBBalloonBoy, ahead of Marckiem00
+- *MSI is the latest midseason event, the Midseason Championship 2026, with the answer acknowledging that "msi" is ambiguous:* BBBalloonBoy, ahead of Marckiem00
 
 **Notes:** "msi" means the 2022 event by default (decided 2026-10-05), and the answer must say which event it used. Low Tier City Midseason Online (2020) is another midseason event someone may mean.
 
@@ -1242,7 +1226,7 @@ ORDER BY r.placement
 | 1 | BBBalloonBoy |
 | 2 | Marckiem00 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q25"></a>
 
@@ -1279,7 +1263,7 @@ FROM v_official_wins WHERE player_id = 160000 ORDER BY start_time
 | 2024-08-25 | Trial of Laufey - North America (Moose Wars) | 1v1 | standard |
 | 2026-08-30 | Eternal Sports Crew Battle Championship 2026 - North America | 1v1 | crew_battle |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q26"></a>
 
@@ -1315,7 +1299,7 @@ FROM v_player_medals WHERE player_id = 149305 ORDER BY mode
 | 1v1 | 2 | 8 | 5 | 15 |
 | 2v2 | 5 | 3 | 4 | 12 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q27"></a>
 
@@ -1362,7 +1346,7 @@ ORDER BY a.start_time
 | 2024-08-04 | Trial of Skuld - North America | 1 | 3 |
 | 2024-11-15 | Brawlhalla World Championship Expo 2024 | 3 | 2 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q28"></a>
 
@@ -1393,7 +1377,7 @@ ORDER BY r.placement
 | DreamHack Atlanta 2019 | Brawlhalla World Championship 1v1 | 1 | gdsandstorm |
 | DreamHack Atlanta 2019 | Brawlhalla World Championship 1v1 | 2 | simpLe |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q29"></a>
 
@@ -1423,7 +1407,7 @@ ORDER BY r.placement
 | 1 | gdsandstorm |
 | 2 | simpLe |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q30"></a>
 
@@ -1468,7 +1452,7 @@ GROUP BY w.event_id ORDER BY v.start_time
 | Brawlhalla CEO Dreamland ONLINE | Brawlhalla Championship 2v2 | 2020-03-28 | gdsandstorm / Boomie |
 | Brawlhalla CEO Dreamland ONLINE | Brawlhalla Championship 1v1 | 2020-03-29 | gdsandstorm |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q31"></a>
 
@@ -1525,7 +1509,7 @@ ORDER BY sets_won DESC
 |---|---|---|
 | TigerBrawlhalla | 6 | 0 |
 
-**Verified:** not yet
+**Verified:** partly: can't confirm the real winner; kept as a data-quality test, since the expected answer is about unreliable standings
 
 <a id="q32"></a>
 
@@ -1573,7 +1557,7 @@ ORDER BY name
 | table | player_earnings |
 | view | v_career_earnings |
 
-**Verified:** not yet
+**Verified:** yes: unanswerable as written
 
 <a id="q33"></a>
 
@@ -1609,7 +1593,7 @@ SELECT COUNT(*) AS pr_rows FROM pr_snapshots WHERE player_id = 146606
 |---|
 | 0 |
 
-**Verified:** not yet
+**Verified:** yes: not answerable with the current database
 
 <a id="q34"></a>
 
@@ -1634,7 +1618,7 @@ SELECT MIN(start_date) AS first_event, MAX(start_date) AS last_event, COUNT(*) A
 |---|---|---|
 | 2017-02-04 | 2026-09-27 | 622 |
 
-**Verified:** not yet
+**Verified:** yes: unanswerable as written
 
 <a id="q35"></a>
 
@@ -1664,7 +1648,7 @@ SELECT COUNT(*) AS matches, SUM(legends_json IS NOT NULL) AS with_legends FROM m
 |---|---|
 | 560184 | 0 |
 
-**Verified:** not yet
+**Verified:** yes: unanswerable as written
 
 <a id="q36"></a>
 
@@ -1704,7 +1688,7 @@ FROM v_events v WHERE lower(v.tournament_name) LIKE '%community%'
 |---|---|---|---|
 | Brawlhalla Community Tournament #2 | 2025-09-28 | 1 | NULL |
 
-**Verified:** not yet
+**Verified:** yes: unanswerable as written
 
 <a id="q37"></a>
 
@@ -1765,7 +1749,7 @@ GROUP BY w.player_id ORDER BY tournaments_won DESC LIMIT 5
 | Zivai | 147982 | 27 | 31 |
 | acno? | 144399 | 26 | 36 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q38"></a>
 
@@ -1866,7 +1850,7 @@ ORDER BY p.name, m.mode
 | gdsandstorm | 1v1 | 30 | 6 | 6 | 42 |
 | gdsandstorm | 2v2 | 18 | 4 | 5 | 27 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q40"></a>
 
@@ -1897,7 +1881,7 @@ ORDER BY h.losses DESC, h.matches DESC LIMIT 5
 | BBBalloonBoy | 149305 | 6 | 4 | 10 |
 | Mounir | 79853 | 4 | 0 | 4 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q41"></a>
 
@@ -1953,7 +1937,7 @@ GROUP BY w.player_id ORDER BY titles DESC, p.name LIMIT 3
 | yüz | 73254 | 2 |
 | Impala | 168635 | 1 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q42"></a>
 
@@ -2040,7 +2024,7 @@ GROUP BY n.series, n.year ORDER BY players DESC LIMIT 3
 | SteelSeries Championship | 2020 | 10 | 18298 | 22269 | 21358 |
 | Mammoth Cup | 2020 | 10 | 12706 | 15504 | 14829 |
 
-**Verified:** not yet
+**Verified:** yes: technically correct
 
 <a id="q43"></a>
 
@@ -2066,7 +2050,7 @@ FROM v_official_wins WHERE player_id = 142100 ORDER BY start_time
 | 2026-07-19 | Summer Championship - North America 2026 - 1v1 | 1v1 | standard |
 | 2026-08-30 | Eternal Sports Crew Battle Championship 2026 - North America | 1v1 | crew_battle |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="q44"></a>
 
@@ -2099,7 +2083,7 @@ ORDER BY a.start_time
 | 2026-07-18 | Summer Championship - Europe 2026 - 1v1 | 1v1 |
 | 2026-09-19 | Autumn Championship - Europe 2026 - 1v1 | 1v1 |
 
-**Verified:** not yet
+**Verified:** partly: probably correct, not yet confirmed
 
 <a id="q45"></a>
 
@@ -2131,4 +2115,4 @@ FROM v_career_earnings WHERE player_id IN (160000, 168635)
 |---|---|---|---|---|
 | 160000 | Raydish | 83825.0 | Stats API | 2026-10-02 |
 
-**Verified:** not yet
+**Verified:** yes: not answerable because Impala's earnings are unknown
