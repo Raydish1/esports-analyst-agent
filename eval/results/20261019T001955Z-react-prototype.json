@@ -1,0 +1,168 @@
+{
+ "run": "20261019T001955Z",
+ "ollama": "0.40.6",
+ "model": "qwen3:8b",
+ "variant": "Qwen3 8B",
+ "think": true,
+ "seed": 0,
+ "options": {
+  "num_ctx": 32768,
+  "num_predict": 8192
+ },
+ "max_steps": 8,
+ "sql_seconds": 30,
+ "sql_rows": 20,
+ "snapshot": {
+  "file": "data/db/eval/eval-v1.sqlite",
+  "build_id": "20261007T230135Z",
+  "code_commit": "51e98be84ca4ae61bfb1c3a66dd9afebdbe5b808"
+ },
+ "kind": "exploratory: the ReAct prototype on target questions (expected answers from our own data; not the formal baseline)",
+ "system_prompt_sha256": "3910a32fe2bdbefa",
+ "system_prompt": "You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using two\ntools: resolve_player finds the player a name means, and run_sql queries a SQLite database of the results. Every\nplayer_id in a view is a person's canonical ID.\n\nUsing the tools\n- Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a\n  number, in your queries. Don't look names up in SQL (players.name or player_aliases): people write names in other\n  cases and spellings, and use nicknames and former names, which the resolver knows.\n  - \"confident\": use the first candidate.\n  - \"ambiguous\": use the first candidate unless the question points to another, and say in your answer which player\n    you took the name to mean.\n  - \"not_found\": the data has no such player; say so.\n- run_sql runs one read-only SQLite query (a SELECT; WITH is fine) and returns at most 20 rows, with the total\n  row count. Compute what the answer needs in SQL (aggregate, order, limit) rather than reading every row. If it\n  returns an error, fix the query and try again.\n- The views are fast when filtered by a literal player_id. With a lookup inside the query, the head-to-head views\n  take a minute or more, and run_sql stops a query after 30 seconds.\n\nTables\n- players(player_id, name, canonical_id): name is the current display name. To show players' names, join players\n  on player_id.\n- event_aliases(alias, event_id, note): names people use for events, in lowercase words, e.g. 'bcx 2022'. One alias\n  can name several events (a tournament's 1v1 and 2v2).\n\nViews\n- v_events(event_id, tournament_name, event_name, start_date, start_time, mode, format, counts_as, status,\n  bracket_url): every official event. counts_as is '1v1', '2v2' or NULL for side formats.\n- v_results(player_id, event_id, competition_key, mode, format, placement, team_id, tournament_name, event_name,\n  start_date, start_time, bracket_url): one result per person per competition that counts. mode is '1v1' or '2v2'.\n- v_entries(player_id, event_id, tournament_name, event_name, start_date, start_time, format, mode, placement): every\n  official event a person entered, side formats included (their mode is NULL).\n- v_official_wins: the rows of v_results with placement = 1.\n- v_medals: the rows of v_results with placement <= 3, plus medal ('gold', 'silver' or 'bronze').\n- v_player_medals(player_id, mode, gold, silver, bronze, medals): medal counts per person and mode.\n- v_team_results(player_id, partner_id, event_id, placement, tournament_name, event_name, start_date): 2v2 results,\n  one row per person per partner per event.\n- v_match_results(player_id, match_id, side, side_players, event_id, competition_key, mode, start_date, is_scored,\n  games_won, games_lost, won): one row per person per counted match.\n- v_head_to_head_1v1(player_id, opponent_id, wins, losses, matches, games_won, games_lost, unscored_matches): a\n  person's 1v1 record against an opponent.\n- v_head_to_head_2v2(player_id, partner_id, opponent1_id, opponent2_id, wins, losses, matches, games_won, games_lost,\n  unscored_matches): a team's record against another team.\n- v_win_runs(player_id, event_id, competition_key, tournament_name, event_name, start_date, mode, format,\n  is_crew_battle, sets_played, sets_dropped, games_won, games_lost, unscored_sets, no_contests): each official win\n  with the winner's run through it.\n\nViews that hold each pairing more than once\n- v_head_to_head_1v1 holds every pairing twice, once from each player's side. The row with player_id = A and\n  opponent_id = B is A's record against B; the row with player_id = B and opponent_id = A is the same matches from\n  B's side, with wins and losses swapped. Read one side: never add the two rows together.\n  - A's record against B: WHERE player_id = A AND opponent_id = B.\n  - Everyone's record against B: WHERE opponent_id = B. Each row's wins and losses are its player_id's against B.\n- v_head_to_head_2v2 holds every pairing of teams four times, once for each of the four players. The record of the\n  team A and B: WHERE player_id = A AND partner_id = B.\n- v_team_results holds every 2v2 result twice, once from each partner's side. A's partners: WHERE player_id = A,\n  read from partner_id.\n\nCounting rules (the views already apply the first four)\n- \"Majors\" means official events, and every event here is official.\n- A medal is a 1st, 2nd or 3rd place.\n- Crew battles count as 1v1. Other side formats (3v3, Triples, Brawlball, Kung Foot) count toward neither mode.\n- DQs and forfeits count as neither a win nor a loss.\n- The last event a player entered is their newest row in v_entries.\n- The most dominant win has the fewest games_lost, then the fewest sets_dropped, then the most games_won. Runs with\n  unscored_sets > 0 rank after fully scored ones, and crew battles (is_crew_battle = 1) are left out.\n- The best record against someone is the highest win rate (wins / matches) among players with at least 5 matches\n  against them.\n- A first top 8 is the earliest result (by start_time) with placement <= 8.\n\nAnswering\n- You have at most 8 steps, and each reply is one. When you have what the answer needs, reply with the answer\n  and no tool call.\n- Answer in plain English. Say \"official events\" rather than \"majors\", name players as the data shows them, give the\n  figures the answer rests on, and say what you assumed: which player a name means, and what was counted.",
+ "tools": [
+  {
+   "type": "function",
+   "function": {
+    "name": "resolve_player",
+    "description": "Find the player a name means. Give the name as the question writes it: any case or spelling, a nickname, a former name or a team tag. Returns a status (confident, ambiguous or not_found) and candidates, best first, each with the player_id to use in SQL and its number of official results.",
+    "parameters": {
+     "type": "object",
+     "required": [
+      "name"
+     ],
+     "properties": {
+      "name": {
+       "type": "string",
+       "description": "the player's name as the question writes it"
+      }
+     }
+    }
+   }
+  },
+  {
+   "type": "function",
+   "function": {
+    "name": "run_sql",
+    "description": "Run one read-only SQLite query (SELECT or WITH) on the results database. Returns the column names, at most 20 rows and the total row count, or an error.",
+    "parameters": {
+     "type": "object",
+     "required": [
+      "query"
+     ],
+     "properties": {
+      "query": {
+       "type": "string",
+       "description": "one SQLite SELECT statement"
+      }
+     }
+    }
+   }
+  }
+ ],
+ "records": [
+  {
+   "number": 4,
+   "question": "What does Impala vs Balloonboy's history look like?",
+   "outcome": "answered",
+   "answer": "Impala (player_id 168635) and Balloonboy (player_id 149305) have a 2-1 head-to-head record in 1v1 matches, with Impala holding the advantage.  \n\n- **Impala vs Balloonboy**:  \n  - **Impala's record**: 2 wins, 1 loss (8 games won, 4 lost).  \n  - **Balloonboy's record**: 1 win, 2 losses (4 games won, 8 lost).  \n\nThe data reflects each player’s perspective, so their records are separate rows. No unscored matches were recorded in their series.",
+   "steps_used": 3,
+   "model_seconds": 10.4,
+   "tool_seconds": 0.5,
+   "output_tokens": 1106,
+   "largest_context": 3261,
+   "tool_calls": [
+    {
+     "step": 1,
+     "name": "resolve_player",
+     "arguments": {
+      "name": "Impala"
+     },
+     "result": "ambiguous: 168635 Impala, 42213 Impala"
+    },
+    {
+     "step": 1,
+     "name": "resolve_player",
+     "arguments": {
+      "name": "Balloonboy"
+     },
+     "result": "confident: 149305 BBBalloonBoy"
+    },
+    {
+     "step": 2,
+     "name": "run_sql",
+     "arguments": {
+      "query": "SELECT * FROM v_head_to_head_1v1 WHERE (player_id = 168635 AND opponent_id = 149305) OR (player_id = 149305 AND opponent_id = 168635);"
+     },
+     "result": "2 rows: [[149305, 168635, 1, 2, 3, 4, 8, 0], [168635, 149305, 2, 1, 3, 8, 4, 0]]"
+    }
+   ]
+  },
+  {
+   "number": 6,
+   "question": "Who has megd played with in 2v2 tournaments, and how did they place?",
+   "outcome": "answered",
+   "answer": "MegD (player_id 142100) has competed in 2v2 tournaments with the following partners, along with their placements:\n\n### Key Partners and Results:\n1. **Raydish**  \n   - **2026 Autumn Championship - North America 2v2**: 2nd place  \n   - **2025 Autumn Championship - North America 2v2**: 9th place  \n   - **2024 Summer Doubles Championship**: 4th place  \n   - **2023 Autumn Championship**: 2nd place  \n   - **2023 Summer Championship**: 13th place  \n\n2. **.kira**  \n   - **2026 Winter Championship - North America 2v2**: 25th place  \n\n3. **Moni-**  \n   - **2025 Brawlhalla World Championship Expo 2v2**: 17th place  \n   - **2025 Autumn Championship - North America 2v2**: 7th place  \n\n4. **flowerVS**  \n   - **2025 Summer Championship - North America 2v2**: 9th place  \n\n5. **wubz**  \n   - **2025 CEO 2025 2v2**: 17th place  \n\n6. **Snowy!!**  \n   - **2025 Spring Championship - North America 2v2**: 7th place  \n\n### Notes:\n- Raydish is MegD’s most frequent 2v2 partner, with multiple top-8 finishes.  \n- The **2026 Autumn Championship** was their best result (2nd place).  \n- Full data includes 46 entries (only the first 20 are shown here).  \n\nLet me know if you want details on specific events!",
+   "steps_used": 3,
+   "model_seconds": 19.9,
+   "tool_seconds": 0.1,
+   "output_tokens": 2153,
+   "largest_context": 5409,
+   "tool_calls": [
+    {
+     "step": 1,
+     "name": "resolve_player",
+     "arguments": {
+      "name": "megd"
+     },
+     "result": "confident: 142100 megD"
+    },
+    {
+     "step": 2,
+     "name": "run_sql",
+     "arguments": {
+      "query": "SELECT p.name, t.event_id, t.tournament_name, t.event_name, t.start_date, t.placement FROM v_team_results t JOIN players p ON t.partner_id = p.player_id WHERE t.player_id = 142100 ORDER BY t.start_date DESC;"
+     },
+     "result": "46 rows: [[\"Raydish\", \"774eaef2-3f11-4c7b-f9ab-08ded4cb1c05\", \"Autumn Championship - North America 2026 - 2v2\", null, \"2026-09-27\", 2], [\"Raydish\", \"632dcc5d-5697-4b12-6d1b-08dea8b61f65\", \"Summer Cham..."
+    }
+   ]
+  },
+  {
+   "number": 8,
+   "question": "Who has the best record against marckiemoo?",
+   "outcome": "answered",
+   "answer": "The best record against **marckiemoo** (player_id 146052) is held by **tike36** (player_id 118511), with **3 wins and 2 losses** in 5 matches (60% win rate). \n\n**Assumption:** The ambiguous player_id 71736 was resolved to tike36 (player_id 118511) as the closest match, though no exact name exists for 71736. The record reflects head-to-head 1v1 results.",
+   "steps_used": 4,
+   "model_seconds": 20.6,
+   "tool_seconds": 0.7,
+   "output_tokens": 2026,
+   "largest_context": 4077,
+   "tool_calls": [
+    {
+     "step": 1,
+     "name": "resolve_player",
+     "arguments": {
+      "name": "marckiemoo"
+     },
+     "result": "confident: 146052 Marckiem00"
+    },
+    {
+     "step": 2,
+     "name": "run_sql",
+     "arguments": {
+      "query": "SELECT player_id, wins, losses, matches FROM v_head_to_head_1v1 WHERE opponent_id = 146052 AND matches >= 5 ORDER BY (wins * 1.0 / matches) DESC LIMIT 1;"
+     },
+     "result": "1 rows: [[71736, 3, 2, 5]]"
+    },
+    {
+     "step": 3,
+     "name": "resolve_player",
+     "arguments": {
+      "name": "71736"
+     },
+     "result": "ambiguous: 118511 tike36"
+    }
+   ]
+  }
+ ]
+}

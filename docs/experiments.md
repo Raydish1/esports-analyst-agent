@@ -2,6 +2,80 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-18: a minimal ReAct prototype on questions 4, 6 and 8
+
+**Question:** with names looked up by a tool and a note on the views that hold each pairing more than once, does a small agent loop answer the questions one-prompt qwen3:8b got wrong?
+
+**Exploratory, like the model comparison below:**
+- Three questions, one run each (seed 0).
+- The expected answers come from our own data (`ingest/target_questions.py`).
+- Question 4 wasn't one of the baseline's misses: qwen3:8b with thinking got it right, and missed 6 and 8. It's here because both its names need the aliases: Impala is a shared name, and Balloonboy a former name.
+
+**Setup** (`agent/react.py`, `agent/tools.py`):
+- **Model:** qwen3:8b with thinking on, through Ollama's native tool calling. The server is now Ollama 0.40.6.
+  - Sampling as in the comparison: the model's defaults, seed 0, at most 8,192 output tokens per reply.
+  - The context is 32,768 tokens instead of 16,384: the server's template keeps every step's thinking in the prompt until the answer.
+- **Loop:** at most 8 steps, each one model reply. A reply either calls tools, whose results go back as observations, or answers. The observation before the last step says it's the last.
+- **System prompt:** the comparison prompt's views and counting rules, word for word, with two changes.
+  - The name lookup pattern is replaced by instructions for `resolve_player`: call it for every name before any SQL, query by the ID it returns, and say which player an ambiguous name was taken to mean.
+  - A new section on the views that hold each pairing more than once (`v_head_to_head_1v1` twice, `v_head_to_head_2v2` four times, `v_team_results` twice), with how to read each from one side.
+- **`resolve_player(name)`:** matches the name against `player_aliases` in tiers, and the first tier that finds anyone is used:
+  - normalized as aliases are (case, spaces, punctuation, the team tag);
+  - with common character swaps undone (0 as o, 3 as e, l as i, doubled letters, ...);
+  - as the start of a name;
+  - by similar spelling.
+
+  Candidates are ranked by official results, a curated nickname first. The status is confident, ambiguous (a shared name, or only approximate matches) or not found.
+- **`run_sql(query)`:** read-only on eval-v1, stopped after 30 s, at most 20 rows with the total row count.
+- **Checking:** each final answer by hand, against the key facts of the expected answer, the ones the comparison's checks looked for. Each query also went through the comparison's own check, on its full result, as the baseline's did.
+
+**Results** (run `20261019T001955Z`; full traces in `data/experiments/20261019T001955Z/traces.md`):
+
+| Question | Baseline (one prompt, seed 0) | Prototype's query | Prototype's answer | Steps | Model time (s) | Output tokens |
+|---|---|---|---|---|---|---|
+| 4. Impala vs Balloonboy | ✓ | ✓ | ✓ the record (2-1, 8-4 in games) | 3 | 10.4 | 1,106 |
+| 6. megd's 2v2 partners | empty result | ✓ | ✗ 6 of 17 partners | 3 | 19.9 | 2,153 |
+| 8. Best record against marckiemoo | empty result | ✓ | ✗ names the wrong player | 4 | 20.6 | 2,026 |
+
+The baseline took 19.6, 12.6 and 44.1 s per reply on these questions, plus 82 s and 31 s for its queries of questions 4 and 8.
+
+**What the changes fixed:**
+- **Names:** all four resolved to the right player with the right status.
+  - Impala: ambiguous, the one with 48 official results first and the other (1 result) second.
+  - Balloonboy (a former name of BBBalloonBoy), megd and marckiemoo: confident.
+  - No query looked a name up, the baseline's main failure.
+- **Pairings:** no query added a view's two sides together. Question 4 fetched both rows of the pairing, but read each as its own player's record.
+- **Speed:** queries took 0.06–0.5 s with literal IDs.
+- **Queries:** all three passed the comparison's check, against the baseline's one.
+
+**What went wrong: the answers, not the queries.**
+- **Question 6 was answered from a cut-off result.**
+  - The query listed every team result: 46 rows. `run_sql` showed the first 20, with a note to aggregate in SQL, and the model answered from those 20.
+  - So it listed 6 of the 17 partners, missing hardymj and Winged_Shell, the second and third most frequent. It also put one of Raydish's placements (9th) at the wrong event.
+  - It did say that only 20 of 46 rows were shown.
+  - With every row, as the baseline was checked, the same query passes.
+- **Question 8 sent an ID to `resolve_player` as a name.**
+  - Its query was the reference one, and returned V3M_T4NQUIL0's ID with the right record (3-2).
+  - To get the name, it called `resolve_player("71736")`, as planned in step 1, though the prompt says to join `players`.
+  - The resolver read the digits as letters and fuzzy-matched them to tike36 (ratio 0.8, the cutoff), as ambiguous.
+  - In step 4, its thinking saw the mistake and planned a `players` query, but the reply named tike36 anyway, with four steps left.
+- **Question 4 gave only the record.**
+  - Not the sets, the 2v2 meetings or the shared events. The comparison's check accepted the record alone.
+  - It didn't follow the answer rules: no "official events", "Balloonboy" without the current name BBBalloonBoy, and nothing about the other Impala.
+
+**Caveats:**
+- Three questions, one run each: enough to see the failure types, not their rates.
+- The expected answers come from our own data, and the answers were judged by hand.
+- Several things changed at once: the resolver, the pairing note, the loop and the 20-row cap. A difference can't be put down to one of them.
+- Question 4 wasn't a baseline miss.
+- The 32,768-token context wasn't needed this time: the largest context was 5,409 tokens.
+
+**For the agent** (proposals; the decisions are the user's):
+- `resolve_player` should take names only. A name of digits only should get no swaps or fuzzy matching, and an answer that it looks like an ID, with how to get the name.
+- An answer shouldn't rest on a cut-off result. Options: a firmer note in the observation, a higher cap, or the result checker flagging an answer built on one.
+- The result checker could also flag an answer that names a player no observation returned, as question 8's did.
+- Rerun with seeds 1–5, as the comparison's reruns did, before reading anything into rates.
+
 ## 2026-10-10: model comparison for one-prompt text-to-SQL
 
 **Question:** which local model should the agent start from: qwen3:4b or qwen3:8b, with thinking on or off?

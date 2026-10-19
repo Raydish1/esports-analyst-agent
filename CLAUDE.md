@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-10)
+## Project status (2026-10-18)
 **Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
 - The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
@@ -25,6 +25,9 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - schema documentation on reading the views that store each pairing more than once, and a result checker that flags suspicious results;
   - player IDs looked up before head-to-head queries.
 - Decided (2026-10-10), provisionally: qwen3:8b with thinking on, for development. Once the agent loop and the verified evaluation set exist, the comparison is rerun inside the agent with qwen3:4b, qwen3:8b and qwen3:14b.
+- A minimal ReAct prototype (2026-10-18, `agent/`): qwen3:8b with thinking, two tools (`resolve_player`, `run_sql`), at most 8 steps. On questions 4, 6 and 8, one run each (in the log):
+  - every name resolved and every query was right (3 of 3 by the comparison's check, against the baseline's 1 of 3);
+  - but only question 4's answer was: question 6 was answered from the 20 rows shown of 46, and question 8 sent an ID to `resolve_player`, which fuzzy-matched it to another player.
 
 **The evaluation set is drafted** (2026-10-10): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1, waiting for the user's verification.
 
@@ -92,6 +95,12 @@ Evaluation (`eval/`):
   - `tied_to_eval_v1` marks the 7 answers that Phase 2 (or, for legends, Phase 3) will change.
   - It covers the target questions, the known events, names written casually (nicknames, former names, case, misspellings, team tags), event aliases and terms, four paraphrase pairs, and questions the data can't answer.
 - `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
+
+Agent (`agent/`, a prototype):
+- `react.py` is the ReAct loop: `python agent/react.py "question"`, or `--target N` for target questions. Traces go to `data/experiments/<run>/`, and a run of target questions also writes a summary to `eval/results/`.
+- `tools.py` holds the tools:
+  - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found);
+  - `run_sql` runs one read-only query on eval-v1, stopped after 30 s, and returns at most 20 rows with the total.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
