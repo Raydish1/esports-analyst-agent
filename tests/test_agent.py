@@ -262,6 +262,33 @@ class LoopTest(Fixture):
         self.assertIn("no tool named 'lookup'", self.tools.call("lookup", {"name": "megd"})["error"])
         self.assertEqual(self.tools.call("resolve_player", '{"name": "megd"}')["status"], "confident")
 
+    def test_a_conversation_keeps_the_previous_question_in_full_and_older_ones_as_question_and_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+                       reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 7"})]),
+                       reply("In 2v2 too, megD has 2."), reply("Glad to help."))
+        steps = []
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, on_step=steps.append)
+        conversation.ask("How many results has megd?")
+        conversation.ask("now only 2v2")
+        follow_up = ask.sent[2]  # the follow-up's first request: the first question in full, tool call included
+        self.assertEqual([m["role"] for m in follow_up], ["system", "user", "assistant", "tool", "assistant", "user"])
+        self.assertEqual((follow_up[1]["content"], follow_up[4]["content"], follow_up[5]["content"]),
+                         ("How many results has megd?", "megD has 2 official results.", "now only 2v2"))
+        conversation.ask("thanks")
+        third = [(m["role"], m.get("tool_name")) for m in ask.sent[4]]  # the first question as question and answer
+        self.assertEqual(third, [("system", None), ("user", None), ("assistant", None), ("user", None),
+                                 ("assistant", None), ("tool", "run_sql"), ("assistant", None), ("user", None)])
+        self.assertEqual([s["step"] for s in steps], [1, 2, 1, 2, 1])  # each step, as it finished
+
+    def test_a_follow_up_may_name_players_an_earlier_question_returned(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("Marckiem00, 4 results."),
+                       reply("**Marckiem00** again."), reply("**tike36** now."), reply("Marckiem00 only."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("Who is marckiemoo?")
+        self.assertEqual(conversation.ask("and again?")["unreturned_names"], {})  # returned by the first question
+        trace = conversation.ask("and someone else?")
+        self.assertEqual((trace["steps"][0]["answer_check"]["action"], trace["answer"]), ("sent back", "Marckiem00 only."))
+
     def test_traces_are_written_in_full_and_summarized_without_the_thinking(self):
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT a FROM t"})], thinking="Count them."), reply("25."))
         trace = {"number": 6, **react.run("How many?", self.tools, ask=ask, log=lambda *_: None)}

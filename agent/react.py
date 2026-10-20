@@ -3,6 +3,9 @@ run_sql (agent/tools.py), through Ollama's native tool calling.
 
     python agent/react.py "Who has megd played with in 2v2 tournaments?"
     python agent/react.py --target 4 --target 6 --target 8          target questions (ingest/target_questions.py)
+    python agent/react.py --target 4 --seed 0 --seed 1              each question once per seed
+
+To ask your own questions, one after another, use agent/ask.py.
 
 Each step is one model reply: its thinking, then either tool calls, whose results go back as observations, or the
 answer. A question ends at the answer, or after MAX_STEPS replies; the observation before the last step says it's
@@ -270,75 +273,115 @@ def ending(content, done_reason):
     return "answered" if content.strip() else "empty reply"
 
 
-def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, **model):
-    """Answer one question. The trace: each step's thinking, reply and tool calls with their observations, and any
-    answer check; then the answer, the outcome ('answered', 'step limit', ...) and the names in the answer that no tool
-    returned. An answer naming such players goes back once, if a step is left; the next answer counts either way."""
-    messages = [{"role": "system", "content": SYSTEM.format(rows=SQL_ROWS, seconds=SQL_SECONDS, steps=max_steps)},
-                {"role": "user", "content": question}]
-    trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {}}
-    shown, checked = Shown(tools.resolver, messages[0]["content"], question, json.dumps(TOOLS)), False
-    for number in range(1, max_steps + 1):
-        begun = time.monotonic()
-        try:
-            reply = ask(messages, **model)
-        except (urllib.error.URLError, TimeoutError) as e:
-            body = e.read().decode("utf-8", "replace")[:300] if isinstance(e, urllib.error.HTTPError) else ""
-            trace["outcome"] = f"request error at step {number}: {e} {body}".strip()
-            log(f"  {trace['outcome']}")
-            break
-        message = reply.get("message") or {}
-        thinking, content, calls = message.get("thinking") or "", message.get("content") or "", message.get("tool_calls") or []
-        step = {"step": number, "seconds": round(time.monotonic() - begun, 2), "prompt_tokens": reply.get("prompt_eval_count"),
-                "cached_tokens": reply.get("prompt_eval_cached_count"), "output_tokens": reply.get("eval_count"),
-                "done_reason": reply.get("done_reason"), "thinking": thinking, "content": content, "tool_calls": []}
-        trace["steps"].append(step)
-        log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
-        if not calls:
-            outcome = ending(content, step["done_reason"])
-            names = shown.unreturned(content) if outcome == "answered" else {}
-            if names and not checked and number < max_steps:
-                checked, message = True, CHECK.format(names=" and ".join(f"'{n}'" for n in names))
-                if number == max_steps - 1:
-                    message += " " + LAST_STEP
-                step["answer_check"] = {"names": names, "action": "sent back", "message": message}
-                messages += [{"role": "assistant", "content": content, "thinking": thinking},
-                             {"role": "user", "content": message}]
-                log(f"  answer check: {', '.join(names)} named, but no tool returned them; sent back")
-                continue
-            if names:
-                step["answer_check"] = {"names": names, "action": "kept: sent back once already" if checked
-                                        else "kept: no steps left"}
-            trace["answer"], trace["outcome"], trace["unreturned_names"] = content.strip() or None, outcome, names
-            log(f"  {trace['outcome']}: {short(content, 300)}")
-            break
-        if number == max_steps:
-            step["tool_calls"] = [{"name": c["function"].get("name"), "arguments": c["function"].get("arguments"),
-                                   "observation": None} for c in calls]
-            trace["outcome"] = "step limit"
-            log(f"  step limit: {len(calls)} more tool calls not run")
-            break
-        # The server's qwen3 template shows an assistant message's tool calls only when its content is empty, so any
-        # text beside them (kept in the trace) stays out of the history
-        messages.append({"role": "assistant", "content": "", "thinking": thinking, "tool_calls": calls})
-        for i, call in enumerate(calls):
-            name, arguments = call["function"].get("name"), call["function"].get("arguments")
+class Conversation:
+    """Questions to the agent one after another, so a follow-up ("now only 2v2") can build on what came before.
+    - The previous question stays in the history in full, with its tool calls and observations, so a follow-up can
+      reuse its player IDs and queries.
+    - Older ones keep only their question and answer, which keeps the context bounded.
+    - The answer check counts everything the conversation has shown.
+    on_step, if given, gets each step as it finishes."""
+
+    def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, **model):
+        self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
+        self.system = {"role": "system", "content": SYSTEM.format(rows=SQL_ROWS, seconds=SQL_SECONDS, steps=max_steps)}
+        self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
+        self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
+
+    @property
+    def messages(self):
+        return [self.system, *self.earlier, *self.previous, *self.current]
+
+    def ask(self, question):
+        """Answer a question (turn), and keep it in the conversation with its answer."""
+        if self.previous:
+            self.earlier += [self.previous[0], self.previous[-1]]
+        self.previous, self.current = self.current, [{"role": "user", "content": question}]
+        self.shown.read(question)
+        trace = self.turn(question)
+        self.current.append({"role": "assistant", "content": trace["answer"] or f"(No answer: {trace['outcome']}.)"})
+        return trace
+
+    def turn(self, question):
+        """One question's steps. The trace: each step's thinking, reply and tool calls with their observations, and
+        any answer check; then the answer, the outcome ('answered', 'step limit', ...) and the names in the answer that
+        no tool returned. An answer naming such players goes back once, if a step is left; the next answer counts
+        either way."""
+        trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {}}
+        checked, log, max_steps = False, self.log, self.max_steps
+        for number in range(1, max_steps + 1):
             begun = time.monotonic()
-            observation = tools.call(name, arguments)
-            seconds = time.monotonic() - begun
-            shown.observe(name, observation)
-            if number == max_steps - 1 and i == len(calls) - 1:
-                observation = {**observation, "last_step": LAST_STEP}
-            text = json.dumps(observation, ensure_ascii=False)
-            step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text, "seconds": round(seconds, 3)})
-            messages.append({"role": "tool", "tool_name": name, "content": text})
-            log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
-    trace["steps_used"] = len(trace["steps"])
-    trace["model_seconds"] = round(sum(s["seconds"] for s in trace["steps"]), 1)
-    trace["tool_seconds"] = round(sum(c.get("seconds") or 0 for s in trace["steps"] for c in s["tool_calls"]), 1)
-    trace["output_tokens"] = sum(s["output_tokens"] or 0 for s in trace["steps"])
-    trace["largest_context"] = max(((s["prompt_tokens"] or 0) + (s["output_tokens"] or 0) for s in trace["steps"]), default=0)
-    return trace
+            try:
+                reply = self.chat(self.messages, **self.model)
+            except (urllib.error.URLError, TimeoutError) as e:
+                body = e.read().decode("utf-8", "replace")[:300] if isinstance(e, urllib.error.HTTPError) else ""
+                trace["outcome"] = f"request error at step {number}: {e} {body}".strip()
+                log(f"  {trace['outcome']}")
+                break
+            message = reply.get("message") or {}
+            thinking, content, calls = message.get("thinking") or "", message.get("content") or "", message.get("tool_calls") or []
+            step = {"step": number, "seconds": round(time.monotonic() - begun, 2), "prompt_tokens": reply.get("prompt_eval_count"),
+                    "cached_tokens": reply.get("prompt_eval_cached_count"), "output_tokens": reply.get("eval_count"),
+                    "done_reason": reply.get("done_reason"), "thinking": thinking, "content": content, "tool_calls": []}
+            trace["steps"].append(step)
+            log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
+            if not calls:
+                outcome = ending(content, step["done_reason"])
+                names = self.shown.unreturned(content) if outcome == "answered" else {}
+                if names and not checked and number < max_steps:
+                    checked, message = True, CHECK.format(names=" and ".join(f"'{n}'" for n in names))
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["answer_check"] = {"names": names, "action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log(f"  answer check: {', '.join(names)} named, but no tool returned them; sent back")
+                    self.finished(step)
+                    continue
+                if names:
+                    step["answer_check"] = {"names": names, "action": "kept: sent back once already" if checked
+                                            else "kept: no steps left"}
+                trace["answer"], trace["outcome"], trace["unreturned_names"] = content.strip() or None, outcome, names
+                log(f"  {trace['outcome']}: {short(content, 300)}")
+                self.finished(step)
+                break
+            if number == max_steps:
+                step["tool_calls"] = [{"name": c["function"].get("name"), "arguments": c["function"].get("arguments"),
+                                       "observation": None} for c in calls]
+                trace["outcome"] = "step limit"
+                log(f"  step limit: {len(calls)} more tool calls not run")
+                self.finished(step)
+                break
+            # The server's qwen3 template shows an assistant message's tool calls only when its content is empty, so
+            # any text beside them (kept in the trace) stays out of the history
+            self.current.append({"role": "assistant", "content": "", "thinking": thinking, "tool_calls": calls})
+            for i, call in enumerate(calls):
+                name, arguments = call["function"].get("name"), call["function"].get("arguments")
+                begun = time.monotonic()
+                observation = self.tools.call(name, arguments)
+                seconds = time.monotonic() - begun
+                self.shown.observe(name, observation)
+                if number == max_steps - 1 and i == len(calls) - 1:
+                    observation = {**observation, "last_step": LAST_STEP}
+                text = json.dumps(observation, ensure_ascii=False)
+                step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text, "seconds": round(seconds, 3)})
+                self.current.append({"role": "tool", "tool_name": name, "content": text})
+                log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
+            self.finished(step)
+        trace["steps_used"] = len(trace["steps"])
+        trace["model_seconds"] = round(sum(s["seconds"] for s in trace["steps"]), 1)
+        trace["tool_seconds"] = round(sum(c.get("seconds") or 0 for s in trace["steps"] for c in s["tool_calls"]), 1)
+        trace["output_tokens"] = sum(s["output_tokens"] or 0 for s in trace["steps"])
+        trace["largest_context"] = max(((s["prompt_tokens"] or 0) + (s["output_tokens"] or 0) for s in trace["steps"]), default=0)
+        return trace
+
+    def finished(self, step):
+        if self.on_step:
+            self.on_step(step)
+
+
+def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, **model):
+    """Answer one question in a conversation of its own (Conversation.turn has the trace)."""
+    return Conversation(tools, ask, max_steps, log, **model).ask(question)
 
 
 def short(text, width):
@@ -348,14 +391,31 @@ def short(text, width):
 
 # Writing the traces
 
+def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None):
+    """What a run or a session was made with: the model and its server, the options, the snapshot."""
+    snapshot = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
+    build = dict(snapshot.execute("SELECT key, value FROM build_info WHERE key IN ('build_id', 'code_commit')"))
+    snapshot.close()
+    info = ollama("/api/show", {"model": model}).get("model_info", {})
+    return {"run": run_id, "title": title or f"ReAct prototype traces: run {run_id}",
+            "ollama": ollama("/api/version")["version"], "model": model,
+            "variant": " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)),
+            "think": think, "seeds": list(seeds), "options": OPTIONS, "max_steps": max_steps, "sql_seconds": SQL_SECONDS,
+            "sql_rows": SQL_ROWS, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}}
+
+
 def markdown(traces, header):
     """The traces, readable: each question's steps in full."""
-    out = [f"# ReAct prototype traces: run {header['run']}", "",
-           f"{header['model']} ({header['variant']}), thinking {'on' if header['think'] else 'off'}, seed {header['seed']};"
-           f" snapshot {header['snapshot']['file']} (build {header['snapshot'].get('build_id')}); at most"
-           f" {header['max_steps']} steps. Ollama {header['ollama']}.", ""]
+    seeds = header.get("seeds") or [header.get("seed", 0)]  # an older run's header has one seed
+    title = header.get("title") or f"ReAct prototype traces: run {header['run']}"
+    out = [f"# {title}", "",
+           f"{header['model']} ({header['variant']}), thinking {'on' if header['think'] else 'off'},"
+           f" seed{'s' if len(seeds) > 1 else ''} {', '.join(map(str, seeds))}; snapshot {header['snapshot']['file']}"
+           f" (build {header['snapshot'].get('build_id')}); at most {header['max_steps']} steps. Ollama {header['ollama']}.", ""]
     for t in traces:
-        title = f"Question {t['number']}: {t['question']}" if t.get("number") else t["question"]
+        seed = f", seed {t['seed']}" if len(seeds) > 1 and "seed" in t else ""
+        title = (f"Question {t['number']}{seed}: {t['question']}" if t.get("number")
+                 else f"{t['turn']}. {t['question']}" if t.get("turn") else t["question"])
         out += [f"## {title}", "", f"**Outcome:** {t['outcome']}, {t['steps_used']} steps, {t['model_seconds']} s of model"
                 f" time, {t['output_tokens']:,} output tokens, largest context {t['largest_context']:,} tokens.", ""]
         for s in t["steps"]:
@@ -401,7 +461,7 @@ def preview(observation, width=200):
 
 
 def summary(trace):
-    keep = ("number", "question", "outcome", "answer", "unreturned_names", "steps_used", "model_seconds",
+    keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "steps_used", "model_seconds",
             "tool_seconds", "output_tokens", "largest_context")
     calls = [{"step": s["step"], "name": c["name"], "arguments": c["arguments"], "result": preview(c["observation"])}
              for s in trace["steps"] for c in s["tool_calls"]]
@@ -418,7 +478,8 @@ def main():
     parser.add_argument("--target", action="append", type=int, help="a target question's number (repeatable)")
     parser.add_argument("--model", default=MODEL, help=f"the model (default: {MODEL})")
     parser.add_argument("--think", choices=["on", "off"], default="on", help="thinking (default: on)")
-    parser.add_argument("--seed", type=int, default=0, help="the sampling seed (default: 0)")
+    parser.add_argument("--seed", action="append", type=int, help="a sampling seed (repeatable: each question is asked"
+                                                                  " once per seed; default: 0)")
     parser.add_argument("--max-steps", type=int, default=MAX_STEPS, help=f"model replies per question (default: {MAX_STEPS})")
     args = parser.parse_args()
     from target_questions import QUESTIONS  # in ingest/, on the path
@@ -428,24 +489,17 @@ def main():
         parser.error(f"no target question {unknown[0]}" if unknown else "give a question or --target N")
     asked = [(n, targets[n]) for n in args.target or []] + [(None, q) for q in args.question]
     load_env()
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    snapshot = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
-    build = dict(snapshot.execute("SELECT key, value FROM build_info WHERE key IN ('build_id', 'code_commit')"))
-    snapshot.close()
-    info = ollama("/api/show", {"model": args.model}).get("model_info", {})
-    header = {"run": run_id, "ollama": ollama("/api/version")["version"], "model": args.model,
-              "variant": " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)),
-              "think": args.think == "on", "seed": args.seed, "options": OPTIONS, "max_steps": args.max_steps,
-              "sql_seconds": SQL_SECONDS, "sql_rows": SQL_ROWS,
-              "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}}
-    print(f"Run {run_id}: {args.model}, thinking {args.think}, seed {args.seed}, at most {args.max_steps} steps;"
-          f" Ollama {header['ollama']}; snapshot build {build.get('build_id')}")
+    run_id, seeds = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), args.seed or [0]
+    header = run_header(run_id, args.model, args.think == "on", seeds, args.max_steps)
+    print(f"Run {run_id}: {args.model}, thinking {args.think}, seeds {seeds}, at most {args.max_steps} steps;"
+          f" Ollama {header['ollama']}; snapshot build {header['snapshot'].get('build_id')}")
     tools = Tools()
     traces = []
-    for number, question in asked:
-        print(f"\n{'Q' + str(number) + ': ' if number else ''}{question}")
-        trace = run(question, tools, max_steps=args.max_steps, model=args.model, think=header["think"], seed=args.seed)
-        traces.append({"number": number, **trace})
+    for seed in seeds:
+        for number, question in asked:
+            print(f"\n{'Q' + str(number) + ', ' if number else ''}seed {seed}: {question}")
+            trace = run(question, tools, max_steps=args.max_steps, model=args.model, think=header["think"], seed=seed)
+            traces.append({"number": number, "seed": seed, **trace})
     out = RAW / run_id
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "traces.jsonl", "w", encoding="utf-8") as f:
@@ -464,8 +518,8 @@ def main():
             "tools": TOOLS, "records": [summary(t) for t in traces]}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"Summary: {path.relative_to(ROOT).as_posix()}")
     for t in traces:
-        print(f"  {'Q' + str(t['number']) if t['number'] else 'question'}: {t['outcome']} in {t['steps_used']} steps,"
-              f" {t['model_seconds']} s")
+        print(f"  {'Q' + str(t['number']) if t['number'] else 'question'}, seed {t['seed']}: {t['outcome']} in"
+              f" {t['steps_used']} steps, {t['model_seconds']} s")
 
 
 if __name__ == "__main__":

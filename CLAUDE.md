@@ -108,7 +108,9 @@ Evaluation (`eval/`):
 - `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
 
 Agent (`agent/`, a prototype):
-- `react.py` is the ReAct loop: `python agent/react.py "question"`, or `--target N` for target questions.
+- `ask.py` is for asking the agent yourself: `python agent/ask.py "question"` prints the answer, `--trace` also prints each step (its thinking in short, tool calls, observations), and with no question it starts a session. In a session, follow-ups build on earlier answers, and "exit" quits. Transcripts go to `data/experiments/sessions/`.
+- `react.py` is the ReAct loop: `python agent/react.py "question"`, or `--target N` for target questions, with `--seed` repeatable.
+  - `Conversation` keeps the previous question in full (tool calls and observations) and older ones as question and answer.
   - Traces go to `data/experiments/<run>/`, and a run of target questions also writes a summary to `eval/results/`.
   - The answer check: an answer naming a player no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold text, since most ordinary words are some player's display name.
 - `tools.py` holds the tools:
