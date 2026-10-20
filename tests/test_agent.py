@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "agent"))
@@ -122,16 +123,29 @@ class ResolverTest(Fixture):
 
 
 class RunSqlTest(Fixture):
-    def test_at_most_20_rows_with_the_total_and_an_incomplete_result_marked_first(self):
+    def test_tokens_are_estimated_with_digits_and_json_punctuation_as_one_each(self):
+        self.assertEqual(tools.tokens("[12, 345]"), 8)  # 8 marks (brackets, digits, comma) and a space
+        self.assertEqual(tools.tokens("abcdefgh"), 2)
+
+    def test_a_result_within_the_budget_comes_whole(self):
         out = tools.run_sql("SELECT a, b FROM t ORDER BY a", self.path)
-        self.assertEqual(list(out)[:2], ["complete", "note"])
-        self.assertEqual((out["complete"], out["columns"], len(out["rows"]), out["row_count"]), (False, ["a", "b"], 20, 25))
-        self.assertIn("only the first 20 of 25 rows are shown. Don't answer from this result", out["note"])
+        self.assertEqual((out["complete"], out["columns"], len(out["rows"]), out["row_count"]), (True, ["a", "b"], 25, 25))
         self.assertEqual(out["rows"][1], [1, 0.3333])
-        self.assertEqual(tools.run_sql("SELECT a FROM t ORDER BY a LIMIT 3", self.path),
-                         {"complete": True, "columns": ["a"], "rows": [[0], [1], [2]], "row_count": 3})
+        self.assertNotIn("note", out)
         long = tools.run_sql("SELECT replace(hex(zeroblob(200)), '0', 'x')", self.path)["rows"][0][0]
         self.assertTrue(long.startswith("x" * 300) and long.endswith("(400 characters)"))
+
+    def test_a_result_over_the_budget_comes_with_its_size_and_columns_but_no_rows(self):
+        many = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < {}) SELECT x, 'a name' AS name FROM c"
+        out = tools.run_sql(many.format(3000), self.path)
+        self.assertEqual(list(out), ["complete", "note", "row_count", "columns"])  # the note first, and no rows
+        self.assertEqual((out["complete"], out["row_count"], out["columns"]), (False, 3000, ["x", "name"]))
+        self.assertTrue(out["note"].startswith("Too large to show: 3000 rows, over the budget of about 4,000 tokens"))
+        self.assertIn("GROUP BY", out["note"])
+        self.assertEqual(tools.run_sql(many.format(20000), self.path)["row_count"], "more than 10000")
+        with patch.object(tools, "TOKEN_BUDGET", 50):
+            self.assertFalse(tools.run_sql("SELECT a FROM t", self.path)["complete"])  # 25 rows, about 155 tokens
+            self.assertTrue(tools.run_sql("SELECT a FROM t LIMIT 1", self.path)["complete"])
 
     def test_read_only_on_one_database_stopped_after_the_limit_and_errors_as_text(self):
         self.assertIn("readonly", tools.run_sql("DELETE FROM t", self.path)["error"])
@@ -262,6 +276,31 @@ class LoopTest(Fixture):
         self.assertIn("no tool named 'lookup'", self.tools.call("lookup", {"name": "megd"})["error"])
         self.assertEqual(self.tools.call("resolve_player", '{"name": "megd"}')["status"], "confident")
 
+    def test_an_answer_right_after_a_result_too_large_to_show_goes_back_until_a_new_query(self):
+        big, count = ("run_sql", {"query": "SELECT a FROM t"}), ("run_sql", {"query": "SELECT COUNT(*) FROM t"})
+        ask = Scripted(reply(calls=[big]), reply("There are 25."), reply("Still 25."), reply(calls=[count]), reply("25."))
+        with patch.object(tools, "TOKEN_BUDGET", 50):  # so the 25 rows are too large to show
+            trace = react.run("How many?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([s.get("size_check", {}).get("action") for s in trace["steps"]],
+                         [None, "sent back", "sent back", None, None])  # the same answer twice, then a new query
+        self.assertEqual((trace["answer"], trace["answered_after_too_big"]), ("25.", False))
+        flagged, message = ask.sent[2][-2:]
+        self.assertEqual((flagged["content"], message["role"], message["content"]),
+                         ("There are 25.", "user", react.TOO_BIG_ANSWER))
+        self.assertEqual(react.summary(trace)["size_checks"], [{"step": 2, "action": "sent back"}, {"step": 3, "action": "sent back"}])
+
+    def test_a_name_lookup_is_no_new_query_and_without_two_steps_left_the_answer_is_kept(self):
+        big, lookup = ("run_sql", {"query": "SELECT a FROM t"}), ("resolve_player", {"name": "megd"})
+        with patch.object(tools, "TOKEN_BUDGET", 50):
+            ask = Scripted(reply(calls=[big]), reply(calls=[lookup]), reply("25, with megD."),
+                           reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM t"})]), reply("25."))
+            trace = react.run("q", self.tools, ask=ask, log=lambda *_: None)
+            self.assertEqual((trace["steps"][2]["size_check"]["action"], trace["answer"]), ("sent back", "25."))  # a lookup isn't a query
+            ask = Scripted(reply(calls=[big]), reply(calls=[lookup]), reply("25, with megD."))
+            trace = react.run("q", self.tools, ask=ask, max_steps=3, log=lambda *_: None)
+        self.assertEqual((trace["steps"][2]["size_check"]["action"], trace["answer"], trace["answered_after_too_big"]),
+                         ("kept: no steps left to query again", "25, with megD.", True))
+
     def test_a_conversation_keeps_the_previous_question_in_full_and_older_ones_as_question_and_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
                        reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 7"})]),
@@ -302,7 +341,7 @@ class LoopTest(Fixture):
                      "> Before this answer is final"):
             self.assertIn(text, page)
         summary = react.summary(trace)
-        self.assertTrue(summary["tool_calls"][0]["result"].startswith("25 rows, incomplete (20 shown): [[0], [1], [2]]"))
+        self.assertTrue(summary["tool_calls"][0]["result"].startswith("25 rows: [[0], [1], [2]]"))
         self.assertEqual((summary["unreturned_names"], summary["answer_checks"]), ({}, []))
         self.assertNotIn("Count them.", json.dumps(summary))
         self.assertEqual(react.summary(checked)["answer_checks"], [{"step": 2, "names": {"tike36": [14]}, "action": "sent back"}])
@@ -314,6 +353,10 @@ class PromptTest(unittest.TestCase):
         rules = mc.PROMPT.split("\nCounting rules")[1].split("\n\nWrite one SQLite query")[0]
         self.assertIn("\nViews\n" + views + "\n", react.SYSTEM)
         self.assertIn("\nCounting rules" + rules + "\n", react.SYSTEM)
+
+    def test_the_prompt_says_to_reduce_data_in_sql_always_not_on_trigger_words(self):
+        self.assertIn("Never count, rank or compare rows by reading them.", react.SYSTEM)
+        self.assertNotIn("how many, how often, the most, the best", react.SYSTEM)
 
 
 if __name__ == "__main__":

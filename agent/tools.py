@@ -20,13 +20,21 @@ error that says how to get a player_id's name with run_sql: in the prototype's f
 name, and the swaps and fuzzy matching made '71736' another player, tike36 (docs/experiments.md). On eval-v1, the 464
 players whose only aliases are digits (25 official results at most) can't be found by name.
 
-run_sql(query) runs one query read-only, stopped after a time limit, and returns at most 20 rows with the total. A
-bigger result is marked incomplete, with a note not to answer from it but to query again: in the first run, the
-model answered from the 20 rows shown of 46.
+run_sql(query) runs one query read-only, stopped after a time limit. It returns every row if the result fits in about
+4,000 tokens (TOKEN_BUDGET, an eighth of the context). A bigger result goes back with no rows, only its row count, its
+columns and a note to reduce it in SQL and query again. React.py also sends back an answer that comes right after
+one. Every result stays in the model's context until the answer, so one query must not fill it: every 1v1 set
+Raydish played is 455 rows and about 28,000 tokens. Before 2026-10-19 the limit was 20 rows, with the first 20 shown,
+and the model answered from them: question 6's 46 rows (395 tokens) held only 10 or 14 of Raydish's 20 events with
+megD (docs/experiments.md).
+
+Not built yet (decided 2026-10-19): when a user explicitly asks for a long list, the answer should summarize it, and
+the full table should go to the user directly, without passing through the model.
 """
 
 import bisect
 import difflib
+import json
 import re
 import sqlite3
 import sys
@@ -41,8 +49,8 @@ from names import normalize, normalize_full  # noqa: E402
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
 SQL_SECONDS = 30  # a head-to-head view filtered by a literal player ID takes 0.1-0.4 s; with the ID looked up inside
 # the query it takes 18 s to over 90 s (docs/experiments.md), which this limit is meant to catch
-SQL_ROWS = 20
-COUNTED_ROWS = 1000  # rows counted for the total; a bigger result is "more than 1000"
+TOKEN_BUDGET = 4000  # a result estimated over this goes back without rows
+COUNTED_ROWS = 10000  # rows counted for the total; a bigger result is "more than 10000"
 CELL_CHARS = 300
 CANDIDATES = 5
 
@@ -55,9 +63,10 @@ CURRENT = {"nickname", "display_name", "without_tag"}  # the names an answer sho
 SYMBOLS = str.maketrans({"$": "s", "@": "a"})
 SWAPS = str.maketrans({"0": "o", "1": "i", "l": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"})
 ID_WRITTEN = re.compile(r"(?:player[\s_-]*)?id\s*[:#=]?\s*(-?\d+)", re.I)
-INCOMPLETE = ("Incomplete: only the first {rows} of {total} rows are shown. Don't answer from this result: aggregate"
-              " (GROUP BY with COUNT, SUM, MIN or MAX), filter (WHERE) or limit (ORDER BY ... LIMIT) in SQL, and query"
-              " again.")
+TOO_BIG = ("Too large to show: {total} rows, over the budget of about {budget} tokens, so no rows are shown. Reduce the"
+           " result in SQL to what the answer needs (GROUP BY with COUNT, SUM, MIN or MAX; WHERE; ORDER BY ... LIMIT) and"
+           " query again.")
+MARKS = re.compile(r'[\d\[\]{},:"]')
 
 
 def skeleton(name):
@@ -177,9 +186,18 @@ def cell(value):
     return value
 
 
+def tokens(text):
+    """About how many tokens the model reads for a text. Qwen's tokenizer takes most digits and JSON punctuation as a
+    token each, and other text at about four characters a token. Against the server's own counts for ten query
+    results (2026-10-19), this was 9% under to 20% over."""
+    marks = len(MARKS.findall(text))
+    return round(marks + (len(text) - marks) / 4)
+
+
 def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
     """One query on the snapshot, read-only (no other database can be attached) and stopped after `seconds`:
-    {complete, columns, rows (at most SQL_ROWS), row_count}, with a note first if it's incomplete; or {error}."""
+    {complete: true, columns, rows, row_count} if the result fits in TOKEN_BUDGET; else {complete: false, note,
+    row_count, columns}, with no rows; or {error}."""
     db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
     db.execute("PRAGMA query_only = ON")
     db.set_authorizer(lambda action, *_: sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_ATTACH else sqlite3.SQLITE_OK)
@@ -197,7 +215,13 @@ def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
     finally:
         db.close()
     total = len(rows) if len(rows) <= COUNTED_ROWS else f"more than {COUNTED_ROWS}"
-    shown = {"columns": columns, "rows": [[cell(v) for v in row] for row in rows[:SQL_ROWS]], "row_count": total}
-    if len(rows) <= SQL_ROWS:
-        return {"complete": True, **shown}
-    return {"complete": False, "note": INCOMPLETE.format(rows=SQL_ROWS, total=total), **shown}  # the warning first
+    out = {"complete": True, "columns": columns, "rows": [], "row_count": total}
+    size = tokens(json.dumps(out, ensure_ascii=False))
+    for row in rows:
+        values = [cell(v) for v in row]
+        size += tokens(json.dumps(values, ensure_ascii=False)) + 1  # and the comma between rows
+        if size > TOKEN_BUDGET:  # the note first, before anything else the model reads
+            return {"complete": False, "note": TOO_BIG.format(total=total, budget=f"{TOKEN_BUDGET:,}"),
+                    "row_count": total, "columns": columns}
+        out["rows"].append(values)
+    return out

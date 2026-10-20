@@ -10,7 +10,8 @@ To ask your own questions, one after another, use agent/ask.py.
 Each step is one model reply: its thinking, then either tool calls, whose results go back as observations, or the
 answer. A question ends at the answer, or after MAX_STEPS replies; the observation before the last step says it's
 the last. An answer that names a player no tool returned goes back to the model once, with the names, before it
-counts (Shown.unreturned). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
+counts (Shown.unreturned). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET), until
+the model queries again. The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
 with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
 comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
 a section on the views that hold each pairing more than once, and how to use the tools and write the answer.
@@ -37,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
-from tools import SNAPSHOT, SQL_ROWS, SQL_SECONDS, Resolver, run_sql  # noqa: E402
+from tools import SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, Resolver, run_sql  # noqa: E402
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -60,12 +61,12 @@ Using the tools
     you took the name to mean.
   - "not_found": the data has no such player; say so.
 - resolve_player takes names only, never IDs. To get the name of a player_id, query players with run_sql.
-- run_sql runs one read-only SQLite query (a SELECT; WITH is fine) and returns at most {rows} rows, with the total
-  row count. If it returns an error, fix the query and try again.
-- To count or summarize (how many, how often, the most, the best), aggregate in SQL with GROUP BY and COUNT, SUM, MIN
-  or MAX, rather than listing raw rows.
-- A result of more than {rows} rows comes back incomplete ("complete": false), with only its first {rows} rows. Never
-  answer from an incomplete result: aggregate, filter or limit in SQL, and query again.
+- run_sql runs one read-only SQLite query (a SELECT; WITH is fine) and returns its rows, with the row count. If it
+  returns an error, fix the query and try again.
+- Always reduce the data in SQL to what the answer needs: aggregate (GROUP BY with COUNT, SUM, MIN or MAX), filter
+  (WHERE), order and limit (ORDER BY ... LIMIT). Never count, rank or compare rows by reading them.
+- A result over about {budget} tokens comes back with no rows ("complete": false), only its row count and columns:
+  reduce it in SQL and query again before answering.
 - The views are fast when filtered by a literal player_id. With a lookup inside the query, the head-to-head views
   take a minute or more, and run_sql stops a query after {seconds} seconds.
 
@@ -144,7 +145,8 @@ TOOLS = [
     {"type": "function", "function": {
         "name": "run_sql",
         "description": f"Run one read-only SQLite query (SELECT or WITH) on the results database. Returns the column"
-                       f" names, at most {SQL_ROWS} rows and the total row count, or an error.",
+                       f" names, the rows and the row count; for a result over about {TOKEN_BUDGET:,} tokens, the row"
+                       f" count and column names only; or an error.",
         "parameters": {"type": "object", "required": ["query"], "properties": {
             "query": {"type": "string", "description": "one SQLite SELECT statement"}}}}},
 ]
@@ -152,6 +154,9 @@ LAST_STEP = "You have one step left: reply with your answer, without calling a t
 CHECK = ("Before this answer is final: it names {names}, which no tool returned in this conversation. If that means a"
          " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
          " the tools return. If it isn't meant as a player, reply with the same answer again.")
+TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
+                  " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
+                  " before answering.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
 
 
@@ -283,7 +288,7 @@ class Conversation:
 
     def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
-        self.system = {"role": "system", "content": SYSTEM.format(rows=SQL_ROWS, seconds=SQL_SECONDS, steps=max_steps)}
+        self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
 
@@ -303,11 +308,15 @@ class Conversation:
 
     def turn(self, question):
         """One question's steps. The trace: each step's thinking, reply and tool calls with their observations, and
-        any answer check; then the answer, the outcome ('answered', 'step limit', ...) and the names in the answer that
-        no tool returned. An answer naming such players goes back once, if a step is left; the next answer counts
-        either way."""
-        trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {}}
-        checked, log, max_steps = False, self.log, self.max_steps
+        any checks; then the answer, the outcome ('answered', 'step limit', ...), the names in the answer that no tool
+        returned, and whether it came right after a result too large to show. Two checks can send an answer back:
+        - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
+          new query since, goes back as long as two steps are left, to query and to answer;
+        - the answer check: an answer naming players no tool returned goes back once, if a step is left.
+        The answer that comes back counts either way."""
+        trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
+                 "answered_after_too_big": False}
+        checked, too_big, log, max_steps = False, False, self.log, self.max_steps
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
@@ -326,6 +335,16 @@ class Conversation:
             log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
             if not calls:
                 outcome = ending(content, step["done_reason"])
+                if outcome == "answered" and too_big:
+                    if number + 2 <= max_steps:
+                        step["size_check"] = {"action": "sent back", "message": TOO_BIG_ANSWER}
+                        self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                         {"role": "user", "content": TOO_BIG_ANSWER}]
+                        log("  result-size check: answered right after a result too large to show; sent back")
+                        self.finished(step)
+                        continue
+                    step["size_check"] = {"action": "kept: no steps left to query again"}
+                    trace["answered_after_too_big"] = True
                 names = self.shown.unreturned(content) if outcome == "answered" else {}
                 if names and not checked and number < max_steps:
                     checked, message = True, CHECK.format(names=" and ".join(f"'{n}'" for n in names))
@@ -360,6 +379,8 @@ class Conversation:
                 observation = self.tools.call(name, arguments)
                 seconds = time.monotonic() - begun
                 self.shown.observe(name, observation)
+                if name == "run_sql":  # only a new query clears a result too large to show
+                    too_big = observation.get("complete") is False
                 if number == max_steps - 1 and i == len(calls) - 1:
                     observation = {**observation, "last_step": LAST_STEP}
                 text = json.dumps(observation, ensure_ascii=False)
@@ -401,7 +422,7 @@ def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS,
             "ollama": ollama("/api/version")["version"], "model": model,
             "variant": " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)),
             "think": think, "seeds": list(seeds), "options": OPTIONS, "max_steps": max_steps, "sql_seconds": SQL_SECONDS,
-            "sql_rows": SQL_ROWS, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}}
+            "token_budget": TOKEN_BUDGET, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}}
 
 
 def markdown(traces, header):
@@ -424,6 +445,12 @@ def markdown(traces, header):
                     "```text", s["thinking"].strip() or "(none)", "```", ""]
             if s["content"].strip() and s["tool_calls"]:
                 out += ["**Reply text beside the tool calls**", "", s["content"].strip(), ""]
+            size = s.get("size_check")
+            if size and size["action"] == "sent back":
+                out += ["**Reply**", "", s["content"].strip(), "", "**Result-size check:** it came right after a result"
+                        " too large to show. Sent back with:", "", f"> {size['message']}", ""]
+            elif size:
+                out += [f"**Result-size check:** it came right after a result too large to show ({size['action']}).", ""]
             check = s.get("answer_check")
             if check:
                 names = ", ".join(f"{n} ({', '.join(map(str, ids))})" for n, ids in check["names"].items())
@@ -455,19 +482,21 @@ def preview(observation, width=200):
         return f"error: {data['error']}"
     if "status" in data:
         return f"{data['status']}: " + ", ".join(f"{c['player_id']} {c['name']}" for c in data["candidates"])
-    rows = f"{data['row_count']} rows" + ("" if data.get("complete", True) else f", incomplete ({len(data['rows'])} shown)")
-    text = f"{rows}: {json.dumps(data['rows'][:3], ensure_ascii=False)}"
+    if "rows" not in data:
+        return f"{data['row_count']} rows, too large to show: no rows went to the model"
+    text = f"{data['row_count']} rows: {json.dumps(data['rows'][:3], ensure_ascii=False)}"
     return text if len(text) <= width else text[:width] + "..."
 
 
 def summary(trace):
-    keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "steps_used", "model_seconds",
-            "tool_seconds", "output_tokens", "largest_context")
+    keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "answered_after_too_big",
+            "steps_used", "model_seconds", "tool_seconds", "output_tokens", "largest_context")
     calls = [{"step": s["step"], "name": c["name"], "arguments": c["arguments"], "result": preview(c["observation"])}
              for s in trace["steps"] for c in s["tool_calls"]]
     checks = [{"step": s["step"], "names": s["answer_check"]["names"], "action": s["answer_check"]["action"]}
               for s in trace["steps"] if s.get("answer_check")]
-    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks}
+    sizes = [{"step": s["step"], "action": s["size_check"]["action"]} for s in trace["steps"] if s.get("size_check")]
+    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks, "size_checks": sizes}
 
 
 def main():
@@ -508,7 +537,7 @@ def main():
     (out / "traces.md").write_text(markdown(traces, header) + "\n", encoding="utf-8")
     print(f"\nTraces: data/experiments/{run_id}/traces.md and traces.jsonl")
     if args.target:
-        prompt = SYSTEM.format(rows=SQL_ROWS, seconds=SQL_SECONDS, steps=args.max_steps)
+        prompt = SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=args.max_steps)
         RESULTS.mkdir(parents=True, exist_ok=True)
         path = RESULTS / f"{run_id}-react-prototype.json"
         path.write_text(json.dumps({

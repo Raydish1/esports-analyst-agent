@@ -46,8 +46,8 @@ def thought(thinking, width=240):
 
 
 def observed(text, rows=5, width=150):
-    """An observation in short, as lines: the resolver's status and candidates, a query's row count and first rows,
-    or the error."""
+    """An observation in short, as lines: the resolver's status and candidates, a query's row count and first rows
+    (or only its columns, if it was too large to show), or the error."""
     data = json.loads(text)
     if "error" in data:
         return [f"error: {react.short(data['error'], width)}"]
@@ -55,10 +55,10 @@ def observed(text, rows=5, width=150):
         found = "; ".join(f"{c['player_id']} {c['name']} ({c['match']}, {c['official_results']} official results)"
                           for c in data["candidates"][:3])
         return [react.short(f"{data['status']}: {found}" if found else data["status"], 2 * width)]
-    head = f"{data['row_count']} row{'' if data['row_count'] == 1 else 's'}"
-    if data.get("complete") is False:
-        head += f", incomplete (the first {len(data['rows'])} shown)"
-    lines = [head, " | ".join(map(str, data["columns"]))]
+    columns = " | ".join(map(str, data["columns"]))
+    if "rows" not in data:  # over the token budget (tools.TOKEN_BUDGET)
+        return [f"{data['row_count']} rows, too large to show: no rows went to the model", react.short(columns, width)]
+    lines = [f"{data['row_count']} row{'' if data['row_count'] == 1 else 's'}", columns]
     lines += [" | ".join("NULL" if v is None else str(v) for v in row) for row in data["rows"][:rows]]
     if len(data["rows"]) > rows:
         lines.append(f"({len(data['rows']) - rows} more rows went to the model)")
@@ -77,6 +77,9 @@ def step_lines(step):
         else:
             first, *rest = observed(call["observation"])
             lines += [f"  <- {first}"] + [f"     {line}" for line in rest]
+    size = step.get("size_check")
+    if size:
+        lines.append(f"  !! result-size check: answered right after a result too large to show ({size['action']})")
     check = step.get("answer_check")
     if check:
         lines.append(f"  !! answer check: it names {', '.join(check['names'])}, which no tool returned"

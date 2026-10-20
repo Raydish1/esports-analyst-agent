@@ -37,11 +37,13 @@ class TraceTest(unittest.TestCase):
         resolved = {"name": "megd", "status": "confident", "note": "Use player_id 7.",
                     "candidates": [{"player_id": 7, "name": "megD", "match": "display name", "official_results": 2}]}
         self.assertEqual(ask.observed(json.dumps(resolved)), ["confident: 7 megD (display name, 2 official results)"])
-        rows = {"complete": False, "note": "Incomplete: ...", "columns": ["a", "b"], "rows": [[i, None] for i in range(20)],
-                "row_count": 46}
+        rows = {"complete": True, "columns": ["a", "b"], "rows": [[i, None] for i in range(12)], "row_count": 12}
         lines = ask.observed(json.dumps(rows))
-        self.assertEqual(lines[:4], ["46 rows, incomplete (the first 20 shown)", "a | b", "0 | NULL", "1 | NULL"])
-        self.assertEqual(lines[-1], "(15 more rows went to the model)")
+        self.assertEqual(lines[:4], ["12 rows", "a | b", "0 | NULL", "1 | NULL"])
+        self.assertEqual(lines[-1], "(7 more rows went to the model)")
+        too_big = {"complete": False, "note": "Too large to show: ...", "row_count": 455, "columns": ["a", "b"]}
+        self.assertEqual(ask.observed(json.dumps(too_big)),
+                         ["455 rows, too large to show: no rows went to the model", "a | b"])
         self.assertEqual(ask.observed(json.dumps({"error": "no such column: x"})), ["error: no such column: x"])
 
     def test_a_step_shows_its_thought_tool_calls_observations_and_answer_check(self):
@@ -49,10 +51,12 @@ class TraceTest(unittest.TestCase):
                 "tool_calls": [{"name": "run_sql", "arguments": {"query": "SELECT 1"}, "observation":
                                 json.dumps({"complete": True, "columns": ["n"], "rows": [[1]], "row_count": 1})},
                                {"name": "resolve_player", "arguments": {"name": "x"}, "observation": None}],
-                "answer_check": {"names": {"tike36": [14]}, "action": "sent back"}}
+                "answer_check": {"names": {"tike36": [14]}, "action": "sent back"},
+                "size_check": {"action": "kept: no steps left to query again"}}
         self.assertEqual(ask.step_lines(step), [
             "Step 2 (3.2 s): Now count them.", "  -> run_sql: SELECT 1", "  <- 1 row", "     n", "     1",
             "  -> resolve_player: x", "  <- not run: no steps left",
+            "  !! result-size check: answered right after a result too large to show (kept: no steps left to query again)",
             "  !! answer check: it names tike36, which no tool returned (sent back)"])
 
 

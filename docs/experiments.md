@@ -41,6 +41,9 @@ The baseline wrote queries, not answers, so its column is the comparison's check
   - Five of the six question 6 runs got the 46-row result marked incomplete, and none ran an aggregate query.
   - Four answered from the 20 rows shown. The fifth (seed 5) did too, until the answer check sent it back.
   - Their thinking reads the note, then takes "aggregate" to mean counting the rows in view. Seed 1: "The tool mentioned it's incomplete, so I shouldn't answer from that. Instead, I need to aggregate the data. Looking at the rows, the partner_id appears multiple times."
+  - **The cut-off was the main cause.** The 20 rows held only 10 or 14 of Raydish's 20 events with megD (10 in the unsorted queries, his latest 14 in those sorted by date), so a correct count was impossible from them.
+  - **The counting evidence is thin.** Two answers gave Raydish a count. One was right: seed 1's 14, matching its 14 rows. The other was two too high: seed 0's 12, for 10.
+  - The cut-off wasn't needed either: all 46 rows of seed 0's query come to 395 tokens.
 - **The answer check fired twice in 18 runs, both times on invented names, with no false alarms.**
   - Question 6, seed 5 gave names to bare partner IDs (C4, Kappa, Sponge, TNT, Dre). Sent back, it looked up "C4", then gave an empty reply.
   - Question 8, seed 4 called its player "Kael". Sent back, it queried the real name, SiB | Wess, though its record was still wrong.
@@ -74,6 +77,20 @@ The baseline wrote queries, not answers, so its column is the comparison's check
   - SQLite divides integers as integers.
 - **Current names:** have `resolve_player`'s note give the current name to use (BBBalloonBoy) when the name matched is a former one.
 - **The minimum number of matches:** add to the counting rule that the answer states it.
+
+**Decision** (the user's, 2026-10-19): the result-size fixes, replacing the incomplete mark. The other proposals above wait.
+- **A token budget instead of 20 rows:** `run_sql` returns every row if the result fits in about 4,000 tokens, an eighth of the context.
+  - The cost of a result is estimated without the model: digits and JSON punctuation are a token each, and other text about four characters a token.
+  - Against the server's own counts for ten query results, that was 9% under to 20% over.
+  - The extremes: question 6's 46 rows with partners and placements are 395 tokens, and every 1v1 set Raydish played is 455 rows and about 28,000.
+- **No rows for a result over the budget:** only its row count, its columns, and a note to reduce it in SQL (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again.
+- **Enforced:**
+  - An answer that comes right after such a result, with no new query since, goes back with a short explanation. A `resolve_player` call isn't a new query.
+  - It goes back as long as two steps are left, one to query and one to answer. Otherwise it's kept and flagged.
+- **The prompt's rule, made general:**
+  - It was: aggregate "to count or summarize (how many, how often, the most, the best)".
+  - It's now: always reduce the data in SQL to what the answer needs, and never count, rank or compare rows by reading them.
+- **Not built yet:** a user who explicitly wants a long list gets an answer that summarizes it, and the full table goes to them directly, without passing through the model.
 
 ## 2026-10-18: a minimal ReAct prototype on questions 4, 6 and 8
 

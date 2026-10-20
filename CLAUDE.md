@@ -38,6 +38,13 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - Refusing IDs worked, and the answer check caught two invented names with no false alarms.
   - The incomplete mark didn't work: question 6 still answers from the 20 rows shown.
   - The log proposes the next fixes for the user to decide.
+- Decided (2026-10-19), the result-size fixes:
+  - a token budget of about 4,000 per result instead of 20 rows;
+  - no rows for a result over it, only its row count and columns;
+  - an answer right after such a result goes back;
+  - the prompt's rule is to reduce data in SQL always, never counting, ranking or comparing rows by reading them.
+
+  Not built yet: when a user asks for a long list, the answer summarizes it, and the full table goes to the user directly, not through the model.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -118,7 +125,9 @@ Agent (`agent/`, a prototype):
   - The answer check: an answer naming a player no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold text, since most ordinary words are some player's display name.
 - `tools.py` holds the tools:
   - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only;
-  - `run_sql` runs one read-only query on eval-v1, stopped after 30 s, and returns at most 20 rows with the total. A bigger result is marked incomplete, with a note not to answer from it.
+  - `run_sql` runs one read-only query on eval-v1, stopped after 30 s. It returns every row if the result fits in about 4,000 tokens (estimated: digits and JSON punctuation a token each, other text four characters a token).
+    - A bigger result comes back with its row count and columns but no rows.
+    - `react.py` sends back an answer that comes right after one, until the model queries again.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
