@@ -34,7 +34,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - an answer naming a player no tool returned goes back once;
   - the prompt says how to write the answer.
 
-  The seed runs come next, when the user asks.
+- The fixed prototype on questions 4, 6 and 8 with seeds 0–5 (2026-10-19, in the log): answers right in 5 of 6 (question 4), 0 of 6 (question 6) and 3 of 6 (question 8); queries right in 16 of 18.
+  - Refusing IDs worked, and the answer check caught two invented names with no false alarms.
+  - The incomplete mark didn't work: question 6 still answers from the 20 rows shown.
+  - The log proposes the next fixes for the user to decide.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -202,7 +205,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the prototype's seed runs** on questions 4, 6 and 8, when the user asks (the Ollama server must be reachable). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
+Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19 entry (cut-off results, two prompt lines, current names, the minimum number of matches). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

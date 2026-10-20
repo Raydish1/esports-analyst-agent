@@ -2,6 +2,79 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-19: the fixed prototype on questions 4, 6 and 8, seeds 0–5
+
+**Question:** do the fixes decided on 2026-10-19 turn the prototype's right queries into right answers? How consistent is it over six seeds?
+
+**Setup:** the prototype as of commit ae951ba, with the fixes of f7f9007; otherwise as in the entry below.
+- The fixes:
+  - `resolve_player` refuses IDs;
+  - a cut-off result is marked incomplete;
+  - an answer naming a player no tool returned goes back once;
+  - the prompt says how to write the answer.
+- qwen3:8b with thinking, at most 8 steps, on eval-v1.
+- Questions 4, 6 and 8 with seeds 0–5: 18 runs (run `20261020T011930Z`). Seed 0 repeats the first run's sampling, and seeds 1–5 match the baseline's reruns.
+- **Judging:** each answer by hand, against the verified evaluation set (q04, q06 and q08). q08's answer must state its minimum number of sets, per the user's note. Each query also went through the comparison's check, on its full result.
+
+**Results:**
+
+| Question | Baseline: query right | First prototype run: answer | Fixed: query right | Fixed: answer right |
+|---|---|---|---|---|
+| 4. Impala vs Balloonboy | 1/1 (seed 0 only) | ✓ | 6/6 | 5/6 |
+| 6. megd's 2v2 partners | 3/6 | ✗ | 5/6 | 0/6 |
+| 8. Best record against marckiemoo | 0/6 | ✗ | 5/6 | 3/6 (5/6 name the right player) |
+
+The baseline wrote queries, not answers, so its column is the comparison's check. The first run used seed 0 only.
+
+| Seed | Question 4 | Question 6 | Question 8 |
+|---|---|---|---|
+| 0 | ✓ | ✗ answered from 20 of 46 rows | ✓ |
+| 1 | ✗ added the two rows: "3 wins, 3 losses, 6 matches" | ✗ 20 of 46 rows, partners as bare IDs | ✓ |
+| 2 | ✓ | ✗ 20 of 46 rows | ✗ right player, no minimum stated |
+| 3 | ✓ | ✗ 20 of 46 rows | ✓ |
+| 4 | ✓ | ✗ "no 2v2 events": a filter no row matches | ✗ integer division: SiB \| Wess at 1–5 |
+| 5 | ✓ | ✗ empty reply, after invented names were sent back | ✗ right player, no minimum stated |
+
+**What the fixes did:**
+- **Refusing IDs worked.** At seed 0, question 8 sent V3M_T4NQUIL0's ID to `resolve_player` again. It got the refusal and its `players` query, ran it, and answered with the right name. The other five got the name with SQL straight away.
+- **The incomplete mark didn't.**
+  - Five of the six question 6 runs got the 46-row result marked incomplete, and none ran an aggregate query.
+  - Four answered from the 20 rows shown. The fifth (seed 5) did too, until the answer check sent it back.
+  - Their thinking reads the note, then takes "aggregate" to mean counting the rows in view. Seed 1: "The tool mentioned it's incomplete, so I shouldn't answer from that. Instead, I need to aggregate the data. Looking at the rows, the partner_id appears multiple times."
+- **The answer check fired twice in 18 runs, both times on invented names, with no false alarms.**
+  - Question 6, seed 5 gave names to bare partner IDs (C4, Kappa, Sponge, TNT, Dre). Sent back, it looked up "C4", then gave an empty reply.
+  - Question 8, seed 4 called its player "Kael". Sent back, it queried the real name, SiB | Wess, though its record was still wrong.
+- **The answer guidance worked in part.**
+  - 16 of the 17 answers state the scope ("official events, 1v1").
+  - Question 8 used the current name, Marckiem00, in all six runs. Question 4 called BBBalloonBoy "Balloonboy" in all six.
+  - Half the question 4 answers mention the other Impala.
+  - Two of the five right question 8 answers leave out the minimum. Seed 5 instead calls it "the highest win rate among players who have faced Marckiem00", which is false without a minimum: Snowy!! is 2–0.
+
+**What still goes wrong:**
+- **Answering from a cut-off result**, question 6's main failure: 5 of 6 runs.
+- **Reading a view from both sides in the answer:** question 4, seed 1 queried both rows of the pairing, then headlined their sum (3–3). In the baseline the same error was in the SQL.
+- **A filter value no row has:** question 6 tried `format = '2v2'` in three runs (2v2 is a mode, and `v_team_results` holds only 2v2). Seed 4 took the empty result as fact. The baseline's qwen3:8b made the same mistake in one rerun.
+- **Integer division:** `wins / matches`, which SQLite truncates (question 8, seed 4), as in one of the baseline's qwen3:4b drafts.
+- **Inventing a name for an ID,** twice; both caught by the answer check.
+- **Incomplete answers:** question 4's answers give the record but never its sets, the 2v2 meetings or the shared events.
+
+**Time:** 34.6, 46.4 and 31.2 s of model time per question (means), in 3.0, 4.0 and 4.5 steps. That isn't comparable with the first run (10–21 s):
+- the server generated more slowly this time: a median of 61 output tokens per second of step time, against 106 in the first run (a probe after the run gave 76, against about 120 on 2026-10-18);
+- the answers were longer: 2,111, 2,808 and 1,900 output tokens per question, against 1,106, 2,153 and 2,026.
+
+**Caveats:**
+- Three questions, six seeds each.
+- The expected answers come from our own data, now verified by the user, and the answers were judged by hand.
+- The fixes changed several things at once.
+
+**For the agent** (proposals; the decisions are the user's):
+- **Cut-off results:** the note isn't enough. Either don't show an incomplete result's rows, or refuse an answer that comes right after one and send it back for an aggregate query.
+- **One line each in the prompt** on two recurring mistakes:
+  - `v_team_results` holds only 2v2, so it's never filtered by mode or format;
+  - SQLite divides integers as integers.
+- **Current names:** have `resolve_player`'s note give the current name to use (BBBalloonBoy) when the name matched is a former one.
+- **The minimum number of matches:** add to the counting rule that the answer states it.
+
 ## 2026-10-18: a minimal ReAct prototype on questions 4, 6 and 8
 
 **Question:** with names looked up by a tool and a note on the views that hold each pairing more than once, does a small agent loop answer the questions one-prompt qwen3:8b got wrong?
