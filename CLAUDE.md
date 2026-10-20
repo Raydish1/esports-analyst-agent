@@ -45,6 +45,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - the prompt's rule is to reduce data in SQL always, never counting, ranking or comparing rows by reading them.
 
   Not built yet: when a user asks for a long list, the answer summarizes it, and the full table goes to the user directly, not through the model.
+- The result-size fixes on questions 4, 6 and 8 with seeds 0–5 (2026-10-19, in the log): answers right in 5 of 6, 0 of 6 and 4 of 6.
+  - The cut-off is gone: question 6 got all 46 rows in four runs.
+  - But no run aggregated in SQL: the answers read the rows and got the partners' counts and results wrong. Twice more, a `format = '2v2'` filter gave "never played 2v2".
+  - The log proposes the next steps.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -214,7 +218,10 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19 entry (cut-off results, two prompt lines, current names, the minimum number of matches). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
+Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19 entries:
+- the prompt lines on `v_team_results` (only 2v2) and integer division;
+- current names, and the minimum number of matches;
+- how to get question 6 aggregated (an example in the prompt, a check, or a larger model). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

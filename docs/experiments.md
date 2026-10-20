@@ -2,6 +2,65 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-19: the result-size fixes on questions 4, 6 and 8, seeds 0–5
+
+**Question:** with the 20-row cap replaced by a token budget, and an answer after a result too large to show sent back, does question 6 get answered?
+
+**Setup:** as in the entry below, with the result-size fixes of commit fc9e607 (the decision is at the end of that entry).
+- `run_sql` returns every row if the result fits in about 4,000 tokens, and none if it doesn't.
+- An answer right after a result with no rows goes back.
+- The prompt's rule: always reduce the data in SQL, and never count, rank or compare rows by reading them.
+- 18 runs (run `20261020T021020Z`), judged by hand against the verified evaluation set, as before.
+
+**Results**, with the earlier runs:
+
+| Question | Baseline: query right | First run: answer | Incomplete mark: answer | Token budget: answer | Token budget: query right |
+|---|---|---|---|---|---|
+| 4. Impala vs Balloonboy | 1/1 | ✓ | 5/6 | 5/6 | 6/6 |
+| 6. megd's 2v2 partners | 3/6 | ✗ | 0/6 | 0/6 | 4/6 |
+| 8. Best record against marckiemoo | 0/6 | ✗ | 3/6 | 4/6 | 5/6 |
+
+On question 8, five of six answers named the right player in both seed runs. The difference is in stating the minimum number of matches, which q08 requires.
+
+| Seed | Question 4 | Question 6 | Question 8 |
+|---|---|---|---|
+| 0 | ✗ swapped names: "Balloonboy (Impala)" leads | ✗ read all 46 rows: 15 partners, two results given to the wrong partner | ✓ |
+| 1 | ✓ | ✗ read all 46 rows: partners as bare IDs, 43 events for Raydish's (20) | ✓ |
+| 2 | ✓ | ✗ "never played 2v2": `format = '2v2'` | ✓ |
+| 3 | ✓ | ✗ "never played 2v2": `format = '2v2'` | ✓ |
+| 4 | ✓ | ✗ read all 46 rows: some events, no counts | ✗ right player, no minimum stated |
+| 5 | ✓ | ✗ read all 46 rows: 10 partners, 9 of Raydish's 20 events | ✗ "no records": `COUNT(*)` on a view with one row per pair |
+
+**What changed:**
+- **The cut-off is gone.** Four question 6 runs got all 46 rows; the other two filtered every row out.
+- **Neither check fired:** no result in 18 runs was over the budget, and no answer named a player no tool returned.
+- **Question 8 stated its minimum in 4 runs, against 3.**
+
+**What didn't: question 6 is still 0 of 6, now for other reasons.**
+- **No run aggregated in SQL, despite the new rule.**
+  - With all 46 rows in view, the answers listed each partner's events by reading them, and got them wrong. Seed 0 gave hardymj megD's 2023 Autumn 2nd, which was with Raydish, and gave Raydish the 2025 Summer 9th with flowerVS.
+  - No answer had the top partners' counts right: Raydish 20, hardymj 4, Winged_Shell 3. The answers listed 16, 9 or (as a selection) 5 of Raydish's events, or gave him 43.
+  - The question reads as a list ("who has megd played with, and how did they place?"). The rows fit the budget, and the model listed them.
+- **The 2v2 filter mistake, twice more:**
+  - `format = '2v2'` (2v2 is a mode, and `v_team_results` holds only 2v2) gave 0 rows, and both runs answered that megD never played 2v2.
+  - Across the two seed runs, that's 3 of the 12 question 6 answers.
+- **Reducing in SQL can go wrong too:** question 8, seed 5 grouped `v_head_to_head_1v1`, which already holds one row per pair, and required `COUNT(*) >= 5`. Every player counted 1, so it answered that nobody has a 1v1 record against Marckiem00.
+- **Question 4, seed 0** joined names onto both rows of the pairing and swapped them in its answer.
+
+**Time:** 22.2, 40.0 and 48.6 s of model time per question (means), in 3.0, 3.7 and 4.0 steps.
+- The server ran at the same speed as for the previous seed run (63 output tokens per second against 61), so these compare with its 34.6, 46.4 and 31.2 s.
+- Question 8's mean includes seed 5: 126 s and 8,034 output tokens, a 30-s timeout among them.
+- The largest context was 10,188 tokens.
+
+**Caveats:** three questions and six seeds each; the expected answers come from our own data, verified by the user; the answers were judged by hand.
+
+**For the agent** (proposals; the decisions are the user's):
+- The prompt line still waiting from the entry below: `v_team_results` holds only 2v2, so it's never filtered by mode or format. It would have saved 3 of the 12 question 6 runs.
+- A rule alone doesn't make qwen3:8b aggregate a question that reads as a list. Options:
+  - an example in the prompt of summarizing per player (GROUP BY partner, with COUNT and MIN(placement));
+  - a check that sends back an answer listing many items read from a long result;
+  - the planned rerun with qwen3:14b, to see whether a larger model follows the rule.
+
 ## 2026-10-19: the fixed prototype on questions 4, 6 and 8, seeds 0–5
 
 **Question:** do the fixes decided on 2026-10-19 turn the prototype's right queries into right answers? How consistent is it over six seeds?
