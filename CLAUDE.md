@@ -66,6 +66,7 @@ Planning and write-ups:
   - Contents: what the cache showed, the build order, how curation files are applied, the checks and their gates, when Phase 1 is done, support for the scheduled updater, and the order of work with each step's status.
   - Its decisions of 2026-10-05 are newer than the schema proposal where they differ.
 - Experiment log → [`docs/experiments.md`](docs/experiments.md): one entry per experiment, with its setup, results and what it decided.
+- Agent walkthrough → [`docs/agent-walkthrough.md`](docs/agent-walkthrough.md): how the prototype works end to end, for a learner. It covers the entry point, the system prompt, the ReAct loop, the tools, the guardrails, question 8 traced step by step, and the known limitations, with line references to commit 2889492.
 
 What's fetched, all complete. Responses are in `data/raw/cache/`, and the request log and crawl tables in `data/db/crawl.sqlite`. `python ingest/crawl.py status` shows every stage.
 - Stats API:
