@@ -133,7 +133,7 @@ Agent (`agent/`, a prototype):
   - A name from the question that `resolve_player` matches only below 0.9 (`CONFIDENT`) ends the turn: the user gets the top three candidates as suggestions instead of a guess (outcome "suggestions").
   - `Conversation` keeps the previous question in full (tool calls and observations) and older ones as question and answer.
   - Traces go to `data/experiments/<run>/`, and a run of target questions also writes a summary to `eval/results/`.
-  - The answer check: an answer naming a player no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold text, since most ordinary words are some player's display name.
+  - The answer check: an answer naming a player no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold or quoted text (quoted since 2026-10-23), since most ordinary words are some player's display name.
 - `tools.py` holds the tools:
   - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only.
     - Each candidate has a match score: its tier's base times its closeness (nickname 1.0, exact 0.98, swap 0.92, prefix and similar spelling 0.85 times closeness).

@@ -199,6 +199,18 @@ class AnswerCheckTest(Fixture):
         spans = react.name_spans("**Raydish** beat tike36's rival V3M_T4NQUIL0 and megD 3-2; **Notes:** none, the **best record**.")
         self.assertEqual(spans, ["tike36", "V3M_T4NQUIL0", "megD", "Raydish", "best record"])
 
+    def test_quoted_text_is_looked_for_too_but_not_apostrophes(self):
+        spans = react.name_spans("A partner named \"Kappa\" (hypothetical), megD's partner 'Ultra' and the players' “Flowers”.")
+        self.assertEqual(spans, ["megD", "Kappa", "Ultra", "Flowers"])
+        self.assertEqual(set(react.name_spans("Don't count 'em: no row has format = '2v2'.")), {"2v2"})
+
+    def test_a_quoted_name_no_tool_returned_is_flagged_unless_the_conversation_showed_it(self):
+        shown = self.shown()
+        self.assertEqual(shown.unreturned('Partner 3 is a player named "Flowers" (hypothetical example).'), {"Flowers": [5, 6]})
+        self.assertEqual(shown.unreturned("It matched 'exact', player 15."), {"exact": [15]})
+        shown.read("an exact name")  # an ordinary word the prompt or a tool used
+        self.assertEqual(shown.unreturned("It matched 'exact', player 15."), {})
+
     def test_an_answer_naming_a_player_no_tool_returned_is_flagged(self):
         shown = self.shown()
         self.assertEqual(shown.unreturned("**tike36** has the best record: 3-2."), {"tike36": [14]})

@@ -165,6 +165,9 @@ TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows re
                   " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
                   " before answering.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
+# Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
+# side (megD's, players' names), so quoted text starts and ends away from letters.
+QUOTED = re.compile(r'"([^"\n]+)"|“([^”\n]+)”|(?<![\w\'‘’])[\'‘]([^\'‘’\n]+)[\'’](?![\w\'‘’])')
 
 
 # Talking to the model
@@ -220,15 +223,17 @@ class Tools:
 
 def name_spans(answer):
     """Where an answer may name a player, told apart from ordinary words without a dictionary: words shaped like gamer
-    tags (letters with digits, an underscore, or a capital inside: tike36, V3M_T4NQUIL0, megD), and bold text of up to
-    three words that isn't a label (**Raydish**, not **Notes:**), with a possessive 's dropped. A plain name outside
-    bold, such as Raydish, isn't found: most ordinary words are some player's display name ('best', 'me', 'Winter')."""
+    tags (letters with digits, an underscore, or a capital inside: tike36, V3M_T4NQUIL0, megD), and bold or quoted text
+    of up to three words that isn't a label (**Raydish**, "Kappa", 'Kappa', not **Notes:**), with a possessive 's
+    dropped. A plain name outside bold and quotes, such as Raydish, isn't found: most ordinary words are some player's
+    display name ('best', 'me', 'Winter'). Quoted names count since question 6 wrote "Kappa (hypothetical example)"
+    for a partner it had only as an ID (docs/experiments.md, 2026-10-23)."""
     spans = []
     for token in answer.split():
-        word = re.sub(r"['’]s$", "", token.strip("*_`'\"()[]{}.,;:!?’"))
+        word = re.sub(r"['’]s$", "", token.strip("*_`'\"“”‘’()[]{}.,;:!?"))
         if re.search(r"[A-Za-z]", word) and re.search(r"\d|_|[a-z][A-Z]", word):
             spans.append(word)
-    for text in re.findall(r"\*\*(.+?)\*\*", answer):
+    for text in re.findall(r"\*\*(.+?)\*\*", answer) + [next(filter(None, m)) for m in QUOTED.findall(answer)]:
         text = re.sub(r"['’]s$", "", text.strip())
         if text and not text.endswith(":") and len(text.split()) <= 3:
             spans.append(text)
