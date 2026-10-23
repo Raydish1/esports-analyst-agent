@@ -10,7 +10,7 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 
 **To verify:** check each candidate answer, and each accepted one, against what you know, or against start.gg, Challengermode or Liquipedia, then fill in `verified` in `questions.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the script to update this page.
 
-**Verified:** 45 of 45. **With accepted answers:** 14. **Tied to eval-v1:** 7.
+**Verified:** 45 of 45. **With accepted answers:** 15. **Tied to eval-v1:** 7.
 
 | Category | What it covers | Questions |
 |---|---|---|
@@ -44,7 +44,7 @@ Made by `python eval/review_questions.py` from [`questions.toml`](questions.toml
 | [q19](#q19) | Who won the Midseason Championship 2026? | event_result |  |  | yes |
 | [q20](#q20) | what was the score of the 1v1 grand final at dreamhack valencia 2023 | multi_step |  |  | yes |
 | [q21](#q21) | how many official events has baloonboy won? | player_record |  |  | yes |
-| [q22](#q22) | did markiemoo ever win worlds | player_record |  |  | yes |
+| [q22](#q22) | did markiemoo ever win worlds | player_record | 2 |  | yes |
 | [q23](#q23) | kingdom \| godly vs impala head to head | head_to_head | 2 |  | yes |
 | [q24](#q24) | who won msi 1v1 | event_result | 2 |  | yes |
 | [q25](#q25) | how many official tournaments has RAYDISH won | player_record | 2 |  | yes |
@@ -1075,7 +1075,12 @@ player_record · misspelling · event alias
 
 Yes: Marckiem00 won the 1v1 at the Brawlhalla World Championship Expo 2025 (worlds 2025, 2025-11-22), ahead of BBBalloonBoy. Marckiem00's other world championship results: 7th in the 2025 2v2, and 3rd in both the 1v1 and the 2v2 at BCX 2024.
 
-**Notes:** "markiemoo" misspells the curated nickname "marckiemoo", and no alias matches it. "Worlds" are the events the "worlds YYYY" event aliases name.
+**Accepted answers** (each gets credit only with its assumption stated):
+
+- *"markiemoo" is Marckiem00, whose curated nickname "marckiemoo" it misspells by one letter (the answer above):* Yes: Marckiem00 won the 1v1 at BCX 2025
+- *a name that only a similar spelling matches isn't guessed: the agent asks which player was meant:* offers suggestions with Marckiem00 first
+
+**Notes:** "markiemoo" misspells the curated nickname "marckiemoo", and no alias matches it. "Worlds" are the events the "worlds YYYY" event aliases name. The agent doesn't guess a name that only a similar spelling matches, so asking which player was meant, with Marckiem00 first, is accepted too (decided 2026-10-23).
 
 **Query 1:** results at the events the worlds aliases name
 
