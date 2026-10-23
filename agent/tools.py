@@ -1,4 +1,4 @@
-"""The ReAct prototype's two tools (agent/react.py), on the frozen snapshot eval-v1.
+"""The ReAct prototype's three tools (agent/react.py), on the frozen snapshot eval-v1.
 
 resolve_player(name) finds the players a name may mean, through player_aliases, so the model never looks a name up
 in SQL: in the model comparison, that was most of the misses (docs/experiments.md). The name is matched in tiers,
@@ -20,6 +20,28 @@ It takes names only. A name of digits only, or an ID written out ('71736', '#717
 error that says how to get a player_id's name with run_sql: in the prototype's first run, the model passed an ID as a
 name, and the swaps and fuzzy matching made '71736' another player, tike36 (docs/experiments.md). On eval-v1, the 464
 players whose only aliases are digits (25 official results at most) can't be found by name.
+
+resolve_event(name) finds the official events an event name means, so the model never searches event names with
+LIKE: in a live session it searched event_name for 'worlds' and answered that Marckiem00 never won Worlds, though he
+won BCX 2025, whose event_name is empty (docs/experiments.md, 2026-10-23). A mode word (1v1, 2v2, singles, doubles)
+narrows the events to that mode, and the rest of the name is matched in tiers, compared as event aliases are
+(names.normalize_words):
+- alias       a curated event alias (event_aliases): 'bcx 2022', 'worlds 2019', 'msi'.
+- series      the aliases that are the name and a year, for two years or more: 'worlds' is every 'worlds YYYY'.
+- words       events whose name has every word, a year matching the event's year, and a curated term standing for
+              the words names use (event_terms: 'winters' for 'winter championship', 'na' for 'north america'). A
+              plural also matches its singular, and an alias with every word adds its events ('world championship'
+              finds DreamHack Atlanta 2018 through 'world championship 2018'). Qualifiers match only a name that
+              asks for one, since the Last Chance Qualifiers aren't Worlds.
+- some words  the events with the most of the words, if half or more.
+Each tier has a score (EVENT_SCORES), times the share of the words matched for some words. The status:
+- confident  an alias or series, or every word matching events of one tournament (its 1v1 and 2v2), or exactly a
+             series' events ('world championships' finds what 'worlds' does);
+- ambiguous  every word matching several tournaments ('ceo dreamland 2020': the cancelled event and the online one,
+             the closer name first), or some words only;
+- not_found  nothing matched.
+The result has a sql condition on event_id for the events: their IDs when there are few, else a subquery on the
+aliases, so the model needn't copy 34 IDs for 'worlds'.
 
 run_sql(query) runs one query read-only, stopped after a time limit. It returns every row if the result fits in about
 4,000 tokens (TOKEN_BUDGET, an eighth of the context). A bigger result goes back with no rows, only its row count, its
@@ -47,7 +69,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from diagnose import diagnose  # noqa: E402
-from names import normalize, normalize_full  # noqa: E402
+from names import normalize, normalize_full, normalize_words  # noqa: E402
 
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
 SQL_SECONDS = 30  # a head-to-head view filtered by a literal player ID takes 0.1-0.4 s; with the ID looked up inside
@@ -79,6 +101,15 @@ TOO_BIG = ("Too large to show: {total} rows, over the budget of about {budget} t
            " result in SQL to what the answer needs (GROUP BY with COUNT, SUM, MIN or MAX; WHERE; ORDER BY ... LIMIT) and"
            " query again.")
 MARKS = re.compile(r'[\d\[\]{},:"]')
+
+EVENT_SCORES = {"alias": 1.0, "series": 0.95, "words": 0.9, "some words": 0.85}  # rankings too, as SCORES
+MODE_WORDS = {"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}
+FILLER = {"the", "tournament", "event"}
+QUALIFIER = {"qualifier", "qualifiers", "lcq"}
+YEAR = re.compile(r"20\d\d")
+EVENTS_LISTED = 10
+IDS_IN_SQL = 12  # a set this small is given by its IDs; a bigger alias set by a subquery on event_aliases
+IDS_AT_MOST = 40  # a bigger set of name matches gets no sql: too many IDs to copy into a query
 
 
 def skeleton(name):
@@ -189,6 +220,178 @@ class Resolver:
         nickname (not a former name), compared as aliases are."""
         return {pid for alias in {normalize(name), normalize_full(name)} - {""}
                 for pid, kind, _, _ in self.aliases.get(alias, ()) if kind in CURRENT}
+
+
+def quoted(text):
+    return "'" + text.replace("'", "''") + "'"
+
+
+class EventResolver:
+    """Every official event, with the curated event aliases and terms, read once from the database: event names
+    resolve in memory."""
+
+    def __init__(self, db):
+        self.events = {}
+        for event_id, tournament, event, start_date, year, counts_as, fmt, status, slug in db.execute(
+                "SELECT event_id, tournament_name, event_name, start_date, year, counts_as, format, status,"
+                " sgg_tournament_slug FROM v_events"):
+            own = [w for w in normalize_words(tournament).split() if w not in MODE_WORDS and w != "brawlhalla"]
+            self.events[event_id] = {
+                "name": tournament + (f" / {event}" if event else ""), "start_date": start_date, "year": year,
+                "counts_as": counts_as, "format": fmt, "status": status,
+                "words": normalize_words(f"{tournament} {event or ''}").split(),
+                "own": own,  # the tournament's own words, which a closer name covers more of
+                "tournament": slug or " ".join(own)}  # a Challengermode tournament's 1v1 and 2v2 differ by name only
+        self.aliases, notes = defaultdict(list), defaultdict(set)
+        for alias, event_id, note in db.execute("SELECT alias, event_id, note FROM event_aliases"):
+            if event_id in self.events:
+                self.aliases[alias].append(event_id)
+                notes[alias].add(note)
+        # A note shared by all of an alias's events is about the alias ('msi' is a default someone may not mean). The
+        # others describe one event each, which the event list shows anyway
+        self.notes = {a: n.pop() for a, n in notes.items() if len(n) == 1 and len(self.aliases[a]) > 1 and None not in n}
+        self.series = defaultdict(list)  # 'worlds' -> ['worlds 2017', ..., 'worlds 2025']
+        for alias in sorted(self.aliases):
+            stem, _, year = alias.rpartition(" ")
+            if stem and YEAR.fullmatch(year):
+                self.series[stem].append(alias)
+        self.series = {stem: aliases for stem, aliases in self.series.items() if len(aliases) >= 2}
+        self.terms = defaultdict(list)
+        for term, means in db.execute("SELECT term, means FROM event_terms"):
+            self.terms[term].append(means)
+
+    def resolve(self, name):
+        """{name, status, note, matched, score, event_count, tournament_count, sql, events}: the events an event
+        name means (the module docstring)."""
+        tokens = normalize_words(name).split()
+        modes = {MODE_WORDS[t] for t in tokens if t in MODE_WORDS}
+        mode = modes.pop() if len(modes) == 1 else None
+        rest = [t for t in tokens if t not in MODE_WORDS]
+        found, tier, matched, closeness, share = self.by_alias(" ".join(rest))
+        if mode:
+            found = {e for e in found if self.events[e]["counts_as"] == mode}
+        if not found:
+            found, tier, matched, closeness, share = self.by_words(rest, mode)
+            # Words that find exactly a series' events mean that series: 'world championships' is 'worlds'
+            matched = next((a for a in self.series.values() if found and self.of(a, mode) == found), [])
+        out = {"name": name}
+        if not found:
+            stem = " ".join(t for t in rest if not YEAR.fullmatch(t))
+            near = sorted(a for a in self.aliases if stem and (a == stem or a.startswith(stem + " ")))
+            note = "No official event matches this name. Say so; don't search event names with LIKE."
+            if near:
+                note += f" Aliases that start with '{stem}': {', '.join(near[:10])}."
+            return {**out, "status": "not_found", "note": note, "events": []}
+        tournaments = {self.events[e]["tournament"] for e in found}
+        ranked = sorted(found, key=lambda e: (self.events[e]["start_date"] or "", e), reverse=True)  # newest first,
+        ranked.sort(key=lambda e: -closeness.get(e, 1.0))  # then the closest names before the others
+        sql = self.sql(ranked, tier, matched, mode)
+        if tier in ("alias", "series") or (tier == "words" and (len(tournaments) == 1 or matched)):
+            status, note = "confident", "These are the events the name means."
+        elif tier == "words":
+            status, note = "ambiguous", (f"These events come from {len(tournaments)} tournaments, the closest name"
+                                         " first. If the question means one of them, filter on its event_ids and say"
+                                         " which you took the name to mean; if it means all of them, use the sql.")
+        else:
+            status, note = "ambiguous", ("No event has all these words; these have the most. Check that they're the"
+                                         " event the question means, and say which you took it to mean.")
+        if sql:
+            note += " Filter on them with the sql condition (write r.event_id, say, if the query joins tables)."
+        else:
+            note += (f" They're too many to filter by ID ({len(found)}): name the event more precisely, with a year, a"
+                     " region or a mode.")
+        notes = [self.notes[a] for a in matched if a in self.notes]
+        if notes:
+            note += " About this alias: " + " ".join(dict.fromkeys(notes))
+        what = {"alias": f"alias '{matched[0]}'" if matched else "alias",
+                "series": f"aliases '{matched[0]}' to '{matched[-1]}'" if matched else "aliases",
+                "words": f"every word: the events of aliases '{matched[0]}' to '{matched[-1]}'" if matched else "every word",
+                "some words": f"some of the words ({share:.0%})"}[tier]
+        return {**out, "status": status, "note": note, "matched": what + (f", {mode} only" if mode else ""),
+                "score": round(EVENT_SCORES[tier] * share, 2), "event_count": len(found),
+                "tournament_count": len(tournaments), "sql": sql, "events": [self.listed(e) for e in ranked[:EVENTS_LISTED]]}
+
+    def by_alias(self, text):
+        """(events, tier, aliases, closeness, share) for an alias or a series of yearly aliases, or nothing."""
+        if text in self.aliases:
+            return set(self.aliases[text]), "alias", [text], {}, 1.0
+        if text in self.series:
+            return self.of(self.series[text]), "series", self.series[text], {}, 1.0
+        return set(), None, [], {}, 1.0
+
+    def of(self, aliases, mode=None):
+        """The events of some aliases, in one mode if given."""
+        return {e for a in aliases for e in self.aliases[a] if not mode or self.events[e]["counts_as"] == mode}
+
+    def by_words(self, rest, mode):
+        """(events, tier, aliases, closeness, share) for the events whose names have the words: closeness is each
+        event's share of its tournament's own words that the name covers, and share the share of the words matched."""
+        years = {int(t) for t in rest if YEAR.fullmatch(t)}
+        words = [t for t in rest if not YEAR.fullmatch(t) and t not in FILLER]
+        if not words:
+            return set(), None, [], {}, 1.0
+        qualifier = bool(QUALIFIER & set(words))
+        aliased = {e for a, ids in self.aliases.items() if all(set(forms(w)) & set(a.split()) for w in words) for e in ids}
+        hits, covers = {}, {}
+        for event_id, e in self.events.items():
+            if (years and e["year"] not in years) or (mode and e["counts_as"] != mode):
+                continue
+            if not qualifier and QUALIFIER & set(e["words"]):
+                continue
+            covered = {str(y) for y in years}
+            found = 0
+            for w in words:
+                phrase = self.phrase(w, e["words"])
+                if phrase:
+                    found, covered = found + 1, covered | set(phrase.split())
+            if event_id in aliased:
+                found = len(words)
+            if found:
+                hits[event_id] = found
+                covers[event_id] = len(covered & set(e["own"])) / max(len(e["own"]), 1)
+        best = max(hits.values(), default=0)
+        if not best or best / len(words) < 0.5:
+            return set(), None, [], {}, 1.0
+        events = {e for e, n in hits.items() if n == best}
+        return events, "words" if best == len(words) else "some words", [], {e: covers[e] for e in events}, best / len(words)
+
+    def phrase(self, word, words):
+        """The words of an event's name that a word of the question stands for, found in order in the name: a curated
+        term's meanings ('na': 'north america'), else the word or its singular; or None. A term's singular doesn't
+        count: 'winters' are the seasonal championships, not the Winter Royale or DreamHack Winter."""
+        for option in [word, *self.terms[word]] if word in self.terms else forms(word):
+            seq = option.split()
+            if any(words[i:i + len(seq)] == seq for i in range(len(words) - len(seq) + 1)):
+                return option
+        return None
+
+    def sql(self, ranked, tier, aliases, mode):
+        """A condition on event_id for the events: their IDs, a subquery on the aliases for a bigger alias set, or
+        None for too many name matches."""
+        if len(ranked) <= IDS_IN_SQL or (not aliases and len(ranked) <= IDS_AT_MOST):
+            ordered = sorted(ranked, key=lambda e: (self.events[e]["start_date"], e))
+            return f"event_id IN ({', '.join(quoted(e) for e in ordered)})"
+        if aliases:
+            names = ", ".join(quoted(a) for a in aliases)
+            if mode:
+                return (f"event_id IN (SELECT a.event_id FROM event_aliases a JOIN v_events v ON v.event_id = a.event_id"
+                        f" WHERE a.alias IN ({names}) AND v.counts_as = '{mode}')")
+            return f"event_id IN (SELECT event_id FROM event_aliases WHERE alias IN ({names}))"
+        return None
+
+    def listed(self, event_id):
+        e = self.events[event_id]
+        out = {"event_id": event_id, "name": e["name"], "start_date": e["start_date"], "counts_as": e["counts_as"]}
+        if e["format"] != "standard":
+            out["format"] = e["format"]
+        if e["status"]:
+            out["status"] = e["status"]
+        return out
+
+
+def forms(word):
+    """A word of the question, and its singular if it may be a plural ('championships', 'dreamhacks')."""
+    return [word, word[:-1]] if len(word) > 3 and word.endswith("s") else [word]
 
 
 def cell(value):

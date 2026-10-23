@@ -30,6 +30,20 @@ ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("tike36", 14, "display_name", "tike36", None), ("exact", 15, "display_name", "exact", None),
     ("7th", 16, "display_name", "7th", None), ("notes", 17, "display_name", "Notes", None),
     ("1234", 18, "display_name", "1234", None)]
+EVENTS = [  # (event_id, tournament_name, event_name, start_date, year, counts_as, status, sgg_tournament_slug)
+    ("bcx22-1", "Brawlhalla World Championship Expo 2022", "1v1", "2022-11-04", 2022, "1v1", None, "bcx-2022"),
+    ("bcx22-2", "Brawlhalla World Championship Expo 2022", "2v2", "2022-11-04", 2022, "2v2", None, "bcx-2022"),
+    ("dha18", "DreamHack Atlanta 2018", "Brawlhalla 1v1", "2018-11-17", 2018, "1v1", None, "dha-2018"),
+    ("dha19", "DreamHack Atlanta 2019", "Brawlhalla World Championship 1v1", "2019-11-15", 2019, "1v1", None, "dha-2019"),
+    ("lcq21", "North America - Brawlhalla World Championship 2021 Last Chance Qualifier", "Brawlhalla Championship 1v1",
+     "2021-10-31", 2021, "1v1", None, "lcq-2021"),
+    ("naw23", "North America - Winter Championship 2023", "Brawlhalla Championship 1v1", "2023-02-05", 2023, "1v1", None, "naw"),
+    ("euw23", "Europe - Winter Championship 2023", "Brawlhalla Championship 1v1", "2023-02-04", 2023, "1v1", None, "euw"),
+    ("royale23", "Brawlhalla - Winter Royale 2023", "Brawlhalla Championship 1v1", "2023-03-11", 2023, "1v1", None, "royale"),
+    ("ceo20", "CEO Dreamland 2020", "Brawlhalla 1v1", "2020-03-13", 2020, "1v1", "cancelled", "ceo-2020"),
+    ("ceoon20", "Brawlhalla CEO Dreamland ONLINE", "Brawlhalla Championship 1v1", "2020-03-29", 2020, "1v1", None, "ceo-online")]
+EVENT_ALIASES = [("bcx 2022", "bcx22-1"), ("bcx 2022", "bcx22-2"), ("worlds 2018", "dha18"), ("worlds 2019", "dha19"),
+                 ("worlds 2022", "bcx22-1"), ("worlds 2022", "bcx22-2"), ("world championship 2018", "dha18")]
 
 
 def snapshot(path):
@@ -47,6 +61,13 @@ def snapshot(path):
     db.executemany("INSERT INTO v_results VALUES (?, ?)",
                    [(canonical, f"202{i}-01-01") for _, _, canonical, n in PLAYERS for i in range(n)])
     db.executemany("INSERT INTO t VALUES (?, ?)", [(i, i / 3) for i in range(25)])
+    db.executescript("CREATE TABLE v_events (event_id TEXT, tournament_name TEXT, event_name TEXT, start_date TEXT,"
+                     " year INTEGER, counts_as TEXT, format TEXT, status TEXT, sgg_tournament_slug TEXT);"
+                     "CREATE TABLE event_aliases (alias TEXT, event_id TEXT, note TEXT);"
+                     "CREATE TABLE event_terms (term TEXT, means TEXT, note TEXT);")
+    db.executemany("INSERT INTO v_events VALUES (?, ?, ?, ?, ?, ?, 'standard', ?, ?)", EVENTS)
+    db.executemany("INSERT INTO event_aliases VALUES (?, ?, NULL)", EVENT_ALIASES)
+    db.executemany("INSERT INTO event_terms VALUES (?, ?, NULL)", [("winters", "winter championship"), ("na", "north america")])
     db.commit()
     db.close()
 
@@ -138,6 +159,61 @@ class ResolverTest(Fixture):
         self.assertIn("error", self.resolver.resolve("1234"))  # a player named 1234 can't be found by name
         self.assertEqual(self.resolve("tike36"), ("confident", [14]))  # letters with the digits make a name
         self.assertEqual(self.resolve("7th"), ("confident", [16]))
+
+
+class EventResolverTest(Fixture):
+    def setUp(self):
+        super().setUp()
+        db = sqlite3.connect(self.path)
+        self.events = tools.EventResolver(db)
+        db.close()
+
+    def selected(self, name):
+        """The status and every event the result's sql condition selects."""
+        out = self.events.resolve(name)
+        db = sqlite3.connect(self.path)
+        try:
+            return out["status"], {e for (e,) in db.execute(f"SELECT event_id FROM v_events WHERE {out['sql']}")}
+        finally:
+            db.close()
+
+    def test_an_alias_gives_its_events_and_a_mode_word_narrows_them(self):
+        self.assertEqual(self.selected("BCX 2022"), ("confident", {"bcx22-1", "bcx22-2"}))
+        self.assertEqual(self.selected("bcx 2022 singles"), ("confident", {"bcx22-1"}))
+        self.assertEqual(self.events.resolve("bcx 2022")["score"], 1.0)
+
+    def test_a_name_without_its_year_is_every_yearly_alias_and_the_long_name_finds_the_same(self):
+        worlds = {"dha18", "dha19", "bcx22-1", "bcx22-2"}  # not the Last Chance Qualifier
+        self.assertEqual(self.selected("worlds"), ("confident", worlds))
+        self.assertEqual(self.selected("world championships"), ("confident", worlds))  # 2018 through its alias
+        with patch.object(tools, "IDS_IN_SQL", 1):  # a subquery on the aliases instead of the IDs
+            self.assertEqual(self.selected("worlds"), ("confident", worlds))
+            self.assertEqual(self.selected("worlds 1v1"), ("confident", {"dha18", "dha19", "bcx22-1"}))
+        self.assertEqual(self.selected("world championship last chance qualifier"), ("confident", {"lcq21"}))
+
+    def test_terms_and_years_match_the_words_names_use(self):
+        self.assertEqual(self.selected("winters 2023 na"), ("confident", {"naw23"}))  # not Europe's, nor the Royale
+        self.assertEqual(self.selected("winters 2023")[1], {"naw23", "euw23"})
+
+    def test_several_tournaments_are_ambiguous_with_the_closest_name_first(self):
+        out = self.events.resolve("ceo dreamland 2020")
+        self.assertEqual((out["status"], [e["event_id"] for e in out["events"]]), ("ambiguous", ["ceo20", "ceoon20"]))
+        self.assertEqual(out["events"][0]["status"], "cancelled")
+        loose = self.events.resolve("dreamhack atlanta 2019 finals")
+        self.assertEqual((loose["status"], [e["event_id"] for e in loose["events"]]), ("ambiguous", ["dha19"]))
+        self.assertLess(loose["score"], tools.CONFIDENT)
+
+    def test_nothing_matching_is_not_found_with_the_aliases_that_start_alike(self):
+        out = self.events.resolve("bcx 2021")
+        self.assertEqual((out["status"], out["events"]), ("not_found", []))
+        self.assertIn("Aliases that start with 'bcx': bcx 2022.", out["note"])
+
+    def test_the_tool_is_offered_and_called_by_name(self):
+        loop = react.Tools(self.path)
+        self.assertEqual(loop.call("resolve_event", {"name": "bcx 2022"})["status"], "confident")
+        self.assertIn("takes one argument, name", loop.call("resolve_event", {})["error"])
+        self.assertIn("resolve_event", [t["function"]["name"] for t in react.TOOLS])
+        self.assertIn("Don't search event names with LIKE", " ".join(react.SYSTEM.split()))
 
 
 class RunSqlTest(Fixture):

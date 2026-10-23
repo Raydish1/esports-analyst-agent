@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
-from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, Resolver, run_sql  # noqa: E402
+from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, run_sql  # noqa: E402
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -50,9 +50,9 @@ REQUEST_SECONDS = 900
 RESULTS = ROOT / "eval" / "results"
 RAW = ROOT / "data" / "experiments"
 
-SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using two
-tools: resolve_player finds the player a name means, and run_sql queries a SQLite database of the results. Every
-player_id in a view is a person's canonical ID.
+SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using three
+tools: resolve_player finds the player a name means, resolve_event the events an event name means, and run_sql queries
+a SQLite database of the results. Every player_id in a view is a person's canonical ID.
 
 Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
@@ -63,6 +63,12 @@ Using the tools
     you took the name to mean.
   - "not_found": the data has no such player; say so.
 - resolve_player takes names only, never IDs. To get the name of a player_id, query players with run_sql.
+- Call resolve_event for every event the question names ('bcx 2022', 'worlds', 'winters 2023 na'), before any SQL,
+  and filter on its events with the sql condition it returns. Don't search event names with LIKE: people use aliases
+  and abbreviations that names don't have, and many events keep their name in tournament_name, with event_name empty.
+  - "ambiguous": the name matched several tournaments, or only some of its words. If the question means one of them,
+    filter on its event_ids, and say in your answer which event you took the name to mean.
+  - A note about an alias, such as 'msi' being a default someone may not mean: follow it.
 - run_sql runs one read-only SQLite query (a SELECT; WITH is fine) and returns its rows, with the row count. If it
   returns an error, fix the query and try again.
 - Always reduce the data in SQL to what the answer needs: aggregate (GROUP BY with COUNT, SUM, MIN or MAX), filter
@@ -149,6 +155,15 @@ TOOLS = [
         "parameters": {"type": "object", "required": ["name"], "properties": {
             "name": {"type": "string", "description": "the player's name as the question writes it"}}}}},
     {"type": "function", "function": {
+        "name": "resolve_event",
+        "description": "Find the official events an event name means: an alias people use ('worlds', 'bcx 2022', 'msi'),"
+                       " words they use for words in names ('winters', 'na'), or the name itself, with a year and a"
+                       " mode if the question gives them ('winters 2023 na 1v1'). Returns a status (confident,"
+                       " ambiguous or not_found), a match score, the events with their event_ids, and a sql condition"
+                       " on event_id to filter on them.",
+        "parameters": {"type": "object", "required": ["name"], "properties": {
+            "name": {"type": "string", "description": "the event's name as the question writes it"}}}}},
+    {"type": "function", "function": {
         "name": "run_sql",
         "description": f"Run one read-only SQLite query (SELECT or WITH) on the results database. Returns the column"
                        f" names, the rows and the row count; for a result over about {TOKEN_BUDGET:,} tokens, the row"
@@ -194,7 +209,7 @@ class Tools:
         self.path = path
         db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
         try:
-            self.resolver = Resolver(db)
+            self.resolver, self.events = Resolver(db), EventResolver(db)
         finally:
             db.close()
 
@@ -211,12 +226,17 @@ class Tools:
             if isinstance(value, str) and value.strip():
                 return self.resolver.resolve(value)
             return {"error": "resolve_player takes one argument, name: the player's name as the question writes it"}
+        if name == "resolve_event":
+            value = arguments.get("name")
+            if isinstance(value, str) and value.strip():
+                return self.events.resolve(value)
+            return {"error": "resolve_event takes one argument, name: the event's name as the question writes it"}
         if name == "run_sql":
             value = arguments.get("query")
             if isinstance(value, str) and value.strip():
                 return run_sql(value, self.path)
             return {"error": "run_sql takes one argument, query: one SQLite SELECT statement"}
-        return {"error": f"there is no tool named {name!r}: the tools are resolve_player and run_sql"}
+        return {"error": f"there is no tool named {name!r}: the tools are resolve_player, resolve_event and run_sql"}
 
 
 # The answer check
@@ -527,6 +547,8 @@ def preview(observation, width=200):
     data = json.loads(observation)
     if "error" in data:
         return f"error: {data['error']}"
+    if "events" in data:
+        return f"{data['status']}: {data.get('event_count', 0)} events ({data.get('matched', 'no match')})"
     if "status" in data:
         return f"{data['status']}: " + ", ".join(f"{c['player_id']} {c['name']} ({c['score']})" for c in data["candidates"])
     if "rows" not in data:

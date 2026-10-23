@@ -51,6 +51,9 @@ def observed(text, rows=5, width=150):
     data = json.loads(text)
     if "error" in data:
         return [f"error: {react.short(data['error'], width)}"]
+    if "events" in data:
+        return [react.short(f"{data['status']}: {data.get('event_count', 0)} events, {data.get('matched', 'no match')};"
+                            f" sql {data.get('sql')}", 2 * width)]
     if "status" in data:
         found = "; ".join(f"{c['player_id']} {c['name']} ({c['match']}, score {c['score']},"
                           f" {c['official_results']} official results)" for c in data["candidates"][:3])
