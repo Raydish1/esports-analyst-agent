@@ -2,6 +2,97 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-23: the lookup changes on questions 4, 6 and 8, q21 and q22, seeds 0–5
+
+**Question:** Checkpoint 2's feedback asked for three changes to how the agent handles failed lookups. Do they work, and do the answers that were right stay right? How do the match scores behave on the evaluation set's two misspelling questions?
+
+**Setup:** as in the entry below, with commits 5d33dd0 and 93b640e.
+- **Match scores:** `resolve_player` gives each candidate a score, its tier's base times its closeness within the tier.
+  - The bases: curated nickname 1.0, exact name 0.98, character swap 0.92, prefix and similar spelling 0.85.
+  - Closeness is 1 in the exact tiers, the share of the alias a prefix covers, and difflib's ratio for a similar spelling.
+  - The scores rank matches; they aren't calibrated probabilities.
+- **Suggestions:** `CONFIDENT = 0.9`. When a name from the question matches only below it, the turn ends and the user sees the top three candidates, so the model doesn't guess (outcome "suggestions").
+- **A diagnosis for an empty result:** the query is rerun without each top-level condition of its WHERE and HAVING, and the rows each rerun returns are reported.
+  - For an equality or LIKE filter, it also says whether the value occurs in the column, and lists the column's values when there are at most 12.
+  - Its note: check the condition responsible and the player IDs; if you relax a condition, say in the answer which one and why; never relax one silently.
+- Questions 4, 6 and 8, and the evaluation set's two misspelling questions: q21 ("how many official events has baloonboy won?") and q22 ("did markiemoo ever win worlds"). Seeds 0–5: 30 runs (run `20261023T215750Z`), the last two with `react.py`'s new `--eval ID`.
+- Ollama 0.40.8 (0.40.2 before), with the same model. The system prompt has a new line on the diagnosis, so a seed doesn't sample as it did in the earlier runs.
+- One live session (`ask.py`, seed 0) for q22's follow-up: the question, then "the first one".
+- **Judging:** by hand, against the verified evaluation set. An answer is right when its main facts match the verified answer; false asides are listed separately. q08 must state its minimum number of sets, and q21 must say which player it took "baloonboy" to be (its note).
+
+**Results**, with the earlier runs:
+
+| Question | Baseline: query right | First run: answer | Incomplete mark: answer | Token budget: answer | Lookup changes: answer | Lookup changes: query right |
+|---|---|---|---|---|---|---|
+| 4. Impala vs Balloonboy | 1/1 | ✓ | 5/6 | 5/6 | 6/6 | 6/6 |
+| 6. megd's 2v2 partners | 3/6 | ✗ | 0/6 | 0/6 | 0/6 | 6/6 |
+| 8. Best record against marckiemoo | 0/6 | ✗ | 3/6 | 4/6 | 3/6 (5/6 name the right player) | 5/6 |
+| q21. baloonboy's official wins | not run | not run | not run | not run | 3/6 | 6/6 (by hand) |
+| q22. did markiemoo win worlds | not run | not run | not run | not run | 0/6: all six asked, with Marckiem00 first | no query |
+
+| Seed | Question 4 | Question 6 | Question 8 | q21 | q22 |
+|---|---|---|---|---|---|
+| 0 | ✓ | ✗ 14 of 17 partners, 7 of Raydish's 20 events; diagnosed and fixed its `format = '2v2'` | ✓ after the answer check (it first said "Kappa") | ✗ "in 1v1 mode": 5 of the 7 were 2v2 | asked |
+| 1 | ✓ mentions the other Impala | ✗ 16 partners, 12 events for Raydish; diagnosed and fixed its `format = '2v2'` | ✗ integer division: SiB \| Wess at 1–5, as a bare ID | ✓ | asked |
+| 2 | ✓ | ✗ 15 partners, 14 events for Raydish | ✓ after the answer check ("Cupcake") | ✗ "in 1v1 mode" | asked |
+| 3 | ✓ | ✗ "Raydish in 41 of 46 events" (20) | ✗ right player after the answer check ("Kappa"), no minimum stated | ✓ spelled "BBalloonBoy" | asked |
+| 4 | ✓ mentions the other Impala | ✗ partners as bare IDs, results given to the wrong partner | ✗ right player, no minimum stated | ✗ "Baloonboy (player_id 149305)": never says which player | asked |
+| 5 | ✓ | ✗ bare IDs, 41 events for Raydish | ✓ | ✓ | asked |
+
+**What the changes did:**
+- **The threshold separates the two misspelling questions, as designed.**
+  - "baloonboy" is a character swap (doubled letters) of "Balloonboy", one of BBBalloonBoy's aliases, at 0.92. q21 was answered in 3 steps every run, and every query counted his 7 wins.
+  - "markiemoo" is only a similar spelling of the curated nickname "marckiemoo", at 0.80. q22 asked in all six runs, in one step and 3–8 s, with Marckiem00 first, then Markled (0.68, 2 official results) and Arklem (0.73, 1). Within a tier, candidates are ordered by official results, not by score.
+  - No other name from a question fell below the threshold: Impala, Balloonboy, marckiemoo and megd scored 0.98 or 1.0.
+- **But q22's verified answer resolves the name and answers yes** (Marckiem00 won the 1v1 at BCX 2025). Under the suggestions rule, a name matched only by a similar spelling never gets an answer, so q22 can't be right as the set stands.
+- **The follow-up resolves the pick, but its answer was wrong** (one session, `data/experiments/sessions/20261023T221623Z.md`).
+  - After the suggestions, the agent took "the first one" to mean Marckiem00.
+  - Its query searched `event_name` for "worlds" and got no rows. Worlds are event aliases (`event_aliases`), and BCX 2025 keeps its name in `tournament_name`, with `event_name` empty.
+  - The diagnosis said the query returns 9 rows without that condition: Marckiem00's nine official 1v1 wins, BCX 2025 among them. The model answered that he never won Worlds.
+- **The diagnosis fired twice in 30 runs, both on question 6, and both runs recovered.**
+  - Each time, the empty result came from the model's own filter on 2v2 as a format (`format = '2v2'`, once inside a subquery). The next query fixed it (`format = 'standard'`, then `counts_as = '2v2'`) and got all 46 rows.
+  - So no run answered that megD never played 2v2, against 3 of the 12 question 6 runs in the two earlier seed runs.
+  - Neither answer said what it had changed. Both answered for 2v2, as asked: the condition dropped was the model's mistake, not one the question set.
+  - It took 1.6 and 0.2 s. Replayed before this run on the four empty results of the two earlier seed runs, it named the condition responsible each time, in 2.5–8.2 s: `format = '2v2'` three times, and question 8's `total_matches >= 5`, a count on a view with one row per pair.
+
+**What didn't change:**
+- **Question 6 is 0 of 6 again.** Every final query returned the right 46 rows, and no run aggregated in SQL. The answers listed or counted the rows by reading them, and none got the partners right: 17 of them, with Raydish at 20 events, hardymj 4 and Winged_Shell 3.
+- **Integer division** in question 8, seed 1, giving the same wrong player as the incomplete-mark run's seed 4.
+- **Current names:** question 4 calls BBBalloonBoy "Balloonboy" in all six runs. q21 spells him "BBalloonBoy" twice, and once never names him.
+
+**New, or more often:**
+- **Invented names for an ID.**
+  - Question 8's head-to-head query returned a player_id without a name in all six runs. Two runs then looked the name up, and three named an invented player (Kappa twice, Cupcake).
+  - The answer check sent all three back, and each then looked up V3M_T4NQUIL0. Without it, question 8 would have named the right player in two runs, not five.
+  - Question 6, seed 4 wrote "Kappa (hypothetical example)" in quotes. The check reads bold text and words shaped like gamer tags, so it missed this one.
+  - Since the prompt changed, the seeds sample differently, so the rise from 2 in 18 runs (incomplete mark) and 0 in 18 (token budget) may be chance.
+- **The prompt's scope example, copied:** q21 seeds 0 and 2 said the 7 wins were "in 1v1 mode", as in the prompt's example ("at official events, in 1v1"), though 5 were 2v2.
+- **False asides:**
+  - question 4, seed 5 explains Impala's 8 games as "4 games per match × 2 wins" (the sets were 3-0, 3-1 and 2-3);
+  - question 8, seed 2 adds that no 2v2 records were found, without a 2v2 query;
+  - question 6, seeds 1 and 2 call megD and JuicyDiaper's 513th place a likely typo or error. It's real: the 2020 North America Summer Championship's 2v2 placed teams down to 1,025th.
+
+**Time:** 22.8, 38.3 and 29.1 s of model time per question (means) for questions 4, 6 and 8, in 3.0, 3.7 and 5.0 steps. q21 took 11.5 s in 3 steps, and q22 4.8 s in 1.
+- The server was faster: a median of 92 output tokens per second of step time, against 63 in the token-budget run. Output tokens compare better: 1,790, 3,394 and 2,580 per question, against 1,462, 2,662 and 3,145.
+- Question 8's extra steps are the three answers sent back.
+- The largest context was 8,647 tokens.
+
+**Caveats:**
+- Five questions, six seeds each, and one live session.
+- The prompt and the server version changed too, so differences from the earlier runs mix the changes with sampling.
+- The expected answers come from our own data, verified by the user, and the answers were judged by hand.
+- Two misspelling questions are too few to tune the scores or the threshold on.
+
+**For the agent** (proposals; the decisions are the user's):
+- **q22 and the threshold.** Either:
+  - accept a list of suggestions with the right player first as a right answer when only a similar spelling matches (an `accept` entry for q22, a change to the verified set);
+  - or make some similar spellings confident, such as one letter off a curated nickname, so q22 is answered. That needs more misspelling questions to tune on than q21 and q22, since one letter off can also land on another real player.
+- **Make the diagnosis count:** like the result-size check, send back once an answer that comes right after an empty result. The model fixes or relaxes the condition the diagnosis named, or gives the same answer again if the empty result is right. It would have sent back the session's "never won Worlds".
+- **Event names people use:** a line in the prompt, or an event resolver like `resolve_player`. Names like "worlds" or "bcx 2022" are looked up in `event_aliases`, and searches by name cover `tournament_name`, since many events have no `event_name`.
+- **Saying what was relaxed:** limit the rule to conditions the question sets. Fixing its own wrong filter needs no mention.
+- **Smaller fixes:** the answer check also reads quoted names, and the scope example names a mode only when the query was limited to one.
+- Still waiting from the entries below: `v_team_results` holds only 2v2, SQLite's integer division, current names, and how to get question 6 aggregated.
+
 ## 2026-10-19: the result-size fixes on questions 4, 6 and 8, seeds 0–5
 
 **Question:** with the 20-row cap replaced by a token budget, and an answer after a result too large to show sent back, does question 6 get answered?

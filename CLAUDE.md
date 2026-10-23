@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-19)
+## Project status (2026-10-23)
 **Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
 - The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
@@ -48,6 +48,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
 - The result-size fixes on questions 4, 6 and 8 with seeds 0–5 (2026-10-19, in the log): answers right in 5 of 6, 0 of 6 and 4 of 6.
   - The cut-off is gone: question 6 got all 46 rows in four runs.
   - But no run aggregated in SQL: the answers read the rows and got the partners' counts and results wrong. Twice more, a `format = '2v2'` filter gave "never played 2v2".
+  - The log proposes the next steps.
+- Checkpoint 2's lookup changes (2026-10-23, from the checkpoint's feedback): match scores in `resolve_player`, suggestions to the user for a name matched only loosely, and a diagnosis for an empty result. On questions 4, 6 and 8 and the misspelling questions q21 and q22, with seeds 0–5 (in the log): answers right in 6, 0, 3, 3 and 0 of 6.
+  - q22 asked the user in all six runs, with the right player first, but its verified answer expects an answer: the threshold, or q22's accept list, is for the user to decide.
+  - The diagnosis fired twice, on question 6's `format = '2v2'`, and both runs recovered all 46 rows. In a live session, though, the model answered "never won Worlds" from an empty result the diagnosis had explained.
   - The log proposes the next steps.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
@@ -223,7 +227,9 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19 entries:
+Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19 and 2026-10-23 entries:
+- q22: accept suggestions with the right player first, or make some similar spellings confident;
+- sending back an answer that comes right after an empty result, and a prompt line on event aliases;
 - the prompt lines on `v_team_results` (only 2v2) and integer division;
 - current names, and the minimum number of matches;
 - how to get question 6 aggregated (an example in the prompt, a check, or a larger model). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
