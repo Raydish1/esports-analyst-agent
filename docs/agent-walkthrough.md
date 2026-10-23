@@ -7,7 +7,14 @@ It's a prototype in three files:
 - [`agent/react.py`](../agent/react.py): the system prompt, the loop and the guardrails.
 - [`agent/tools.py`](../agent/tools.py): the two tools.
 
-Line references are to commit `2889492`. Some terms used throughout:
+Line references are to commit `2889492`. Three changes came after it (2026-10-23) and aren't described here:
+- match scores for `resolve_player`'s candidates;
+- suggestions instead of a guess when a name matches only loosely;
+- a diagnosis for results with no rows.
+
+See the [experiment log](experiments.md) and `agent/diagnose.py`.
+
+Some terms used throughout:
 - A **step** is one model reply.
 - A **turn** is one question's steps, up to 8.
 - An **observation** is a tool's result, as the model reads it.

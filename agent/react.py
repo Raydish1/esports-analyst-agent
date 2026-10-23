@@ -4,6 +4,7 @@ run_sql (agent/tools.py), through Ollama's native tool calling.
     python agent/react.py "Who has megd played with in 2v2 tournaments?"
     python agent/react.py --target 4 --target 6 --target 8          target questions (ingest/target_questions.py)
     python agent/react.py --target 4 --seed 0 --seed 1              each question once per seed
+    python agent/react.py --eval q21 --eval q22                     evaluation set questions (eval/questions)
 
 To ask your own questions, one after another, use agent/ask.py.
 
@@ -29,6 +30,7 @@ import re
 import sqlite3
 import sys
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -67,6 +69,9 @@ Using the tools
   (WHERE), order and limit (ORDER BY ... LIMIT). Never count, rank or compare rows by reading them.
 - A result over about {budget} tokens comes back with no rows ("complete": false), only its row count and columns:
   reduce it in SQL and query again before answering.
+- A result with no rows comes back with a diagnosis: which condition emptied it, and whether the value it filters on
+  occurs in that column. Check that condition and your player IDs before you trust an empty result. If you relax a
+  condition, say in your answer which one and why. Never relax a condition silently.
 - The views are fast when filtered by a literal player_id. With a lookup inside the query, the head-to-head views
   take a minute or more, and run_sql stops a query after {seconds} seconds.
 
@@ -146,7 +151,8 @@ TOOLS = [
         "name": "run_sql",
         "description": f"Run one read-only SQLite query (SELECT or WITH) on the results database. Returns the column"
                        f" names, the rows and the row count; for a result over about {TOKEN_BUDGET:,} tokens, the row"
-                       f" count and column names only; or an error.",
+                       f" count and column names only; for a result with no rows, a diagnosis of which condition"
+                       f" emptied it; or an error.",
         "parameters": {"type": "object", "required": ["query"], "properties": {
             "query": {"type": "string", "description": "one SQLite SELECT statement"}}}}},
 ]
@@ -519,6 +525,8 @@ def preview(observation, width=200):
         return f"{data['status']}: " + ", ".join(f"{c['player_id']} {c['name']} ({c['score']})" for c in data["candidates"])
     if "rows" not in data:
         return f"{data['row_count']} rows, too large to show: no rows went to the model"
+    if "diagnosis" in data:
+        return short(f"0 rows. {data['diagnosis']['note']}", width)
     text = f"{data['row_count']} rows: {json.dumps(data['rows'][:3], ensure_ascii=False)}"
     return text if len(text) <= width else text[:width] + "..."
 
@@ -540,6 +548,8 @@ def main():
                                                  " resolve_player and run_sql, on the snapshot eval-v1.")
     parser.add_argument("question", nargs="*", help="a question (each argument is one)")
     parser.add_argument("--target", action="append", type=int, help="a target question's number (repeatable)")
+    parser.add_argument("--eval", action="append", metavar="ID", help="an evaluation set question, by ID such as q21"
+                                                                      " (repeatable)")
     parser.add_argument("--model", default=MODEL, help=f"the model (default: {MODEL})")
     parser.add_argument("--think", choices=["on", "off"], default="on", help="thinking (default: on)")
     parser.add_argument("--seed", action="append", type=int, help="a sampling seed (repeatable: each question is asked"
@@ -548,10 +558,13 @@ def main():
     args = parser.parse_args()
     from target_questions import QUESTIONS  # in ingest/, on the path
     targets = {number: text for number, text, _, _ in QUESTIONS}
-    unknown = [n for n in args.target or [] if n not in targets]
-    if unknown or not (args.question or args.target):
-        parser.error(f"no target question {unknown[0]}" if unknown else "give a question or --target N")
-    asked = [(n, targets[n]) for n in args.target or []] + [(None, q) for q in args.question]
+    with open(ROOT / "eval" / "questions" / "questions.toml", "rb") as f:
+        evaluation = {q["id"]: q["question"] for q in tomllib.load(f)["question"]}
+    unknown = [n for n in args.target or [] if n not in targets] + [i for i in args.eval or [] if i not in evaluation]
+    if unknown or not (args.question or args.target or args.eval):
+        parser.error(f"no question {unknown[0]}" if unknown else "give a question, --target N or --eval ID")
+    asked = ([(n, targets[n]) for n in args.target or []] + [(i, evaluation[i]) for i in args.eval or []]
+             + [(None, q) for q in args.question])
     load_env()
     run_id, seeds = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), args.seed or [0]
     header = run_header(run_id, args.model, args.think == "on", seeds, args.max_steps)
@@ -561,7 +574,7 @@ def main():
     traces = []
     for seed in seeds:
         for number, question in asked:
-            print(f"\n{'Q' + str(number) + ', ' if number else ''}seed {seed}: {question}")
+            print(f"\n{label(number) + ', ' if number else ''}seed {seed}: {question}")
             trace = run(question, tools, max_steps=args.max_steps, model=args.model, think=header["think"], seed=seed)
             traces.append({"number": number, "seed": seed, **trace})
     out = RAW / run_id
@@ -571,7 +584,7 @@ def main():
             f.write(json.dumps({**header, **trace}, ensure_ascii=False) + "\n")
     (out / "traces.md").write_text(markdown(traces, header) + "\n", encoding="utf-8")
     print(f"\nTraces: data/experiments/{run_id}/traces.md and traces.jsonl")
-    if args.target:
+    if args.target or args.eval:
         prompt = SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=args.max_steps)
         RESULTS.mkdir(parents=True, exist_ok=True)
         path = RESULTS / f"{run_id}-react-prototype.json"
@@ -582,8 +595,13 @@ def main():
             "tools": TOOLS, "records": [summary(t) for t in traces]}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"Summary: {path.relative_to(ROOT).as_posix()}")
     for t in traces:
-        print(f"  {'Q' + str(t['number']) if t['number'] else 'question'}, seed {t['seed']}: {t['outcome']} in"
+        print(f"  {label(t['number']) if t['number'] else 'question'}, seed {t['seed']}: {t['outcome']} in"
               f" {t['steps_used']} steps, {t['model_seconds']} s")
+
+
+def label(number):
+    """A question's label: Q8 for target question 8, q21 for an evaluation set question."""
+    return f"Q{number}" if isinstance(number, int) else number
 
 
 if __name__ == "__main__":

@@ -27,7 +27,8 @@ columns and a note to reduce it in SQL and query again. React.py also sends back
 one. Every result stays in the model's context until the answer, so one query must not fill it: every 1v1 set
 Raydish played is 455 rows and about 28,000 tokens. Before 2026-10-19 the limit was 20 rows, with the first 20 shown,
 and the model answered from them: question 6's 46 rows (395 tokens) held only 10 or 14 of Raydish's 20 events with
-megD (docs/experiments.md).
+megD (docs/experiments.md). A result with no rows comes back with a diagnosis (diagnose.py): which condition emptied
+it, and whether the value it filters on occurs in that column.
 
 Not built yet (decided 2026-10-19): when a user explicitly asks for a long list, the answer should summarize it, and
 the full table should go to the user directly, without passing through the model.
@@ -45,6 +46,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
+from diagnose import diagnose  # noqa: E402
 from names import normalize, normalize_full  # noqa: E402
 
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
@@ -205,15 +207,33 @@ def tokens(text):
     return round(marks + (len(text) - marks) / 4)
 
 
-def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
-    """One query on the snapshot, read-only (no other database can be attached) and stopped after `seconds`:
-    {complete: true, columns, rows, row_count} if the result fits in TOKEN_BUDGET; else {complete: false, note,
-    row_count, columns}, with no rows; or {error}."""
+def connect(path, seconds):
+    """A read-only connection to the snapshot, on which no other database can be attached, and whose queries stop
+    after `seconds`."""
     db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
     db.execute("PRAGMA query_only = ON")
     db.set_authorizer(lambda action, *_: sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_ATTACH else sqlite3.SQLITE_OK)
     deadline = time.monotonic() + seconds
     db.set_progress_handler(lambda: 1 if time.monotonic() > deadline else 0, 10000)
+    return db
+
+
+def probe(sql, path, seconds):
+    """A diagnosis probe's rows, or None if it failed or ran out of time."""
+    db = connect(path, seconds)
+    try:
+        return db.execute(sql).fetchall()
+    except (sqlite3.Error, sqlite3.Warning):
+        return None
+    finally:
+        db.close()
+
+
+def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
+    """One query on the snapshot, read-only and stopped after `seconds`: {complete: true, columns, rows, row_count} if
+    the result fits in TOKEN_BUDGET, plus a diagnosis if it has no rows (diagnose.py); else {complete: false, note,
+    row_count, columns}, with no rows; or {error}."""
+    db = connect(path, seconds)
     try:
         cursor = db.execute(query)
         rows = cursor.fetchmany(COUNTED_ROWS + 1)
@@ -225,6 +245,9 @@ def run_sql(query, path=SNAPSHOT, seconds=SQL_SECONDS):
         return {"error": f"{type(e).__name__}: {e}"}
     finally:
         db.close()
+    if not rows and columns:
+        return {"complete": True, "columns": columns, "rows": [], "row_count": 0,
+                "diagnosis": diagnose(query, lambda sql, left: probe(sql, path, left))}
     total = len(rows) if len(rows) <= COUNTED_ROWS else f"more than {COUNTED_ROWS}"
     out = {"complete": True, "columns": columns, "rows": [], "row_count": total}
     size = tokens(json.dumps(out, ensure_ascii=False))

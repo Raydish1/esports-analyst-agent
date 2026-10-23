@@ -124,15 +124,19 @@ Evaluation (`eval/`):
 
 Agent (`agent/`, a prototype):
 - `ask.py` is for asking the agent yourself: `python agent/ask.py "question"` prints the answer, `--trace` also prints each step (its thinking in short, tool calls, observations), and with no question it starts a session. In a session, follow-ups build on earlier answers, and "exit" quits. Transcripts go to `data/experiments/sessions/`.
-- `react.py` is the ReAct loop: `python agent/react.py "question"`, or `--target N` for target questions, with `--seed` repeatable.
+- `react.py` is the ReAct loop: `python agent/react.py "question"`, `--target N` for target questions or `--eval ID` for evaluation set questions, with `--seed` repeatable.
+  - A name from the question that `resolve_player` matches only below 0.9 (`CONFIDENT`) ends the turn: the user gets the top three candidates as suggestions instead of a guess (outcome "suggestions").
   - `Conversation` keeps the previous question in full (tool calls and observations) and older ones as question and answer.
   - Traces go to `data/experiments/<run>/`, and a run of target questions also writes a summary to `eval/results/`.
   - The answer check: an answer naming a player no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold text, since most ordinary words are some player's display name.
 - `tools.py` holds the tools:
-  - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only;
+  - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only.
+    - Each candidate has a match score: its tier's base times its closeness (nickname 1.0, exact 0.98, swap 0.92, prefix and similar spelling 0.85 times closeness).
+    - Scores rank matches and aren't calibrated probabilities. They and the 0.9 threshold are to be tuned on the evaluation set's misspelling questions;
   - `run_sql` runs one read-only query on eval-v1, stopped after 30 s. It returns every row if the result fits in about 4,000 tokens (estimated: digits and JSON punctuation a token each, other text four characters a token).
     - A bigger result comes back with its row count and columns but no rows.
     - `react.py` sends back an answer that comes right after one, until the model queries again.
+    - A result with no rows comes back with a diagnosis (`diagnose.py`): which top-level condition emptied it (each is removed in turn and the rows counted), and whether the value it filters on occurs in that column. The prompt says to relax a condition only openly, saying which and why.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).

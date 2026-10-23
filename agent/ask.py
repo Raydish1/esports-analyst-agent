@@ -58,6 +58,8 @@ def observed(text, rows=5, width=150):
     columns = " | ".join(map(str, data["columns"]))
     if "rows" not in data:  # over the token budget (tools.TOKEN_BUDGET)
         return [f"{data['row_count']} rows, too large to show: no rows went to the model", react.short(columns, width)]
+    if "diagnosis" in data:
+        return ["0 rows", react.short(data["diagnosis"]["note"], 3 * width)]
     lines = [f"{data['row_count']} row{'' if data['row_count'] == 1 else 's'}", columns]
     lines += [" | ".join("NULL" if v is None else str(v) for v in row) for row in data["rows"][:rows]]
     if len(data["rows"]) > rows:

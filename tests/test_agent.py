@@ -38,7 +38,10 @@ def snapshot(path):
     db.executescript("CREATE TABLE players (player_id INTEGER PRIMARY KEY, name TEXT, canonical_id INTEGER);"
                      "CREATE TABLE player_aliases (alias TEXT, player_id INTEGER, kind TEXT, shown_as TEXT, note TEXT);"
                      "CREATE TABLE v_results (player_id INTEGER, start_date TEXT);"
-                     "CREATE TABLE t (a, b);")
+                     "CREATE TABLE t (a, b);"
+                     "CREATE TABLE games (player_id INTEGER, mode TEXT, format TEXT);")
+    db.executemany("INSERT INTO games VALUES (?, ?, ?)", [(7, "2v2", "standard")] * 3 + [(7, "1v1", "standard")] * 2
+                   + [(9, "2v2", "crew_battle")])
     db.executemany("INSERT INTO players VALUES (?, ?, ?)", [p[:3] for p in PLAYERS])
     db.executemany("INSERT INTO player_aliases VALUES (?, ?, ?, ?, ?)", ALIASES)
     db.executemany("INSERT INTO v_results VALUES (?, ?)",
@@ -161,6 +164,18 @@ class RunSqlTest(Fixture):
         with patch.object(tools, "TOKEN_BUDGET", 50):
             self.assertFalse(tools.run_sql("SELECT a FROM t", self.path)["complete"])  # 25 rows, about 155 tokens
             self.assertTrue(tools.run_sql("SELECT a FROM t LIMIT 1", self.path)["complete"])
+
+    def test_a_result_with_no_rows_says_which_condition_emptied_it(self):
+        out = tools.run_sql("SELECT * FROM games WHERE player_id = 7 AND format = '2v2'", self.path)
+        self.assertEqual((out["rows"], out["row_count"]), ([], 0))
+        player, fmt = out["diagnosis"]["conditions"]
+        self.assertEqual((player["condition"], player["rows_without_it"], player["value_found"]), ("player_id = 7", 0, True))
+        self.assertEqual((fmt["condition"], fmt["rows_without_it"], sorted(fmt["values"]), fmt["value_found"]),
+                         ("format = '2v2'", 5, ["crew_battle", "standard"], False))
+        self.assertTrue(out["diagnosis"]["note"].startswith("Without format = '2v2', the query returns 5 rows."))
+        having = tools.run_sql("SELECT player_id, COUNT(*) AS n FROM games GROUP BY player_id HAVING n >= 6", self.path)
+        self.assertEqual(having["diagnosis"]["conditions"], [{"condition": "n >= 6", "rows_without_it": 2}])
+        self.assertNotIn("diagnosis", tools.run_sql("SELECT * FROM games WHERE format = 'standard'", self.path))
 
     def test_read_only_on_one_database_stopped_after_the_limit_and_errors_as_text(self):
         self.assertIn("readonly", tools.run_sql("DELETE FROM t", self.path)["error"])
@@ -398,6 +413,10 @@ class PromptTest(unittest.TestCase):
     def test_the_prompt_says_to_reduce_data_in_sql_always_not_on_trigger_words(self):
         self.assertIn("Never count, rank or compare rows by reading them.", react.SYSTEM)
         self.assertNotIn("how many, how often, the most, the best", react.SYSTEM)
+
+    def test_the_prompt_says_never_to_relax_a_condition_silently(self):
+        self.assertIn("If you relax a condition, say in your answer which one and why. Never relax a condition silently.",
+                      " ".join(react.SYSTEM.split()))
 
 
 if __name__ == "__main__":
