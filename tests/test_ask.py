@@ -35,8 +35,10 @@ class TraceTest(unittest.TestCase):
 
     def test_observations_are_shown_in_short(self):
         resolved = {"name": "megd", "status": "confident", "note": "Use player_id 7.",
-                    "candidates": [{"player_id": 7, "name": "megD", "match": "display name", "official_results": 2}]}
-        self.assertEqual(ask.observed(json.dumps(resolved)), ["confident: 7 megD (display name, 2 official results)"])
+                    "candidates": [{"player_id": 7, "name": "megD", "match": "display name", "score": 0.98,
+                                    "official_results": 2}]}
+        self.assertEqual(ask.observed(json.dumps(resolved)),
+                         ["confident: 7 megD (display name, score 0.98, 2 official results)"])
         rows = {"complete": True, "columns": ["a", "b"], "rows": [[i, None] for i in range(12)], "row_count": 12}
         lines = ask.observed(json.dumps(rows))
         self.assertEqual(lines[:4], ["12 rows", "a | b", "0 | NULL", "1 | NULL"])
@@ -92,13 +94,17 @@ class SessionTest(Fixture):
         ask.interactive(session, read=reader("Who is megd?"), out=self.out.append)
         self.assertEqual(len(session.traces), 1)
         self.assertEqual(printed[:3], ["Step 1 (0.0 s): Find megd first.", "  -> resolve_player: megd",
-                                       "  <- confident: 7 megD (display name, 2 official results)"])
+                                       "  <- confident: 7 megD (display name, score 0.98, 2 official results)"])
         self.assertEqual(printed[-1], "Step 2 (0.0 s): (no thinking)")
 
-    def test_an_unfinished_question_says_so(self):
+    def test_an_unfinished_question_says_so_and_suggestions_are_shown_as_the_reply(self):
         out = []
         ask.report({"outcome": "step limit", "answer": None, "steps_used": 8, "model_seconds": 41.5}, out.append)
         self.assertEqual(out, ["", "(No answer: step limit.)", "(8 steps, 41.5 s)"])
+        out = []
+        ask.report({"outcome": "suggestions", "answer": "Which one did you mean?", "steps_used": 1, "model_seconds": 3.0},
+                   out.append)
+        self.assertEqual(out, ["", "Which one did you mean?", "(1 step, 3.0 s)"])
 
 
 if __name__ == "__main__":

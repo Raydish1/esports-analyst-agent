@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
-from tools import SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, Resolver, run_sql  # noqa: E402
+from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, Resolver, run_sql  # noqa: E402
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -138,8 +138,8 @@ TOOLS = [
         "name": "resolve_player",
         "description": "Find the player a name means. Give the name as the question writes it: any case or spelling, a"
                        " nickname, a former name or a team tag. Returns a status (confident, ambiguous or not_found)"
-                       " and candidates, best first, each with the player_id to use in SQL and its number of official"
-                       " results.",
+                       " and candidates, best first, each with the player_id to use in SQL, a match score (about 1 for"
+                       " an exact name, lower for a prefix or a similar spelling) and its number of official results.",
         "parameters": {"type": "object", "required": ["name"], "properties": {
             "name": {"type": "string", "description": "the player's name as the question writes it"}}}}},
     {"type": "function", "function": {
@@ -269,6 +269,29 @@ class Shown:
 
 # The loop
 
+def unsure(question, name, observation):
+    """Whether a resolve_player result should go to the user as suggestions: a name from the question whose best
+    match scores below CONFIDENT. A name the model made up itself isn't the user's to settle."""
+    in_question = normalize_full(name) and normalize_full(name) in normalize_full(question)
+    candidates = observation.get("candidates") or []
+    return bool(in_question and candidates and max(c["score"] for c in candidates) < CONFIDENT)
+
+
+def suggestions(names):
+    """What the agent says instead of guessing: for each (name, resolve_player result), its top three candidates."""
+    lines = []
+    for name, observation in names:
+        lines.append(f'I couldn\'t find a player named "{name}", so I won\'t guess. The closest names in the data:')
+        for i, c in enumerate(observation["candidates"][:3], 1):
+            n = c["official_results"]
+            years = sorted({c["results_from"][:4], c["results_to"][:4]}) if n else []
+            span = f", {' to '.join(years)}" if years else ""
+            lines.append(f"{i}. {c['name']}: {n} official result{'' if n == 1 else 's'}{span}"
+                         f" (matched \"{c['matched']}\", {c['match']})")
+    lines.append("Which one did you mean?")
+    return "\n".join(lines)
+
+
 def ending(content, done_reason):
     """How a reply without tool calls ends the question."""
     if done_reason == "length":
@@ -313,7 +336,9 @@ class Conversation:
         - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
           new query since, goes back as long as two steps are left, to query and to answer;
         - the answer check: an answer naming players no tool returned goes back once, if a step is left.
-        The answer that comes back counts either way."""
+        The answer that comes back counts either way. A name from the question that resolve_player matches only below
+        CONFIDENT ends the turn instead: the user gets its top three candidates as suggestions (outcome
+        'suggestions')."""
         trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
                  "answered_after_too_big": False}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
@@ -373,6 +398,7 @@ class Conversation:
             # The server's qwen3 template shows an assistant message's tool calls only when its content is empty, so
             # any text beside them (kept in the trace) stays out of the history
             self.current.append({"role": "assistant", "content": "", "thinking": thinking, "tool_calls": calls})
+            asked = []  # names from the question that matched only below CONFIDENT
             for i, call in enumerate(calls):
                 name, arguments = call["function"].get("name"), call["function"].get("arguments")
                 begun = time.monotonic()
@@ -381,12 +407,20 @@ class Conversation:
                 self.shown.observe(name, observation)
                 if name == "run_sql":  # only a new query clears a result too large to show
                     too_big = observation.get("complete") is False
+                if name == "resolve_player" and unsure(question, observation.get("name") or "", observation):
+                    asked.append((observation["name"], observation))
                 if number == max_steps - 1 and i == len(calls) - 1:
                     observation = {**observation, "last_step": LAST_STEP}
                 text = json.dumps(observation, ensure_ascii=False)
                 step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text, "seconds": round(seconds, 3)})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
+            if asked:
+                step["suggestions"] = {n: [c["player_id"] for c in o["candidates"][:3]] for n, o in asked}
+                trace["answer"], trace["outcome"] = suggestions(asked), "suggestions"
+                log(f"  suggestions: {', '.join(n for n, _ in asked)} matched below {CONFIDENT}, so the user is asked")
+                self.finished(step)
+                break
             self.finished(step)
         trace["steps_used"] = len(trace["steps"])
         trace["model_seconds"] = round(sum(s["seconds"] for s in trace["steps"]), 1)
@@ -469,7 +503,8 @@ def markdown(traces, header):
                     pretty = json.dumps(json.loads(c["observation"]), indent=1, ensure_ascii=False)
                     out += [f"**Observation** ({c['seconds']} s)", "", "```json", pretty, "```", ""]
         if t["answer"]:
-            out += ["### Answer" if t["outcome"] == "answered" else f"### Last reply ({t['outcome']})", "", t["answer"], ""]
+            heading = {"answered": "### Answer", "suggestions": "### Suggestions to the user"}
+            out += [heading.get(t["outcome"], f"### Last reply ({t['outcome']})"), "", t["answer"], ""]
     return "\n".join(out)
 
 
@@ -481,7 +516,7 @@ def preview(observation, width=200):
     if "error" in data:
         return f"error: {data['error']}"
     if "status" in data:
-        return f"{data['status']}: " + ", ".join(f"{c['player_id']} {c['name']}" for c in data["candidates"])
+        return f"{data['status']}: " + ", ".join(f"{c['player_id']} {c['name']} ({c['score']})" for c in data["candidates"])
     if "rows" not in data:
         return f"{data['row_count']} rows, too large to show: no rows went to the model"
     text = f"{data['row_count']} rows: {json.dumps(data['rows'][:3], ensure_ascii=False)}"

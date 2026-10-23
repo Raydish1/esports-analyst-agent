@@ -110,6 +110,21 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("zzqqxx"), ("not_found", []))
         self.assertEqual(self.resolve("!!"), ("not_found", []))
 
+    def test_each_candidate_has_a_score_near_1_for_exact_names_and_below_the_threshold_for_loose_ones(self):
+        def best(name):
+            out = self.resolver.resolve(name)
+            return out["status"], out["candidates"][0]["score"]
+        for name in ("marckiemoo", "IMPALA", "megd"):  # a curated nickname, a shared display name, a display name
+            self.assertGreaterEqual(best(name)[1], 0.95)
+        status, score = best("baloonboy")  # a character swap: confident, so used without asking
+        self.assertEqual(status, "confident")
+        self.assertGreaterEqual(score, tools.CONFIDENT)
+        for name in ("rayd", "markiemoo"):  # a prefix and a similar spelling
+            status, score = best(name)
+            self.assertEqual(status, "ambiguous")
+            self.assertLess(score, tools.CONFIDENT)
+        self.assertLess(best("rayd")[1], best("markiemoo")[1])  # four letters of seven, against one letter missing
+
     def test_ids_and_digit_only_names_are_refused_with_how_to_get_the_name(self):
         for name in ("71736", " #71736 ", "71 736", "player_id 71736", "ID: 71736", "Player-ID=71736"):
             out = self.resolver.resolve(name)
@@ -275,6 +290,32 @@ class LoopTest(Fixture):
         self.assertIn("takes one argument, query", self.tools.call("run_sql", {"sql": "SELECT 1"})["error"])
         self.assertIn("no tool named 'lookup'", self.tools.call("lookup", {"name": "megd"})["error"])
         self.assertEqual(self.tools.call("resolve_player", '{"name": "megd"}')["status"], "confident")
+
+    def test_a_name_from_the_question_matched_only_loosely_gets_suggestions_instead_of_a_guess(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]))  # one reply: the loop must stop there
+        trace = react.run("did markiemoo ever win worlds", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["outcome"], trace["steps_used"], trace["steps"][0]["suggestions"]),
+                         ("suggestions", 1, {"markiemoo": [4]}))
+        self.assertEqual(trace["answer"].splitlines(), [
+            'I couldn\'t find a player named "markiemoo", so I won\'t guess. The closest names in the data:',
+            '1. Marckiem00: 4 official results, 2020 to 2023 (matched "marckiemoo", similar spelling)',
+            "Which one did you mean?"])
+
+    def test_a_confident_match_or_a_name_not_from_the_question_gets_no_suggestions(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "baloonboy"})]), reply("BBBalloonBoy: 5 results."))
+        self.assertEqual(react.run("how many results has baloonboy?", self.tools, ask=ask, log=lambda *_: None)["outcome"],
+                         "answered")  # a character swap is confident
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]), reply("I'm not sure who."))
+        self.assertEqual(react.run("who beat him most?", self.tools, ask=ask, log=lambda *_: None)["outcome"],
+                         "answered")  # the model's own guess at a name isn't the user's to settle
+
+    def test_a_reply_to_suggestions_sees_them_in_the_conversation(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]), reply("Marckiem00 never won worlds."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        first = conversation.ask("did markiemoo ever win worlds")
+        conversation.ask("the first one")
+        assistant, follow_up = ask.sent[1][-2:]
+        self.assertEqual((assistant["content"], follow_up["content"]), (first["answer"], "the first one"))
 
     def test_an_answer_right_after_a_result_too_large_to_show_goes_back_until_a_new_query(self):
         big, count = ("run_sql", {"query": "SELECT a FROM t"}), ("run_sql", {"query": "SELECT COUNT(*) FROM t"})

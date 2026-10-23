@@ -52,8 +52,8 @@ def observed(text, rows=5, width=150):
     if "error" in data:
         return [f"error: {react.short(data['error'], width)}"]
     if "status" in data:
-        found = "; ".join(f"{c['player_id']} {c['name']} ({c['match']}, {c['official_results']} official results)"
-                          for c in data["candidates"][:3])
+        found = "; ".join(f"{c['player_id']} {c['name']} ({c['match']}, score {c['score']},"
+                          f" {c['official_results']} official results)" for c in data["candidates"][:3])
         return [react.short(f"{data['status']}: {found}" if found else data["status"], 2 * width)]
     columns = " | ".join(map(str, data["columns"]))
     if "rows" not in data:  # over the token budget (tools.TOKEN_BUDGET)
@@ -77,6 +77,8 @@ def step_lines(step):
         else:
             first, *rest = observed(call["observation"])
             lines += [f"  <- {first}"] + [f"     {line}" for line in rest]
+    if step.get("suggestions"):
+        lines.append(f"  !! low-confidence match for {', '.join(step['suggestions'])}: the user is asked which one")
     size = step.get("size_check")
     if size:
         lines.append(f"  !! result-size check: answered right after a result too large to show ({size['action']})")
@@ -90,7 +92,7 @@ def step_lines(step):
 def report(trace, out):
     """The answer, and what it took."""
     out("")
-    out(trace["answer"] if trace["outcome"] == "answered" else
+    out(trace["answer"] if trace["outcome"] in ("answered", "suggestions") else
         f"(No answer: {trace['outcome']}.)" + (f"\n{trace['answer']}" if trace["answer"] else ""))
     steps = trace["steps_used"]
     out(f"({steps} step{'' if steps == 1 else 's'}, {trace['model_seconds']} s)")

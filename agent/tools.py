@@ -10,10 +10,11 @@ and the first tier that finds anyone is used:
 - prefix  a name that starts with it (3 characters or more).
 - fuzzy   a similar spelling (difflib's ratio 0.8 or more, 4 characters or more): 'markiemoo' finds marckiemoo.
 Within a tier, candidates are ranked by their official results (v_results), most first, like the model comparison
-prompt's rule. The status:
+prompt's rule. Each has a score for how well it matches (SCORES): near 1 for an exact name, lower for a prefix or a
+similar spelling. The status:
 - confident  a curated nickname, or one exact or swap match, or several of which only one has official results;
-- ambiguous  several exact or swap matches with results (a shared name, such as Boomie or Impala), or only prefix or
-             fuzzy matches;
+- ambiguous  several exact or swap matches with results (a shared name, such as Boomie or Impala), or a best match
+             scoring below CONFIDENT (prefix and fuzzy matches);
 - not_found  nothing matched.
 It takes names only. A name of digits only, or an ID written out ('71736', '#71736', 'player_id 71736'), gets an
 error that says how to get a player_id's name with run_sql: in the prototype's first run, the model passed an ID as a
@@ -55,6 +56,15 @@ CELL_CHARS = 300
 CANDIDATES = 5
 
 TIERS = ["nickname", "exact", "swap", "prefix", "fuzzy"]
+# A candidate's score is its tier's base times its closeness within the tier: 1 in the exact tiers, the share of the
+# alias the name covers for a prefix, difflib's ratio for a similar spelling. Scores rank matches; they aren't
+# calibrated probabilities. They measure the match only: candidates are ordered by tier, then by official results, so
+# among loose matches a more active player can come before a closer spelling ('rayd': Raydish, 98 results, before
+# Raydex). CONFIDENT is the score a best match needs for the agent to use it without asking; below it, react.py shows
+# the user the top three as suggestions. 0.9 puts character swaps above it, and prefixes and similar spellings below.
+# Tune the scores and CONFIDENT on the evaluation set's misspelling questions (q21, q22).
+SCORES = {"nickname": 1.0, "exact": 0.98, "swap": 0.92, "prefix": 0.85, "fuzzy": 0.85}
+CONFIDENT = 0.9
 MATCH = {"nickname": "curated nickname", "display_name": "display name", "without_tag": "display name without team tag",
          "former_name": "former name", "swap": "spelling variant (character swaps)",
          "prefix": "name starting with it", "fuzzy": "similar spelling"}
@@ -116,13 +126,14 @@ class Resolver:
             return {"name": name, "error": f"{name!r} looks like a player_id, not a name, and resolve_player takes names"
                                           f" only. To get a player_id's name, use run_sql: SELECT player_id, name FROM"
                                           f" players WHERE player_id = {number}"}
-        found = {}  # canonical ID -> (tier, kind, shown_as, note, closeness)
+        found = {}  # canonical ID -> ((tier, kind, -closeness), match, shown_as, note, score)
 
-        def add(alias, tier, closeness=0.0):
+        def add(alias, tier, closeness=1.0):
             for pid, kind, shown, note in self.aliases[alias]:
-                key = (TIERS.index(tier if tier != "exact" or kind != "nickname" else "nickname"), KINDS[kind], -closeness)
+                level = "nickname" if tier == "exact" and kind == "nickname" else tier
+                key = (TIERS.index(level), KINDS[kind], -closeness)
                 if pid not in found or key < found[pid][0]:
-                    found[pid] = (key, tier if tier != "exact" else kind, shown, note)
+                    found[pid] = (key, tier if tier != "exact" else kind, shown, note, round(SCORES[level] * closeness, 2))
 
         for alias in {normalize(name), normalize_full(name)} - {""}:
             if alias in self.aliases:
@@ -148,7 +159,7 @@ class Resolver:
         best = found[ranked[0]][0][0]
         tied = [pid for pid in ranked if found[pid][0][0] == best]
         placed = [pid for pid in tied if pid in self.results]
-        if TIERS[best] in ("prefix", "fuzzy"):
+        if max(found[pid][4] for pid in ranked) < CONFIDENT:
             status, note = "ambiguous", ("No player has exactly this name; these are the closest. Use the first unless"
                                          " the question points to another, and say which name you took it as.")
         elif len(tied) == 1 or (TIERS[best] != "nickname" and len(placed) == 1):
@@ -161,9 +172,9 @@ class Resolver:
         return {"name": name, "status": status, "note": note,
                 "candidates": [self.candidate(pid, *found[pid][1:]) for pid in ranked[:CANDIDATES]]}
 
-    def candidate(self, pid, match, shown, note):
+    def candidate(self, pid, match, shown, note, score):
         results, first, last = self.results.get(pid, (0, None, None))
-        out = {"player_id": pid, "name": self.names.get(pid), "matched": shown, "match": MATCH[match],
+        out = {"player_id": pid, "name": self.names.get(pid), "matched": shown, "match": MATCH[match], "score": score,
                "official_results": results}
         if results:
             out["results_from"], out["results_to"] = first, last
