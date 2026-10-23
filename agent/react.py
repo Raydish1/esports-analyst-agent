@@ -70,8 +70,9 @@ Using the tools
 - A result over about {budget} tokens comes back with no rows ("complete": false), only its row count and columns:
   reduce it in SQL and query again before answering.
 - A result with no rows comes back with a diagnosis: which condition emptied it, and whether the value it filters on
-  occurs in that column. Check that condition and your player IDs before you trust an empty result. If you relax a
-  condition, say in your answer which one and why. Never relax a condition silently.
+  occurs in that column. Check that condition and your player IDs before you trust an empty result. If the condition
+  was your own mistake, such as a wrong column or value, fix it. If it's one the question set and you relax it, say
+  in your answer which one and why: never relax a condition from the question silently.
 - The views are fast when filtered by a literal player_id. With a lookup inside the query, the head-to-head views
   take a minute or more, and run_sql stops a query after {seconds} seconds.
 
@@ -132,8 +133,8 @@ Answering
 - Answer in plain English, and give the main facts the question asks for, with the figures they rest on.
 - Name players by their current display name, spelled as the data spells it: the name resolve_player or the players
   table returns, not the one the question used. Name only players a tool returned.
-- State the scope: official events (say "official events", not "majors") and the mode, as in "at official events, in
-  1v1".
+- State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
+  official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
 - If resolve_player was ambiguous, say which player you took the name to mean, and that other players share or
   resemble the name.
 - Say what else you assumed, such as what was counted."""

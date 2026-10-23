@@ -414,9 +414,16 @@ class PromptTest(unittest.TestCase):
         self.assertIn("Never count, rank or compare rows by reading them.", react.SYSTEM)
         self.assertNotIn("how many, how often, the most, the best", react.SYSTEM)
 
-    def test_the_prompt_says_never_to_relax_a_condition_silently(self):
-        self.assertIn("If you relax a condition, say in your answer which one and why. Never relax a condition silently.",
-                      " ".join(react.SYSTEM.split()))
+    def test_the_prompt_says_to_state_relaxing_only_a_condition_from_the_question(self):
+        prompt = " ".join(react.SYSTEM.split())
+        self.assertIn("If the condition was your own mistake, such as a wrong column or value, fix it.", prompt)
+        self.assertIn("If it's one the question set and you relax it, say in your answer which one and why: never relax"
+                      " a condition from the question silently.", prompt)
+
+    def test_the_prompt_names_a_mode_only_when_the_query_was_limited_to_one(self):
+        prompt = " ".join(react.SYSTEM.split())
+        self.assertIn("Name a mode only when the query was limited to one", prompt)
+        self.assertIn('"at official events" for results of both modes', prompt)
 
 
 if __name__ == "__main__":

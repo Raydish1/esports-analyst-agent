@@ -141,7 +141,7 @@ Agent (`agent/`, a prototype):
   - `run_sql` runs one read-only query on eval-v1, stopped after 30 s. It returns every row if the result fits in about 4,000 tokens (estimated: digits and JSON punctuation a token each, other text four characters a token).
     - A bigger result comes back with its row count and columns but no rows.
     - `react.py` sends back an answer that comes right after one, until the model queries again.
-    - A result with no rows comes back with a diagnosis (`diagnose.py`): which top-level condition emptied it (each is removed in turn and the rows counted), and whether the value it filters on occurs in that column. The prompt says to relax a condition only openly, saying which and why.
+    - A result with no rows comes back with a diagnosis (`diagnose.py`): which top-level condition emptied it (each is removed in turn and the rows counted), and whether the value it filters on occurs in that column. The prompt says to fix a condition that was the model's own mistake, and to say so only when relaxing a condition the question set (decided 2026-10-23).
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).

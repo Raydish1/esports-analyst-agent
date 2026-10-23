@@ -30,13 +30,14 @@ class ConditionsTest(unittest.TestCase):
 
 
 class NoteTest(unittest.TestCase):
-    def test_the_note_names_the_condition_and_the_values_and_says_never_to_relax_silently(self):
+    def test_the_note_names_the_condition_and_the_values_and_says_never_to_relax_the_questions_silently(self):
         findings = [{"condition": "player_id = 7", "rows_without_it": 0, "value_found": True},
                     {"condition": "format = '2v2'", "rows_without_it": 5, "values": ["standard"], "value_found": False}]
         text = diagnose.note(findings)
         self.assertTrue(text.startswith("Without format = '2v2', the query returns 5 rows. No row has format = '2v2'."
                                         " Its column's values there: 'standard'."))
-        self.assertTrue(text.endswith("Never relax a condition silently."))
+        self.assertIn("If it was your own mistake, fix it.", text)
+        self.assertTrue(text.endswith("never relax a condition from the question silently."))
         both = diagnose.note([{"condition": "a = 1", "rows_without_it": 0}, {"condition": "b = 2", "rows_without_it": 0}])
         self.assertIn("No single condition explains it", both)
 

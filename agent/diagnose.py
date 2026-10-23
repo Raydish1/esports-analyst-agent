@@ -135,6 +135,7 @@ def note(findings):
         out.append("No single condition explains it: without any one of them, the query still returns no rows.")
     if not findings:
         out.append("Its conditions couldn't be tested one by one.")
-    out.append("Check the condition responsible, and that each player_id came from resolve_player. If you relax a"
-               " condition, say in your answer which one and why. Never relax a condition silently.")
+    out.append("Check the condition responsible, and that each player_id came from resolve_player. If it was your own"
+               " mistake, fix it. If you relax a condition the question set, say in your answer which one and why: never"
+               " relax a condition from the question silently.")
     return " ".join(out)
