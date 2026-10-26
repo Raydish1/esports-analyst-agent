@@ -2,6 +2,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "agent"))
@@ -102,6 +103,31 @@ class SessionTest(Fixture):
         self.assertEqual(printed[:3], ["Step 1 (0.0 s): Find megd first.", "  -> resolve_player: megd",
                                        "  <- confident: 7 megD (display name, score 0.98, 2 official results)"])
         self.assertEqual(printed[-1], "Step 2 (0.0 s): (no thinking)")
+
+    def test_the_seed_reaches_the_model_and_the_transcript(self):
+        seen = {}
+
+        class Recorder:  # the conversation, as main makes it
+            def __init__(self, tools, **kwargs):
+                seen.update(kwargs)
+
+            def ask(self, question):
+                return {"question": question, "answer": "Done.", "outcome": "answered", "steps": [], "steps_used": 1,
+                        "model_seconds": 0.0, "output_tokens": 0, "largest_context": 0}
+
+        def header(start, seeds=(0,), title=None, **_):
+            seen["header seeds"] = list(seeds)
+            return {**HEADER, "seeds": list(seeds)}
+
+        out = []
+        with patch.object(ask, "load_env", lambda: None), patch.object(react, "run_header", header), \
+                patch.object(react, "Tools", lambda: None), patch.object(react, "Conversation", Recorder), \
+                patch.object(ask, "SESSIONS", Path(self.tmp.name) / "sessions"), patch.object(react, "ROOT", Path(self.tmp.name)):
+            ask.main(["--seed", "3", "Who", "is", "megd?"], out=out.append)
+        self.assertEqual((seen["seed"], seen["header seeds"]), (3, [3]))
+        self.assertIn("Done.", out)
+        transcript = next((Path(self.tmp.name) / "sessions").glob("*.md")).read_text(encoding="utf-8")
+        self.assertIn("seed 3;", transcript)
 
     def test_an_unfinished_question_says_so_and_suggestions_are_shown_as_the_reply(self):
         out = []

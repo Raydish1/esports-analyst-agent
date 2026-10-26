@@ -1,8 +1,9 @@
 """Ask the agent a question yourself: the ReAct prototype of agent/react.py, with its model (qwen3:8b, thinking on,
-seed 0), tools and prompt. The Ollama server's address is OLLAMA_BASE_URL in .env.
+seed 0 unless --seed says otherwise), tools and prompt. The Ollama server's address is OLLAMA_BASE_URL in .env.
 
     python agent/ask.py "Who has megd played with in 2v2 tournaments?"    one question: prints the answer
     python agent/ask.py --trace "..."                                      also prints each step as it finishes
+    python agent/ask.py --seed 3 "..."                                     another sampling seed
     python agent/ask.py                                                    a session: questions one after another
 
 In a session, a follow-up builds on what came before ("now only 2v2"). The conversation keeps every question and
@@ -151,11 +152,12 @@ def main(argv=None, read=input, out=print):
     parser.add_argument("question", nargs="*", help="the question (quotes are optional)")
     parser.add_argument("--trace", action="store_true", help="also print each step: its thinking in short, its tool"
                                                              " calls and their observations")
+    parser.add_argument("--seed", type=int, default=0, help="the sampling seed (default: 0, as react.py's)")
     args = parser.parse_args(argv)
     load_env()
     start = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     try:
-        header = react.run_header(start, title=f"Agent session {start}")
+        header = react.run_header(start, seeds=[args.seed], title=f"Agent session {start}")
     except KeyError:
         sys.exit("OLLAMA_BASE_URL isn't set: add it to .env (see .env.example).")
     except (urllib.error.URLError, TimeoutError) as e:
@@ -163,7 +165,7 @@ def main(argv=None, read=input, out=print):
     out("Loading the players' names...")
     show = (lambda step: [out(line) for line in step_lines(step)]) if args.trace else None
     conversation = react.Conversation(react.Tools(), log=lambda *_: None, on_step=show, model=react.MODEL, think=True,
-                                      seed=0)
+                                      seed=args.seed)
     session = Session(conversation, SESSIONS / start, header)
     if args.question:
         report(session.ask(" ".join(args.question)), out)

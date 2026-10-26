@@ -128,7 +128,7 @@ Evaluation (`eval/`):
 - `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
 
 Agent (`agent/`, a prototype):
-- `ask.py` is for asking the agent yourself: `python agent/ask.py "question"` prints the answer, `--trace` also prints each step (its thinking in short, tool calls, observations), and with no question it starts a session. In a session, follow-ups build on earlier answers, and "exit" quits. Transcripts go to `data/experiments/sessions/`.
+- `ask.py` is for asking the agent yourself: `python agent/ask.py "question"` prints the answer, `--trace` also prints each step (its thinking in short, tool calls, observations), `--seed N` picks the sampling seed (default 0), and with no question it starts a session. In a session, follow-ups build on earlier answers, and "exit" quits. Transcripts go to `data/experiments/sessions/`.
 - `react.py` is the ReAct loop: `python agent/react.py "question"`, `--target N` for target questions or `--eval ID` for evaluation set questions, with `--seed` repeatable.
   - A name from the question that `resolve_player` matches only below 0.9 (`CONFIDENT`) ends the turn: the user gets the top three candidates as suggestions instead of a guess (outcome "suggestions").
   - `Conversation` keeps the previous question in full (tool calls and observations) and older ones as question and answer.
