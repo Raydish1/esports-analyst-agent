@@ -2,6 +2,23 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-25: the ID and no-tool checks, replayed on every past answer
+
+**Question:** what would the two checks decided after the run below have sent back, had they run on every earlier answer?
+
+**Setup:** commit 3f80db6. Every answer of every run and session since 2026-10-18 (94 answers in 18 files) is replayed with the conversation as it stood at that answer: the prompt, the questions, and every observation before it.
+- **The ID check:** an answer citing a player ID that no tool and no question showed. IDs count after an ID word (player_id 12345, partner ID 5), or alone in bold or parentheses with five digits or more.
+- **The no-tool check:** an answer stating facts (the players it names, player IDs, numbers other than formats such as 1v1) in a question that called no tool.
+
+**Results:**
+- **Each check flags exactly one answer, the same one:** the run below's seed 2 session, turn 3. It called no tool and cited 12345 and 67890 for Markled and Arklem, the IDs of Hippo and mely.
+- **The ID check raised no false alarm** on the 93 other answers, many of which cite IDs ("Impala (168635)", "player_id 149305").
+- **The no-tool check's false alarms can't be measured here:** only that answer came without a tool call. Its unit tests cover replies without facts, such as "Glad to help.", which stand.
+
+**Also changed, not replayed:** suggestions now stay in the history as the agent's clarifying question (commit 7e3f686), so a later question has no answer-shaped text to copy. Whether that stops the copying needs a run with the model.
+
+**Caveats:** a replay shows what the checks flag, not what the model does once an answer goes back. Real players are named Yes, No and Note, so a bold "**Yes**" in an answer without a tool call counts as naming a player.
+
 ## 2026-10-25: the decisions on the lookup run, on q21, q22 and the Worlds follow-ups, seeds 0–5
 
 **Question:** with the user's five decisions on the 2026-10-23 run built, are the misspelling questions answered or asked as the verified set accepts? Does the Worlds follow-up from that run's session get the right answer now?

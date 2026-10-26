@@ -58,6 +58,7 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - `resolve_event("worlds")` fixed the follow-up in every session, and no query searched names with LIKE.
   - No check fired. Empty results for Raydish's Worlds wins stood as a true "none", rightly.
   - One run answered without calling a tool, copying the suggestion format with invented player IDs. The log proposes an ID check.
+- Decided (2026-10-25) and built: the ID check and the no-tool check (commit 3f80db6), and suggestions kept in the history as a clarifying question (7e3f686). Replayed on the 94 earlier answers, each check flags exactly one, the answer that called no tool (in the log). Not yet run with the model. The event questions get no run of their own: the full evaluation covers them.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -242,8 +243,6 @@ Decisions so far: the domain definitions below, plus these.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
 Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19, 2026-10-23 and 2026-10-25 entries:
-- an ID check: an answer citing a player_id no tool returned goes back;
-- a run of the evaluation set's event questions, for `resolve_event`'s other tiers and the lookup check;
 - the prompt lines on `v_team_results` (only 2v2) and integer division;
 - current names, and the minimum number of matches;
 - how to get question 6 aggregated (an example in the prompt, a check, or a larger model). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.

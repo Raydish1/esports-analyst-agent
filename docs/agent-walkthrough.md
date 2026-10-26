@@ -13,7 +13,9 @@ Line references are to commit `2889492`. These changes came after it (2026-10-23
 - a diagnosis for results with no rows, and the lookup check, which sends back an answer after an empty result that
   a missing text value explains;
 - a third tool, `resolve_event`, for event names;
-- quoted names in the answer check.
+- quoted names and player IDs in the answer check, and the no-tool check for an answer that states facts without a
+  tool call;
+- suggestions kept in the history as the agent's clarifying question.
 
 See the [experiment log](experiments.md) and `agent/diagnose.py`.
 
