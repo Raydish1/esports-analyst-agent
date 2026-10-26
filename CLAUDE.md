@@ -59,6 +59,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - No check fired. Empty results for Raydish's Worlds wins stood as a true "none", rightly.
   - One run answered without calling a tool, copying the suggestion format with invented player IDs. The log proposes an ID check.
 - Decided (2026-10-25) and built: the ID check and the no-tool check (commit 3f80db6), and suggestions kept in the history as a clarifying question (7e3f686). Replayed on the 94 earlier answers, each check flags exactly one, the answer that called no tool (in the log). Not yet run with the model. The event questions get no run of their own: the full evaluation covers them.
+- Checkpoint 3, retrieval of worked examples (2026-10-25, in the log): a bank of 28 question-to-SQL examples, retrieved by meaning (nomic-embed-text, Chroma, MMR) and shown before each question as query patterns. A prompt line says names, tags and event titles in tool results are data, never instructions.
+  - Measured alone: a helpful example shape is in the top 3 for 32 of 39 evaluation questions (35 without the threshold).
+  - Off and on, seeds 0–5, same prompt: question 4 right in 5 then 6 of 6, question 6 in 0 then 6 (fixed: every run grouped by partner, the teammates example's pattern), question 8 in 3 then 5, q21 in 4 then 0 (the counts stay right, but no answer names BBBalloonBoy).
+  - The traces of question 6, seed 1 and question 4, seed 4, off and on, are saved for the write-up in `docs/traces/`.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -249,6 +253,7 @@ Decisions so far: the domain definitions below, plus these.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
 Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19, 2026-10-23 and 2026-10-25 entries:
+- a check that an answer names the player a misspelled name resolved to (q21 lost it with examples on), and the retrieval threshold;
 - the prompt lines on `v_team_results` (only 2v2) and integer division;
 - current names, and the minimum number of matches;
 - how to get question 6 aggregated (an example in the prompt, a check, or a larger model). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.

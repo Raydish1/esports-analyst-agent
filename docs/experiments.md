@@ -2,6 +2,55 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-25: retrieval of worked examples, off and on, on questions 4, 6 and 8 and q21, seeds 0–5
+
+**Question:** do the retrieved examples change the agent's queries and answers?
+
+**Setup:** commit adf4cf0, which also has the prompt line on names in tool results, so both arms use it.
+- Two runs with the same seeds 0–5, prompt and interpreter (the x64 Python 3.14, for Chroma), that differ only in `--examples`: off (run `20261026T020834Z`) and on (`20261026T022244Z`), 24 runs each.
+- Retrieval as measured in the entry below: at most 3 examples, at 0.70 or more, chosen by MMR.
+- **Judging:** by hand against the verified set, as before. q08 must state its minimum, and q21 must say which player it took "baloonboy" to be.
+
+**Results:**
+
+| Question | Examples retrieved | Off: right | On: right | On: what the query took from an example |
+|---|---|---|---|---|
+| 4. Impala vs Balloonboy | ex05 head-to-head (the only one at 0.70 or more) | 5/6 | 6/6 | All 6 read one side of `v_head_to_head_1v1`, as ex05's note says. Off, all 6 queried both rows. |
+| 6. megd's 2v2 partners | ex17 ranking, ex08 teammates, ex03 top 8 | 0/6 | 6/6 | All 6 grouped by partner_id with COUNT and MIN(placement), ex08's pattern. Off, one grouped, over a wrong join. |
+| 8. Best record against marckiemoo | ex05 head-to-head, ex19 best record, ex17 ranking | 3/6 | 5/6 | All 6 took ex19's query nearly whole: names joined, 1.0 * wins / matches, at least 5 sets, the top 5. Off, all 6 had the minimum and float division too. |
+| q21. baloonboy's official wins | ex10 official wins, ex12 medals, ex13 placements | 4/6 | 0/6 | 3 of 6 grouped by mode, ex10's pattern, and gave the 5 and 2 split. None said it took "baloonboy" to be BBBalloonBoy. |
+
+| Seed | Question 4: off, on | Question 6: off, on | Question 8: off, on | q21: off, on |
+|---|---|---|---|---|
+| 0 | ✓, ✓ | ✗ partners as IDs, averaged over a wrong join; ✓ all 17 | ✓, ✓ | ✓ spelled "BBalloonBoy"; ✗ never names him |
+| 1 | ✓, ✓ | ✗ "no 2v2 placements", after the lookup check; ✓, but JuicyDiaper among the one-event partners | ✗ no minimum; ✓ | ✓; ✗ never names him (gives the split) |
+| 2 | ✓, ✓ | ✗ 46 rows as bare IDs; ✓ the 5 most frequent of 17 | ✗ no minimum, after the answer check ("Kappa"); ✓, but says "5 total games" | ✓; ✗ |
+| 3 | ✓, but adds that Impala won their last set (he lost it); ✓ | ✗ bare IDs, counts read from rows; ✓ all 17 | ✓; ✗ no minimum stated | ✗ never names him; ✗ (gives the split) |
+| 4 | ✗ "2 wins - 2 losses"; ✓ | ✗ other teams' partners, from a wrong join; ✓ all 17, but calls the 513th place "likely a typo" | ✓, ✓ | ✓; ✗ (gives the split) |
+| 5 | ✓; ✓, but spells him "BballoonBoy" | ✗ names with wrong counts; ✓ the main partners, no total | ✗ "highest among players who have faced" him; ✓ | ✗; ✗ |
+
+**What retrieval changed:**
+- **Question 6 is fixed.** It had failed in every run (0 of 6 three times): no run had aggregated in SQL. With the teammates example, every run did, in one query, and answered in 3 steps with the right counts: 17 partners, Raydish 20 events, hardymj 4, Winged_Shell 3.
+- **Question 4 reads one side of the view.** Without the example, every run fetched both rows of the pairing, and seed 4 added them into "2 wins - 2 losses".
+- **Question 8 states its minimum more often**, and lists the top 5 as the verified answer does, since the example's query is shaped that way.
+- **q21 got worse.** The counts are right in every run, and three give the split the verified answer has. But no answer says the player is BBBalloonBoy: they echo the question's "Baloonboy", where 4 of 6 runs without examples, and 5 of 6 in the run before, named him (the cause is a guess).
+- **Shorter runs:** every run with examples took 3 steps. Question 6 used 1,692 output tokens against 3,554, and question 8 1,878 against 2,352. q21 used more (1,308 against 962), and the examples add 160 to 435 prompt tokens.
+- **No answer named an example's player.** No check fired with examples on; off, the lookup check fired once (question 6, seed 1, which still answered wrong) and the answer check once ("Kappa").
+
+**Saved for the write-up:** both arms of question 6, seed 1 (wrong to right) in `docs/traces/q06-seed1-retrieval-off-and-on.md`, and of question 4, seed 4 (both rows added, to one side read) in `docs/traces/q04-seed4-retrieval-off-and-on.md`.
+
+**Time:** model seconds aren't comparable between the arms. The server generated more slowly during the run with examples (a median of 50 output tokens per second of step time, against 68). Steps and tokens are above.
+
+**Caveats:**
+- Four questions, six seeds each; judged by hand.
+- The bank was written knowing these questions' failure modes (teammates with GROUP BY, a best record with a minimum), though no example uses their players, events or wording. Retrieval found them by wording: the teammates example was second for question 6.
+- The retrieval settings were chosen on the evaluation questions (the entry below).
+
+**For the agent** (proposals; the decisions are the user's):
+- **Current names:** an answer about a name resolved by a spelling variant ("baloonboy") must name the player the tools returned, as a check, since the prompt's rule alone lost it in every q21 run with examples.
+- **The threshold:** 0.70 leaves q23, q39 and q45 without examples (the entry below). A lower one keeps them, and gives more examples to questions no shape helps.
+- **The full evaluation, with retrieval off and on,** once the harness exists.
+
 ## 2026-10-25: retrieval of worked examples, measured alone on the evaluation set
 
 **Question:** for each evaluation question, does retrieval put an example of a helpful shape in its top 3?
