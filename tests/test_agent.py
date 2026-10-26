@@ -464,14 +464,20 @@ class LoopTest(Fixture):
         self.assertEqual(react.run("who beat him most?", self.tools, ask=ask, log=lambda *_: None)["outcome"],
                          "answered")  # the model's own guess at a name isn't the user's to settle
 
-    def test_a_reply_to_suggestions_sees_them_in_the_conversation(self):
+    def test_suggestions_stay_in_the_history_as_a_clarifying_question_not_an_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]),
-                       reply(calls=[("resolve_player", {"name": "Marckiem00"})]), reply("Marckiem00 never won worlds."))
+                       reply(calls=[("resolve_player", {"name": "Marckiem00"})]), reply("Marckiem00 never won worlds."),
+                       reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish never won worlds."))
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
         first = conversation.ask("did markiemoo ever win worlds")
+        self.assertTrue(first["answer"].startswith('I couldn\'t find a player named "markiemoo"'))  # what the user sees
         conversation.ask("the first one")
-        assistant, follow_up = ask.sent[1][-2:]
-        self.assertEqual((assistant["content"], follow_up["content"]), (first["answer"], "the first one"))
+        asked, follow_up = ask.sent[1][-2:]
+        self.assertEqual((asked["role"], follow_up["content"]), ("assistant", "the first one"))
+        self.assertEqual(asked["content"], '(A clarifying question to the user, not an answer.) I asked which player'
+                                           ' "markiemoo" means: 1. Marckiem00 (player_id 4). Their next message answers it.')
+        conversation.ask("has raydish won worlds")
+        self.assertEqual(ask.sent[3][2]["content"], asked["content"])  # still a question once it's an older turn
 
     def test_an_answer_right_after_a_result_too_large_to_show_goes_back_until_a_new_query(self):
         big, count = ("run_sql", {"query": "SELECT a FROM t"}), ("run_sql", {"query": "SELECT COUNT(*) FROM t"})

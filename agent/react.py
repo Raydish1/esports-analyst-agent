@@ -382,6 +382,16 @@ def suggestions(names):
     return "\n".join(lines)
 
 
+def clarifying(names):
+    """How suggestions stay in the conversation: as the question the agent asked the user, not as an answer. Kept as
+    the suggestions themselves, a later question copied them as its own answer, with invented player IDs
+    (docs/experiments.md, 2026-10-25). The user sees suggestions()."""
+    asked = " and ".join(f'which player "{name}" means: ' + ", ".join(
+        f"{i}. {c['name']} (player_id {c['player_id']})" for i, c in enumerate(observation["candidates"][:3], 1))
+        for name, observation in names)
+    return f"(A clarifying question to the user, not an answer.) I asked {asked}. Their next message answers it."
+
+
 def ending(content, done_reason):
     """How a reply without tool calls ends the question."""
     if done_reason == "length":
@@ -396,6 +406,7 @@ class Conversation:
     - The previous question stays in the history in full, with its tool calls and observations, so a follow-up can
       reuse its player IDs and queries.
     - Older ones keep only their question and answer, which keeps the context bounded.
+    - Suggestions stay as the question the agent asked the user (clarifying), not as an answer.
     - The answer check counts everything the conversation has shown.
     on_step, if given, gets each step as it finishes."""
 
@@ -416,7 +427,8 @@ class Conversation:
         self.previous, self.current = self.current, [{"role": "user", "content": question}]
         self.shown.read(question)
         trace = self.turn(question)
-        self.current.append({"role": "assistant", "content": trace["answer"] or f"(No answer: {trace['outcome']}.)"})
+        content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
+        self.current.append({"role": "assistant", "content": content})
         return trace
 
     def turn(self, question):
@@ -548,7 +560,7 @@ class Conversation:
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:
                 step["suggestions"] = {n: [c["player_id"] for c in o["candidates"][:3]] for n, o in asked}
-                trace["answer"], trace["outcome"] = suggestions(asked), "suggestions"
+                trace["answer"], trace["outcome"], trace["clarifying"] = suggestions(asked), "suggestions", clarifying(asked)
                 log(f"  suggestions: {', '.join(n for n, _ in asked)} matched below {CONFIDENT}, so the user is asked")
                 self.finished(step)
                 break
