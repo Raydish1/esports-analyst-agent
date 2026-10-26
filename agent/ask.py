@@ -87,6 +87,10 @@ def step_lines(step):
     size = step.get("size_check")
     if size:
         lines.append(f"  !! result-size check: answered right after a result too large to show ({size['action']})")
+    lookup = step.get("lookup_check")
+    if lookup:
+        lines.append(f"  !! lookup check: answered right after no row had {' and '.join(lookup['conditions'])}"
+                     f" ({lookup['action']})")
     check = step.get("answer_check")
     if check:
         lines.append(f"  !! answer check: it names {', '.join(check['names'])}, which no tool returned"

@@ -61,6 +61,12 @@ class TraceTest(unittest.TestCase):
             "  !! result-size check: answered right after a result too large to show (kept: no steps left to query again)",
             "  !! answer check: it names tike36, which no tool returned (sent back)"])
 
+    def test_a_step_shows_its_lookup_check(self):
+        step = {"step": 3, "seconds": 1.0, "thinking": "", "content": "None.", "tool_calls": [],
+                "lookup_check": {"conditions": ["format = '2v2'"], "action": "sent back"}}
+        self.assertEqual(ask.step_lines(step)[-1], "  !! lookup check: answered right after no row had format = '2v2'"
+                                                   " (sent back)")
+
 
 class SessionTest(Fixture):
     def setUp(self):

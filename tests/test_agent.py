@@ -252,6 +252,9 @@ class RunSqlTest(Fixture):
         having = tools.run_sql("SELECT player_id, COUNT(*) AS n FROM games GROUP BY player_id HAVING n >= 6", self.path)
         self.assertEqual(having["diagnosis"]["conditions"], [{"condition": "n >= 6", "rows_without_it": 2}])
         self.assertNotIn("diagnosis", tools.run_sql("SELECT * FROM games WHERE format = 'standard'", self.path))
+        joined = tools.run_sql("SELECT g.mode FROM games g JOIN t ON t.a = g.player_id WHERE g.format = '2v2'", self.path)
+        fmt = joined["diagnosis"]["conditions"][0]  # the values of games.format itself, not of the join
+        self.assertEqual((sorted(fmt["values"]), fmt["value_found"], fmt["value"]), (["crew_battle", "standard"], False, "2v2"))
 
     def test_read_only_on_one_database_stopped_after_the_limit_and_errors_as_text(self):
         self.assertIn("readonly", tools.run_sql("DELETE FROM t", self.path)["error"])
@@ -445,6 +448,46 @@ class LoopTest(Fixture):
         self.assertEqual((trace["steps"][2]["size_check"]["action"], trace["answer"], trace["answered_after_too_big"]),
                          ("kept: no steps left to query again", "25, with megD.", True))
 
+    def test_an_answer_right_after_an_empty_result_a_missing_text_value_explains_goes_back_once(self):
+        empty = ("run_sql", {"query": "SELECT * FROM games WHERE player_id = 7 AND format = '2v2'"})
+        ask = Scripted(reply(calls=[empty]), reply("Never in 2v2."), reply("Never in 2v2."))
+        trace = react.run("Has megd played 2v2?", self.tools, ask=ask, log=lambda *_: None)
+        first, second = trace["steps"][1]["lookup_check"], trace["steps"][2]["lookup_check"]
+        self.assertEqual((first["conditions"], first["action"], second["action"]),
+                         (["format = '2v2'"], "sent back", "kept: sent back once already"))
+        self.assertEqual((trace["answer"], trace["answered_after_lookup_miss"]), ("Never in 2v2.", True))
+        flagged, message = ask.sent[2][-2:]
+        self.assertEqual((flagged["content"], message["role"]), ("Never in 2v2.", "user"))
+        self.assertIn("no row has format = '2v2'", message["content"])
+        self.assertIn("resolve_event for an event", message["content"])
+
+    def test_a_new_query_clears_a_lookup_miss_and_other_empty_results_can_be_a_true_none(self):
+        empty = ("run_sql", {"query": "SELECT * FROM games WHERE player_id = 7 AND format = '2v2'"})
+        fixed = ("run_sql", {"query": "SELECT COUNT(*) FROM games WHERE player_id = 7 AND mode = '2v2'"})
+        ask = Scripted(reply(calls=[empty]), reply("None."), reply(calls=[fixed]), reply("3 games in 2v2."))
+        trace = react.run("q", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([s.get("lookup_check", {}).get("action") for s in trace["steps"]], [None, "sent back", None, None])
+        self.assertEqual((trace["answer"], trace["answered_after_lookup_miss"]), ("3 games in 2v2.", False))
+        for query in ("SELECT * FROM games WHERE player_id = 9 AND format = 'standard'",  # both values exist, not together
+                      "SELECT * FROM games WHERE player_id = 999"):  # a number no row has
+            trace = react.run("q", self.tools, ask=Scripted(reply(calls=[("run_sql", {"query": query})]), reply("None.")),
+                              log=lambda *_: None)
+            self.assertEqual((trace["answer"], trace["steps_used"]), ("None.", 2))
+            self.assertNotIn("lookup_check", trace["steps"][1])
+
+    def test_a_lookup_miss_without_two_steps_left_is_kept_and_flagged(self):
+        empty = ("run_sql", {"query": "SELECT * FROM games WHERE format = '2v2'"})
+        trace = react.run("q", self.tools, ask=Scripted(reply(calls=[empty]), reply("None.")), max_steps=2,
+                          log=lambda *_: None)
+        self.assertEqual((trace["steps"][1]["lookup_check"]["action"], trace["answered_after_lookup_miss"]),
+                         ("kept: no steps left to query again", True))
+        self.assertEqual(react.summary(trace)["lookup_checks"],
+                         [{"step": 2, "conditions": ["format = '2v2'"], "action": "kept: no steps left to query again"}])
+        self.assertIn("**Lookup check:** it came right after an empty result whose diagnosis found no row with format ="
+                      " '2v2' (kept: no steps left to query again).", react.markdown([trace], {
+                          "run": "R", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 2,
+                          "ollama": "x", "snapshot": {"file": "f", "build_id": "b"}}))
+
     def test_a_conversation_keeps_the_previous_question_in_full_and_older_ones_as_question_and_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
                        reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 7"})]),
@@ -507,6 +550,11 @@ class PromptTest(unittest.TestCase):
         self.assertIn("If the condition was your own mistake, such as a wrong column or value, fix it.", prompt)
         self.assertIn("If it's one the question set and you relax it, say in your answer which one and why: never relax"
                       " a condition from the question silently.", prompt)
+
+    def test_the_prompt_says_to_check_player_and_event_ids_and_that_a_missing_text_value_is_a_lookup_mistake(self):
+        prompt = " ".join(react.SYSTEM.split())
+        self.assertIn("each player_id came from resolve_player and each event_id from resolve_event", prompt)
+        self.assertIn("A text value no row has (a name, an event, a format) is a lookup mistake, not an answer", prompt)
 
     def test_the_prompt_names_a_mode_only_when_the_query_was_limited_to_one(self):
         prompt = " ".join(react.SYSTEM.split())

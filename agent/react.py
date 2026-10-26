@@ -1,5 +1,5 @@
-"""A minimal ReAct prototype: a local model answers a question about the data with two tools, resolve_player and
-run_sql (agent/tools.py), through Ollama's native tool calling.
+"""A minimal ReAct prototype: a local model answers a question about the data with three tools, resolve_player,
+resolve_event and run_sql (agent/tools.py), through Ollama's native tool calling.
 
     python agent/react.py "Who has megd played with in 2v2 tournaments?"
     python agent/react.py --target 4 --target 6 --target 8          target questions (ingest/target_questions.py)
@@ -12,7 +12,8 @@ Each step is one model reply: its thinking, then either tool calls, whose result
 answer. A question ends at the answer, or after MAX_STEPS replies; the observation before the last step says it's
 the last. An answer that names a player no tool returned goes back to the model once, with the names, before it
 counts (Shown.unreturned). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET), until
-the model queries again. The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
+the model queries again, and, once, one right after an empty result whose diagnosis finds no row with a text value the
+query filters on, a likely lookup mistake (diagnose.missing_text). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
 with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
 comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
 a section on the views that hold each pairing more than once, and how to use the tools and write the answer.
@@ -40,6 +41,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
+from diagnose import missing_text  # noqa: E402
 from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, run_sql  # noqa: E402
 
 MODEL = "qwen3:8b"
@@ -76,9 +78,11 @@ Using the tools
 - A result over about {budget} tokens comes back with no rows ("complete": false), only its row count and columns:
   reduce it in SQL and query again before answering.
 - A result with no rows comes back with a diagnosis: which condition emptied it, and whether the value it filters on
-  occurs in that column. Check that condition and your player IDs before you trust an empty result. If the condition
-  was your own mistake, such as a wrong column or value, fix it. If it's one the question set and you relax it, say
-  in your answer which one and why: never relax a condition from the question silently.
+  occurs in that column. Check that condition, and that each player_id came from resolve_player and each event_id
+  from resolve_event, before you trust an empty result. A text value no row has (a name, an event, a format) is a
+  lookup mistake, not an answer: fix it and query again. If the condition was your own mistake, such as a wrong
+  column or value, fix it. If it's one the question set and you relax it, say in your answer which one and why: never
+  relax a condition from the question silently.
 - The views are fast when filtered by a literal player_id. With a lookup inside the query, the head-to-head views
   take a minute or more, and run_sql stops a query after {seconds} seconds.
 
@@ -179,6 +183,11 @@ CHECK = ("Before this answer is final: it names {names}, which no tool returned 
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
                   " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
                   " before answering.")
+LOOKUP_MISS = ("Your last query returned no rows, and its diagnosis says no row has {conditions}: a value its column"
+               " doesn't hold. That usually means a lookup went wrong, not that the answer is none. Find the right value"
+               " (resolve_player for a player, resolve_event for an event, or one of the values the diagnosis lists)"
+               " and query again before answering. If the empty result is right after all, reply with the same answer"
+               " again.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
@@ -364,16 +373,21 @@ class Conversation:
     def turn(self, question):
         """One question's steps. The trace: each step's thinking, reply and tool calls with their observations, and
         any checks; then the answer, the outcome ('answered', 'step limit', ...), the names in the answer that no tool
-        returned, and whether it came right after a result too large to show. Two checks can send an answer back:
+        returned, and whether it came right after a result too large to show or a lookup miss. Three checks can send an
+        answer back:
         - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
           new query since, goes back as long as two steps are left, to query and to answer;
+        - the lookup check: an answer right after an empty result whose diagnosis finds no row with a text value the
+          query filters on (diagnose.missing_text), with no new query since, goes back once if two steps are left.
+          Any other empty result can be a true "none";
         - the answer check: an answer naming players no tool returned goes back once, if a step is left.
         The answer that comes back counts either way. A name from the question that resolve_player matches only below
         CONFIDENT ends the turn instead: the user gets its top three candidates as suggestions (outcome
         'suggestions')."""
         trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
-                 "answered_after_too_big": False}
+                 "answered_after_too_big": False, "answered_after_lookup_miss": False}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
+        missing, missed = [], False  # the last empty result's text filters no row has, and whether that was sent back
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
@@ -402,6 +416,18 @@ class Conversation:
                         continue
                     step["size_check"] = {"action": "kept: no steps left to query again"}
                     trace["answered_after_too_big"] = True
+                if outcome == "answered" and missing:
+                    if not missed and number + 2 <= max_steps:
+                        missed, message = True, LOOKUP_MISS.format(conditions=" and ".join(missing))
+                        step["lookup_check"] = {"conditions": missing, "action": "sent back", "message": message}
+                        self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                         {"role": "user", "content": message}]
+                        log(f"  lookup check: answered right after no row had {' and '.join(missing)}; sent back")
+                        self.finished(step)
+                        continue
+                    step["lookup_check"] = {"conditions": missing, "action": "kept: sent back once already" if missed
+                                            else "kept: no steps left to query again"}
+                    trace["answered_after_lookup_miss"] = True
                 names = self.shown.unreturned(content) if outcome == "answered" else {}
                 if names and not checked and number < max_steps:
                     checked, message = True, CHECK.format(names=" and ".join(f"'{n}'" for n in names))
@@ -437,8 +463,9 @@ class Conversation:
                 observation = self.tools.call(name, arguments)
                 seconds = time.monotonic() - begun
                 self.shown.observe(name, observation)
-                if name == "run_sql":  # only a new query clears a result too large to show
+                if name == "run_sql":  # only a new query clears a result too large to show, or a lookup miss
                     too_big = observation.get("complete") is False
+                    missing, missed = missing_text(observation.get("diagnosis")), False
                 if name == "resolve_player" and unsure(question, observation.get("name") or "", observation):
                     asked.append((observation["name"], observation))
                 if number == max_steps - 1 and i == len(calls) - 1:
@@ -517,6 +544,16 @@ def markdown(traces, header):
                         " too large to show. Sent back with:", "", f"> {size['message']}", ""]
             elif size:
                 out += [f"**Result-size check:** it came right after a result too large to show ({size['action']}).", ""]
+            lookup = s.get("lookup_check")
+            if lookup:
+                missing = " and ".join(lookup["conditions"])
+                if lookup["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", "**Lookup check:** it came right after an empty"
+                            f" result whose diagnosis found no row with {missing}. Sent back with:", "",
+                            f"> {lookup['message']}", ""]
+                else:
+                    out += [f"**Lookup check:** it came right after an empty result whose diagnosis found no row with"
+                            f" {missing} ({lookup['action']}).", ""]
             check = s.get("answer_check")
             if check:
                 names = ", ".join(f"{n} ({', '.join(map(str, ids))})" for n, ids in check["names"].items())
@@ -561,13 +598,16 @@ def preview(observation, width=200):
 
 def summary(trace):
     keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "answered_after_too_big",
-            "steps_used", "model_seconds", "tool_seconds", "output_tokens", "largest_context")
+            "answered_after_lookup_miss", "steps_used", "model_seconds", "tool_seconds", "output_tokens", "largest_context")
     calls = [{"step": s["step"], "name": c["name"], "arguments": c["arguments"], "result": preview(c["observation"])}
              for s in trace["steps"] for c in s["tool_calls"]]
     checks = [{"step": s["step"], "names": s["answer_check"]["names"], "action": s["answer_check"]["action"]}
               for s in trace["steps"] if s.get("answer_check")]
     sizes = [{"step": s["step"], "action": s["size_check"]["action"]} for s in trace["steps"] if s.get("size_check")]
-    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks, "size_checks": sizes}
+    lookups = [{"step": s["step"], "conditions": s["lookup_check"]["conditions"], "action": s["lookup_check"]["action"]}
+               for s in trace["steps"] if s.get("lookup_check")]
+    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks, "size_checks": sizes,
+            "lookup_checks": lookups}
 
 
 def main():

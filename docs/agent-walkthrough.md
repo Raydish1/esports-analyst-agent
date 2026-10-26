@@ -7,10 +7,13 @@ It's a prototype in three files:
 - [`agent/react.py`](../agent/react.py): the system prompt, the loop and the guardrails.
 - [`agent/tools.py`](../agent/tools.py): the two tools.
 
-Line references are to commit `2889492`. Three changes came after it (2026-10-23) and aren't described here:
+Line references are to commit `2889492`. These changes came after it (2026-10-23) and aren't described here:
 - match scores for `resolve_player`'s candidates;
 - suggestions instead of a guess when a name matches only loosely;
-- a diagnosis for results with no rows.
+- a diagnosis for results with no rows, and the lookup check, which sends back an answer after an empty result that
+  a missing text value explains;
+- a third tool, `resolve_event`, for event names;
+- quoted names in the answer check.
 
 See the [experiment log](experiments.md) and `agent/diagnose.py`.
 

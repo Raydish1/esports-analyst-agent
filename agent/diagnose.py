@@ -8,9 +8,11 @@ The model's queries are mostly one SELECT whose WHERE joins conditions with AND.
   comments or parentheses, and not the AND of a BETWEEN. A clause with a top-level OR stays one condition, and a
   compound query (UNION, INTERSECT, EXCEPT) gets none. A condition in a JOIN's ON isn't tested.
 - diagnose() reruns the query without each condition in turn and counts its rows. For a condition comparing a column
-  with a value (format = '2v2', player_id = 142100), it checks whether the value occurs in the column across the
-  query's FROM, and lists the column's values when it has few. Each probe stops after PROBE_SECONDS, and all of them
-  together after PROBES_SECONDS.
+  with a value (format = '2v2', player_id = 142100), it checks whether the value occurs in the column: in the
+  column's own table when the query names it (e.format, v_events.event_name), else across the query's FROM. It lists
+  the column's values when it has few. Each probe stops after PROBE_SECONDS, and all of them together after
+  PROBES_SECONDS.
+- missing_text() picks out the text values no row has, which react.py treats as lookup mistakes (decided 2026-10-23).
 """
 
 import re
@@ -24,6 +26,9 @@ KEYWORD = re.compile(r"(SELECT|FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|LIMIT|WIN
                      r"\b", re.I)
 ENDS = {"WHERE": {"GROUP BY", "HAVING", "ORDER BY", "LIMIT", "WINDOW"}, "HAVING": {"ORDER BY", "LIMIT", "WINDOW"}}
 COMPARISON = re.compile(r"((?:\w+\.)?\w+)\s*(==|=|\bLIKE\b)\s*('(?:[^']|'')*'|-?\d+)", re.I)
+NOT_ALIAS = ["ON", "USING", "JOIN", "WHERE", "LEFT", "RIGHT", "INNER", "OUTER", "CROSS", "NATURAL", "FULL", "GROUP",
+             "ORDER", "LIMIT"]  # words after a table that aren't its alias
+TABLE = re.compile(rf"\b(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(?!(?:{'|'.join(NOT_ALIAS)})\b)(\w+))?", re.I)
 
 
 def top_level(query):
@@ -81,6 +86,17 @@ def conditions(query):
     return [(a, b) for a, b in spans if query[a:b].strip()]
 
 
+def tables(sources):
+    """The tables of a FROM clause, by each name a column may be qualified with: {table or alias: table}. A subquery in
+    FROM has no name here."""
+    names = {}
+    for table, alias in TABLE.findall("FROM " + sources):
+        names[table.lower()] = table
+        if alias:
+            names[alias.lower()] = table
+    return names
+
+
 def literal(text):
     """A SQL literal's value: '2v2' -> 2v2, 142100 -> 142100."""
     return text[1:-1].replace("''", "'") if text.startswith("'") else int(text)
@@ -110,14 +126,21 @@ def diagnose(query, run):
         m = COMPARISON.fullmatch(query[a:b].strip())
         if m and sources:
             column, operator, value = m.group(1), m.group(2).upper(), m.group(3)
-            values = probe(f"{prefix}SELECT DISTINCT {column} FROM {sources} LIMIT {VALUES + 1}") if operator != "LIKE" else None
+            # In the column's own table if the query names it: whether the value exists at all, and fast, where a
+            # join through v_results can outlast PROBE_SECONDS
+            qualifier, _, name = column.rpartition(".")
+            table = tables(sources).get(qualifier.lower()) if qualifier else None
+            where, column = (table, name) if table else (sources, column)
+            values = probe(f"{prefix}SELECT DISTINCT {column} FROM {where} LIMIT {VALUES + 1}") if operator != "LIKE" else None
             if values is not None and len(values) <= VALUES:
                 found["values"] = [v for (v,) in values]
                 found["value_found"] = literal(value) in found["values"]
             else:
-                hit = probe(f"{prefix}SELECT 1 FROM {sources} WHERE {column} {operator} {value} LIMIT 1")
+                hit = probe(f"{prefix}SELECT 1 FROM {where} WHERE {column} {operator} {value} LIMIT 1")
                 if hit is not None:
                     found["value_found"] = bool(hit)
+            if "value_found" in found:
+                found["value"] = literal(value)
         findings.append(found)
     return {"note": note(findings), "conditions": findings}
 
@@ -135,7 +158,17 @@ def note(findings):
         out.append("No single condition explains it: without any one of them, the query still returns no rows.")
     if not findings:
         out.append("Its conditions couldn't be tested one by one.")
-    out.append("Check the condition responsible, and that each player_id came from resolve_player. If it was your own"
-               " mistake, fix it. If you relax a condition the question set, say in your answer which one and why: never"
-               " relax a condition from the question silently.")
+    if missing_text({"conditions": findings}):
+        out.append("A text value no row has usually means a lookup went wrong, not that the answer is none.")
+    out.append("Check the condition responsible, and that each player_id came from resolve_player and each event_id"
+               " from resolve_event. If it was your own mistake, fix it. If you relax a condition the question set, say"
+               " in your answer which one and why: never relax a condition from the question silently.")
     return " ".join(out)
+
+
+def missing_text(diagnosis):
+    """The conditions of a diagnosis that compare a column with a text value no row has (event_name LIKE '%worlds%',
+    format = '2v2'): a likely lookup mistake, so react.py sends back an answer that comes right after one. A number no
+    row has, or text values that exist but not together, can be a true "none"."""
+    return [f["condition"] for f in (diagnosis or {}).get("conditions", ())
+            if isinstance(f.get("value"), str) and f.get("value_found") is False]
