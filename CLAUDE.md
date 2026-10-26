@@ -148,6 +148,7 @@ Agent (`agent/`, a prototype):
   - Only the questions are embedded, with nomic-embed-text through Ollama (prefix `clustering: `), in a Chroma collection in `data/rag/chroma` (git-ignored), rebuilt when the bank or the embedding changes.
   - For each user question: the 10 most similar examples, those at 0.70 or more, then MMR (weight 0.7) keeps 3. They go before the question with a note that they show query patterns, not facts about players. The history keeps the bare question, and the answer check doesn't count what examples show.
   - Chroma's index library has no build for Windows ARM64's Python, so the agent runs with the x64 Python 3.14 under emulation (`py -3.14 agent/react.py ...`). `--examples off` (react.py, ask.py) runs without it, on any Python.
+  - `py -3.14 agent/retrieval.py measure` measures retrieval alone against `eval/questions/shapes.toml` (hand labels of the shapes that would help each evaluation question): with the agent's settings, a helpful shape is in the top 3 for 32 of 39 questions (2026-10-25, in the log).
 - `tools.py` holds the tools:
   - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only.
     - Each candidate has a match score: its tier's base times its closeness (nickname 1.0, exact 0.98, swap 0.92, prefix and similar spelling 0.85 times closeness).

@@ -2,6 +2,36 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-25: retrieval of worked examples, measured alone on the evaluation set
+
+**Question:** for each evaluation question, does retrieval put an example of a helpful shape in its top 3?
+
+**Setup:** commit fdebd9c, with `agent/retrieval.py measure`.
+- **The bank:** 28 worked examples in `agent/examples/examples.toml`, of 25 shapes (event winners and top 8s, head-to-heads, teammates, official wins, medals, firsts, rankings, empty results...). None names a player or uses an event from the evaluation set.
+- **Retrieval, as the agent runs it:** only the questions are embedded, with nomic-embed-text and the prefix `clustering: `, in a Chroma collection with cosine distance. The 10 most similar examples go through a threshold of 0.70, then maximal marginal relevance (weight 0.7) keeps 3.
+- **The labels:** `eval/questions/shapes.toml`, by hand, lists the shapes that would help each question: 39 questions have one or more. The other 6 have none, since no query answers them (prize money per tournament, career earnings, 2016, legends, community events).
+- Results: `eval/results/20261026T020418Z-retrieval.json`.
+
+**Results:**
+
+| Setting | A helpful shape in the top 3 | First | Examples retrieved for the 6 no shape helps |
+|---|---|---|---|
+| The agent's: threshold 0.70, then MMR | 32 of 39 | 24 of 39 | 13 of 18 |
+| No threshold, MMR | 35 of 39 | 27 of 39 | 18 of 18 |
+
+- **The prefix**, with no threshold: `clustering: ` 35 of 39 (27 first), no prefix 35 (26), `search_query: ` on both sides 31 (21). The query/document pair meant for passages scored 30 in an earlier probe, by similarity alone.
+- **Misses with the agent's settings:**
+  - q14 ("Who made top 8 at Trial of Laufey NA?") got event winner and event facts examples, and q15 ("did godly win eu summers 2026") got the top 8 example first: near shapes;
+  - q23 ("kingdom | godly vs impala head to head"), q39 and q45 (who has more medals, or earned more) got nothing at 0.70 or more;
+  - q05 and q42 (rankings by earnings and by size) got unrelated shapes.
+- **The threshold separates poorly.** It costs three hits (q23, q39, q45 lose every example) and drops only 5 of the 18 examples given to questions no shape helps. Those questions' best matches score 0.71 to 0.81, while a helpful example's best score ranges from 0.65 to 0.90 (median 0.80).
+- **For the questions of the run below:** q04 gets one example, the 1v1 head-to-head (0.74); q06 gets the ranking, teammates and top 8 examples; q08 the head-to-head, best record and ranking examples; q21 the official wins, medals and placements examples.
+
+**Caveats:**
+- The labels are mine, not reviewed by the user.
+- The prefix, the threshold and the MMR weight were chosen looking at these same questions, so the numbers are optimistic for new ones.
+- Similar wording, not the query a question needs, drives the scores: "who won 2v2 at autumns 2023 NA?" scores 0.83 against "Who has the most official 2v2 wins?".
+
 ## 2026-10-25: the ID and no-tool checks, replayed on every past answer
 
 **Question:** what would the two checks decided after the run below have sent back, had they run on every earlier answer?

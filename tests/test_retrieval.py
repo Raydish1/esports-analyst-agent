@@ -78,8 +78,22 @@ class FakeRetriever:
     def __init__(self, *examples):
         self.found = {"threshold": 0.7, "candidates": len(examples), "examples": list(examples)}
 
-    def retrieve(self, question):
+    def retrieve(self, question, threshold=0.7):
         return self.found
+
+
+class MeasureTest(unittest.TestCase):
+    def test_a_hit_is_a_helpful_shape_in_the_top_k_and_questions_no_shape_helps_are_counted_apart(self):
+        found = [{**example("e1", "q1", "ranking"), "similarity": 0.8, "mmr": 0.5},
+                 {**example("e2", "q2", "teammates"), "similarity": 0.75, "mmr": 0.3}]
+        questions = [{"id": "q01", "question": "a"}, {"id": "q02", "question": "b"}, {"id": "q03", "question": "c"},
+                     {"id": "q09", "question": "d"}]
+        shapes = {"q01": ["teammates"], "q02": ["ranking"], "q03": ["medals"], "q09": []}
+        rows = retrieval.measure(FakeRetriever(*found), questions, shapes)
+        self.assertEqual([(r["hit"], r["first"]) for r in rows], [(True, False), (True, True), (False, False), (None, None)])
+        self.assertEqual(retrieval.summarize(rows), {"questions": 4, "labelled": 3, "hit_at_k": 2, "hit_at_1": 1,
+                                                     "examples_for_labelled": 6, "unlabelled": 1,
+                                                     "examples_for_unlabelled": 2, "misses": ["q03"]})
 
 
 class ConversationTest(Fixture):

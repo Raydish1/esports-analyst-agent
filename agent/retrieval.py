@@ -140,24 +140,25 @@ def mmr(candidates, k=K, lam=LAMBDA):
     return [(i, similarity, s) for i, similarity, _, s in chosen]
 
 
-def fingerprint(examples):
+def fingerprint(examples, prefix=PREFIX):
     """What the stored embeddings depend on: the model, the prefix and every example's question."""
-    text = json.dumps([EMBED_MODEL, PREFIX, [(e["id"], e["question"]) for e in examples]], ensure_ascii=False)
+    text = json.dumps([EMBED_MODEL, prefix, [(e["id"], e["question"]) for e in examples]], ensure_ascii=False)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 class Retriever:
     """The examples' questions embedded in a Chroma collection, and the examples a question retrieves. client is a
-    Chroma client (default: the persistent store), embed the embedding function (default: Ollama)."""
+    Chroma client (default: the persistent store), embed the embedding function (default: Ollama), prefix the task
+    prefix put before every question embedded."""
 
-    def __init__(self, examples=None, embed=ollama_embed, client=None, path=STORE):
+    def __init__(self, examples=None, embed=ollama_embed, client=None, path=STORE, prefix=PREFIX):
         import chromadb  # only here: it has no build for Windows ARM64's Python (the module docstring)
         self.examples = {e["id"]: e for e in examples or load()}
-        self.embed = embed
+        self.embed, self.prefix = embed, prefix
         if client is None:
             path.mkdir(parents=True, exist_ok=True)
             client = chromadb.PersistentClient(path=str(path), settings=chromadb.Settings(anonymized_telemetry=False))
-        stamp = fingerprint(self.examples.values())
+        stamp = fingerprint(self.examples.values(), prefix)
         try:
             collection = client.get_collection(COLLECTION)
             if (collection.metadata or {}).get("fingerprint") != stamp:
@@ -170,7 +171,7 @@ class Retriever:
                                                   metadata={"hnsw:space": "cosine", "fingerprint": stamp})
             ids = list(self.examples)
             collection.add(ids=ids, documents=[self.examples[i]["question"] for i in ids],
-                           embeddings=self.embed([PREFIX + self.examples[i]["question"] for i in ids]),
+                           embeddings=self.embed([prefix + self.examples[i]["question"] for i in ids]),
                            metadatas=[{"shape": self.examples[i]["shape"]} for i in ids])
         self.collection = collection
 
@@ -178,7 +179,7 @@ class Retriever:
         """{threshold, candidates, examples}: the examples for a question, best first, each with its id, shape,
         question, sql, note, its similarity to the question and its MMR score. candidates counts the examples above
         the threshold among the CANDIDATES most similar."""
-        vector = self.embed([PREFIX + question])[0]
+        vector = self.embed([self.prefix + question])[0]
         found = self.collection.query(query_embeddings=[vector], n_results=min(CANDIDATES, len(self.examples)),
                                       include=["distances", "embeddings"])
         above = [(i, 1 - d, list(v)) for i, d, v in zip(found["ids"][0], found["distances"][0], found["embeddings"][0])
@@ -186,6 +187,32 @@ class Retriever:
         picked = [{**{f: self.examples[i][f] for f in ("id", "shape", "question", "sql", "note")},
                    "similarity": round(similarity, 3), "mmr": round(score, 3)} for i, similarity, score in mmr(above, k)]
         return {"threshold": threshold, "candidates": len(above), "examples": picked}
+
+
+def measure(retriever, questions, shapes, threshold=THRESHOLD):
+    """Retrieval alone, per question: the examples it retrieves (id, shape, similarity), the shapes that would help
+    (shapes, by question id), whether one of them is in the top K (hit) and first (first). hit and first are None for
+    a question no shape helps."""
+    rows = []
+    for q in questions:
+        found = retriever.retrieve(q["question"], threshold=threshold)
+        top = [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]]
+        relevant = set(shapes.get(q["id"], ()))
+        rows.append({"id": q["id"], "question": q["question"], "relevant": sorted(relevant), "retrieved": top,
+                     "hit": bool(relevant & {s for _, s, _ in top}) if relevant else None,
+                     "first": bool(top) and top[0][1] in relevant if relevant else None})
+    return rows
+
+
+def summarize(rows):
+    """hit@K and hit@1 over the questions some shape helps, and the examples retrieved for the others."""
+    labelled = [r for r in rows if r["relevant"]]
+    others = [r for r in rows if not r["relevant"]]
+    return {"questions": len(rows), "labelled": len(labelled), "hit_at_k": sum(r["hit"] for r in labelled),
+            "hit_at_1": sum(r["first"] for r in labelled),
+            "examples_for_labelled": sum(len(r["retrieved"]) for r in labelled),
+            "unlabelled": len(others), "examples_for_unlabelled": sum(len(r["retrieved"]) for r in others),
+            "misses": [r["id"] for r in labelled if not r["hit"]]}
 
 
 def prompt(question, retrieved):
@@ -205,6 +232,9 @@ def main():
     commands.add_parser("check", help="run every example's query on eval-v1")
     ask = commands.add_parser("retrieve", help="the examples a question retrieves, with their scores")
     ask.add_argument("question", nargs="+")
+    scored = commands.add_parser("measure", help="retrieval alone on the evaluation set: is a helpful example shape"
+                                                 " in the top 3? Writes eval/results/<time>-retrieval.json")
+    scored.add_argument("--prefix", help="another task prefix, compared without a threshold in a store of its own")
     args = parser.parse_args()
     examples = load()
     if args.command == "check":
@@ -214,10 +244,49 @@ def main():
         sys.exit(1 if problems else 0)
     from platform_clients import load_env  # in ingest/
     load_env()
+    if args.command == "measure":
+        report(examples, args.prefix)
+        return
     found = Retriever(examples).retrieve(" ".join(args.question))
     print(f"{found['candidates']} candidates above {found['threshold']}")
     for e in found["examples"]:
         print(f"  {e['id']} {e['shape']:<18} similarity {e['similarity']:.3f}, MMR {e['mmr']:.3f}: {e['question']}")
+
+
+def report(examples, prefix=None):
+    """measure on the evaluation set, printed and written to eval/results: with the agent's settings, and with no
+    threshold; or, for another prefix, with no threshold only."""
+    from datetime import datetime, timezone
+    with open(ROOT / "eval" / "questions" / "questions.toml", "rb") as f:
+        questions = tomllib.load(f)["question"]
+    with open(ROOT / "eval" / "questions" / "shapes.toml", "rb") as f:
+        shapes = tomllib.load(f)["shapes"]
+    if prefix is None:
+        retriever, runs = Retriever(examples), {"agent": THRESHOLD, "no threshold": 0.0}
+    else:
+        import chromadb
+        retriever = Retriever(examples, client=chromadb.EphemeralClient(settings=chromadb.Settings(anonymized_telemetry=False)),
+                              prefix=prefix)
+        runs = {"no threshold": 0.0}
+    out = {"model": EMBED_MODEL, "prefix": retriever.prefix, "k": K, "candidates": CANDIDATES, "lambda": LAMBDA,
+           "bank": len(examples), "runs": {}}
+    for name, threshold in runs.items():
+        rows = measure(retriever, questions, shapes, threshold)
+        summary = summarize(rows)
+        out["runs"][name] = {"threshold": threshold, **summary, "rows": rows}
+        print(f"{name} (threshold {threshold}): a helpful shape in the top {K} for {summary['hit_at_k']} of"
+              f" {summary['labelled']}, first for {summary['hit_at_1']}; {summary['examples_for_labelled']} examples for"
+              f" them, {summary['examples_for_unlabelled']} for the {summary['unlabelled']} no shape helps;"
+              f" misses {summary['misses']}")
+    for r in out["runs"]["no threshold" if prefix else "agent"]["rows"]:
+        mark = {True: "hit ", False: "MISS", None: "    "}[r["hit"]]
+        print(f"  {mark} {r['id']} {'/'.join(r['relevant']) or '-':<34} "
+              + "  ".join(f"{i} {s} {sim:.2f}" for i, s, sim in r["retrieved"]))
+    if prefix is None:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        path = ROOT / "eval" / "results" / f"{stamp}-retrieval.json"
+        path.write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"Results: {path.relative_to(ROOT).as_posix()}")
 
 
 if __name__ == "__main__":
