@@ -7,17 +7,15 @@ It's a prototype in three files:
 - [`agent/react.py`](../agent/react.py): the system prompt, the loop and the guardrails.
 - [`agent/tools.py`](../agent/tools.py): the two tools.
 
-Line references are to commit `2889492`. These changes came after it (2026-10-23) and aren't described here:
-- match scores for `resolve_player`'s candidates;
-- suggestions instead of a guess when a name matches only loosely;
-- a diagnosis for results with no rows, and the lookup check, which sends back an answer after an empty result that
-  a missing text value explains;
-- a third tool, `resolve_event`, for event names;
-- quoted names and player IDs in the answer check, and the no-tool check for an answer that states facts without a
-  tool call;
-- suggestions kept in the history as the agent's clarifying question.
+Sections 1–7 describe the prototype at commit `2889492`, and their line references are to it. These changes came after it (2026-10-23 to 2026-10-25), and sections 8–11 describe them, with line references to commit `fc41b9b`:
+- match scores for `resolve_player`'s candidates, and suggestions instead of a guess when a name matches only loosely, kept in the history as the agent's clarifying question (section 8);
+- a third tool, `resolve_event`, for event names (section 8);
+- a diagnosis for results with no rows, and the lookup check, which sends back an answer after an empty result that a missing text value explains (section 8);
+- quoted names and player IDs in the answer check, and the no-tool check for an answer that states facts without a tool call (section 8);
+- retrieval of worked examples by meaning, shown before each question (sections 9–11);
+- smaller ones: `ask.py --seed N` and `--examples off`, and `react.py --eval ID` for evaluation set questions.
 
-See the [experiment log](experiments.md) and `agent/diagnose.py`.
+Since then, `agent/` has five files: [`diagnose.py`](../agent/diagnose.py) explains empty results, and [`retrieval.py`](../agent/retrieval.py) retrieves the examples in [`agent/examples/examples.toml`](../agent/examples/examples.toml). The [experiment log](experiments.md) has every run.
 
 Some terms used throughout:
 - A **step** is one model reply.
@@ -345,7 +343,7 @@ The prompt grew with each step: 1,892, 2,445, 3,087, 3,354 and 3,670 tokens. Tha
 
 ## 7. Known limitations
 
-From the [experiment log](experiments.md), on questions 4, 6 and 8 with six seeds each:
+From the [experiment log](experiments.md), on questions 4, 6 and 8 with six seeds each, as of commit `2889492`. Section 11 says which of these the later changes fixed.
 
 - **Questions that read as a list aren't aggregated.** Question 6 ("who has megd played with, and how did they place?") failed in all 6 runs, twice. The model lists rows instead of grouping them in SQL. Reading 46 rows, it gave results to the wrong partner and got the counts wrong. A prompt rule didn't change that. See "2026-10-19: the result-size fixes".
 - **Filtering on a value no row has.** Asked about 2v2, the model filters `format = '2v2'`, which never matches: 2v2 is a mode, and `v_team_results` holds only 2v2. It then takes the empty result as fact ("megD never played 2v2"). This happened in 3 of 12 question 6 runs.
@@ -359,3 +357,412 @@ From the [experiment log](experiments.md), on questions 4, 6 and 8 with six seed
 - **The scope:** one model (qwen3:8b), the frozen eval-v1 snapshot, and official events only. The planned design, with LangGraph and an evaluation harness, isn't built yet.
 
 The next fixes waiting on a decision are listed at the end of the latest entry in the [experiment log](experiments.md).
+
+## 8. The new guardrails
+
+Sections 4 and 5 showed two tools and three checks. This module added a third tool, match scores on both resolvers, a diagnosis for empty results, and three more answer checks. Each one answers a failure from the experiment log. Line references from here on are to commit `fc41b9b`.
+
+```mermaid
+flowchart LR
+  you[You] -->|question| loop[ReAct loop]
+  loop -->|messages| model[qwen3:8b]
+  model -->|tool calls| loop
+  loop -->|Tools.call| tools[resolve_player, resolve_event, run_sql]
+  tools -->|observation, with a diagnosis if empty| loop
+  loop -->|a loose name match| sugg[suggestions to you]
+  model -->|answer| checks{five answer checks}
+  checks -->|sent back with a note| model
+  checks -->|passes| you
+```
+
+### Match scores and statuses
+
+Before, a prefix or a similar spelling came back as "ambiguous", and the model used the first candidate anyway. So "markiemoo" could quietly become someone else. Now every candidate has a **match score**: its tier's base times how close it is within the tier ([tools.py:83-91](../agent/tools.py#L83)).
+
+```python
+# agent/tools.py:90-91
+SCORES = {"nickname": 1.0, "exact": 0.98, "swap": 0.92, "prefix": 0.85, "fuzzy": 0.85}
+CONFIDENT = 0.9
+```
+
+- **Closeness** is 1 in the exact tiers, the share of the alias a prefix covers, and difflib's ratio for a similar spelling. `add` multiplies the two when it records a candidate ([tools.py:164-169](../agent/tools.py#L164)).
+- **The status** is now `ambiguous` whenever the best score is under 0.9 ([tools.py:195-197](../agent/tools.py#L195)). That puts character swaps above the line, and prefixes and similar spellings below it.
+- The scores rank matches. They aren't probabilities, and the order still follows official results within a tier.
+
+Here is "markiemoo" on eval-v1. It's only a similar spelling of the curated nickname "marckiemoo":
+
+```json
+{"name": "markiemoo", "status": "ambiguous",
+ "candidates": [{"player_id": 146052, "name": "Marckiem00", "match": "similar spelling", "score": 0.8, "official_results": 47},
+                {"player_id": 101849, "name": "Markled", "match": "similar spelling", "score": 0.68, "official_results": 2},
+                {"player_id": 104811, "name": "Arklem", "match": "similar spelling", "score": 0.73, "official_results": 1}, ...]}
+```
+
+Arklem scores higher than Markled but comes after him, because Markled has more official results.
+
+### Suggestions instead of a guess
+
+When a name from the question matches only below 0.9, the agent stops and asks you. `unsure` decides that ([react.py:365-370](../agent/react.py#L365)):
+
+```python
+# agent/react.py:368-370
+in_question = normalize_full(name) and normalize_full(name) in normalize_full(question)
+candidates = observation.get("candidates") or []
+return bool(in_question and candidates and max(c["score"] for c in candidates) < CONFIDENT)
+```
+
+- The name must appear in the question. A name the model made up itself, such as a misspelling in its own call, isn't yours to settle.
+- After a step's tool calls run, any such names end the turn with the outcome `suggestions` ([react.py:577-582](../agent/react.py#L577)). No more model steps run.
+- You see `suggestions()`: "I couldn't find a player named "markiemoo", so I won't guess", then the top three with their results and years, then "Which one did you mean?" ([react.py:373-385](../agent/react.py#L373)).
+
+**How suggestions stay in the history.** The conversation needs a record of this turn, so the next question ("the first one") makes sense. At first it stored the suggestions as the agent's answer. In one session, a later question then copied that format as its own answer, with invented player IDs (12345 for Markled). So now the history holds `clarifying()` instead ([react.py:388-395](../agent/react.py#L388)):
+
+```python
+# agent/react.py:395
+return f"(A clarifying question to the user, not an answer.) I asked {asked}. Their next message answers it."
+```
+
+`asked` lists each candidate with its real player ID. `Conversation.ask` stores this text in place of the answer ([react.py:445](../agent/react.py#L445)). The model sees a question it asked, with the IDs it needs to act on your reply, and nothing shaped like an answer to copy. See "2026-10-23: the lookup changes" and "2026-10-25: the decisions on the lookup run" in the [experiment log](experiments.md).
+
+### `resolve_event(name)`: from an event name to event IDs
+
+In a live session, the model searched `event_name LIKE '%worlds%'`, got nothing, and answered that Marckiem00 never won Worlds. He won BCX 2025, whose `event_name` is empty and which is "worlds" only through an alias. `resolve_event` does for events what `resolve_player` does for players. It loads every official event, the curated aliases and the curated terms into memory once ([tools.py:229-261](../agent/tools.py#L229)).
+
+A mode word (1v1, 2v2, singles, doubles) narrows the events to that mode. The rest of the name is matched in tiers, and the first tier that finds anything wins ([tools.py:263-312](../agent/tools.py#L263)):
+
+| Tier | Matches | Score | Example |
+|---|---|---|---|
+| alias | a curated alias in `event_aliases` | 1.0 | "bcx 2022" |
+| series | an alias stem with two or more years | 0.95 | "worlds" is every "worlds YYYY" |
+| words | events whose name has every word, with years and curated terms ("na" for "north america") | 0.9 | "winters 2023 na 1v1" |
+| some words | the events with the most words, if half or more | 0.85 × share | |
+
+The statuses work as for players. `ambiguous` means several tournaments matched every word, or only some words matched. The result also carries a ready-made SQL condition ([tools.py:368-380](../agent/tools.py#L368)): the event IDs when there are 12 or fewer, else a subquery on the aliases. The real result for "worlds", trimmed:
+
+```json
+{"name": "worlds", "status": "confident", "matched": "aliases 'worlds 2017' to 'worlds 2025'", "score": 0.95,
+ "event_count": 34, "tournament_count": 17,
+ "sql": "event_id IN (SELECT event_id FROM event_aliases WHERE alias IN ('worlds 2017', ..., 'worlds 2025'))",
+ "events": [{"event_id": "c979b223-...", "name": "Brawlhalla World Championship Expo 2025 - 1v1", ...}, ...]}
+```
+
+The model pastes the `sql` into its `WHERE`, so it never copies 34 IDs. The prompt tells it to call `resolve_event` for every event the question names and never to search names with LIKE ([react.py:70-75](../agent/react.py#L70)). In the next run, all six sessions resolved "worlds" this way and found the BCX 2025 win.
+
+### The diagnosis of an empty result
+
+An empty result is the hardest one to trust. "No rows" can mean the true answer is none, or that the query had a wrong filter. The model used to take it as fact: asked about megD in 2v2, it filtered `format = '2v2'` (2v2 is a mode, never a format) and answered "megD never played 2v2". Now `run_sql` adds a diagnosis to every result with no rows ([tools.py:451-453](../agent/tools.py#L451)).
+
+`diagnose` works without a SQL parser ([diagnose.py:105-145](../agent/diagnose.py#L105)):
+1. **Find the conditions.** A small scanner finds the top-level `WHERE` and `HAVING` and splits them at their top-level `AND`s, skipping quotes, comments, parentheses and the `AND` of a `BETWEEN` ([diagnose.py:62-86](../agent/diagnose.py#L62)). A clause with a top-level `OR` stays whole, and a `UNION` gets no conditions.
+2. **Remove each one in turn.** It swaps the condition for `1=1` and counts the rows:
+
+   ```python
+   # agent/diagnose.py:123
+   rows = probe(f"SELECT COUNT(*) FROM (SELECT 1 FROM ({query[:a]} 1=1 {query[b:]}) LIMIT {COUNTED + 1})")
+   ```
+
+3. **Check the value.** For a condition comparing a column with a literal (`format = '2v2'`, `player_id = 142100`), it asks whether the value occurs in that column at all, and lists the column's values when there are 12 or fewer ([diagnose.py:126-143](../agent/diagnose.py#L126)).
+
+Each probe stops after 4 seconds and all of them after 12, so a diagnosis never makes a query slow. `note` turns the findings into a few sentences ([diagnose.py:148-166](../agent/diagnose.py#L148)). Here is the real one from question 6, seed 1, without retrieval, trimmed:
+
+```json
+{"rows": [], "row_count": 0,
+ "diagnosis": {"note": "Without e.format = '2v2', the query returns 46 rows. No row has e.format = '2v2'. Its column's values there: 'standard', 'crew_battle', '3v3', 'brawlball', 'triples', 'kung_foot'. A text value no row has usually means a lookup went wrong, not that the answer is none. ...",
+  "conditions": [{"condition": "tr.player_id = 142100", "rows_without_it": 0, "value_found": true, "value": 142100},
+                 {"condition": "e.format = '2v2'", "rows_without_it": 46, "value_found": false, "value": "2v2", ...}]}}
+```
+
+It names the culprit exactly: drop the format filter and 46 rows come back.
+
+### The lookup check
+
+A diagnosis the model can ignore is only advice. The lookup check makes one kind of it count. `missing_text` picks out the conditions that compare a column with a **text** value no row has ([diagnose.py:169-174](../agent/diagnose.py#L169)):
+
+```python
+# agent/diagnose.py:173-174
+return [f["condition"] for f in (diagnosis or {}).get("conditions", ())
+        if isinstance(f.get("value"), str) and f.get("value_found") is False]
+```
+
+Every `run_sql` call resets the list, so only the latest query counts ([react.py:568](../agent/react.py#L568)). An answer that arrives while it's set goes back once with `LOOKUP_MISS`, if two steps are left to query and answer ([react.py:501-512](../agent/react.py#L501)). The message says the empty result is probably a lookup mistake, and that the same answer may come back if the empty result is right.
+
+Only text counts, by design. A name, an event or a format that no row has is almost always a wrong lookup. A number no row has, or values that exist but never together, can be a true "none". Raydish has no Worlds wins, and those empty results stood, rightly.
+
+The check gives the model a second chance, not a right answer. In question 6, seed 1 without retrieval, it sent the "no 2v2" answer back. The model listed the formats, saw no "2v2" among them, and gave the same wrong answer.
+
+### Three answer checks
+
+Section 5's answer check looked at words shaped like gamer tags and bold text. It now reads more, and two checks joined it. `turn` runs them in this order on every answer ([react.py:489-548](../agent/react.py#L489)), and each sends an answer back at most once:
+
+| Check | Sends back an answer that | Found by | Why it was added |
+|---|---|---|---|
+| result size | follows a result too large to show | `too_big` flag (section 5) | |
+| lookup | follows an empty result missing a text value | `missing_text` | "megD never played 2v2", "never won Worlds" |
+| no tool | states facts in a question that called no tool | `Shown.facts` | a turn that imagined its lookup and invented IDs |
+| names | names a player no tool returned, now in quotes too | `Shown.unreturned` | "Kappa (hypothetical example)", in quotes |
+| IDs | cites a player ID no tool or question showed | `Shown.unreturned_ids` | 12345 and 67890 for Markled and Arklem |
+
+**Quoted names.** `QUOTED` finds text in straight or curly quotes, but not an apostrophe such as megD's ([react.py:202-204](../agent/react.py#L202)). `name_spans` adds quoted text of up to three words beside bold text ([react.py:281-284](../agent/react.py#L281)).
+
+**Player IDs.** `cited_ids` finds the IDs an answer cites ([react.py:288-294](../agent/react.py#L288)): a number after an ID word ("player_id 12345", "partner ID 5"), or a number of five digits or more alone in bold or parentheses ("Impala (168635)"). An event's or a match's ID doesn't count. `unreturned_ids` keeps the ones no observation or question contained ([react.py:340-342](../agent/react.py#L340)):
+
+```python
+# agent/react.py:342
+return [n for n in cited_ids(answer) if abs(n) not in self.numbers]
+```
+
+**Answers with no tool call.** The loop sets `called` when a step runs any tool ([react.py:559](../agent/react.py#L559)). An answer in a question that never called one goes to `Shown.facts`, which collects the players it names, the IDs it cites and its numbers, leaving out formats such as 1v1 ([react.py:344-352](../agent/react.py#L344)). If there are any, the answer goes back with `NO_TOOL` ([react.py:513-528](../agent/react.py#L513)). The message allows the same answer again, since a follow-up can rightly reuse an earlier question's results.
+
+Replayed on all 94 answers since the first prototype run, the ID check and the no-tool check each flag exactly one, the same answer: the turn that invented Markled's and Arklem's IDs. See "2026-10-25: the ID and no-tool checks, replayed on every past answer" in the [experiment log](experiments.md).
+
+## 9. Retrieval of worked examples
+
+Retrieval-augmented prompting means finding relevant text at question time and putting it in the prompt. Here the text is **worked examples**: questions of common shapes, each with the SQL that answers it and why it's shaped that way. Before each question, the agent finds the few examples worded most like it and shows them to the model as patterns. This is often called dynamic few-shot prompting.
+
+What is retrieved is how to query, not data. `run_sql` already retrieves data, exactly, by SQL. The examples fix a different gap: the model knew the views but kept writing the wrong shape of query, such as reading 46 rows instead of grouping them.
+
+### The example bank
+
+[`agent/examples/examples.toml`](../agent/examples/examples.toml) holds 28 examples of 25 shapes. Each is a TOML table, and `load` checks the fields and that IDs aren't repeated ([retrieval.py:58-70](../agent/retrieval.py#L58)). The teammates example:
+
+```toml
+# agent/examples/examples.toml:98-109
+[[example]]
+id = "ex08"
+shape = "teammates"
+question = "Who has Phazon partnered with in 2v2, and how did they do together?"
+note = "Aggregate per partner in SQL (COUNT, MIN) instead of reading every result; v_team_results holds only 2v2, so no mode filter."
+sql = '''
+SELECT p.name AS partner, COUNT(*) AS events, MIN(t.placement) AS best_placement, SUM(t.placement = 1) AS wins
+FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
+WHERE t.player_id = 147522
+GROUP BY t.partner_id
+ORDER BY events DESC, best_placement
+'''
+```
+
+- `question` is the only part embedded, so retrieval matches questions with questions.
+- `note` carries the lesson. It's what tells the model why the query looks this way.
+- `shape` names the question shape, used only to measure retrieval. `expect = "empty"` marks a query whose right result has no rows.
+- No example names a player or uses an event from the evaluation set or the target questions, so an example never gives an answer away. `python agent/retrieval.py check` runs every query on eval-v1 and checks that rule ([retrieval.py:81-112](../agent/retrieval.py#L81)).
+
+### Embedding and storing the examples
+
+An **embedding** is a list of numbers that places a text by its meaning, so texts with similar meanings get nearby vectors. The examples' questions are embedded with nomic-embed-text, through the same Ollama server as the chat model (`/api/embed`, [retrieval.py:117-123](../agent/retrieval.py#L117)). Each text gets the prefix `clustering: `, nomic's task prefix for comparing texts of one kind. On the evaluation questions it did as well as no prefix, and better than the query and document pair ([retrieval.py:38-42](../agent/retrieval.py#L38)).
+
+The vectors live in **Chroma**, a vector database, in a collection on disk in `data/rag/chroma` (git-ignored). `Retriever.__init__` builds it ([retrieval.py:154-176](../agent/retrieval.py#L154)):
+
+```python
+# agent/retrieval.py:170-175
+collection = client.create_collection(COLLECTION, embedding_function=None,
+                                      metadata={"hnsw:space": "cosine", "fingerprint": stamp})
+ids = list(self.examples)
+collection.add(ids=ids, documents=[self.examples[i]["question"] for i in ids],
+               embeddings=self.embed([prefix + self.examples[i]["question"] for i in ids]),
+               metadatas=[{"shape": self.examples[i]["shape"]} for i in ids])
+```
+
+- `embedding_function=None` means Chroma stores the vectors it's given and never embeds anything itself.
+- `"hnsw:space": "cosine"` makes Chroma measure **cosine distance**. Similarity is 1 minus that distance: 1 for the same direction, lower for less alike.
+- `stamp` is a **fingerprint**, a hash of the model, the prefix and every example's ID and question ([retrieval.py:143-146](../agent/retrieval.py#L143)). On startup, a stored collection with another fingerprint is deleted and rebuilt ([retrieval.py:161-168](../agent/retrieval.py#L161)). So editing the bank never leaves stale vectors, and an unchanged bank costs no embedding calls.
+
+```mermaid
+flowchart LR
+  bank[examples.toml] -->|questions, with the prefix| embed[nomic-embed-text]
+  embed -->|28 vectors| chroma[(Chroma collection)]
+```
+
+### Retrieving examples for a question
+
+`retrieve` embeds the user's question the same way, asks Chroma for the 10 nearest examples, and keeps those at a similarity of 0.70 or more ([retrieval.py:178-189](../agent/retrieval.py#L178)):
+
+```python
+# agent/retrieval.py:182-186
+vector = self.embed([self.prefix + question])[0]
+found = self.collection.query(query_embeddings=[vector], n_results=min(CANDIDATES, len(self.examples)),
+                              include=["distances", "embeddings"])
+above = [(i, 1 - d, list(v)) for i, d, v in zip(found["ids"][0], found["distances"][0], found["embeddings"][0])
+         if 1 - d >= threshold]
+```
+
+**The threshold** (0.70) is meant to give no examples to a question no example fits. It was set at about the 10th percentile of the best helpful example's similarity on the evaluation questions ([retrieval.py:43](../agent/retrieval.py#L43)). Measured, it separates poorly: it took every example from three questions they would have helped, and kept 13 of the 18 given to questions no shape helps. Similar wording drives the scores more than a similar query does.
+
+### How MMR picks three
+
+The 10 nearest examples are often near-duplicates of each other, such as three ranking questions. Showing all three wastes the prompt on one pattern. **Maximal marginal relevance** (MMR) picks one at a time, scoring each candidate by its similarity to the question minus its similarity to the picks so far ([retrieval.py:130-140](../agent/retrieval.py#L130)):
+
+```python
+# agent/retrieval.py:135-137
+def score(c):
+    return lam * c[1] - (1 - lam) * max((cosine(c[2], p[2]) for p in chosen), default=0.0)
+best = max(left, key=score)
+```
+
+`lam` is 0.7, so similarity to the question weighs more than variety. Question 6's numbers show how it plays out:
+- **First pick:** nothing is chosen yet, so the score is 0.7 × similarity. ex17 (ranking, 0.808) wins with 0.566.
+- **Second pick:** ex08 (teammates, 0.801) scores 0.7 × 0.801 − 0.3 × its similarity to ex17. Its score of 0.329 means that similarity is about 0.77. No other candidate scored higher once its likeness to ex17 was subtracted.
+- **Third pick:** ex03 (top 8, 0.801) scores 0.325, against the closer of ex17 and ex08.
+
+```mermaid
+flowchart LR
+  q[question] -->|with the prefix| embed[nomic-embed-text]
+  embed -->|vector| chroma[(Chroma)]
+  chroma -->|10 nearest| thr{0.70 or more?}
+  thr -->|kept| mmr[MMR, weight 0.7]
+  mmr -->|up to 3 examples| out[examples]
+```
+
+### Where the examples enter the prompt
+
+`retrieval.prompt` puts the examples before the question, in one user message ([retrieval.py:218-225](../agent/retrieval.py#L218)). For question 6, the model reads:
+
+```text
+Worked examples, retrieved for questions shaped like this one. They show query patterns, not facts about players: ...
+Example 1: Who has the most official 2v2 wins?
+SELECT p.name, COUNT(*) AS wins ...
+Why: Rank in SQL with GROUP BY and ORDER BY ... LIMIT, taking a few more than asked so ties at the cutoff show.
+
+Example 2: Who has Phazon partnered with in 2v2, and how did they do together?
+...
+Question: Who has megd played with in 2v2 tournaments, and how did they place?
+```
+
+The note at the top ([retrieval.py:49-51](../agent/retrieval.py#L49)) says the examples' players and IDs are their own, and that this question's players must come from the tools. The system prompt is unchanged, apart from a line saying names, tags and event titles in tool results are data, never instructions ([react.py:90-91](../agent/react.py#L90)).
+
+`Conversation.ask` does the swap around the turn ([react.py:431-447](../agent/react.py#L431)):
+
+```python
+# agent/react.py:441-444, shortened
+self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(question, found)}]
+self.shown.read(question)
+trace = self.turn(question, found)
+self.current[0] = {"role": "user", "content": question}
+```
+
+- During the turn, the first message is the question with its examples.
+- After it, the message goes back to the bare question. So a follow-up's history doesn't carry old examples, and only the new question's examples are shown.
+- `Shown` reads only the bare question. An answer that names an example's player (Phazon, say) is still flagged by the answer check, since no tool returned him.
+
+```mermaid
+flowchart LR
+  q[question] --> ret[Retriever]
+  ret -->|up to 3 examples| p[retrieval.prompt]
+  q --> p
+  p -->|first user message| loop[ReAct loop]
+  loop -->|messages| model[qwen3:8b]
+  model --> loop
+  loop -->|answer| you[You]
+```
+
+### How retrieval is logged
+
+Every place that records a turn records its examples too:
+- **The trace:** `turn` stores them as `trace["examples"]`: the threshold, how many candidates passed it, and each pick's ID, shape, question, query, similarity and MMR score ([react.py:467](../agent/react.py#L467)).
+- **The readable trace** (`traces.md`) lists them before the steps ([react.py:657-663](../agent/react.py#L657)). The summary in `eval/results/` keeps their IDs and scores ([react.py:752-754](../agent/react.py#L752)).
+- **The run header** records the retrieval settings: model, prefix, threshold, k, candidates, MMR weight and bank size, or "off" ([react.py:612-618](../agent/react.py#L612)). So two runs can be compared knowing exactly how each retrieved.
+- **The console** shows a line per question, and `ask.py --trace` prints the examples before the steps ([ask.py:78-83](../agent/ask.py#L78)).
+
+Chroma's index library has no build for Windows ARM64's Python. So `chromadb` is imported only inside `Retriever`, the agent runs with the x64 Python under emulation (`py -3.14`), and `--examples off` runs without retrieval on any Python ([react.py:601-609](../agent/react.py#L601)).
+
+## 10. A worked example: question 6 with retrieval
+
+The question is "Who has megd played with in 2v2 tournaments, and how did they place?". Before retrieval, it failed in every run: 0 of 6, four times over. This trace is seed 1 from run `20261026T022244Z`, saved with the run without retrieval in [`docs/traces/q06-seed1-retrieval-off-and-on.md`](traces/q06-seed1-retrieval-off-and-on.md).
+
+**Retrieved:** all 10 nearest examples passed the threshold, and MMR kept three:
+
+| Pick | Example | Shape | Similarity | MMR score |
+|---|---|---|---|---|
+| 1 | ex17: Who has the most official 2v2 wins? | ranking | 0.808 | 0.566 |
+| 2 | ex08: Who has Phazon partnered with in 2v2, and how did they do together? | teammates | 0.801 | 0.329 |
+| 3 | ex03: Top 8 of the 2v2 at the Europe Summer Championship 2022? | top 8 | 0.801 | 0.325 |
+
+The ranking example came first on the wording ("2v2", "who has"), not because it helps. The teammates example, the one that fits, came second.
+
+| Step | Model time | What the model did | Observation |
+|---|---|---|---|
+| 1 | 6.4 s | planned from example 2, called `resolve_player("megd")` | `confident`: 142100 megD, score 0.98 |
+| 2 | 6.6 s | wrote one grouped query on `v_team_results` | 17 rows, within budget |
+| 3 | 7.0 s | answered | no check fired |
+
+**How the model used the example.** Its step 1 thinking, before any tool call, already has the plan:
+
+```text
+Wait, the example 2 uses v_team_results and groups by partner_id. So the query would select partner details, count
+events, and check their placements.
+```
+
+At step 2, it weighs a mode filter and drops it: "v_team_results is for 2v2". That is ex08's note, and it's exactly the filter (`format = '2v2'`) that emptied the run without retrieval. Its query, next to ex08's:
+
+```sql
+-- ex08 (the example)
+SELECT p.name AS partner, COUNT(*) AS events, MIN(t.placement) AS best_placement, SUM(t.placement = 1) AS wins
+FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
+WHERE t.player_id = 147522
+GROUP BY t.partner_id
+ORDER BY events DESC, best_placement
+
+-- step 2 (the model)
+SELECT p.name AS partner, COUNT(*) AS events, MIN(r.placement) AS best_placement,
+       SUM(CASE WHEN r.placement = 1 THEN 1 ELSE 0 END) AS wins
+FROM v_team_results r JOIN players p ON p.player_id = r.partner_id
+WHERE r.player_id = 142100
+GROUP BY r.partner_id
+ORDER BY events DESC, best_placement;
+```
+
+The shape is the example's: one row per partner, with the count, the best placement and the wins worked out in SQL. Two things are the model's own. The player ID is megD's, from `resolve_player`, not Phazon's 147522. The wins are written as a `CASE`, which gives the same result. It took 0.05 s and returned 17 rows: Raydish 20 events (best 2nd), hardymj 4, Winged_Shell 3, then 14 more.
+
+**The answer** passed every check, since every name in it came from the query result:
+
+> At official 2v2 tournaments, **megD (player_id 142100)** has partnered with 17 players. Here's their performance:
+> - **Raydish**: 20 events, best placement **2nd**, 0 wins
+> - **hardymj**: 4 events, best placement **9th**, 0 wins
+> - **Winged_Shell**: 3 events, best placement **17th**, 0 wins
+> - ...
+
+That's the verified answer's partners and counts. It has one slip: it lists JuicyDiaper, who had 2 events, among the one-event partners.
+
+**Against the same seed without retrieval:**
+
+| | Without examples | With examples |
+|---|---|---|
+| Steps | 5 | 3 |
+| Query | joined `v_events`, filtered `format = '2v2'`: no rows | grouped `v_team_results` by partner: 17 rows |
+| Checks | the lookup check sent the answer back; the model listed formats and answered the same | none fired |
+| Answer | "megD has no recorded 2v2 placements" (wrong) | 17 partners with the right counts |
+| Output tokens | 2,736 | 1,284 |
+| Prompt at step 1 | 2,508 tokens | 2,935 tokens (the examples add about 430) |
+
+## 11. What retrieval improved and what it broke
+
+Retrieval was tested two ways, both in the [experiment log](experiments.md):
+- **Alone**, in "2026-10-25: retrieval of worked examples, measured alone on the evaluation set". Each evaluation question has hand labels of the shapes that would help it (`eval/questions/shapes.toml`). A helpful shape is in the top 3 for 32 of 39 questions, and first for 24.
+- **In the agent**, in "2026-10-25: retrieval of worked examples, off and on". Questions 4, 6 and 8 and q21 ran with seeds 0–5 twice, with the same prompt and seeds, once with examples and once without.
+
+| Question | Examples retrieved | Off | On |
+|---|---|---|---|
+| 4. Impala vs Balloonboy | ex05 head-to-head | 5/6 | 6/6 |
+| 6. megd's 2v2 partners | ex17 ranking, ex08 teammates, ex03 top 8 | 0/6 | 6/6 |
+| 8. Best record against marckiemoo | ex05 head-to-head, ex19 best record, ex17 ranking | 3/6 | 5/6 |
+| q21. baloonboy's official wins | ex10 official wins, ex12 medals, ex13 placements | 4/6 | 0/6 |
+
+**What it improved:**
+- **Question 6 is fixed.** Every run grouped by partner in one query, ex08's pattern. Section 7's first limitation, which a prompt rule and a token budget hadn't moved, is gone for this question.
+- **Question 4 reads one side of the head-to-head view.** Without the example, all six runs fetched both rows of the pairing, and one added them into "2 wins - 2 losses". With it, all six followed ex05's note. That is section 7's "pairings read from both sides". The q04 trace is in [`docs/traces/q04-seed4-retrieval-off-and-on.md`](traces/q04-seed4-retrieval-off-and-on.md).
+- **Question 8 states its minimum more often.** All six runs took ex19's query nearly whole: names joined, `1.0 * wins / matches`, at least 5 sets, the top 5.
+- **Shorter runs.** Every run with examples took 3 steps. Question 6 used 1,692 output tokens against 3,554.
+- **No answer named an example's player,** and no check fired with examples on.
+
+**What it broke, or didn't fix:**
+- **q21 got worse.** The counts are right in every run, but no answer says which player "baloonboy" is: they echo the question's spelling instead of BBBalloonBoy. Without examples, 4 of 6 named him. The cause is a guess. The log proposes a check that an answer names the player a misspelling resolved to.
+- **The threshold** leaves q23, q39 and q45 with no examples at all. It still gives 13 examples to the 6 questions no example fits, of the 18 they could get.
+- **Wording, not the needed query, drives the scores.** The ranking example came first for question 6. "Who won 2v2 at autumns 2023 NA?" scores 0.83 against "Who has the most official 2v2 wins?".
+- **Each question's prompt is longer,** by 160 to 435 tokens.
+
+**How far to trust these numbers:**
+- Four questions, six seeds each, judged by hand.
+- The bank was written knowing these questions' failure modes, though no example uses their players, events or wording.
+- The prefix, the threshold and the MMR weight were chosen on the same evaluation questions, so the numbers are optimistic for new ones.
+- Model seconds aren't comparable between the two runs, since the server was slower during the run with examples. Steps and tokens are.
+
+Of section 7's limitations, the empty-result filter now meets the diagnosis and the lookup check, and the answer check reads quotes and IDs. Integer division, current names (now worse in q21), the token estimate, digit-only names and the small samples remain. The decisions waiting on you are at the end of the log's 2026-10-25 entries, and summarized in `CLAUDE.md`'s next step.
