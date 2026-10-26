@@ -104,7 +104,34 @@ class ConversationTest(Fixture):
     def test_without_a_retriever_the_question_goes_alone(self):
         ask = Scripted(reply("Glad to help."))
         trace = react.run("thanks", react.Tools(self.path), ask=ask, log=lambda *_: None)
-        self.assertEqual((ask.sent[0][-1]["content"], trace["examples"]), ("thanks", None))
+        self.assertEqual((ask.sent[0][-1]["content"], trace["examples"], react.summary(trace)["examples"]), ("thanks", None, None))
+
+    def test_every_trace_logs_the_retrieved_examples_and_their_scores(self):
+        shown = {**example("ex08", "Who has Phazon partnered with in 2v2?", "teammates"), "similarity": 0.8, "mmr": 0.56}
+        seen = []
+        conversation = react.Conversation(react.Tools(self.path), ask=Scripted(reply("Glad to help.")), log=lambda *_: None,
+                                          retriever=FakeRetriever(shown), on_examples=seen.append)
+        trace = {"number": 6, **conversation.ask("thanks")}
+        self.assertEqual(seen, [trace["examples"]])  # as the question starts, for ask.py --trace
+        self.assertEqual(react.summary(trace)["examples"], {"threshold": 0.7, "candidates": 1, "examples": [
+            {"id": "ex08", "shape": "teammates", "similarity": 0.8, "mmr": 0.56}]})
+        header = {"run": "R", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "x",
+                  "snapshot": {"file": "f", "build_id": "b"}}
+        page = react.markdown([trace], header)
+        self.assertIn("**Retrieved examples** (1 of the 10 most similar at 0.7 or more; similarity, then MMR score):\n\n"
+                      "- ex08 teammates, 0.800, 0.560: Who has Phazon partnered with in 2v2?", page)
+        empty = {"number": 6, **react.Conversation(react.Tools(self.path), ask=Scripted(reply("Glad to help.")),
+                                                   log=lambda *_: None, retriever=FakeRetriever()).ask("thanks")}
+        self.assertIn("**Retrieved examples** (0 of the 10 most similar at 0.7 or more; similarity, then MMR score):\n\n- none",
+                      react.markdown([empty], header))
+
+    def test_ask_trace_prints_the_examples_before_the_steps(self):
+        import ask
+        found = {"threshold": 0.7, "candidates": 1,
+                 "examples": [{**example("ex08", "Who has Phazon partnered with?", "teammates"), "similarity": 0.8, "mmr": 0.56}]}
+        self.assertEqual(ask.example_lines(found), ["Examples (similarity, MMR score):",
+                                                    "  ex08 teammates 0.800, 0.560: Who has Phazon partnered with?"])
+        self.assertEqual(ask.example_lines({**found, "examples": []}), ["Examples: none at 0.7 or more"])
 
 
 class BankTest(unittest.TestCase):

@@ -75,6 +75,14 @@ def observed(text, rows=5, width=150):
     return [react.short(line, width) for line in lines]
 
 
+def example_lines(found):
+    """The examples retrieved for a question, as --trace prints them before its steps."""
+    if not found["examples"]:
+        return [f"Examples: none at {found['threshold']} or more"]
+    return ["Examples (similarity, MMR score):"] + [f"  {e['id']} {e['shape']} {e['similarity']:.3f}, {e['mmr']:.3f}:"
+                                                    f" {e['question']}" for e in found["examples"]]
+
+
 def step_lines(step):
     """A step as --trace prints it: the thought in short, each tool call with its observation, any answer check."""
     lines = [f"Step {step['step']} ({step['seconds']:.1f} s): {thought(step['thinking'])}"]
@@ -176,8 +184,9 @@ def main(argv=None, read=input, out=print):
     out("Loading the players' names...")
     retriever = react.retriever_or_exit(args.examples == "on", parser.error)
     show = (lambda step: [out(line) for line in step_lines(step)]) if args.trace else None
+    retrieved = (lambda found: [out(line) for line in example_lines(found)]) if args.trace else None
     conversation = react.Conversation(react.Tools(), log=lambda *_: None, on_step=show, retriever=retriever,
-                                      model=react.MODEL, think=True, seed=args.seed)
+                                      on_examples=retrieved, model=react.MODEL, think=True, seed=args.seed)
     session = Session(conversation, SESSIONS / start, header)
     if args.question:
         report(session.ask(" ".join(args.question)), out)

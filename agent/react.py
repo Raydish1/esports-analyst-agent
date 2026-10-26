@@ -414,9 +414,10 @@ class Conversation:
       shown, so an example's player in an answer is still flagged.
     on_step, if given, gets each step as it finishes."""
 
-    def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, **model):
+    def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, on_examples=None,
+                 **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
-        self.retriever = retriever
+        self.retriever, self.on_examples = retriever, on_examples
         self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
@@ -430,6 +431,11 @@ class Conversation:
         if self.previous:
             self.earlier += [self.previous[0], self.previous[-1]]
         found = self.retriever.retrieve(question) if self.retriever else None
+        if found is not None:
+            self.log("  examples: " + (", ".join(f"{e['id']} {e['shape']} {e['similarity']:.2f}" for e in found["examples"])
+                                       or f"none at {found['threshold']} or more"))
+            if self.on_examples:
+                self.on_examples(found)
         self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(question, found)}]
         self.shown.read(question)
         trace = self.turn(question, found)
@@ -646,6 +652,13 @@ def markdown(traces, header):
                  else f"{t['turn']}. {t['question']}" if t.get("turn") else t["question"])
         out += [f"## {title}", "", f"**Outcome:** {t['outcome']}, {t['steps_used']} steps, {t['model_seconds']} s of model"
                 f" time, {t['output_tokens']:,} output tokens, largest context {t['largest_context']:,} tokens.", ""]
+        found = t.get("examples")
+        if found:
+            out += [f"**Retrieved examples** ({found['candidates']} of the {retrieval.CANDIDATES} most similar at"
+                    f" {found['threshold']} or more; similarity, then MMR score):", ""]
+            out += [f"- {e['id']} {e['shape']}, {e['similarity']:.3f}, {e['mmr']:.3f}: {e['question']}"
+                    for e in found["examples"]] or ["- none"]
+            out.append("")
         for s in t["steps"]:
             out += [f"### Step {s['step']}", "", f"{s['seconds']} s; prompt {s['prompt_tokens']} tokens ({s['cached_tokens']}"
                     f" cached), output {s['output_tokens']}; done: {s['done_reason']}.", "", "**Thinking**", "",
@@ -734,8 +747,11 @@ def summary(trace):
     sizes = [{"step": s["step"], "action": s["size_check"]["action"]} for s in trace["steps"] if s.get("size_check")]
     lookups = [{"step": s["step"], "conditions": s["lookup_check"]["conditions"], "action": s["lookup_check"]["action"]}
                for s in trace["steps"] if s.get("lookup_check")]
-    return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks, "size_checks": sizes,
-            "lookup_checks": lookups, "no_tool_checks": told}
+    found = trace.get("examples")
+    examples = found and {"threshold": found["threshold"], "candidates": found["candidates"],
+                          "examples": [{k: e[k] for k in ("id", "shape", "similarity", "mmr")} for e in found["examples"]]}
+    return {**{k: trace.get(k) for k in keep}, "examples": examples, "tool_calls": calls, "answer_checks": checks,
+            "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told}
 
 
 def main():
