@@ -2,6 +2,82 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-10-25: the decisions on the lookup run, on q21, q22 and the Worlds follow-ups, seeds 0–5
+
+**Question:** with the user's five decisions on the 2026-10-23 run built, are the misspelling questions answered or asked as the verified set accepts? Does the Worlds follow-up from that run's session get the right answer now?
+
+**Setup:** as in the entry below, with commits 45905ba to 7e9f65e.
+- **q22's accept list** takes suggestions with Marckiem00 first. Near-misses of curated nicknames stay below the confident threshold.
+- **The prompt:**
+  - the "say what you relaxed" rule covers only conditions from the question, and the model fixes its own wrong filters;
+  - the scope names a mode only when the query was limited to one;
+  - the diagnosis line asks for event IDs from `resolve_event` as well as player IDs.
+- **The answer check reads quoted names.** Replayed on the 76 answers of every earlier run and session, it flags exactly one more: question 6's uncaught "Kappa (hypothetical example)".
+- **`resolve_event`, a third tool.** A mode word narrows the events, and the rest matches, in tiers.
+  - The tiers: a curated alias ('bcx 2022', score 1.0), a series of yearly aliases ('worlds', 0.95), every word with years and curated terms ('winters 2023 na', 0.9), or some of the words (0.85 times the share).
+  - The result has a sql condition on event_id: the IDs, or a subquery on the aliases for a big alias set.
+  - Before the run, on eval-v1: 14 of the evaluation set's 15 event phrases resolve to exactly their expected events. 'ceo dreamland 2020' is ambiguous by design: the cancelled event first, then the online one, which q30's answer also names.
+- **The lookup check:** an answer right after an empty result whose diagnosis finds no row with a text value the query filters on goes back once. Any other empty result can be a true "none".
+  - Replayed before the run on the 9 distinct empty queries of the earlier runs and sessions, it flags 6: five filters on 2v2 as a format, and the session's `event_name LIKE '%worlds%'`.
+  - It misses two 2v2 filters inside a subquery (`event_id IN (SELECT ... format = '2v2')`), whose conditions the diagnosis can't test. It rightly leaves out question 8's `total_matches >= 5`, a count.
+  - The value is now checked in the column's own table when the query names it. Through the join, the session's probe took 1.6 s warm and ran out of time cold.
+- **Runs:**
+  - q21 and q22 with seeds 0–5: run `20261026T004543Z`, 12 runs.
+  - Six sessions, one per seed (`ask.py --seed N`), each asking q22, then "the first one", then "has Raydish won Worlds": 18 turns. No earlier session asked about Raydish; the third turn adds that question to the follow-up.
+- **Judging:** by hand, against the verified evaluation set for q21 and q22, and against eval-v1 for the follow-ups:
+  - "the first one": yes, Marckiem00 won the 1v1 at BCX 2025 (worlds 2025);
+  - "has Raydish won Worlds": no. His best is 3rd in the 1v1 at BCX 2025, then 4th in the 2v2 at BCX 2023 with megD.
+
+**Results**, with the run below:
+
+| Question | Lookup changes (2026-10-23): answer | Decisions (2026-10-25): answer |
+|---|---|---|
+| q21. baloonboy's official wins | 3/6 | 5/6 |
+| q22. did markiemoo win worlds | 0/6 (all six asked, Marckiem00 first) | 6/6: all six asked, Marckiem00 first, now accepted |
+| Follow-up: "the first one" | 0/1 (seed 0: "never won Worlds") | 6/6 |
+| Follow-up: "has Raydish won Worlds" | not asked | 5/6 |
+
+| Seed | q21 | q22 | "the first one" | "has Raydish won Worlds" |
+|---|---|---|---|---|
+| 0 | ✓ | ✓ asked | ✓, but adds that the win "would occur in the future relative to the current date (2023)" | ✓ |
+| 1 | ✓ | ✓ asked | ✓, from a count: doesn't say which event | ✓ |
+| 2 | ✗ "Baloonboy (player_id 149305)": never names BBBalloonBoy | ✓ asked | ✓, but adds an invented "record of 1-0" | ✗ no tool call: "couldn't find Raydish", with invented suggestions |
+| 3 | ✓ | ✓ asked | ✓ | ✓ |
+| 4 | ✓ spelled "BBalloonBoy" | ✓ asked | ✓ | ✓ |
+| 5 | ✓ spelled "BBalloonBoy" | ✓ asked | ✓ | ✓ |
+
+**What the changes did:**
+- **`resolve_event` fixed the follow-up.** In all six sessions, "the first one" called `resolve_event("worlds")`, got the 34 Worlds events (confident), and pasted its sql condition into the query. All six found the BCX 2025 1v1 win, where the 2026-10-23 session searched `event_name` with LIKE and answered "never won Worlds".
+  - In turn 3, four runs reused the condition from turn 2, and seed 4 resolved "worlds" again.
+- **The scope example:** no q21 answer called the 7 wins "1v1", against 2 of 6 before (6 runs, so the change is inferred from the prompt).
+- **"None" stood where it was true.** Four Raydish queries came back empty, rightly, since he has no Worlds wins. Their diagnoses named no missing text value, so the lookup check let the answers stand, and all four were right.
+- **No check fired:** no lookup, answer or size check in the 12 runs or the 18 turns. No query searched names with LIKE.
+
+**New:**
+- **An answer with no tool call** (seed 2, turn 3). Its thinking imagined the lookup: "The tool returns that there's no player named Raydish. The closest names are Marckiem00, Markled, and Arklem."
+  - It then copied turn 1's suggestion format, with player IDs 12345 for Markled and 67890 for Arklem, which are other real players (Hippo and mely).
+  - The answer check couldn't catch it: the three names were returned in turn 1, and the check doesn't read IDs.
+- **False asides** in two answers to "the first one": seed 0's "future relative to the current date (2023)", and seed 2's "record of 1-0 in the tournament" and "Challengers Mode bracket".
+- **The Raydish answers stop at "no".** None gives his best Worlds result, 3rd in the 1v1 at BCX 2025. The question doesn't ask for it.
+
+**What didn't change:** q21 spells BBBalloonBoy "BBalloonBoy" twice, and once doesn't name him, as in the run below.
+
+**Time:** q21 took 10.9 s of model time in 3 steps (means), and q22 3.8 s in 1. The session's turns took 4.2, 12.3 and 11.4 s, in 1, 3 and 2.8 steps.
+- The server ran at a median of 102 output tokens per second of step time, against 92 in the run below.
+- The largest context was 7,518 tokens.
+
+**Caveats:**
+- Two questions and one three-turn session, six seeds each.
+- The follow-ups aren't in the evaluation set: their expected answers were computed from eval-v1 for this entry.
+- These questions exercised only `resolve_event`'s series tier and never triggered the lookup check, so the other tiers rest on the offline check above.
+- The prompt changed, so a seed doesn't sample as in the run below. The answers were judged by hand.
+
+**For the agent** (proposals; the decisions are the user's):
+- **An ID check:** an answer citing a player_id no tool returned goes back, as the answer check does for names. It would have caught seed 2's 12345 and 67890.
+- **Suggestions in the history:** they're stored as the assistant's reply, which seed 2 copied. Recording them as the agent's question to the user might make them less tempting to copy (guess).
+- **The event questions:** a run of the evaluation set's event questions (q10, q13 to q20, q24, q28 to q32, q41) would exercise `resolve_event`'s other tiers in the agent, and the lookup check where a model still writes a wrong filter.
+- Still waiting from the entries below: question 6's aggregation, `v_team_results` holding only 2v2, SQLite's integer division, current names, and the minimum number of matches.
+
 ## 2026-10-23: the lookup changes on questions 4, 6 and 8, q21 and q22, seeds 0–5
 
 **Question:** Checkpoint 2's feedback asked for three changes to how the agent handles failed lookups. Do they work, and do the answers that were right stay right? How do the match scores behave on the evaluation set's two misspelling questions?

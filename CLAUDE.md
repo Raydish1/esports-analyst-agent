@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-23)
+## Project status (2026-10-25)
 **Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
 - The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
@@ -53,6 +53,11 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - q22 asked the user in all six runs, with the right player first, but its verified answer expects an answer: the threshold, or q22's accept list, is for the user to decide.
   - The diagnosis fired twice, on question 6's `format = '2v2'`, and both runs recovered all 46 rows. In a live session, though, the model answered "never won Worlds" from an empty result the diagnosis had explained.
   - The log proposes the next steps.
+- Decided (2026-10-23), and built through commit 7e9f65e: q22 accepts suggestions with Marckiem00 first; the relax rule covers only the question's conditions; the scope names a mode only when the query has one; the answer check reads quoted names; a third tool, `resolve_event`; the lookup check; `ask.py --seed`.
+- Those decisions on q21 and q22 and a three-turn Worlds follow-up (q22, "the first one", "has Raydish won Worlds"), seeds 0–5 (2026-10-25, in the log): q21 right in 5 of 6, q22 in 6 of 6 (asked, now accepted), and the follow-ups in 6 and 5 of 6.
+  - `resolve_event("worlds")` fixed the follow-up in every session, and no query searched names with LIKE.
+  - No check fired. Empty results for Raydish's Worlds wins stood as a true "none", rightly.
+  - One run answered without calling a tool, copying the suggestion format with invented player IDs. The log proposes an ID check.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -234,9 +239,9 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19 and 2026-10-23 entries:
-- q22: accept suggestions with the right player first, or make some similar spellings confident;
-- sending back an answer that comes right after an empty result, and a prompt line on event aliases;
+Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19, 2026-10-23 and 2026-10-25 entries:
+- an ID check: an answer citing a player_id no tool returned goes back;
+- a run of the evaluation set's event questions, for `resolve_event`'s other tiers and the lookup check;
 - the prompt lines on `v_team_results` (only 2v2) and integer division;
 - current names, and the minimum number of matches;
 - how to get question 6 aggregated (an example in the prompt, a check, or a larger model). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
