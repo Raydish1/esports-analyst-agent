@@ -131,7 +131,7 @@ class SessionTest(Fixture):
         with patch.object(ask, "load_env", lambda: None), patch.object(react, "run_header", header), \
                 patch.object(react, "Tools", lambda: None), patch.object(react, "Conversation", Recorder), \
                 patch.object(ask, "SESSIONS", Path(self.tmp.name) / "sessions"), patch.object(react, "ROOT", Path(self.tmp.name)):
-            ask.main(["--seed", "3", "Who", "is", "megd?"], out=out.append)
+            ask.main(["--seed", "3", "--examples", "off", "Who", "is", "megd?"], out=out.append)
         self.assertEqual((seen["seed"], seen["header seeds"]), (3, [3]))
         self.assertIn("Done.", out)
         transcript = next((Path(self.tmp.name) / "sessions").glob("*.md")).read_text(encoding="utf-8")

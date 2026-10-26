@@ -1,10 +1,14 @@
 """Ask the agent a question yourself: the ReAct prototype of agent/react.py, with its model (qwen3:8b, thinking on,
-seed 0 unless --seed says otherwise), tools and prompt. The Ollama server's address is OLLAMA_BASE_URL in .env.
+seed 0 unless --seed says otherwise), tools, prompt and retrieved examples (agent/retrieval.py). The Ollama server's
+address is OLLAMA_BASE_URL in .env.
 
-    python agent/ask.py "Who has megd played with in 2v2 tournaments?"    one question: prints the answer
-    python agent/ask.py --trace "..."                                      also prints each step as it finishes
-    python agent/ask.py --seed 3 "..."                                     another sampling seed
-    python agent/ask.py                                                    a session: questions one after another
+    py -3.14 agent/ask.py "Who has megd played with in 2v2 tournaments?"  one question: prints the answer
+    py -3.14 agent/ask.py --trace "..."                                    also prints each step as it finishes
+    py -3.14 agent/ask.py --seed 3 "..."                                   another sampling seed
+    py -3.14 agent/ask.py                                                  a session: questions one after another
+    python agent/ask.py --examples off "..."                               without examples, on any Python
+
+Retrieval needs chromadb, which this machine's ARM64 Python can't install, so it runs under the x64 Python 3.14.
 
 In a session, a follow-up builds on what came before ("now only 2v2"). The conversation keeps every question and
 answer, and the previous question's tool calls and observations in full (react.Conversation). "exit" ends it.
@@ -157,19 +161,23 @@ def main(argv=None, read=input, out=print):
     parser.add_argument("--trace", action="store_true", help="also print each step: its thinking in short, its tool"
                                                              " calls and their observations")
     parser.add_argument("--seed", type=int, default=0, help="the sampling seed (default: 0, as react.py's)")
+    parser.add_argument("--examples", choices=["on", "off"], default="on", help="retrieve worked examples for each"
+                                                                                " question (default: on; needs chromadb)")
     args = parser.parse_args(argv)
     load_env()
     start = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     try:
-        header = react.run_header(start, seeds=[args.seed], title=f"Agent session {start}")
+        header = react.run_header(start, seeds=[args.seed], title=f"Agent session {start}",
+                                  examples=react.examples_header(args.examples == "on"))
     except KeyError:
         sys.exit("OLLAMA_BASE_URL isn't set: add it to .env (see .env.example).")
     except (urllib.error.URLError, TimeoutError) as e:
         sys.exit(f"The Ollama server at {os.environ['OLLAMA_BASE_URL']} isn't reachable: {e}")
     out("Loading the players' names...")
+    retriever = react.retriever_or_exit(args.examples == "on", parser.error)
     show = (lambda step: [out(line) for line in step_lines(step)]) if args.trace else None
-    conversation = react.Conversation(react.Tools(), log=lambda *_: None, on_step=show, model=react.MODEL, think=True,
-                                      seed=args.seed)
+    conversation = react.Conversation(react.Tools(), log=lambda *_: None, on_step=show, retriever=retriever,
+                                      model=react.MODEL, think=True, seed=args.seed)
     session = Session(conversation, SESSIONS / start, header)
     if args.question:
         report(session.ask(" ".join(args.question)), out)

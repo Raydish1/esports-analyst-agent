@@ -42,6 +42,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
+import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
 from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, run_sql  # noqa: E402
 
@@ -408,10 +409,14 @@ class Conversation:
     - Older ones keep only their question and answer, which keeps the context bounded.
     - Suggestions stay as the question the agent asked the user (clarifying), not as an answer.
     - The answer check counts everything the conversation has shown.
+    - With a retriever (retrieval.Retriever), each question goes to the model with the worked examples it retrieves
+      (retrieval.prompt), and the history keeps the bare question. The examples aren't what the conversation has
+      shown, so an example's player in an answer is still flagged.
     on_step, if given, gets each step as it finishes."""
 
-    def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, **model):
+    def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
+        self.retriever = retriever
         self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
@@ -424,15 +429,18 @@ class Conversation:
         """Answer a question (turn), and keep it in the conversation with its answer."""
         if self.previous:
             self.earlier += [self.previous[0], self.previous[-1]]
-        self.previous, self.current = self.current, [{"role": "user", "content": question}]
+        found = self.retriever.retrieve(question) if self.retriever else None
+        self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(question, found)}]
         self.shown.read(question)
-        trace = self.turn(question)
+        trace = self.turn(question, found)
+        self.current[0] = {"role": "user", "content": question}
         content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
         self.current.append({"role": "assistant", "content": content})
         return trace
 
-    def turn(self, question):
-        """One question's steps. The trace: each step's thinking, reply and tool calls with their observations, and
+    def turn(self, question, examples=None):
+        """One question's steps. The trace: the examples retrieved for it (retrieval.Retriever.retrieve, or None
+        without retrieval), each step's thinking, reply and tool calls with their observations, and
         any checks; then the answer, the outcome ('answered', 'step limit', ...), the names and player IDs in the answer
         that no tool returned, and whether it came right after a result too large to show or a lookup miss, or without
         a tool call. Four checks can send an answer back:
@@ -448,7 +456,7 @@ class Conversation:
         The answer that comes back counts either way. A name from the question that resolve_player matches only below
         CONFIDENT ends the turn instead: the user gets its top three candidates as suggestions (outcome
         'suggestions')."""
-        trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
+        trace = {"question": question, "examples": examples, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
                  "unreturned_ids": [], "answered_after_too_big": False, "answered_after_lookup_miss": False,
                  "answered_without_tools": False}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
@@ -577,9 +585,29 @@ class Conversation:
             self.on_step(step)
 
 
-def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, **model):
+def run(question, tools, ask=chat, max_steps=MAX_STEPS, log=print, retriever=None, **model):
     """Answer one question in a conversation of its own (Conversation.turn has the trace)."""
-    return Conversation(tools, ask, max_steps, log, **model).ask(question)
+    return Conversation(tools, ask, max_steps, log, retriever=retriever, **model).ask(question)
+
+
+def retriever_or_exit(on, fail):
+    """The example retriever when examples are on, or None; fail(message) when chromadb can't be imported."""
+    if not on:
+        return None
+    try:
+        return retrieval.Retriever()
+    except ImportError:
+        fail("Retrieval needs chromadb, which has no build for Windows ARM64's Python (its index library,"
+             " chroma-hnswlib). Run with the x64 Python (py -3.14), or pass --examples off.")
+
+
+def examples_header(on):
+    """How a run retrieved examples, for its header."""
+    if not on:
+        return "off"
+    return {"model": retrieval.EMBED_MODEL, "prefix": retrieval.PREFIX, "threshold": retrieval.THRESHOLD,
+            "k": retrieval.K, "candidates": retrieval.CANDIDATES, "lambda": retrieval.LAMBDA,
+            "bank": len(retrieval.load())}
 
 
 def short(text, width):
@@ -589,8 +617,9 @@ def short(text, width):
 
 # Writing the traces
 
-def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None):
-    """What a run or a session was made with: the model and its server, the options, the snapshot."""
+def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None, examples="off"):
+    """What a run or a session was made with: the model and its server, the options, the snapshot, and how it
+    retrieved examples (examples_header)."""
     snapshot = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     build = dict(snapshot.execute("SELECT key, value FROM build_info WHERE key IN ('build_id', 'code_commit')"))
     snapshot.close()
@@ -599,7 +628,8 @@ def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS,
             "ollama": ollama("/api/version")["version"], "model": model,
             "variant": " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)),
             "think": think, "seeds": list(seeds), "options": OPTIONS, "max_steps": max_steps, "sql_seconds": SQL_SECONDS,
-            "token_budget": TOKEN_BUDGET, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}}
+            "token_budget": TOKEN_BUDGET, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build},
+            "retrieval": examples}
 
 
 def markdown(traces, header):
@@ -721,6 +751,8 @@ def main():
     parser.add_argument("--seed", action="append", type=int, help="a sampling seed (repeatable: each question is asked"
                                                                   " once per seed; default: 0)")
     parser.add_argument("--max-steps", type=int, default=MAX_STEPS, help=f"model replies per question (default: {MAX_STEPS})")
+    parser.add_argument("--examples", choices=["on", "off"], default="on", help="retrieve worked examples for each"
+                                                                                " question (default: on; needs chromadb)")
     args = parser.parse_args()
     from target_questions import QUESTIONS  # in ingest/, on the path
     targets = {number: text for number, text, _, _ in QUESTIONS}
@@ -732,16 +764,19 @@ def main():
     asked = ([(n, targets[n]) for n in args.target or []] + [(i, evaluation[i]) for i in args.eval or []]
              + [(None, q) for q in args.question])
     load_env()
+    retriever = retriever_or_exit(args.examples == "on", parser.error)
     run_id, seeds = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), args.seed or [0]
-    header = run_header(run_id, args.model, args.think == "on", seeds, args.max_steps)
-    print(f"Run {run_id}: {args.model}, thinking {args.think}, seeds {seeds}, at most {args.max_steps} steps;"
-          f" Ollama {header['ollama']}; snapshot build {header['snapshot'].get('build_id')}")
+    header = run_header(run_id, args.model, args.think == "on", seeds, args.max_steps,
+                        examples=examples_header(args.examples == "on"))
+    print(f"Run {run_id}: {args.model}, thinking {args.think}, seeds {seeds}, at most {args.max_steps} steps,"
+          f" examples {args.examples}; Ollama {header['ollama']}; snapshot build {header['snapshot'].get('build_id')}")
     tools = Tools()
     traces = []
     for seed in seeds:
         for number, question in asked:
             print(f"\n{label(number) + ', ' if number else ''}seed {seed}: {question}")
-            trace = run(question, tools, max_steps=args.max_steps, model=args.model, think=header["think"], seed=seed)
+            trace = run(question, tools, max_steps=args.max_steps, retriever=retriever, model=args.model,
+                        think=header["think"], seed=seed)
             traces.append({"number": number, "seed": seed, **trace})
     out = RAW / run_id
     out.mkdir(parents=True, exist_ok=True)
