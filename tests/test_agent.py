@@ -283,6 +283,23 @@ class AnswerCheckTest(Fixture):
         self.assertEqual(spans, ["megD", "Kappa", "Ultra", "Flowers"])
         self.assertEqual(set(react.name_spans("Don't count 'em: no row has format = '2v2'.")), {"2v2"})
 
+    def test_player_ids_are_found_after_id_words_and_alone_in_bold_or_parentheses(self):
+        self.assertEqual(react.cited_ids("Markled (player_id 12345), player ID 67890, Partner ID: 5, Player-ID=71736,"
+                                         " **160000** and Impala (168635)"), [12345, 67890, 5, 71736, 160000, 168635])
+        self.assertEqual(react.cited_ids("event_id 3, match ID 51261728, BCX (2025), **2025**, 3-2 and 7th"), [])
+
+    def test_an_answer_citing_a_player_id_neither_a_tool_nor_the_question_showed_is_flagged(self):
+        shown = self.shown()  # Marckiem00 (4) from the resolver, and a query result with 3
+        shown.read("And player 71736?")
+        self.assertEqual(shown.unreturned_ids("Marckiem00 (player_id 4) beat player_id 3, player_id 71736 and"
+                                              " player_id 12345."), [12345])
+
+    def test_facts_are_named_players_cited_ids_and_numbers_but_not_formats(self):
+        shown = self.shown()
+        self.assertEqual(shown.facts("**Raydish** (player_id 11) won 6 of 7 in 2v2, and Marckiem00 2."),
+                         {"players": ["Marckiem00", "Raydish"], "player IDs": ["11"], "numbers": ["11", "6", "7", "2"]})
+        self.assertEqual(shown.facts("Glad to help, in 1v1 or 2v2."), {})
+
     def test_a_quoted_name_no_tool_returned_is_flagged_unless_the_conversation_showed_it(self):
         shown = self.shown()
         self.assertEqual(shown.unreturned('Partner 3 is a player named "Flowers" (hypothetical example).'), {"Flowers": [5, 6]})
@@ -356,6 +373,38 @@ class LoopTest(Fixture):
         self.assertIn("it names 'tike36', which no tool returned", message["content"])
         self.assertNotIn(react.LAST_STEP, message["content"])
 
+    def test_an_answer_citing_a_player_id_no_tool_returned_goes_back_once(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]),
+                       reply("His rival Markled is player_id 12345."), reply("Marckiem00 is player_id 4."))
+        trace = react.run("Who is marckiemoo's rival?", self.tools, ask=ask, log=lambda *_: None)
+        check = trace["steps"][1]["answer_check"]
+        self.assertEqual((check["names"], check["ids"], check["action"]), ({}, [12345], "sent back"))
+        self.assertIn("it cites player_id 12345, which no tool returned", ask.sent[2][-1]["content"])
+        self.assertEqual((trace["answer"], trace["unreturned_ids"]), ("Marckiem00 is player_id 4.", []))
+
+    def test_an_answer_stating_facts_without_a_tool_call_goes_back_once(self):
+        ask = Scripted(reply("Raydish has 6 official wins."), reply(calls=[("resolve_player", {"name": "raydish"})]),
+                       reply("Raydish has 6 official results."))
+        trace = react.run("how many wins has raydish?", self.tools, ask=ask, log=lambda *_: None)
+        told = trace["steps"][0]["no_tool_check"]
+        self.assertEqual((told["facts"], told["action"]), ({"numbers": ["6"]}, "sent back"))
+        self.assertIn("no tool was called for this question, yet the answer states numbers (6).", ask.sent[1][-1]["content"])
+        self.assertEqual((trace["answer"], trace["answered_without_tools"], trace["steps_used"]),
+                         ("Raydish has 6 official results.", False, 3))
+
+    def test_a_reply_without_facts_needs_no_tool_and_a_repeated_one_is_kept(self):
+        self.assertEqual(react.run("thanks", self.tools, ask=Scripted(reply("Glad to help.")), log=lambda *_: None)["steps_used"], 1)
+        ask = Scripted(reply("**Raydish** won 6."), reply("**Raydish** won 6."))
+        trace = react.run("has raydish won worlds", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([s["no_tool_check"]["action"] for s in trace["steps"]], ["sent back", "kept: sent back once already"])
+        self.assertEqual((trace["steps"][0]["no_tool_check"]["facts"], trace["answered_without_tools"]),
+                         ({"players": ["Raydish"], "numbers": ["6"]}, True))
+        self.assertEqual(react.summary(trace)["no_tool_checks"][1],
+                         {"step": 2, "facts": {"players": ["Raydish"], "numbers": ["6"]}, "action": "kept: sent back once already"})
+        page = react.markdown([trace], {"run": "R", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8,
+                                        "ollama": "x", "snapshot": {"file": "f", "build_id": "b"}})
+        self.assertIn("**No-tool check:** no tool was called, yet it states players: Raydish; numbers: 6. Sent back with:", page)
+
     def test_a_flagged_answer_is_kept_on_the_last_step_and_a_send_back_before_it_says_so(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("**tike36**."))
         trace = react.run("q", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
@@ -416,7 +465,8 @@ class LoopTest(Fixture):
                          "answered")  # the model's own guess at a name isn't the user's to settle
 
     def test_a_reply_to_suggestions_sees_them_in_the_conversation(self):
-        ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]), reply("Marckiem00 never won worlds."))
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]),
+                       reply(calls=[("resolve_player", {"name": "Marckiem00"})]), reply("Marckiem00 never won worlds."))
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
         first = conversation.ask("did markiemoo ever win worlds")
         conversation.ask("the first one")
@@ -507,13 +557,15 @@ class LoopTest(Fixture):
         self.assertEqual([s["step"] for s in steps], [1, 2, 1, 2, 1])  # each step, as it finished
 
     def test_a_follow_up_may_name_players_an_earlier_question_returned(self):
+        query = ("run_sql", {"query": "SELECT 1"})
         ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("Marckiem00, 4 results."),
-                       reply("**Marckiem00** again."), reply("**tike36** now."), reply("Marckiem00 only."))
+                       reply(calls=[query]), reply("**Marckiem00** again."),
+                       reply(calls=[query]), reply("**tike36** now."), reply("Marckiem00 only."))
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
         conversation.ask("Who is marckiemoo?")
         self.assertEqual(conversation.ask("and again?")["unreturned_names"], {})  # returned by the first question
         trace = conversation.ask("and someone else?")
-        self.assertEqual((trace["steps"][0]["answer_check"]["action"], trace["answer"]), ("sent back", "Marckiem00 only."))
+        self.assertEqual((trace["steps"][1]["answer_check"]["action"], trace["answer"]), ("sent back", "Marckiem00 only."))
 
     def test_traces_are_written_in_full_and_summarized_without_the_thinking(self):
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT a FROM t"})], thinking="Count them."), reply("25."))
@@ -555,6 +607,11 @@ class PromptTest(unittest.TestCase):
         prompt = " ".join(react.SYSTEM.split())
         self.assertIn("each player_id came from resolve_player and each event_id from resolve_event", prompt)
         self.assertIn("A text value no row has (a name, an event, a format) is a lookup mistake, not an answer", prompt)
+
+    def test_the_prompt_says_to_take_every_fact_from_the_tools_and_cite_only_returned_ids(self):
+        prompt = " ".join(react.SYSTEM.split())
+        self.assertIn("Take every fact from what the tools returned in this conversation", prompt)
+        self.assertIn("Name only players, and cite only player IDs, that a tool returned.", prompt)
 
     def test_the_prompt_names_a_mode_only_when_the_query_was_limited_to_one(self):
         prompt = " ".join(react.SYSTEM.split())

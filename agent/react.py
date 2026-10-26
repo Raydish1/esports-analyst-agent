@@ -10,10 +10,11 @@ To ask your own questions, one after another, use agent/ask.py.
 
 Each step is one model reply: its thinking, then either tool calls, whose results go back as observations, or the
 answer. A question ends at the answer, or after MAX_STEPS replies; the observation before the last step says it's
-the last. An answer that names a player no tool returned goes back to the model once, with the names, before it
-counts (Shown.unreturned). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET), until
-the model queries again, and, once, one right after an empty result whose diagnosis finds no row with a text value the
-query filters on, a likely lookup mistake (diagnose.missing_text). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
+the last. An answer that names a player or cites a player ID no tool returned goes back to the model once, with what
+it found, before it counts (Shown.unreturned, unreturned_ids), and so does one that states facts in a question that
+called no tool (Shown.facts). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET),
+until the model queries again, and, once, one right after an empty result whose diagnosis finds no row with a text
+value the query filters on, a likely lookup mistake (diagnose.missing_text). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
 with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
 comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
 a section on the views that hold each pairing more than once, and how to use the tools and write the answer.
@@ -141,8 +142,10 @@ Answering
 - You have at most {steps} steps, and each reply is one. When you have what the answer needs, reply with the answer
   and no tool call.
 - Answer in plain English, and give the main facts the question asks for, with the figures they rest on.
+- Take every fact from what the tools returned in this conversation, and look facts up in every question, follow-ups
+  included: never answer from memory.
 - Name players by their current display name, spelled as the data spells it: the name resolve_player or the players
-  table returns, not the one the question used. Name only players a tool returned.
+  table returns, not the one the question used. Name only players, and cite only player IDs, that a tool returned.
 - State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
   official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
 - If resolve_player was ambiguous, say which player you took the name to mean, and that other players share or
@@ -177,9 +180,13 @@ TOOLS = [
             "query": {"type": "string", "description": "one SQLite SELECT statement"}}}}},
 ]
 LAST_STEP = "You have one step left: reply with your answer, without calling a tool."
-CHECK = ("Before this answer is final: it names {names}, which no tool returned in this conversation. If that means a"
+CHECK = ("Before this answer is final: it {what}, which no tool returned in this conversation. If that means a"
          " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
          " the tools return. If it isn't meant as a player, reply with the same answer again.")
+NO_TOOL = ("Before this answer is final: no tool was called for this question, yet the answer states {facts}. Look them"
+           " up with the tools first (resolve_player for players, resolve_event for events, run_sql for results) and"
+           " answer from what they return. If they come from tool results earlier in this conversation, reply with the"
+           " same answer again.")
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
                   " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
                   " before answering.")
@@ -192,6 +199,12 @@ NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and f
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
 QUOTED = re.compile(r'"([^"\n]+)"|“([^”\n]+)”|(?<![\w\'‘’])[\'‘]([^\'‘’\n]+)[\'’](?![\w\'‘’])')
+# A number after an ID: player_id 12345, player ID 12345, Partner ID: 5, ID=7. The word before it says whose ID it is
+ID_MENTION = re.compile(r"\b(?:([a-z]+)_|([a-z]+)[\s-]+)?ids?\b[\s:#=]*`?(-?\d+)", re.I)
+NOT_PLAYER = {"event", "match", "team", "competition", "tournament", "set", "bracket"}
+BARE_ID = re.compile(r"\*\*(-?\d{5,})\*\*|\((-?\d{5,})\)")  # **160000**, Impala (168635); not a year such as (2025)
+FORMAT = re.compile(r"\b\d+v\d+\b", re.I)
+NUMBER = re.compile(r"(?<![A-Za-z_\d])\d+(?:[.,:/-]\d+)*")  # not the digits of a name such as Marckiem00
 
 
 # Talking to the model
@@ -269,13 +282,26 @@ def name_spans(answer):
     return spans
 
 
+def cited_ids(answer):
+    """The player IDs an answer cites: a number after player_id, player ID, partner ID or a bare ID, and a number of
+    five digits or more alone in bold or in parentheses (**160000**, Impala (168635)). An event's or a match's ID isn't
+    a player's. One answer gave Markled and Arklem the IDs of two other players (docs/experiments.md, 2026-10-25)."""
+    ids = [int(n) for first, second, n in ID_MENTION.findall(answer) if (first or second).lower() not in NOT_PLAYER]
+    ids += [int(a or b) for a, b in BARE_ID.findall(answer)]
+    return list(dict.fromkeys(ids))
+
+
+def listed(items):
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 class Shown:
     """What a question's conversation has shown the model: every word of the prompt, the question and the
-    observations, and the players the tools returned (resolve_player's candidates, and any player ID in a query
-    result)."""
+    observations, every number in them, and the players the tools returned (resolve_player's candidates, and any
+    player ID in a query result)."""
 
     def __init__(self, resolver, *texts):
-        self.resolver, self.words, self.players = resolver, set(), set()
+        self.resolver, self.words, self.numbers, self.players = resolver, set(), set(), set()
         for text in texts:
             self.read(text)
 
@@ -285,6 +311,7 @@ class Shown:
             for i in range(len(tokens) - n + 1):
                 span = " ".join(tokens[i:i + n])
                 self.words |= {normalize(span), normalize_full(span)} - {""}
+        self.numbers |= {int(n) for n in re.findall(r"\d+", str(text))}
 
     def observe(self, name, observation):
         self.read(json.dumps(observation, ensure_ascii=False))
@@ -306,6 +333,28 @@ class Shown:
             if players and not players & self.players:
                 found[span] = sorted(players)[:5]
         return found
+
+    def unreturned_ids(self, answer):
+        """The player IDs an answer cites (cited_ids) that neither a tool nor the question showed."""
+        return [n for n in cited_ids(answer) if abs(n) not in self.numbers]
+
+    def facts(self, answer):
+        """What an answer states that a tool should stand behind: the players it names (name_spans that are some
+        player's current name), the player IDs it cites, and its numbers, formats such as 1v1 aside. {kind: [up to
+        five]}, without the kinds it has none of."""
+        found = {"players": [s for s in name_spans(answer)
+                             if not NUMBERISH.fullmatch(normalize(s)) and self.resolver.called(s)],
+                 "player IDs": [str(n) for n in cited_ids(answer)],
+                 "numbers": NUMBER.findall(FORMAT.sub(" ", answer))}
+        return {kind: list(dict.fromkeys(values))[:5] for kind, values in found.items() if values}
+
+
+def unreturned(names, ids):
+    """What the answer check found, as the message says it: "names 'tike36' and cites player_id 999"."""
+    parts = [f"names {listed([repr(n) for n in names])}"] if names else []
+    if ids:
+        parts.append(f"cites player_id{'s' if len(ids) > 1 else ''} {listed([str(n) for n in ids])}")
+    return " and ".join(parts)
 
 
 # The loop
@@ -372,22 +421,27 @@ class Conversation:
 
     def turn(self, question):
         """One question's steps. The trace: each step's thinking, reply and tool calls with their observations, and
-        any checks; then the answer, the outcome ('answered', 'step limit', ...), the names in the answer that no tool
-        returned, and whether it came right after a result too large to show or a lookup miss. Three checks can send an
-        answer back:
+        any checks; then the answer, the outcome ('answered', 'step limit', ...), the names and player IDs in the answer
+        that no tool returned, and whether it came right after a result too large to show or a lookup miss, or without
+        a tool call. Four checks can send an answer back:
         - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
           new query since, goes back as long as two steps are left, to query and to answer;
         - the lookup check: an answer right after an empty result whose diagnosis finds no row with a text value the
           query filters on (diagnose.missing_text), with no new query since, goes back once if two steps are left.
           Any other empty result can be a true "none";
-        - the answer check: an answer naming players no tool returned goes back once, if a step is left.
+        - the no-tool check: an answer stating facts (Shown.facts: players, player IDs, numbers) in a question that
+          called no tool goes back once, if a step is left;
+        - the answer check: an answer naming players, or citing player IDs, that no tool returned goes back once, if a
+          step is left.
         The answer that comes back counts either way. A name from the question that resolve_player matches only below
         CONFIDENT ends the turn instead: the user gets its top three candidates as suggestions (outcome
         'suggestions')."""
         trace = {"question": question, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
-                 "answered_after_too_big": False, "answered_after_lookup_miss": False}
+                 "unreturned_ids": [], "answered_after_too_big": False, "answered_after_lookup_miss": False,
+                 "answered_without_tools": False}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
         missing, missed = [], False  # the last empty result's text filters no row has, and whether that was sent back
+        called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
@@ -428,21 +482,39 @@ class Conversation:
                     step["lookup_check"] = {"conditions": missing, "action": "kept: sent back once already" if missed
                                             else "kept: no steps left to query again"}
                     trace["answered_after_lookup_miss"] = True
-                names = self.shown.unreturned(content) if outcome == "answered" else {}
-                if names and not checked and number < max_steps:
-                    checked, message = True, CHECK.format(names=" and ".join(f"'{n}'" for n in names))
+                facts = self.shown.facts(content) if outcome == "answered" and not called else {}
+                if facts and not told and number < max_steps:
+                    stated = listed([f"{kind} ({', '.join(values)})" for kind, values in facts.items()])
+                    told, message = True, NO_TOOL.format(facts=stated)
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
-                    step["answer_check"] = {"names": names, "action": "sent back", "message": message}
+                    step["no_tool_check"] = {"facts": facts, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
                                      {"role": "user", "content": message}]
-                    log(f"  answer check: {', '.join(names)} named, but no tool returned them; sent back")
+                    log(f"  no-tool check: no tool was called, yet the answer states {stated}; sent back")
                     self.finished(step)
                     continue
-                if names:
-                    step["answer_check"] = {"names": names, "action": "kept: sent back once already" if checked
+                if facts:
+                    step["no_tool_check"] = {"facts": facts, "action": "kept: sent back once already" if told
+                                             else "kept: no steps left"}
+                    trace["answered_without_tools"] = True
+                names = self.shown.unreturned(content) if outcome == "answered" else {}
+                ids = self.shown.unreturned_ids(content) if outcome == "answered" else []
+                if (names or ids) and not checked and number < max_steps:
+                    checked, message = True, CHECK.format(what=unreturned(names, ids))
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["answer_check"] = {"names": names, "ids": ids, "action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log(f"  answer check: it {unreturned(names, ids)}, which no tool returned; sent back")
+                    self.finished(step)
+                    continue
+                if names or ids:
+                    step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
-                trace["answer"], trace["outcome"], trace["unreturned_names"] = content.strip() or None, outcome, names
+                trace["answer"], trace["outcome"] = content.strip() or None, outcome
+                trace["unreturned_names"], trace["unreturned_ids"] = names, ids
                 log(f"  {trace['outcome']}: {short(content, 300)}")
                 self.finished(step)
                 break
@@ -456,7 +528,7 @@ class Conversation:
             # The server's qwen3 template shows an assistant message's tool calls only when its content is empty, so
             # any text beside them (kept in the trace) stays out of the history
             self.current.append({"role": "assistant", "content": "", "thinking": thinking, "tool_calls": calls})
-            asked = []  # names from the question that matched only below CONFIDENT
+            called, asked = True, []  # asked: names from the question that matched only below CONFIDENT
             for i, call in enumerate(calls):
                 name, arguments = call["function"].get("name"), call["function"].get("arguments")
                 begun = time.monotonic()
@@ -554,14 +626,24 @@ def markdown(traces, header):
                 else:
                     out += [f"**Lookup check:** it came right after an empty result whose diagnosis found no row with"
                             f" {missing} ({lookup['action']}).", ""]
+            told = s.get("no_tool_check")
+            if told:
+                stated = "; ".join(f"{kind}: {', '.join(values)}" for kind, values in told["facts"].items())
+                if told["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**No-tool check:** no tool was called, yet it"
+                            f" states {stated}. Sent back with:", "", f"> {told['message']}", ""]
+                else:
+                    out += [f"**No-tool check:** no tool was called, yet it states {stated} ({told['action']}).", ""]
             check = s.get("answer_check")
             if check:
                 names = ", ".join(f"{n} ({', '.join(map(str, ids))})" for n, ids in check["names"].items())
+                what = " and ".join(([f"names {names}"] if names else [])
+                                    + ([f"cites player_id {', '.join(map(str, check['ids']))}"] if check.get("ids") else []))
                 if check["action"] == "sent back":
-                    out += ["**Reply**", "", s["content"].strip(), "", f"**Answer check:** it names {names}, which no tool"
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**Answer check:** it {what}, which no tool"
                             " returned. Sent back with:", "", f"> {check['message']}", ""]
                 else:
-                    out += [f"**Answer check:** it names {names}, which no tool returned ({check['action']}).", ""]
+                    out += [f"**Answer check:** it {what}, which no tool returned ({check['action']}).", ""]
             for c in s["tool_calls"]:
                 args = c["arguments"]
                 text = args.get("query") if c["name"] == "run_sql" and isinstance(args, dict) and "query" in args else json.dumps(args, ensure_ascii=False)
@@ -597,17 +679,21 @@ def preview(observation, width=200):
 
 
 def summary(trace):
-    keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "answered_after_too_big",
-            "answered_after_lookup_miss", "steps_used", "model_seconds", "tool_seconds", "output_tokens", "largest_context")
+    keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "unreturned_ids",
+            "answered_after_too_big", "answered_after_lookup_miss", "answered_without_tools", "steps_used", "model_seconds",
+            "tool_seconds", "output_tokens", "largest_context")
     calls = [{"step": s["step"], "name": c["name"], "arguments": c["arguments"], "result": preview(c["observation"])}
              for s in trace["steps"] for c in s["tool_calls"]]
-    checks = [{"step": s["step"], "names": s["answer_check"]["names"], "action": s["answer_check"]["action"]}
+    checks = [{"step": s["step"], "names": s["answer_check"]["names"], "action": s["answer_check"]["action"],
+               **({"ids": s["answer_check"]["ids"]} if s["answer_check"].get("ids") else {})}
               for s in trace["steps"] if s.get("answer_check")]
+    told = [{"step": s["step"], "facts": s["no_tool_check"]["facts"], "action": s["no_tool_check"]["action"]}
+            for s in trace["steps"] if s.get("no_tool_check")]
     sizes = [{"step": s["step"], "action": s["size_check"]["action"]} for s in trace["steps"] if s.get("size_check")]
     lookups = [{"step": s["step"], "conditions": s["lookup_check"]["conditions"], "action": s["lookup_check"]["action"]}
                for s in trace["steps"] if s.get("lookup_check")]
     return {**{k: trace.get(k) for k in keep}, "tool_calls": calls, "answer_checks": checks, "size_checks": sizes,
-            "lookup_checks": lookups}
+            "lookup_checks": lookups, "no_tool_checks": told}
 
 
 def main():

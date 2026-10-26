@@ -92,10 +92,14 @@ def step_lines(step):
     if lookup:
         lines.append(f"  !! lookup check: answered right after no row had {' and '.join(lookup['conditions'])}"
                      f" ({lookup['action']})")
+    told = step.get("no_tool_check")
+    if told:
+        lines.append(f"  !! no-tool check: no tool was called, yet it states {', '.join(told['facts'])}"
+                     f" ({told['action']})")
     check = step.get("answer_check")
     if check:
-        lines.append(f"  !! answer check: it names {', '.join(check['names'])}, which no tool returned"
-                     f" ({check['action']})")
+        lines.append(f"  !! answer check: it {react.unreturned(check['names'], check.get('ids') or [])}, which no tool"
+                     f" returned ({check['action']})")
     return lines
 
 

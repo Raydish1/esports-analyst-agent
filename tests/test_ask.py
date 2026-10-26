@@ -60,7 +60,15 @@ class TraceTest(unittest.TestCase):
             "Step 2 (3.2 s): Now count them.", "  -> run_sql: SELECT 1", "  <- 1 row", "     n", "     1",
             "  -> resolve_player: x", "  <- not run: no steps left",
             "  !! result-size check: answered right after a result too large to show (kept: no steps left to query again)",
-            "  !! answer check: it names tike36, which no tool returned (sent back)"])
+            "  !! answer check: it names 'tike36', which no tool returned (sent back)"])
+
+    def test_a_step_shows_its_no_tool_check_and_an_answer_check_on_ids(self):
+        step = {"step": 1, "seconds": 1.0, "thinking": "", "content": "x", "tool_calls": [],
+                "no_tool_check": {"facts": {"players": ["Raydish"], "numbers": ["6"]}, "action": "sent back"},
+                "answer_check": {"names": {}, "ids": [12345], "action": "kept: no steps left"}}
+        self.assertEqual(ask.step_lines(step)[-2:], [
+            "  !! no-tool check: no tool was called, yet it states players, numbers (sent back)",
+            "  !! answer check: it cites player_id 12345, which no tool returned (kept: no steps left)"])
 
     def test_a_step_shows_its_lookup_check(self):
         step = {"step": 3, "seconds": 1.0, "thinking": "", "content": "None.", "tool_calls": [],
@@ -81,7 +89,7 @@ class SessionTest(Fixture):
 
     def test_questions_one_after_another_until_exit_with_the_transcript_rewritten_after_each(self):
         session = self.session(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
-                               reply("In 2v2, megD has 2."))
+                               reply(calls=[("run_sql", {"query": "SELECT 2"})]), reply("In 2v2, megD has 2."))
         read = reader("How many results has megd?", "", "  now only 2v2 ", "exit", "never asked")
         ask.interactive(session, read=read, out=self.out.append)
         self.assertEqual([t["question"] for t in session.traces], ["How many results has megd?", "now only 2v2"])
