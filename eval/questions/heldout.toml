@@ -20,9 +20,9 @@ players = { pugsyxd = 146298 }
 answer = """
 Pugsy has won 4 official 2v2 events, all in North America in 2022: the Winter Championship (2022-01-30), the \
 SteelSeries Invitational (2022-04-10), the Summer Championship (2022-07-24) and the Autumn Championship (2022-09-18). \
-He also has 1 official 1v1 win.
+Pugsy also has 1 official 1v1 win.
 """
-notes = '"pugsyxd" is a curated nickname for Pugsy (his Esports Earnings handle). The answer names Pugsy.'
+notes = '"pugsyxd" is a curated nickname for Pugsy (the handle Pugsy uses on Esports Earnings). The answer names Pugsy.'
 verified = true
 
 [[question.query]]
@@ -61,8 +61,8 @@ category = "player_record"
 tests = ["held-out", "misspelling", "character swap", "best placement"]
 players = { neze = 149303 }
 answer = """
-Neeze's best official 1v1 finish is 1st: he won the 1v1 at the Brawlhalla Autumn Championship 2019 (EU), \
-2019-09-28, his only official 1v1 win.
+Neeze's best official 1v1 finish is 1st: Neeze won the 1v1 at the Brawlhalla Autumn Championship 2019 (EU), \
+2019-09-28, Neeze's only official 1v1 win.
 """
 notes = '"neze" drops a letter of Neeze; the resolver matches it as a character swap (doubled letters collapsed). The answer must say the player is Neeze.'
 verified = true
@@ -212,13 +212,13 @@ category = "head_to_head"
 tests = ["held-out", "most wins against an opponent", "one side of the head-to-head"]
 players = { keiththepoopoo = 111680 }
 answer = """
-plumthegreat: keiththepoopoo has beaten him 8 times in 1v1 sets at official events (8-1). Next come TigerBrawlhalla \
+plumthegreat: keiththepoopoo has beaten plumthegreat 8 times in 1v1 sets at official events (8-1). Next come TigerBrawlhalla \
 (6-1), hrzz (6-3) and SireXDD (6-6), with 6 wins each.
 """
 verified = true
 
 [[question.query]]
-purpose = "keiththepoopoo's opponents by his wins"
+purpose = "keiththepoopoo's opponents, by keiththepoopoo's wins"
 sql = '''
 SELECT p.name, h.wins, h.losses, h.matches FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.opponent_id
 WHERE h.player_id = 111680 ORDER BY h.wins DESC, h.losses LIMIT 5
@@ -269,7 +269,7 @@ tests = ["held-out", "no match data", "crew battle", "shared name"]
 players = { santy = 147613 }
 events = { "2021 Pro Series finals" = "series/pro-series-2021-na" }
 answer = """
-The data has no sets for the Pro Series finals, only placements, so his set record there isn't available. Santy's \
+The data has no sets for the Pro Series finals, only placements, so Santy's set record there isn't available. Santy's \
 crew won the Pro Series 2021 finals (1st), with gdsandstorm, DEZZ, Snowy!!, S!mba and Zinquer.
 """
 notes = """
@@ -279,7 +279,7 @@ No platform has the Pro Series finals: their placements come from the Stats API,
 verified = true
 
 [[question.query]]
-purpose = "his placement, his crew, and the matches stored for the event"
+purpose = "Santy's placement and crew, and the matches stored for the event"
 sql = '''
 SELECT r.placement, (SELECT GROUP_CONCAT(p.name, ', ') FROM v_results x JOIN players p ON p.player_id = x.player_id
                      WHERE x.event_id = r.event_id AND x.placement = r.placement) AS crew,
@@ -323,7 +323,7 @@ answer = "sphynx., 36"
 
 [[question.accept]]
 assumption = "1v1 only: the most 1v1 top 8s without a 1v1 win"
-answer = "Phazon, 28 (he has official 2v2 wins)"
+answer = "Phazon, 28 (Phazon has official 2v2 wins)"
 
 [[question.query]]
 purpose = "top 8s of players with no official win, both modes"
@@ -349,7 +349,7 @@ category = "player_record"
 tests = ["held-out", "true none", "an empty result that is right"]
 players = { piggers = 143695 }
 answer = """
-No: Piggers has no official 1v1 win. His best official 1v1 finish is 2nd (in 27 1v1 results). All 11 of his \
+No: Piggers has no official 1v1 win. Piggers's best official 1v1 finish is 2nd (in 27 1v1 results). All 11 of Piggers's \
 official wins are in 2v2.
 """
 notes = "An empty result here is the right answer: the agent shouldn't relax the mode or call it a lookup mistake."
