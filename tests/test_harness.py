@@ -227,13 +227,15 @@ class ReportTest(unittest.TestCase):
 
     def test_the_report_counts_runs_by_the_stage_that_failed(self):
         records = [{"arm": "on", "id": "h01", "set": "heldout", "category": "player records", "seed": s,
-                    "group": "held-out, known shape", "shape": "known shape"} for s in (0, 1, 2)]
+                    "group": "held-out, known shape", "shape": "known shape", "label": "official_wins"} for s in (0, 1, 2)]
         judged = {("on", "h01", 0): {"verdict": "right"},
                   ("on", "h01", 1): {"verdict": "wrong", "stage": "SQL logic", "review": "auto"},
                   ("on", "h01", 2): {"verdict": "partly", "stage": "answer writing", "review": "needs review"}}
         lines = harness.report(records, judged)
         self.assertIn("| held-out, known shape | 1/3 (33%) | 1/3 (33%) | 0/1 (0%) |", lines)
-        self.assertIn("| SQL logic | 1/2 (50%) |", lines)
+        self.assertIn("| known shape, new names | 1/3 (33%) | 1/3 (33%) | 0/1 (0%) |", lines)
+        self.assertIn("| official_wins | 1/3 (33%) | 1/3 (33%) | 0/1 (0%) |", lines)
+        self.assertIn("| SQL logic | 1/2 (50%) | 0/0 | 0/0 | 1/2 (50%) |", lines)  # all, tuned, existing, held-out
         self.assertIn("Judgments needing review: 1 of 3.", lines)
 
 

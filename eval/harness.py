@@ -262,6 +262,7 @@ def score(run_ids, db, labels):
                 "question": q["question"], "expected": " ".join(q["answer"].split()), "outcome": t["outcome"],
                 "answer": t["answer"],
                 "stage1": stage1(q, t, db), "stage2": stage2(q, t), "shape": known, "group": group(q, known),
+                "label": (labels.get(q["id"]) or ["none (no query answers it)"])[0],
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,
                 "checks": sorted({k for s in t["steps"] for k in ("size_check", "lookup_check", "no_tool_check",
                                                                    "answer_check") if s.get(k)}),
@@ -334,35 +335,52 @@ def table(title, rows, label):
     return out + [""]
 
 
+def stages(title, columns, judged):
+    """Runs not right by the stage that failed, a column per set of records."""
+    failed = {name: [j for j in (judged.get((r["arm"], r["id"], r["seed"]), {}) for r in rs)
+                     if j.get("verdict") in ("partly", "wrong")] for name, rs in columns}
+    out = [f"**{title}** (each column's runs not right, by the first stage that failed)", "",
+           "| Stage | " + " | ".join(f"{name}: {len(failed[name])} of {len(rs)} runs not right" for name, rs in columns) + " |",
+           "|---|" + "---|" * len(columns)]
+    for s in STAGES:
+        out.append(f"| {s} | " + " | ".join(counted(sum(j.get("stage") == s for j in failed[name]), len(failed[name]))
+                                             for name, _ in columns) + " |")
+    return out + [""]
+
+
 def report(records, judged):
-    """The summary tables, as markdown lines: by group, by shape for the held-out set, by category, by stage, and the
-    retrieval-off arm against the same questions and seeds with retrieval on."""
+    """The summary tables, as markdown lines: retrieval on by group, the held-out set by shape, by the query's shape,
+    by category and by failing stage; then the retrieval-off arm against the same questions and seeds with it on."""
     on = [r for r in records if r["arm"] == "on"]
     off = [r for r in records if r["arm"] == "off"]
     out = []
+
+    def by(rs, key, values):
+        return [(v, tally([r for r in rs if r[key] == v], judged)) for v in values if any(r[key] == v for r in rs)]
+
     groups = ["tuned", "existing, known shape", "existing, new shape", "held-out, known shape", "held-out, new shape"]
-    out += table("Retrieval on, by group", [(g, tally([r for r in on if r["group"] == g], judged)) for g in groups
-                                            if any(r["group"] == g for r in on)] + [("all", tally(on, judged))], "Group")
+    out += table("Retrieval on, by group", by(on, "group", groups) + [("all", tally(on, judged))], "Group")
     held = [r for r in on if r["set"] == "heldout"]
-    out += table("Held-out set, retrieval on, by shape", [(s, tally([r for r in held if r["shape"] == s], judged))
-                                                           for s in ("known shape", "new shape")], "Shape")
-    categories = sorted({r["category"] for r in on})
-    out += table("Retrieval on, by category", [(c, tally([r for r in on if r["category"] == c], judged))
-                                               for c in categories], "Category")
-    for name, rs in (("Retrieval on", on), ("Retrieval off", off)):
-        if not rs:
-            continue
-        failed = [judged.get((r["arm"], r["id"], r["seed"]), {}) for r in rs]
-        failed = [j for j in failed if j.get("verdict") in ("partly", "wrong")]
-        out += [f"**{name}, by failing stage** (the runs not right: {len(failed)} of {len(rs)})", "",
-                "| Stage | Runs not right |", "|---|---|"]
-        out += [f"| {s} | {counted(sum(j.get('stage') == s for j in failed), len(failed))} |" for s in STAGES]
-        out.append("")
+    out += table("Held-out set, retrieval on, by shape",
+                 [(name, tally([r for r in held if r["shape"] == s], judged))
+                  for name, s in (("known shape, new names", "known shape"), ("new shape", "new shape"))], "Shape")
+    out += table("Retrieval on, by the query's shape (the question's first label in shapes.toml)",
+                 by(on, "label", sorted({r["label"] for r in on})), "Shape")
+    out += table("Retrieval on, by category", by(on, "category", sorted({r["category"] for r in on})), "Category")
+    if on:
+        out += stages("Retrieval on, by failing stage", [("all", on)] + [
+            (name, [r for r in on if r["group"] in members]) for name, members in
+            (("tuned", ["tuned"]), ("existing", groups[1:3]), ("held-out", groups[3:]))], judged)
     if off:
+        out += stages("Retrieval off, by failing stage", [("all", off)], judged)
         pairs = {(r["id"], r["seed"]) for r in off}
         same = [r for r in on if (r["id"], r["seed"]) in pairs]
+        rows = []
+        for name, chosen in (("held-out", "heldout"), ("existing, near-clean", "existing")):
+            rows += [(f"{name}, off", tally([r for r in off if r["set"] == chosen], judged)),
+                     (f"{name}, on", tally([r for r in same if r["set"] == chosen], judged))]
         out += table("The near-clean and held-out questions, retrieval off and on",
-                     [("off", tally(off, judged)), ("on", tally(same, judged))], "Retrieval")
+                     rows + [("all, off", tally(off, judged)), ("all, on", tally(same, judged))], "Questions, retrieval")
     review = sum(j.get("review") == "needs review" for j in judged.values())
     out.append(f"Judgments needing review: {review} of {len(judged)}.")
     return out
