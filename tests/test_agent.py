@@ -593,6 +593,21 @@ class LoopTest(Fixture):
 
 
 class PromptTest(unittest.TestCase):
+    # Views the prompt leaves out on purpose. Any other view it doesn't describe is one the agent can't know about,
+    # as v_career_earnings was in the 2026-11-08 evaluation: every earnings answer said none were recorded.
+    LEFT_OUT = {"v_player_ids": "a record-to-person mapping, used inside the other views",
+                "v_event_coverage": "to decide later"}
+
+    @unittest.skipUnless(react.SNAPSHOT.exists(), "needs the eval-v1 snapshot (data/ isn't committed)")
+    def test_the_prompt_describes_every_view_of_the_snapshot_but_those_left_out_on_purpose(self):
+        db = sqlite3.connect(react.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
+        views = {name for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
+        db.close()
+        described = {line[2:].split("(")[0].split(":")[0].split()[0] for line in react.SYSTEM.splitlines()
+                     if line.startswith("- v_")}
+        self.assertEqual(sorted(views - described - set(self.LEFT_OUT)), [])
+        self.assertLessEqual(set(self.LEFT_OUT), views)  # each reason names a real view
+
     def test_the_prompt_keeps_the_comparison_prompts_views_and_counting_rules(self):
         views = mc.PROMPT.split("\nViews\n")[1].split("\n\nCounting rules")[0]
         rules = mc.PROMPT.split("\nCounting rules")[1].split("\n\nWrite one SQLite query")[0]
