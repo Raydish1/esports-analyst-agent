@@ -1,7 +1,7 @@
 # The held-out evaluation set: questions the agent has never been run, tuned or tested on, for measuring how it does on
 # questions it hasn't seen (drafted 2026-11-08). Same format as questions.toml: a candidate answer computed from eval-v1,
-# the SQL behind it, and `verified`, which the user fills in (`yes`, `yes: ...`, or `no: ...` / `partly: ...` with
-# what's right).
+# the SQL behind it, and `verified`. The user checked all 16 answers and found them correct (verified = true,
+# 2026-11-08).
 #
 # The rules that keep it held out:
 # - Never add these questions, their players or their events to the example bank (agent/examples/examples.toml), and
@@ -23,7 +23,7 @@ SteelSeries Invitational (2022-04-10), the Summer Championship (2022-07-24) and 
 He also has 1 official 1v1 win.
 """
 notes = '"pugsyxd" is a curated nickname for Pugsy (his Esports Earnings handle). The answer names Pugsy.'
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "official 2v2 wins"
@@ -45,7 +45,7 @@ Pink | Teehee has 4 top 8s at official events, all counted as 1v1: 7th at Trial 
 which counts as 1v1.
 """
 notes = '"halloween!" is a curated nickname for Pink | Teehee, who has used that name. The answer names Pink | Teehee.'
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "top 8s, both modes"
@@ -65,7 +65,7 @@ Neeze's best official 1v1 finish is 1st: he won the 1v1 at the Brawlhalla Autumn
 2019-09-28, his only official 1v1 win.
 """
 notes = '"neze" drops a letter of Neeze; the resolver matches it as a character swap (doubled letters collapsed). The answer must say the player is Neeze.'
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "best 1v1 placement and where"
@@ -88,7 +88,7 @@ notes = """
 "kaito" is also another player's display name and a former name, so the resolver returns Legion | kaito first among \
 several; the answer may say which kaito it took.
 """
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "Legion | kaito's record against sacwastaken"
@@ -108,7 +108,7 @@ Zivai and Blaze won the Spring Doubles Championship - Europe (2024-05-04). The 2
 2v2 only, so there was no 1v1 event.
 """
 notes = '"springs" stands for the seasonal championships, which in 2024 were the "Spring Doubles Championship".'
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "the 2024 European spring seasonal and its winners"
@@ -129,7 +129,7 @@ There have been three official Autumn Royales, all 1v1: loreszz won in 2023 (202
 (2024-10-11) and Ahmet_ in 2025 (2025-10-12).
 """
 notes = "The name matches three editions; an answer that picks one must say so."
-verified = ""
+verified = true
 
 [[question.accept]]
 assumption = "the question means every Autumn Royale (the default)"
@@ -158,7 +158,7 @@ Boomie, capsar and antireplay's crew won the North America - Crew Battle Invitat
 Alex, Phazon and Raydish. Crew battles count as 1v1.
 """
 notes = "Each crew member has their own result row, so the winners are the three placement = 1 rows."
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "the top two crews"
@@ -178,7 +178,7 @@ players = { powerbh = 113157 }
 answer = """
 2021, with 7 official wins. powerbh won 5 in 2022, 4 in 2020 and 1 in 2023: 17 in all (4 in 1v1, 13 in 2v2).
 """
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "official wins per year"
@@ -196,7 +196,7 @@ players = { powerbh = 113157 }
 answer = """
 4: SiB | Wess (7 titles together), lopesbrawlhalla (4), yüz (1) and DB (1), for 13 official 2v2 wins.
 """
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "2v2 titles per partner"
@@ -215,7 +215,7 @@ answer = """
 plumthegreat: keiththepoopoo has beaten him 8 times in 1v1 sets at official events (8-1). Next come TigerBrawlhalla \
 (6-1), hrzz (6-3) and SireXDD (6-6), with 6 wins each.
 """
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "keiththepoopoo's opponents by his wins"
@@ -233,7 +233,7 @@ answer = """
 Zivai and whoiskyna, tied with 7 official 1v1 wins each in 2024. yüz is next with 4.
 """
 notes = "A tie: an answer naming only one of them is wrong."
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "1v1 wins per player in 2024"
@@ -252,7 +252,7 @@ players = { himwy = 111683 }
 answer = """
 30-2 in 1v1 sets at official events in 2024, with no unscored sets.
 """
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "1v1 sets in 2024"
@@ -276,7 +276,7 @@ notes = """
 No platform has the Pro Series finals: their placements come from the Stats API, which has no matches \
 (check_exceptions.csv). Three players are called Santy; this one has 101 official results.
 """
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "his placement, his crew, and the matches stored for the event"
@@ -298,7 +298,7 @@ The data doesn't say: no player's country is recorded (the players table has a c
 every player).
 """
 notes = "The prompt doesn't describe players.country; an agent that finds it must still read its emptiness as missing, not as an answer."
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "countries recorded"
@@ -315,7 +315,7 @@ answer = """
 sphynx., with 36 top 8s at official events across 1v1 and 2v2 and no official win. Next come Goddess (33) and \
 hermisen (32).
 """
-verified = ""
+verified = true
 
 [[question.accept]]
 assumption = "top 8s and wins in both modes (the default)"
@@ -353,7 +353,7 @@ No: Piggers has no official 1v1 win. His best official 1v1 finish is 2nd (in 27 
 official wins are in 2v2.
 """
 notes = "An empty result here is the right answer: the agent shouldn't relax the mode or call it a lookup mistake."
-verified = ""
+verified = true
 
 [[question.query]]
 purpose = "1v1 wins, best 1v1 finish, 2v2 wins"
