@@ -176,6 +176,16 @@ class DraftTest(unittest.TestCase):
                          {"verdict": "wrong", "stage": "name resolution", "review": "auto", "note": "d1"})
         self.assertEqual(harness.draft(self.record("n/a", "fail"))["stage"], "SQL logic")
 
+    def test_a_missed_lookup_is_only_a_draft_where_the_right_answer_needs_no_data(self):
+        unanswerable = {**self.record("fail", "n/a"), "needs_data": False}  # "the data can't say" needs no lookup
+        self.assertEqual(harness.draft(unanswerable)["review"], "needs review")
+        self.assertEqual(harness.draft({**self.record("fail", "n/a"), "needs_data": True})["review"], "auto")
+
+    def test_missing_facts_after_an_empty_result_are_drafted_as_empty_data_handling(self):
+        after_empty = {**self.record("pass", "fail"), "ended_empty": True}  # "no results" may be true, or a lookup miss
+        self.assertEqual({k: harness.draft(after_empty)[k] for k in ("stage", "review")},
+                         {"stage": "empty or insufficient data", "review": "needs review"})
+
     def test_runs_past_the_automatic_stages_are_drafted_for_review(self):
         self.assertEqual(harness.draft(self.record("pass", "pass", "step limit")),
                          {"verdict": "wrong", "stage": "no answer", "review": "needs review", "note": "outcome: step limit"})
@@ -211,6 +221,22 @@ class JudgmentsTest(unittest.TestCase):
             again = harness.read_judgments(path)
         self.assertEqual((again[("on", "h01", 0)]["verdict"], again[("on", "h01", 0)]["review"]), ("", "needs review"))
         self.assertEqual((again[("on", "h02", 0)]["verdict"], again[("on", "h02", 0)]["review"]), ("right", "confirmed"))
+
+    def test_a_partly_right_answer_over_a_failed_stage_keeps_its_verdict_while_that_stage_fails(self):
+        def record(two):
+            return {"arm": "on", "id": "q20", "seed": 0, "outcome": "answered", "stage1": {"result": "pass", "detail": ""},
+                    "stage2": {"result": two, "detail": "1 query results"}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "judgments.toml"
+            harness.write_judgments(path, [record("fail")])
+            judged = harness.read_judgments(path)
+            judged[("on", "q20", 0)].update(verdict="partly", review="needs review", note="the score, not the opponent")
+            harness.write_judgments(path, [record("fail")], judged)
+            still = harness.read_judgments(path)[("on", "q20", 0)]
+            harness.write_judgments(path, [record("pass")], harness.read_judgments(path))  # the check widened
+            passed = harness.read_judgments(path)[("on", "q20", 0)]
+        self.assertEqual((still["verdict"], still["stage"]), ("partly", "SQL logic"))
+        self.assertEqual((passed["verdict"], passed["stage"]), ("", ""))
 
 
 class ReportTest(unittest.TestCase):

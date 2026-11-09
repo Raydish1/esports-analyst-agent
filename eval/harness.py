@@ -79,6 +79,12 @@ def results(trace):
     return [obs.get("rows", []) for _, obs in calls(trace, "run_sql") if "error" not in obs]
 
 
+def ended_empty(trace):
+    """Whether the last query that ran returned no rows, so the answer came after an empty result."""
+    ran = [obs for _, obs in calls(trace, "run_sql") if "error" not in obs]
+    return bool(ran) and ran[-1].get("row_count") == 0
+
+
 def flat(text):
     return " ".join(str(text).split()).casefold()
 
@@ -183,13 +189,37 @@ def group(question, known):
 
 def draft(record):
     """A judgment draft from the automatic stages: wrong at stage 1 or 2 (auto); wrong with no answer (the step limit,
-    say) once those pass, for review to name the stage; otherwise blank, for review."""
+    say) once those pass, for review to name the stage; otherwise blank, for review. Two automatic failures are only
+    drafts: one at stage 1 where the right answer needs no query result (an unanswerable question, a true "none"),
+    since the answer can be right without the lookup; and one at stage 2 whose last query came back empty, which is
+    drafted as stage 3, since the empty result may be true (a cancelled event, unreliable placements) or a lookup
+    mistake answered as a "none"."""
     for n, stage in ((1, "name resolution"), (2, "SQL logic")):
         if record[f"stage{n}"]["result"] == "fail":
-            return {"verdict": "wrong", "stage": stage, "review": "auto", "note": record[f"stage{n}"]["detail"]}
+            note = record[f"stage{n}"]["detail"]
+            if n == 2 and record.get("ended_empty"):
+                return {"verdict": "wrong", "stage": "empty or insufficient data", "review": "needs review",
+                        "note": f"answered after an empty result; {note}"}
+            review = "auto" if record.get("needs_data", True) else "needs review"
+            return {"verdict": "wrong", "stage": stage, "review": review, "note": note}
     if record["outcome"] not in ("answered", "suggestions"):
         return {"verdict": "wrong", "stage": "no answer", "review": "needs review", "note": f"outcome: {record['outcome']}"}
     return {"verdict": "", "stage": "", "review": "needs review", "note": ""}
+
+
+def kept(entry, fresh, record):
+    """Whether a verdict judged earlier stays over the fresh draft: always once the user confirmed it; one blaming
+    stage 1 or 2 only while the run fails that stage (it can turn an automatic "wrong" into "partly"); any other
+    only while the fresh draft isn't automatic, so a corrected check needs no rerun."""
+    if not entry or entry.get("review") == "auto":
+        return False
+    if entry.get("review") == "confirmed":
+        return True
+    if entry.get("stage") == "name resolution":
+        return record["stage1"]["result"] == "fail"
+    if entry.get("stage") == "SQL logic":
+        return record["stage2"]["result"] == "fail"
+    return fresh["review"] != "auto"
 
 
 # Running
@@ -262,7 +292,8 @@ def score(run_ids, db, labels):
                 "question": q["question"], "expected": " ".join(q["answer"].split()), "outcome": t["outcome"],
                 "answer": t["answer"],
                 "stage1": stage1(q, t, db), "stage2": stage2(q, t), "shape": known, "group": group(q, known),
-                "label": (labels.get(q["id"]) or ["none (no query answers it)"])[0],
+                "label": (labels.get(q["id"]) or ["none (no query answers it)"])[0], "needs_data": CHECKS[q["id"]] is not NA,
+                "ended_empty": ended_empty(t),
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,
                 "checks": sorted({k for s in t["steps"] for k in ("size_check", "lookup_check", "no_tool_check",
                                                                    "answer_check") if s.get(k)}),
@@ -277,9 +308,9 @@ def toml_string(value):
 
 def write_judgments(path, records, keep=None):
     """The judgments file: each run's verdict, stage and review mark. An automatic verdict (stage 1 or 2 failed) is
-    recomputed every time, so a corrected check needs no rerun; a verdict judged by hand (keep: {(arm, id, seed):
-    entry}) stays unless the run now fails stage 1 or 2, and one the user confirmed always stays. Each question's
-    text and expected answer, and each run's answer, are there to judge from; scoring reads only the verdicts."""
+    recomputed every time, and a verdict judged earlier (keep: {(arm, id, seed): entry}) stays as kept() says. Each
+    question's text and expected answer, and each run's answer, are there to judge from; scoring reads only the
+    verdicts."""
     keep = keep or {}
     lines = ["# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL",
              "# logic, empty or insufficient data, answer writing, or no answer. review is \"auto\" for a stage 1 or 2",
@@ -290,9 +321,8 @@ def write_judgments(path, records, keep=None):
         if (r["arm"], r["id"]) != last and r.get("question"):
             lines += [f"# {r['id']} (retrieval {r['arm']}): {r['question']}", f"# Expected: {r['expected']}", ""]
         last = (r["arm"], r["id"])
-        fresh, kept = draft(r), keep.get((r["arm"], r["id"], r["seed"]))
-        by_hand = kept and kept.get("review") != "auto"
-        entry = kept if by_hand and (kept.get("review") == "confirmed" or fresh["review"] != "auto") else fresh
+        fresh, earlier = draft(r), keep.get((r["arm"], r["id"], r["seed"]))
+        entry = earlier if kept(earlier, fresh, r) else fresh
         lines += ["[[run]]", f"arm = {toml_string(r['arm'])}", f"question = {toml_string(r['id'])}", f"seed = {r['seed']}",
                   f"verdict = {toml_string(entry['verdict'])}", f"stage = {toml_string(entry['stage'])}",
                   f"review = {toml_string(entry['review'])}", f"note = {toml_string(entry.get('note', ''))}",
