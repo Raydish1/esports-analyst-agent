@@ -142,6 +142,12 @@ class SqlLogicTest(unittest.TestCase):
                           call("run_sql", {"query": "SELECT ..."}, {"complete": False, "row_count": 900, "columns": []}))
             self.assertEqual(harness.stage2({"id": "x01"}, wrong), {"result": "fail", "detail": "2 query results"})
 
+    def test_an_answer_comes_after_an_empty_result_when_the_last_query_found_nothing(self):
+        self.assertTrue(harness.ended_empty(trace(sql("SELECT 1", [[30, 2]]), sql("SELECT ...", []))))
+        self.assertTrue(harness.ended_empty(trace(sql("SELECT SUM(won), COUNT(*) ...", [[None, 0]]))))  # over no rows
+        self.assertFalse(harness.ended_empty(trace(sql("SELECT ...", []), sql("SELECT ...", [[30, 2]]))))
+        self.assertFalse(harness.ended_empty(trace()))
+
     def test_no_check_applies_to_an_unanswerable_question_or_to_suggestions(self):
         self.assertEqual(harness.stage2({"id": "q35"}, trace())["result"], "n/a")
         self.assertEqual(harness.stage2({"id": "q22"}, trace(outcome="suggestions"))["result"], "n/a")

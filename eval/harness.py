@@ -80,9 +80,13 @@ def results(trace):
 
 
 def ended_empty(trace):
-    """Whether the last query that ran returned no rows, so the answer came after an empty result."""
+    """Whether the last query that ran found nothing, so the answer came after an empty result: no rows, or one row
+    of nulls and zeros (an aggregate over no rows, such as COUNT(*) with SUMs)."""
     ran = [obs for _, obs in calls(trace, "run_sql") if "error" not in obs]
-    return bool(ran) and ran[-1].get("row_count") == 0
+    if not ran:
+        return False
+    rows = ran[-1].get("rows")
+    return ran[-1].get("row_count") == 0 or (rows is not None and len(rows) == 1 and all(c in (None, 0) for c in rows[0]))
 
 
 def flat(text):

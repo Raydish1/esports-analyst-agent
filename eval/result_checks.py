@@ -139,7 +139,7 @@ CHECKS = {
     "h07": any_of(winners("Boomie", "capsar", "antireplay"), winners(146606, 147569, 158406)),
     "h08": row("2021", 7),
     "h09": any_of(single(4), listing(4, "lopesbrawlhalla")),
-    "h10": row("plumthegreat", 8, 1),
+    "h10": row("plumthegreat", 8),  # the wins, with or without the 1 loss
     "h11": rows(("Zivai", 7), ("whoiskyna", 7)),
     "h12": row(30, 2),
     "h13": any_of(row("Pro Series 2021", 1), row("series/pro-series-2021-na", 1), row("Zinquer", 1), single(1)),
