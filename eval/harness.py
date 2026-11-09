@@ -54,7 +54,7 @@ SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
 # counts a question as tuned from that day on, so an earlier run keeps its groups when it's reported again.
 TUNED = {"q04": "20261018", "q06": "20261018", "q08": "20261018", "q21": "20261023", "q22": "20261023",
          "q05": "20261109", "q09": "20261109", "q33": "20261109", "q35": "20261109", "q36": "20261109",
-         "q45": "20261109"}
+         "q45": "20261109", "q15": "20261109", "q20": "20261109", "q44": "20261109"}
 # The existing questions retrieval gave no helpful example in its measurement (2026-10-26), less those tuned on since
 # (q05, q09, q33, q35, q36 and q45, in step 1): the near-clean half of the retrieval-off arm, with the held-out set
 NEAR_CLEAN = ["q14", "q15", "q23", "q32", "q34", "q39", "q42"]
@@ -87,14 +87,18 @@ def results(trace, names=None):
     """The rows each query showed the agent (none for a result too large to show), then the events each
     resolve_event call listed, as rows of their values: an event's status (cancelled) can come from there. With
     names ({player_id: name}), a player ID in an ID column also counts as the player's name, since an agent often
-    fetches IDs first and names in a second query."""
+    fetches IDs first and names in a second query, but only if some tool result in the run holds that name: an
+    answer of bare IDs didn't get the names (q14, seed 1, retrieval off, 2026-11-08)."""
+    ran = [obs for _, obs in calls(trace, "run_sql") if "error" not in obs]
+    returned = {cell.casefold() for obs in ran for row in obs.get("rows", []) for cell in row if isinstance(cell, str)}
+    returned |= {c["name"].casefold() for _, obs in calls(trace, "resolve_player") for c in obs.get("candidates", [])
+                 if c.get("name")}
     shown = []
-    for _, obs in calls(trace, "run_sql"):
-        if "error" in obs:
-            continue
+    for obs in ran:
         rows, ids = obs.get("rows", []), [i for i, c in enumerate(obs.get("columns", [])) if ID_COLUMN.search(c)]
         if names and ids:
-            rows = [list(r) + [names[r[i]] for i in ids if r[i] in names] for r in rows]
+            rows = [list(r) + [names[r[i]] for i in ids if r[i] in names and (names[r[i]] or "").casefold() in returned]
+                    for r in rows]
         shown.append(rows)
     return shown + [[list(e.values()) for e in obs["events"]] for _, obs in calls(trace, "resolve_event") if obs.get("events")]
 
@@ -342,7 +346,8 @@ def score(run_ids, db, labels):
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,
                 "checks": sorted({k for s in t["steps"] for k in ("size_check", "lookup_check", "no_tool_check",
                                                                    "answer_check") if s.get(k)}),
-                "steps": t["steps_used"], "model_seconds": t["model_seconds"], "output_tokens": t["output_tokens"]})
+                "steps": t["steps_used"], "model_seconds": t["model_seconds"], "output_tokens": t["output_tokens"],
+                "name_swaps": len(t.get("name_swaps") or [])})
         out[run_id] = records
     return out
 

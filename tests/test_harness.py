@@ -163,6 +163,15 @@ class SqlLogicTest(unittest.TestCase):
                                    {"events": [{"event_id": "e20", "name": "CEO Dreamland 2020", "status": "cancelled"}]}))
             self.assertEqual(harness.stage2({"id": "x01"}, looked_up)["result"], "pass")
 
+    def test_a_player_id_counts_as_a_name_only_if_a_tool_returned_that_name(self):
+        names = {150037: "plumthegreat"}
+        ids = call("run_sql", {"query": "SELECT opponent_id, wins ..."},
+                   {"complete": True, "columns": ["opponent_id", "wins"], "rows": [[150037, 8]], "row_count": 1})
+        with mock.patch.dict(harness.CHECKS, {"x01": checks.row("plumthegreat", 8)}):
+            self.assertEqual(harness.stage2({"id": "x01"}, trace(ids), names)["result"], "fail")  # bare IDs
+            looked_up = trace(ids, sql("SELECT name FROM players WHERE player_id = 150037", [["plumthegreat"]]))
+            self.assertEqual(harness.stage2({"id": "x01"}, looked_up, names)["result"], "pass")
+
     def test_no_check_applies_to_an_unanswerable_question_or_to_suggestions(self):
         self.assertEqual(harness.stage2({"id": "q35"}, trace())["result"], "n/a")
         self.assertEqual(harness.stage2({"id": "q22"}, trace(outcome="suggestions"))["result"], "n/a")
