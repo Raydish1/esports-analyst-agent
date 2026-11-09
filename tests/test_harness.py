@@ -73,6 +73,8 @@ class ChecksTest(unittest.TestCase):
         self.assertTrue(both([[("Zivai", 7), ("whoiskyna", 7), ("Boomie", 5)]]))
         self.assertTrue(checks.listing(2, "lopes")([[("SiB | Wess",), ("lopesbrawlhalla",)]]))
         self.assertFalse(checks.listing(2, "lopes")([[("SiB | Wess",), ("lopesbrawlhalla",), ("DB",)]]))
+        self.assertTrue(checks.exactly(147982, 149204)([[(147982,), (149204,)]]))  # a team's two winners
+        self.assertFalse(checks.exactly(147982, 149204)([[(147982,), (149204,), (5,)]]))  # or an entrant list
 
     def test_every_question_of_both_sets_has_a_check(self):
         self.assertEqual(sorted(q["id"] for q in checks.load_questions()), sorted(checks.CHECKS))

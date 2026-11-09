@@ -69,6 +69,12 @@ def listing(n, *values):
     return lambda results: any(len(rs) == n and any(has(r, values) for r in rs) for rs in results)
 
 
+def exactly(*values):
+    """Some result has one row per value, holding it, and no others: a team's winners, say."""
+    return lambda results: any(len(rs) == len(values) and all(any(has(r, [v]) for r in rs) for v in values)
+                               for rs in results)
+
+
 def any_of(*checks):
     return lambda results: any(check(results) for check in checks)
 
@@ -134,14 +140,16 @@ CHECKS = {
     "h02": any_of(single(4), row("1v1", 4), listing(4, "Trial of Heimdall - Europe (Brawl League)")),
     "h03": any_of(row("Brawlhalla Autumn Championship 2019 (EU)", 1), row("2019-09-28", 1), single(1)),
     "h04": row(4, 5, 9),
-    "h05": any_of(winners("Zivai", "Blaze"), winners(147982, 149204), row("Zivai", "Blaze")),
+    "h05": any_of(winners("Zivai", "Blaze"), winners(147982, 149204), row("Zivai", "Blaze"), row(147982, 149204),
+                  exactly("Zivai", "Blaze"), exactly(147982, 149204)),
     "h06": any_of(rows(("loreszz", 1), ("Marckiem00", 1), ("Ahmet_", 1)),
                   rows(("loreszz", "Autumn Royale"), ("Marckiem00", "Autumn Royale"), ("Ahmet_", "Autumn Royale")),
-                  row("Ahmet_", 1), row("Ahmet_", "Autumn Royale 2025")),
-    "h07": any_of(winners("Boomie", "capsar", "antireplay"), winners(146606, 147569, 158406)),
+                  row("Ahmet_", 1), row("Ahmet_", "Autumn Royale 2025"), row(75405, "Autumn Royale 2025")),
+    "h07": any_of(winners("Boomie", "capsar", "antireplay"), winners(146606, 147569, 158406),
+                  exactly("Boomie", "capsar", "antireplay"), exactly(146606, 147569, 158406)),
     "h08": row("2021", 7),
     "h09": any_of(single(4), listing(4, "lopesbrawlhalla")),
-    "h10": row("plumthegreat", 8),  # the wins, with or without the 1 loss
+    "h10": any_of(row("plumthegreat", 8), row(150037, 8)),  # the wins, with or without the 1 loss
     "h11": rows(("Zivai", 7), ("whoiskyna", 7)),
     "h12": row(30, 2),
     "h13": any_of(row("Pro Series 2021", 1), row("series/pro-series-2021-na", 1), row("Zinquer", 1), single(1)),
