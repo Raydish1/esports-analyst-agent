@@ -75,6 +75,11 @@ def exactly(*values):
                                for rs in results)
 
 
+def every_row(n, value):
+    """Some result has exactly n rows, each holding the value: a player's placement at each of n events, say."""
+    return lambda results: any(len(rs) == n and all(has(r, [value]) for r in rs) for rs in results)
+
+
 def any_of(*checks):
     return lambda results: any(check(results) for check in checks)
 
@@ -101,9 +106,10 @@ CHECKS = {
     "q12": any_of(row("Brawlhalla World Championship Expo 2024", 7), row("Summer Doubles Championship - North America", 7)),
     "q13": any_of(row("Raydish", 1), row(160000, 1)),
     "q14": rows(("Raydish", 1), ("Bunny meow", 5), ("antireplay", 7)),
-    "q15": any_of(row("Zivai", 1), row(147982, 1), single(2)),  # 2: Zivai's wins among the two events
+    "q15": any_of(row("Zivai", 1), row(147982, 1), single(2), every_row(2, 1)),  # Zivai's wins at the two events
     "q16": any_of(winners("SiB | Wess", "V3M_T4NQUIL0"), winners(37977, 71736)),
-    "q17": rows(("Marckiem00", 1), ("BBBalloonBoy", 2), ("V3M_T4NQUIL0", 5), ("yüz", 7)),
+    "q17": any_of(rows(("Marckiem00", 1), ("BBBalloonBoy", 2), ("V3M_T4NQUIL0", 5), ("yüz", 7)),
+                  rows(("Marckiem00", 1), ("BBBalloonBoy", 2), ("V3M_T4NQUIL0", 5), ("Mounir", 7))),  # yüz / Mounir
     "q18": any_of(winners("bestjava", "fakey7"), winners(145913, 159255)),
     "q19": any_of(row("BBBalloonBoy", 1), row(149305, 1)),
     "q20": any_of(row("Impala", 3, 0), row(168635, 3, 0)),
