@@ -2,6 +2,56 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-09: step 2, clear-cut names, the display, and names corrected in code
+
+**Change** (commits 9d88685, c1d4036, 34c324e and 8b6b9e8), from the 2026-11-08 entry's second proposal, with the user's changes:
+- `resolve_player`: a name several players share resolves to the first alone when it has at least 5 times the next one's official results (`CLEAR_CUT`). Each candidate has a display, such as "Zivai (formerly Godly)", and the confident note says to call them by it.
+- The prompt: use the display the first time, without explaining the match; for an ambiguous name, one short clause.
+- Names corrected in code instead of sent back: the question's spelling of a player the resolver decided becomes the display at its first mention and the name after, and a wrong name just before a player ID becomes the data's name for it. Every swap is in the trace. A name with no ID that no tool returned still goes back once.
+- A reply to a check that talks about the answer instead of giving one, with no new number, keeps the answer sent back.
+- The harness counts a player ID as a name only if a tool returned that name.
+
+**Run:** `20261109-step2`, retrieval on, seeds 0–2, 45 runs: 4 targets, 8 regression checks whose names go through the changed code, and 3 controls with no player in the question. No run failed or was retried. Judged as before, all drafts needing the user's review.
+
+| Question | Before (20261108-eval-on), seeds 0 / 1 / 2 | After | Runs right |
+|---|---|---|---|
+| q15 did godly win eu summers 2026 | right / wrong / wrong | right / right / right | 1 → 3 |
+| q44 Ahmet second to Godly in 2026 | wrong / right / right | right / right / wrong | 2 → 2 |
+| q21 baloonboy's official wins | partly / partly / partly | right / right / right | 0 → 3 |
+| q20 DreamHack Valencia 2023 final score | partly / wrong / wrong | partly / wrong / wrong | 0 → 0 |
+| **Targets, 4 questions** | | | **3/12 (25%) → 8/12 (67%)** |
+| q01 Boomie's last event | right / right / right | right / right / right | 3 → 3 |
+| q03 Hexo's 1v1 top 8 | partly / right / right | right / right / right | 2 → 3 |
+| q04 Impala vs Balloonboy | right / right / right | right / right / right | 3 → 3 |
+| q12 flowers' first top 8 | right / right / right | right / right / right | 3 → 3 |
+| q23 kingdom \| godly vs impala | right / right / right | right / right / right | 3 → 3 |
+| q26 M30W \| BalloonBoy's top 3s | right / right / right | right / right / right | 3 → 3 |
+| q27 bbballoonboy vs impala | right / right / right | right / right / right | 3 → 3 |
+| q39 boomie or sandstorm, medals | right / right / right | right / right / right | 3 → 3 |
+| **Regression checks, 8 questions** | | | **23/24 (96%) → 24/24 (100%)** |
+| q13 winters 2023 na 1v1 (control) | right / right / right | right / right / right | 3 → 3 |
+| q17 top 8 at bcx 2025 1v1 (control) | right / right / right | partly / right / right | 3 → 2 |
+| q38 top 5 by 1v1 wins (control) | right / right / right | right / right / right | 3 → 3 |
+| **Controls, 3 questions** | | | **9/9 (100%) → 8/9 (89%)** |
+
+**Names:**
+- The model named players by their display itself in most runs. The code corrected 10 names in 4 of the 45 runs: q44 seeds 0 and 1 (Ahmet and Godly), q39 seed 1 (sandstorm) and q04 seed 2 (Balloonboy). On the same questions in 2026-11-08, replaying the same rule, 23 of 45 answers used the question's spelling.
+- Every corrected answer was right, but q44's read "Zivai (formerly Godly) (Zivai)", from the model's "Godly (Zivai)". Fixed in 8b6b9e8: replayed on those replies, the code now gives "Zivai (formerly Godly)".
+- No reply talked about the answer instead of giving one, so the model didn't exercise that fix here. Its tests pass.
+
+**Still not right:**
+- q20, all 3: seed 0 gave the score without the players, seed 1 named Impala the winner though Zivai won, and seed 2 ended in an empty reply after its queries failed (the missing opponent column again). Step 4's worked example targets this.
+- q44 seed 2: the names were right, but the count filtered `format = '1v1'` (1v1 is the mode), counted 0, and no diagnosis runs on a COUNT.
+- q17 seed 0, a control: 2nd place written "BBA balloonBoy", though the result had BBBalloonBoy. The model made the same slip in 2026-11-08 (q26), and step 2 doesn't touch this question (inferred).
+
+**Checks widened** after reading this run, to results right answers came from: q15 accepts Zivai's placements at the two events as two rows of 1, and q17 accepts Mounir as the 7th-place witness, since "yüz" can't match inside "yüz / Mounir". Replayed on the 2026-11-08 runs, neither changes a stage-2 result.
+
+**The harness fix on the 2026-11-08 numbers** (replayed, files and tables unchanged): one run changes, q14 seed 1 with retrieval off (bare player IDs), from passing stage 2 to failing it. Its verdict goes from not judged to wrong (SQL logic), so that arm's not-judged count is 16, not 17. No right count, and no retrieval-on number, changes.
+
+**Tuned on:** q15, q20 and q44, counted as tuned from 2026-11-09 (q21 already was). The regression checks and controls weren't tuned on.
+
+**Caveats:** 15 questions and 3 seeds, judged by Claude. The targets are the failures the change was written for, so their gain shows it works where aimed. The held-out set wasn't run.
+
 ## 2026-11-09: step 1, the prompt learns about career earnings and what the data doesn't cover
 
 **Change** (commit 268b3a9), from the 2026-11-08 entry's first proposal. The system prompt's views now include `v_career_earnings`, with the rules that a missing figure isn't $0, that a ranking covers only players with a figure, and that there is no prize money per tournament. Two notes say that legends aren't recorded and that every event is official whatever its name says, so community tournaments aren't in the data. A rule says to answer what the data doesn't cover by saying so, and what it does have, never from a nearby table. Nothing else in the agent changed. A new test checks that the prompt describes every view of eval-v1 except `v_player_ids` and `v_event_coverage`, left out on purpose. It failed before the change, on `v_career_earnings` alone.

@@ -72,6 +72,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - On the 7 questions it targets, seeds 0–2: 3 of 21 runs right before, 16 of 21 after. The 3 controls (q02, q26, q37) went from 7 of 9 to 9 of 9.
   - Left: q05 doesn't name Boomie as missing, as its verified answer asks; q45 seed 1 counted Impala's missing figure as $0.
   - The harness now counts q05, q09, q33, q35, q36 and q45 as tuned, in runs from 2026-11-09 on.
+- Step 2 of the fixes (2026-11-09, in the log): a shared name resolves to the first player alone when they have at least 5 times the next one's official results; each candidate has a display ("Zivai (formerly Godly)"); names are corrected in code (the question's spelling, a wrong name next to a player ID), every swap traced; a reply about the answer keeps the answer sent back; the harness counts an ID as a name only if a tool returned it.
+  - On its 4 targets, seeds 0–2: 3 of 12 runs right before, 8 of 12 after (q15 and q21 right in every seed). The 8 regression checks went from 23 of 24 to 24 of 24, and the 3 controls from 9 of 9 to 8 of 9 (q17 seed 0 misspelled BBBalloonBoy).
+  - The code corrected 10 names in 4 of 45 runs; on the same questions in 2026-11-08, 23 of 45 answers had used the question's spelling.
+  - Left: q20 (no opponent column), and q44 seed 2 (`format = '1v1'` in a COUNT, which no diagnosis catches). q15, q20 and q44 now count as tuned.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -163,6 +167,11 @@ Agent (`agent/`, a prototype):
   - The answer check: an answer naming a player, or citing a player ID, that no tool returned goes back to the model once. It looks only at words shaped like gamer tags and at bold or quoted text (quoted since 2026-10-23), since most ordinary words are some player's display name. IDs count after an ID word (player_id 12345, partner ID 5) or alone in bold or parentheses with five digits or more (since 2026-10-25).
   - The no-tool check (decided 2026-10-25): an answer stating facts (players, player IDs, numbers other than formats such as 1v1) in a question that called no tool goes back once. The model may reply the same if the facts come from earlier tool results.
   - The lookup check (decided 2026-10-23): an answer right after an empty result whose diagnosis finds no row with a text value the query filters on (a name, an event, a format) goes back once, as a likely lookup mistake. Any other empty result can be a true "none".
+  - The names correction (decided 2026-11-09), done in code before the checks, not sent back:
+    - the question's spelling of a player `resolve_player` decided becomes their display at its first mention and their name after, unless it's quoted or explains the name just before it; a case variant or a dropped team tag isn't a misspelling;
+    - a name just before a player ID that isn't that ID's name becomes the data's name for it ("**Lucky** (player_id 147982)" becomes Zivai);
+    - every swap is in the trace (`name_swaps`), and the harness counts them per run, to measure how often the model gets names wrong.
+  - A reply to a check that talks about the answer instead of giving one ("The answer is correct"), stating no new number, keeps the answer sent back as final (2026-11-09).
 - `retrieval.py` retrieves worked examples by meaning (Checkpoint 3, 2026-10-25): `agent/examples/examples.toml` holds 28 questions of common shapes, each with the query that answers it and why it's shaped that way.
   - None names a player or uses an event from the evaluation set or the target questions. `python agent/retrieval.py check` runs every query on eval-v1.
   - Only the questions are embedded, with nomic-embed-text through Ollama (prefix `clustering: `), in a Chroma collection in `data/rag/chroma` (git-ignored), rebuilt when the bank or the embedding changes.
@@ -173,6 +182,8 @@ Agent (`agent/`, a prototype):
   - `resolve_player` matches a name against the aliases in tiers (normalized, character swaps undone, prefix, similar spelling), ranks candidates by official results, and gives a status (confident, ambiguous, not found). It refuses IDs and names of digits only.
     - Each candidate has a match score: its tier's base times its closeness (nickname 1.0, exact 0.98, swap 0.92, prefix and similar spelling 0.85 times closeness).
     - Scores rank matches and aren't calibrated probabilities. They and the 0.9 threshold are to be tuned on the evaluation set's misspelling questions;
+    - A name several players share exactly resolves to the first alone, as confident, when it has at least 5 times the next one's official results (`CLEAR_CUT`, 2026-11-09). On the existing set's shared names the first was always the player meant, 14.8 to 48 times ahead;
+    - Each candidate has a display to name them by: the current name, with the former name the match went through, without its team tag ("Zivai (formerly Godly)"). A confident note says to call them by it;
   - `resolve_event` (decided 2026-10-23) finds the official events an event name means, so the model doesn't search event names with LIKE.
     - A mode word narrows the events. The rest matches, in tiers: a curated alias ('bcx 2022', score 1.0), a series of yearly aliases ('worlds', 0.95), every word with years and curated terms ('winters 2023 na', 0.9; qualifiers only when asked for), or some of the words (0.85 times the share).
     - The statuses are as for players. It's ambiguous when several tournaments match, or only some words. Words that find exactly a series' events count as that series ('world championships' is 'worlds').
@@ -268,8 +279,8 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **step 2 of the fixes, after the user's go-ahead**: the resolver decides a clear-cut name (one candidate far ahead by official results) and gives the words to name the player by, and a check sends back an answer that doesn't name the player a misspelled name resolved to (q15, q44, q21). Then step 3, `resolve_event` leading with a cancelled status and listing no partial sets (q30, q41); step 4, a check of names against player IDs and the answer check's wording (q20, q03); step 5, an answer verifier replayed on the recorded runs first. The user's review of the drafted verdicts (`eval/results/2026110*-judgments.toml`) is still pending.
-- For the harness: count a player's name only when a tool returned it, then draft the retrieval-off arm's 17 runs left and read its 11 unread machine verdicts.
+Next step: **step 3 of the fixes, after the user's go-ahead**: `resolve_event` leading with a cancelled or unreliable status and listing no partial sets (q30, q41). Then step 4, a worked example for a set's two players and the answer check's wording (q20, q03); step 5, an answer verifier replayed on the recorded runs first. Open from step 2: a `format` filter holding a mode in a COUNT, which no diagnosis catches (q44 seed 2; h09 and h11 with retrieval off). The user's review of the drafted verdicts (`eval/results/2026110*-judgments.toml`) is still pending.
+- For the harness: draft the retrieval-off arm's 16 runs left (q14 seed 1 is automatic since the name fix) and read its 11 unread machine verdicts.
 - Still open from the 2026-10-19 to 2026-10-25 entries: the retrieval threshold; the prompt lines on `v_team_results` (only 2v2) and integer division; current names, and the minimum number of matches; how to get question 6 aggregated (with retrieval on, all 3 runs did). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
