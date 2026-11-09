@@ -6,6 +6,7 @@ score each run by the stage that failed first, and report by group, shape, categ
     py -3.14 eval/harness.py run --near-clean --seeds 0 1 2 --examples off
     python eval/harness.py score RUN [RUN ...]                          stages 1 and 2, and a judgments draft
     python eval/harness.py report RUN [RUN ...]                         the tables, with raw counts
+    python eval/harness.py failures RUN                                 every run not right, as a page to read
 
 A run's traces go to data/experiments/<run>/traces.jsonl, one line per question and seed as each finishes, so an
 interrupted run resumes where it stopped. Scoring reads the traces only, so a corrected check never needs a rerun.
@@ -449,6 +450,82 @@ def report(records, judged):
     return out
 
 
+# The failures page
+
+def quoted_text(text):
+    """Text as a markdown quote, with its tags shown rather than rendered (one answer held <final_answer>)."""
+    return "\n".join(f"> {line}" if line else ">" for line in str(text).replace("<", "&lt;").splitlines()) or ">"
+
+
+def outcome(observation):
+    if "error" in observation:
+        return f"error: {observation['error']}"
+    if observation.get("complete") is False:
+        return f"too large to show: {observation['row_count']} rows"
+    n = observation.get("row_count", 0)
+    return "no rows" if n == 0 else f"{n} row{'' if n == 1 else 's'}"
+
+
+def failures(run_id, records, judged, questions, executed):
+    """A run's failures page, as markdown lines: every run whose verdict isn't "right" (one not judged yet counts),
+    grouped by question in the sets' order (questions: {id: question}, in that order). A contents table first, with
+    each seed's verdict; then each question once (group, category, text, verified answer, accepted answers, notes),
+    and each of its seeds not right with its verdict, stage, review mark, note and full answer, and the SQL it
+    executed (executed: {(id, seed): [(query, observation)]}) folded away."""
+    by = {}
+    for r in records:
+        by.setdefault(r["id"], {})[r["seed"]] = r
+    seeds = sorted({r["seed"] for r in records})
+
+    def judgment(r):
+        return judged.get((r["arm"], r["id"], r["seed"])) or {}
+
+    def verdict(r):
+        return judgment(r).get("verdict") or "not judged"
+
+    failing = [q for q in questions if q in by and any(verdict(r) != "right" for r in by[q].values())]
+    runs = sum(verdict(r) != "right" for rs in by.values() for r in rs.values())
+    out = [f"# Failures: run {run_id}", "",
+           f"{runs} of {len(records)} runs aren't right, in {len(failing)} of {len(by)} questions. The verdicts are in"
+           f" eval/results/{run_id}-judgments.toml, where \"needs review\" marks a draft.", "",
+           "| Question | " + " | ".join(f"Seed {s}" for s in seeds) + " | Failing stage |",
+           "|---|" + "---|" * len(seeds) + "---|"]
+    for q in failing:
+        rs = by[q]
+        stages = dict.fromkeys(judgment(rs[s]).get("stage") for s in seeds if s in rs and verdict(rs[s]) != "right")
+        out.append(f"| [{q}](#{q}) | " + " | ".join(verdict(rs[s]) if s in rs else "" for s in seeds)
+                   + f" | {'; '.join(s for s in stages if s)} |")
+    for q in failing:
+        question, rs = questions[q], by[q]
+        first = next(iter(rs.values()))
+        out += ["", f'<a id="{q}"></a>', "", f"## {q}: {question['question']}", "",
+                f"Group: {first['group']}. Category: {question['category']}.", "", "**Verified answer:**", "",
+                quoted_text(question["answer"].strip())]
+        for a in question.get("accept", []):
+            out += ["", f"Also accepted, if {' '.join(a['assumption'].split())}: {' '.join(a['answer'].split())}"]
+        if question.get("notes"):
+            out += ["", f"**Notes:** {' '.join(question['notes'].split()).replace('<', '&lt;')}"]
+        for s in seeds:
+            r = rs.get(s)
+            if r is None or verdict(r) == "right":
+                continue
+            j = judgment(r)
+            head = ", ".join(x for x in (verdict(r), j.get("stage")) if x)
+            out += ["", f"### Seed {s}: {head}" + (f" ({j['review']})" if j.get("review") else "")]
+            if j.get("note"):
+                out += ["", f"**Note:** {j['note'].replace('<', '&lt;')}"]
+            out += ["", "**Answer:**", "", quoted_text(r["answer"] or f"(no answer: {r['outcome']})")]
+            ran = executed.get((q, s), [])
+            if not ran:
+                out += ["", "No SQL was executed."]
+                continue
+            out += ["", f"<details><summary>SQL: {len(ran)} quer{'y' if len(ran) == 1 else 'ies'}</summary>", "", "```sql"]
+            for i, (query, observation) in enumerate(ran):
+                out += ([""] if i else []) + [query.strip(), f"-- {outcome(observation)}"]
+            out += ["```", "", "</details>"]
+    return out
+
+
 def main():
     sys.stdout.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(description="Evaluate the agent on the evaluation and held-out sets.")
@@ -464,8 +541,21 @@ def main():
     for name in ("score", "report"):
         p = commands.add_parser(name)
         p.add_argument("runs", nargs="+")
+    page = commands.add_parser("failures", help="every run not right, with its answer and SQL, as a page to read")
+    page.add_argument("run")
+    page.add_argument("--out", help="where to write it (default: data/experiments/<run>/failures.md, by its traces)")
     args = parser.parse_args()
     questions = load_questions()
+    if args.command == "failures":  # reads the run's scores, judgments and traces; changes none of them
+        records = json.loads((RESULTS / f"{args.run}-scores.json").read_text(encoding="utf-8"))
+        judged = read_judgments(RESULTS / f"{args.run}-judgments.toml")
+        executed = {(t["id"], t["seed"]): [(a.get("query", ""), o) for a, o in calls(t, "run_sql")]
+                    for t in load_traces(args.run)[1]}
+        path = Path(args.out) if args.out else RAW / args.run / "failures.md"
+        lines = failures(args.run, records, judged, {q["id"]: q for q in questions}, executed)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(path)
+        return
     if args.command == "run":
         if args.ids:
             unknown = set(args.ids) - {q["id"] for q in questions}

@@ -292,6 +292,62 @@ class ReportTest(unittest.TestCase):
         self.assertIn("Judgments needing review: 1 of 3.", lines)
 
 
+class FailuresPageTest(unittest.TestCase):
+    QUESTIONS = {
+        "q01": {"id": "q01", "question": "who won winters 2023 na 1v1", "category": "event_result",
+                "answer": "Raydish won it.", "notes": "Say which event.", "accept": [{"assumption": "the 2v2", "answer": "megD"}]},
+        "q02": {"id": "q02", "question": "how many wins?", "category": "player_record", "answer": "6", "accept": []},
+    }
+
+    def page(self):
+        records = [{"arm": "on", "id": q, "seed": s, "group": "existing, known shape", "outcome": "answered", "answer": a}
+                   for q, s, a in (("q01", 0, "**Boomie** won.\n<final_answer>"), ("q01", 1, "Raydish"),
+                                   ("q01", 2, "Boomie"), ("q02", 0, "6"))]
+        judged = {("on", "q01", 0): {"verdict": "wrong", "stage": "SQL logic", "review": "auto", "note": "1 query results"},
+                  ("on", "q01", 1): {"verdict": "right", "stage": "", "review": "needs review", "note": ""},
+                  ("on", "q01", 2): {"verdict": "", "stage": "", "review": "needs review", "note": ""},
+                  ("on", "q02", 0): {"verdict": "right", "stage": "", "review": "needs review", "note": ""}}
+        executed = {("q01", 0): [("SELECT name FROM v_results", {"complete": True, "rows": [["Boomie"]], "row_count": 1}),
+                                 ("SELECT x", {"error": "OperationalError: no such column: x"})]}
+        return harness.failures("r1", records, judged, self.QUESTIONS, executed)
+
+    def test_the_contents_list_each_question_with_a_run_not_right_and_every_seeds_verdict(self):
+        lines = self.page()
+        self.assertIn("| [q01](#q01) | wrong | right | not judged | SQL logic |", lines)
+        self.assertFalse(any("q02" in line for line in lines))  # right in every seed
+
+    def test_each_run_not_right_has_its_judgment_its_full_answer_and_the_sql_it_executed(self):
+        text = "\n".join(self.page())
+        self.assertEqual(text.count("## q01: who won winters 2023 na 1v1"), 1)  # the question once
+        for shown in ("Raydish won it.", "Also accepted, if the 2v2: megD", "Say which event.",
+                      "### Seed 0: wrong, SQL logic (auto)", "**Note:** 1 query results",
+                      "> **Boomie** won.\n> &lt;final_answer>", "<details><summary>SQL: 2 queries</summary>",
+                      "SELECT name FROM v_results\n-- 1 row", "-- error: OperationalError: no such column: x",
+                      "### Seed 2: not judged (needs review)", "No SQL was executed."):
+            self.assertIn(shown, text)
+        self.assertNotIn("### Seed 1", text)  # a right seed isn't shown
+
+    def test_the_subcommand_writes_the_page_by_the_runs_traces_and_leaves_its_judgments_alone(self):
+        record = {"arm": "on", "id": "q13", "seed": 0, "group": "existing, known shape", "outcome": "answered",
+                  "answer": "Boomie", "stage1": {"result": "pass", "detail": ""},
+                  "stage2": {"result": "fail", "detail": "1 query results"}}
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(harness, "RESULTS", Path(folder)), \
+                mock.patch.object(harness, "RAW", Path(folder)):
+            (Path(folder) / "r1-scores.json").write_text(json.dumps([record]), encoding="utf-8")
+            harness.write_judgments(Path(folder) / "r1-judgments.toml", [record])
+            (Path(folder) / "r1").mkdir()
+            (Path(folder) / "r1" / "header.json").write_text(json.dumps({"arm": "on"}), encoding="utf-8")
+            line = {"id": "q13", "seed": 0, **trace(sql("SELECT placement FROM v_results", [[1]]))}
+            (Path(folder) / "r1" / "traces.jsonl").write_text(json.dumps(line) + "\n", encoding="utf-8")
+            judgments = (Path(folder) / "r1-judgments.toml").read_text(encoding="utf-8")
+            with mock.patch.object(sys, "argv", ["harness.py", "failures", "r1"]), mock.patch("builtins.print"):
+                harness.main()
+            page = (Path(folder) / "r1" / "failures.md").read_text(encoding="utf-8")
+            self.assertEqual((Path(folder) / "r1-judgments.toml").read_text(encoding="utf-8"), judgments)
+        self.assertIn("| [q13](#q13) | wrong | SQL logic |", page)
+        self.assertIn("SELECT placement FROM v_results\n-- 1 row", page)
+
+
 class HeldOutLeakTest(unittest.TestCase):
     """The held-out set must never reach the example bank (decided 2026-11-08), and names players the agent wasn't
     tuned on."""

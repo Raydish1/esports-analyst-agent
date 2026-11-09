@@ -146,6 +146,7 @@ Evaluation (`eval/`):
   - `py -3.14 eval/harness.py run --all --seeds 0 1 2` (or `--ids`, `--near-clean`, `--examples off`) appends each trace to `data/experiments/<run>/`, so a run resumes;
   - `score RUN [RUN ...]` scores stages 1 and 2 offline and writes `eval/results/<run>-scores.json` and `<run>-judgments.toml`, where stages 3 and 4 are drafted by hand ("needs review") and kept across rescoring;
   - `report RUN [RUN ...]` prints the tables by group, held-out shape, query shape, category and failing stage, with raw counts next to every rate;
+  - `failures RUN` writes a page to review from, `data/experiments/<run>/failures.md` (git-ignored, next to the traces it reads): every run not right, grouped by question, with its judgment, full answer and the SQL it executed. It reads the run's files and changes none of them;
   - `result_checks.py` holds stage 2's check per question; `python eval/result_checks.py` verifies each on its question's reference queries.
 
 Agent (`agent/`, a prototype):
