@@ -13,7 +13,8 @@ interrupted run resumes where it stopped. Scoring reads the traces only, so a co
 Each run's verdict (right, partly, wrong) comes with the first stage that failed, in the pipeline's order:
 1. name resolution: every player and event the question names resolved to the IDs its file gives, and those were
    the IDs the agent used (scored here);
-2. SQL logic: the queries it ran returned the facts the answer needs (eval/result_checks.py; scored here);
+2. SQL logic: the queries it ran, with the events resolve_event listed, returned the facts the answer needs
+   (eval/result_checks.py; scored here);
 3. empty or insufficient data: a "none", a "not held" or missing data told apart from a lookup mistake, said, and not
    filled in;
 4. answer writing: the answer states what the results show, with what the question requires (the name, the minimum,
@@ -75,8 +76,10 @@ def queries(trace):
 
 
 def results(trace):
-    """The rows each query showed the agent (none for a result too large to show)."""
-    return [obs.get("rows", []) for _, obs in calls(trace, "run_sql") if "error" not in obs]
+    """The rows each query showed the agent (none for a result too large to show), then the events each
+    resolve_event call listed, as rows of their values: an event's status (cancelled) can come from there."""
+    shown = [obs.get("rows", []) for _, obs in calls(trace, "run_sql") if "error" not in obs]
+    return shown + [[list(e.values()) for e in obs["events"]] for _, obs in calls(trace, "resolve_event") if obs.get("events")]
 
 
 def ended_empty(trace):

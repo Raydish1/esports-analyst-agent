@@ -155,6 +155,12 @@ class SqlLogicTest(unittest.TestCase):
         self.assertFalse(harness.ended_empty(trace(sql("SELECT ...", []), sql("SELECT ...", [[30, 2]]))))
         self.assertFalse(harness.ended_empty(trace()))
 
+    def test_an_events_status_from_resolve_event_counts_as_a_fact_the_agent_saw(self):
+        with mock.patch.dict(harness.CHECKS, {"x01": checks.row("cancelled")}):
+            looked_up = trace(call("resolve_event", {"name": "ceo dreamland 2020"},
+                                   {"events": [{"event_id": "e20", "name": "CEO Dreamland 2020", "status": "cancelled"}]}))
+            self.assertEqual(harness.stage2({"id": "x01"}, looked_up)["result"], "pass")
+
     def test_no_check_applies_to_an_unanswerable_question_or_to_suggestions(self):
         self.assertEqual(harness.stage2({"id": "q35"}, trace())["result"], "n/a")
         self.assertEqual(harness.stage2({"id": "q22"}, trace(outcome="suggestions"))["result"], "n/a")

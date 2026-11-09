@@ -1,9 +1,10 @@
 """Stage 2 of the evaluation harness (eval/harness.py): whether the queries the agent ran returned the facts its
 answer needs, for each question of the evaluation set and the held-out set.
 
-A check reads the results of the agent's queries (the rows each run_sql observation showed it) and passes when the
-facts are in them, wherever the answer then went. NA marks a question whose right answer needs no query result: the
-data can't answer it, or the right answer is "none".
+A check reads the results of the agent's queries (the rows each run_sql observation showed it, then the events each
+resolve_event call listed, which carry an event's status) and passes when the facts are in them, wherever the
+answer then went. NA marks a question whose right answer needs no query result: the data can't answer it, or the
+right answer is "none".
 
 Values match cells loosely, so a check doesn't depend on how a query is written: numbers to two decimals (a number
 written as text counts, as substr(start_date, 1, 4) gives), and text ignoring case, either equal to a cell or, for
