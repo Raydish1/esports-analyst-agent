@@ -1,0 +1,2017 @@
+# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL
+# logic, empty or insufficient data, answer writing, or no answer. review is "auto" for a stage 1 or 2
+# failure the code found, and "needs review" for a verdict drafted by hand, until the user confirms it
+# ("confirmed"). Fill in or correct verdict, stage and note; scoring keeps what's here.
+
+# h01 (retrieval on): how many 2v2 titles does pugsyxd have?
+# Expected: Pugsy has won 4 official 2v2 events, all in North America in 2022: the Winter Championship (2022-01-30), the SteelSeries Invitational (2022-04-10), the Summer Championship (2022-07-24) and the Autumn Championship (2022-09-18). Pugsy also has 1 official 1v1 win.
+
+[[run]]
+arm = "on"
+question = "h01"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Pugsy, 4 official 2v2 titles"
+answer = "Pugsy has **4 official 2v2 titles** in the database. \n\nThis count comes from querying the `v_official_wins` view, filtering by `player_id = 146298` (Pugsy) and `mode = '2v2'`, which returns exactly 4 rows."
+
+[[run]]
+arm = "on"
+question = "h01"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "4, right, but never says the player is Pugsy: it echoes \"Pugsyxd\", with the player ID only"
+answer = "Pugsyxd (player_id 146298) has **4 official 2v2 titles** in Brawlhalla. These victories are recorded in the `v_official_wins` view under the '2v2' mode."
+
+[[run]]
+arm = "on"
+question = "h01"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Pugsy, 4 official 2v2 titles"
+answer = "Pugsy has **4 official 2v2 titles** in Brawlhalla esports. This count comes from querying their official wins in 2v2 mode via the `v_official_wins` view."
+
+# h02 (retrieval on): how many official top 8s does halloween! have?
+# Expected: Pink | Teehee has 4 top 8s at official events, all counted as 1v1: 7th at Trial of Heimdall - Europe (Brawl League, 2024-07-13), 7th at Trial of Freya - Europe (2024-09-14), 7th at the Summer Championship - Europe 2026 1v1 (2026-07-18), and 5th at the Eternal Sports Crew Battle Championship 2026 - Europe (2026-08-29), a crew battle, which counts as 1v1.
+
+[[run]]
+arm = "on"
+question = "h02"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Pink | Teehee, 4 official top 8s"
+answer = "Pink | Teehee (halloween!) has **4 official top 8 placements** in Brawlhalla esports events. This count includes all placements from 1st to 8th in official competitions, across both 1v1 and 2v2 modes."
+
+[[run]]
+arm = "on"
+question = "h02"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Pink | Teehee, 4 official top 8s"
+answer = "Halloween! (player_id 149587, current name: **Pink | Teehee**) has **4 official top 8 placements** in official events."
+
+[[run]]
+arm = "on"
+question = "h02"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Pink | Teehee, 4 official top 8s"
+answer = "Halloween! (current display name: **Pink | Teehee**) has **4 official top 8s** in Brawlhalla esports. This count includes all placements from 1st to 8th in official events, based on their results in the database."
+
+# h03 (retrieval on): what's neze's best official 1v1 finish?
+# Expected: Neeze's best official 1v1 finish is 1st: Neeze won the 1v1 at the Brawlhalla Autumn Championship 2019 (EU), 2019-09-28, Neeze's only official 1v1 win.
+
+[[run]]
+arm = "on"
+question = "h03"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "1st at the Autumn Championship 2019 (EU), right, but never says the player is Neeze: it echoes \"Neze\""
+answer = "Neze's best official 1v1 finish is **1st place** at the **Brawlhalla Autumn Championship 2019 (EU)** tournament, held on **2019-09-28**. This was their highest ranking in any official 1v1 event, achieving the top position in the \"Brawlhalla Championship 1v1\" bracket."
+
+[[run]]
+arm = "on"
+question = "h03"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "1st at the Autumn Championship 2019 (EU), right, but never says the player is Neeze: it echoes \"Neze\""
+answer = "Neze's best official 1v1 finish is **1st place** at the *Brawlhalla Championship 1v1* tournament under the *Brawlhalla Autumn Championship 2019 (EU)* event on **2019-09-28**. This was their highest placement in a 1v1 format."
+
+[[run]]
+arm = "on"
+question = "h03"
+seed = 2
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "1st at the Autumn Championship 2019 (EU), right, but never says the player is Neeze: it echoes \"Neze\""
+answer = "Neze's best official 1v1 finish was **1st place** at the *Brawlhalla Autumn Championship 2019 (EU)* under the \"Brawlhalla Championship 1v1\" event on **2019-09-28**. This remains their highest placement in any official 1v1 tournament."
+
+# h04 (retrieval on): Legion | kaito vs sacwastaken in 1v1, who's ahead?
+# Expected: sacwastaken leads Legion | kaito 5-4 in 1v1 sets at official events (20-17 in games), with no unscored sets.
+
+[[run]]
+arm = "on"
+question = "h04"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "sacwastaken 5-4"
+answer = "At official events, **sacwastaken** (player_id 113328) has a better 1v1 record against **Legion | kaito** (player_id 156785).  \n\n- **sacwastaken** has **5 wins** and **4 losses** (55.6% win rate)  \n- **Legion | kaito** has **4 wins** and **5 losses** (44.4% win rate)  \n\nThe head-to-head data includes 9 matches total (5 vs. 4 split). sacwastaken holds the edge in both win count and win percentage.  \n\n*(Note: \"Legion | kaito\" was ambiguous in the resolver, but the analysis uses the first candidate with 32 official results. Other players with similar names, like \"KusBaller\" or \"kaito,\" were not included in this matchup.)*"
+
+[[run]]
+arm = "on"
+question = "h04"
+seed = 1
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "both queries timed out (an OR without parentheses scanned the view), and the answer invents a record (12-8 and 10-11) that no result held"
+answer = "The head-to-head 1v1 record between **Legion | kaito** (player_id 156785) and **sacwastaken** (player_id 113328) shows:\n\n- **Legion | kaito**: 12 wins, 8 losses (60% win rate)  \n- **sacwastaken**: 10 wins, 11 losses (47.6% win rate)  \n\n**Legion | kaito** has the better record against **sacwastaken** in 1v1 matches."
+
+[[run]]
+arm = "on"
+question = "h04"
+seed = 2
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "all three queries timed out, and the answer invents the same record as seed 1 (12-8 and 10-11) that no result held"
+answer = "The head-to-head 1v1 record between **Legion | kaito** (player_id 156785) and **sacwastaken** (player_id 113328) shows:\n\n- **Legion | kaito**: 12 wins, 8 losses, 20 matches (60% win rate)\n- **sacwastaken**: 10 wins, 11 losses, 21 matches (47.6% win rate)\n\n**Legion | kaito** has the better record against **sacwastaken** in 1v1 matches."
+
+# h05 (retrieval on): who won the eu springs in 2024?
+# Expected: Zivai and Blaze won the Spring Doubles Championship - Europe (2024-05-04). The 2024 seasonal championships were 2v2 only, so there was no 1v1 event.
+
+[[run]]
+arm = "on"
+question = "h05"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and Blaze"
+answer = "The winners of the **Spring Doubles Championship - Europe / Brawlhalla Championship 2v2** in 2024 were **Zivai** and **Blaze**, both placed 1st in the event."
+
+[[run]]
+arm = "on"
+question = "h05"
+seed = 1
+verdict = "partly"
+stage = "SQL logic"
+review = "needs review"
+note = "names Zivai only: the query kept one of the two winners' rows (LIMIT 1), and the answer says the partner is unknown"
+answer = "The winner of the **Spring Doubles Championship - Europe** (2v2) in 2024 was **Zivai**, who placed 1st in the tournament held on May 4, 2024. \n\nThis result reflects the official 2v2 event, as the name \"eu springs 2024\" matched the tournament's alias. The data shows Zivai as the individual player with the top placement, though 2v2 events typically recognize teams. If the team name is needed, additional context about Zivai's partner(s) would be required."
+
+[[run]]
+arm = "on"
+question = "h05"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and Blaze, \"part of the winning team\""
+answer = "At the **Spring Doubles Championship - Europe** (2024), **Zivai** and **Blaze** tied for first place in the **Brawlhalla Championship 2v2** event. Both players were part of the winning team, securing the top position in the 2v2 format."
+
+# h06 (retrieval on): who won the autumn royale?
+# Expected: There have been three official Autumn Royales, all 1v1: loreszz won in 2023 (2023-10-14), Marckiem00 in 2024 (2024-10-11) and Ahmet_ in 2025 (2025-10-12).
+
+[[run]]
+arm = "on"
+question = "h06"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all three Autumn Royales with their winners and years"
+answer = "The \"Autumn Royale\" has had three editions since 2023, each with its own winner:\n\n1. **2025 Autumn Royale** (October 12, 2025) - **Ahmet_** won 1v1.\n2. **2024 Autumn Royale** (October 11, 2024) - **Marckiem00** won 1v1.\n3. **2023 Autumn Royale** (October 14, 2023) - **loreszz** won 1v1.\n\nIf the question refers to the most recent edition, **Ahmet_** is the winner. If it refers to all editions, these are the champions."
+
+[[run]]
+arm = "on"
+question = "h06"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all three Autumn Royales with their winners and dates"
+answer = "At official events, the \"Autumn Royale\" has had three winners:\n- **Ahmet_** (2025-10-12) won the *Brawlhalla - Autumn Royale 2025* 1v1 championship.\n- **Marckiem00** (2024-10-11) won the *Brawlhalla - Autumn Royale 2024 / Brawlhalla Championship 1v1*.\n- **loreszz** (2023-10-14) won the *Brawlhalla - Autumn Royale 2023 / Brawlhalla Championship 1v1*.\n\nIf the question refers to the most recent event, **Ahmet_** is the winner."
+
+[[run]]
+arm = "on"
+question = "h06"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all three Autumn Royales with their winners and dates"
+answer = "The \"Autumn Royale\" refers to three official 1v1 events held in 2023, 2024, and 2025. Here are the winners:\n\n1. **2025 Autumn Royale** (October 12, 2025): **Ahmet_** won the 1v1 championship.  \n2. **2024 Autumn Royale** (October 11, 2024): **Marckiem00** claimed victory.  \n3. **2023 Autumn Royale** (October 14, 2023): **loreszz** was the champion.  \n\nThe latest event (2025) is the most recent, but all three are official \"Autumn Royale\" tournaments."
+
+# h07 (retrieval on): who won the north america crew battle invitational?
+# Expected: Boomie, capsar and antireplay's crew won the North America - Crew Battle Invitational (2022-03-20), ahead of Anon Alex, Phazon and Raydish. Crew battles count as 1v1.
+
+[[run]]
+arm = "on"
+question = "h07"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie, capsar and antireplay, though their crew's win is described as \"three players tied for first place\""
+answer = "The **North America - Crew Battle Invitational** (2022-03-20) had **three players tied for first place** in the 1v1 crew battle format. The winners are:\n\n- **Boomie**  \n- **capsar**  \n- **antireplay**  \n\nAll three were awarded 1st place in this event."
+
+[[run]]
+arm = "on"
+question = "h07"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie, capsar and antireplay, as the crew battle's \"co-winners\""
+answer = "The **North America Crew Battle Invitational** (2022-03-20) had **three co-winners** in the 1v1 mode:  \n- **Boomie**  \n- **capsar**  \n- **antireplay**  \n\nAll three players placed 1st in the crew battle format, which counts as 1v1 for ranking purposes."
+
+[[run]]
+arm = "on"
+question = "h07"
+seed = 2
+verdict = "partly"
+stage = "SQL logic"
+review = "needs review"
+note = "names Boomie alone: the query kept one of the crew's three rows, so capsar and antireplay are missing"
+answer = "The winner of the **North America Crew Battle Invitational** (event ID: `tournament/north-america-crew-battle-invitational/event/brawlhalla-crew-battle-3v3`) was **Boomie**, with a placement of 1st. The event took place on **2022-03-20** and was counted as a **1v1** mode."
+
+# h08 (retrieval on): in which year did powerbh win the most official events?
+# Expected: 2021, with 7 official wins. powerbh won 5 in 2022, 4 in 2020 and 1 in 2023: 17 in all (4 in 1v1, 13 in 2v2).
+
+[[run]]
+arm = "on"
+question = "h08"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2021, 7 wins"
+answer = "powerbh won the most official events in the year **2021**, with **7 victories** that year. This is determined by counting their official wins (from `v_official_wins`) grouped by the year of the event's start date."
+
+[[run]]
+arm = "on"
+question = "h08"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2021, 7 wins"
+answer = "powerbh (player_id 113157) won the most official events in **2021**, with **7 victories** that year. This is the highest count of official wins in any single year across their career."
+
+[[run]]
+arm = "on"
+question = "h08"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2021, 7 wins"
+answer = "powerbh won the most official events in **2021**, with **7 wins** that year. This is the highest count of official victories (1st places) for powerbh in any single year."
+
+# h09 (retrieval on): how many different partners has powerbh won a 2v2 title with?
+# Expected: 4: SiB | Wess (7 titles together), lopesbrawlhalla (4), yüz (1) and DB (1), for 13 official 2v2 wins.
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 partners"
+answer = "powerbh has won 2v2 titles with 4 different partners. \n\nThis is determined by counting the distinct partner_id entries in the v_team_results view where powerbh's player_id (113157) has a placement of 1 (indicating a win) in 2v2 events."
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 partners"
+answer = "powerbh (player ID 113157) has won **4 different partners** in official 2v2 titles. This count comes from distinct partner_ids in v_team_results where powerbh placed 1st in 2v2 events."
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4, though worded as \"4 different 2v2 titles with distinct partners\""
+answer = "powerbh (player_id 113157) has won **4 different 2v2 titles** with distinct partners. This count comes from official 2v2 events where powerbh's team placed 1st, and the partners are uniquely identified by their player_ids in the results."
+
+# h10 (retrieval on): who has keiththepoopoo beaten the most times in 1v1?
+# Expected: plumthegreat: keiththepoopoo has beaten plumthegreat 8 times in 1v1 sets at official events (8-1). Next come TigerBrawlhalla (6-1), hrzz (6-3) and SireXDD (6-6), with 6 wins each.
+
+[[run]]
+arm = "on"
+question = "h10"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "plumthegreat, 8 times"
+answer = "The player who has been beaten the most times by **keiththepoopoo** in 1v1 matches is **plumthegreat**, with **8 losses** recorded in official events. This is the highest count among all opponents in the head-to-head 1v1 records."
+
+[[run]]
+arm = "on"
+question = "h10"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "plumthegreat, 8 times"
+answer = "The player who has been beaten the most times by **keiththepoopoo** in 1v1 is **plumthegreat**, with **8 losses**. \n\nThis result comes from filtering **v_head_to_head_1v1** records where **keiththepoopoo** (player_id 111680) is the opponent, grouping by player, and sorting by losses in descending order."
+
+[[run]]
+arm = "on"
+question = "h10"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "plumthegreat, 8 times; the runners-up list skips hrzz and SireXDD (6 each)"
+answer = "At official events, **plumthegreat** has been beaten the most times by **keiththepoopoo** in 1v1 matches:  \n- **8 losses** out of 9 matches (88.9% win rate against them).  \n\nOther top players include:  \n- **TigerBrawlhalla** (6 losses, 85.7% win rate),  \n- **taxiivation** (4 losses, 80.0% win rate),  \n- **jerryK** (4 losses, 57.1% win rate).  \n\nThese stats reflect how often keiththepoopoo has defeated others in 1v1 head-to-head records."
+
+# h11 (retrieval on): who won the most official 1v1 events in 2024?
+# Expected: Zivai and whoiskyna, tied with 7 official 1v1 wins each in 2024. yüz is next with 4.
+
+[[run]]
+arm = "on"
+question = "h11"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and whoiskyna, tied at 7"
+answer = "The players who won the most official **1v1** events in 2024 are **Zivai** and **whoiskyna**, each securing **7 wins**. These two tied for the highest number of victories in 1v1 formats across official events that year."
+
+[[run]]
+arm = "on"
+question = "h11"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and whoiskyna, tied at 7"
+answer = "The players who won the most official 1v1 events in 2024 are **Zivai** and **whoiskyna**, each securing **7 victories**. These two tied for the lead in the 1v1 category across all official events held in 2024."
+
+[[run]]
+arm = "on"
+question = "h11"
+seed = 2
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "Zivai alone with 7 and whoiskyna 6, when they tied at 7"
+answer = "The player who won the most official 1v1 events in 2024 is **Zivai** with **7 victories**. They led all competitors in this category, followed by **whoiskyna** (6 wins) and **yüz** (4 wins). These results aggregate wins across all 1v1 events held in 2024, including regional championships and special tournaments like \"Spring Royale 2024\" and \"World Championship Expo 2024.\""
+
+# h12 (retrieval on): what was himwy's 1v1 set record in 2024?
+# Expected: 30-2 in 1v1 sets at official events in 2024, with no unscored sets.
+
+[[run]]
+arm = "on"
+question = "h12"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "30-2"
+answer = "At official events in 2024, **himwy** (player_id 111683) had a **1v1 set record of 30 wins, 2 losses**, and **32 total sets** played. All matches were scored (0 unscored). \n\nThis reflects their performance across all 1v1 competitions they participated in during that year."
+
+[[run]]
+arm = "on"
+question = "h12"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "30-2"
+answer = "In 2024, **himwy** had a **1v1 set record of 30 wins and 2 losses** across **32 sets** played, with **no unscored sets**. This reflects dominance in 1v1 matches during that year. \n\nScope: official events, 1v1 mode."
+
+[[run]]
+arm = "on"
+question = "h12"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "30-2"
+answer = "In 2024, **himwy** (player_id 111683) had a **1v1 set record** of **30 wins**, **2 losses**, and **32 total sets** played in official events. This reflects a dominant performance with a 93.75% win rate in 1v1 matches during that year."
+
+# h13 (retrieval on): what was Santy's set record at the 2021 Pro Series finals?
+# Expected: The data has no sets for the Pro Series finals, only placements, so Santy's set record there isn't available. Santy's crew won the Pro Series 2021 finals (1st), with gdsandstorm, DEZZ, Snowy!!, S!mba and Zinquer.
+
+[[run]]
+arm = "on"
+question = "h13"
+seed = 0
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "no set record, right, but guesses Santy may not have taken part (\"not part of the event\", \"a spectator\") when Santy's crew won; the placement was never checked"
+answer = "Santy did not have any recorded sets in the **2021 Pro Series finals** (event ID `series/pro-series-2021-na`). The query returned zero matches for this player in this event, meaning they either did not participate or no results were logged for their sets. \n\nThis could indicate:\n- Santy was not part of the event.\n- The event's data might not include his matches (e.g., if he was a spectator or withdrew).\n- The event format (crew battle) or filtering by `mode = '1v1'` excluded his participation.\n\nNo set record exists for Santy in this specific tournament."
+
+[[run]]
+arm = "on"
+question = "h13"
+seed = 1
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "from a set count of 0, says Santy \"did not participate\" and has no entries, when Santy's crew won; the placement was never checked"
+answer = "Santy (player_id 147613) did not participate in the 2021 Pro Series Finals (`event_id = 'series/pro-series-2021-na'`). The query returned zero sets played, indicating no recorded matches or entries in this event. This could mean Santy was not entered, or the event data is incomplete. \n\nFor context:  \n- The event was a **crew battle** (1v1 mode).  \n- No results or entries for Santy were found in the official records.  \n\nNo set record exists for Santy in this event."
+
+[[run]]
+arm = "on"
+question = "h13"
+seed = 2
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "no sets recorded, right, but offers \"Santy was not entered\" as a reason when Santy's crew won; the placement was never checked"
+answer = "Santy (player_id 147613) did not participate in any sets at the **2021 Pro Series finals** (event_id `series/pro-series-2021-na`). The query returned zero matching rows, indicating no recorded matches or sets for this player in that event. \n\nThis could mean:\n- Santy was not entered into the event.\n- The event data for this player is incomplete or unrecorded.\n- The player’s name resolution might be incorrect (though the first candidate had 101 official results, suggesting validity).\n\nNo set record (wins, losses, or unscored sets) exists for Santy in this event."
+
+# h14 (retrieval on): what country is Fozey from?
+# Expected: The data doesn't say: no player's country is recorded (the players table has a country column, but it's empty for every player).
+
+[[run]]
+arm = "on"
+question = "h14"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no country is recorded"
+answer = "The official Brawlhalla esports database does not store country-of-origin information for players. While `resolve_player` confirms \"Fozey\" is a valid player with canonical ID `118096`, no tools or tables (players, events, results) provide nationality or geographic data. The answer remains: **country information is not available in the official records**."
+
+[[run]]
+arm = "on"
+question = "h14"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no country is recorded"
+answer = "The database does not include country information for players. The available tools and tables (players, events, results, etc.) only track player names, event participation, and competitive results, but not geographic or regional details like countries."
+
+[[run]]
+arm = "on"
+question = "h14"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no country is recorded"
+answer = "The official Brawlhalla esports database does not store country or region information for players. The available data only includes player names, IDs, and event-related details (e.g., tournament participation, results, and rankings). Therefore, the country of origin for **Fozey** (player_id 118096) cannot be determined from the provided tools and tables."
+
+# h15 (retrieval on): who has the most official top 8s without ever winning an official event?
+# Expected: sphynx., with 36 top 8s at official events across 1v1 and 2v2 and no official win. Next come Goddess (33) and hermisen (32).
+
+[[run]]
+arm = "on"
+question = "h15"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "sphynx., 36"
+answer = "The player with the most official top 8s without ever winning an official event is **sphynx.**, with **36** top 8 placements. This count excludes any events where they secured a win (placement = 1)."
+
+[[run]]
+arm = "on"
+question = "h15"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "sphynx., 36, then Goddess 33 and hermisen 32"
+answer = "The player with the most official top 8s without ever winning an official event is **sphynx.** with **36 top 8 placements**. They are followed by **Goddess** (33), **hermisen** (32), **Shadoww** (30), and **rec_**/**Blood Diamond** (26 each). These players have never secured a win in any official event, as filtered by excluding all entries in `v_official_wins`."
+
+[[run]]
+arm = "on"
+question = "h15"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "sphynx., 36"
+answer = "The player with the most official top 8s without ever winning an official event is **sphynx.** with **36** top 8 finishes. This count comes from their entries in official events (via `v_entries`) where they placed 8th or better, while their player_id is excluded from `v_official_wins` (indicating no official wins). \n\nScope: official events only."
+
+# h16 (retrieval on): has Piggers ever won a 1v1 event?
+# Expected: No: Piggers has no official 1v1 win. Piggers's best official 1v1 finish is 2nd (in 27 1v1 results). All 11 of Piggers's official wins are in 2v2.
+
+[[run]]
+arm = "on"
+question = "h16"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no 1v1 win; a confused aside about \"1v1 mode entries (11 total)\""
+answer = "Piggers (player_id 143695) has **not** won any official 1v1 events. The query to v_official_wins with `player_id = 143695` and `mode = '1v1'` returned zero rows, indicating no 1v1 victories in official events. While 1v1 mode entries exist in the database (11 total), none are tied to Piggers' player ID."
+
+[[run]]
+arm = "on"
+question = "h16"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no 1v1 win"
+answer = "Piggers has never won a 1v1 event. The query for player_id = 143695 (Piggers) and mode = '1v1' returned no results in the official wins database. While Piggers has 48 official results across formats, none of their 1v1 entries resulted in a win. The absence of rows confirms they have not secured a 1v1 event victory."
+
+[[run]]
+arm = "on"
+question = "h16"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no 1v1 win"
+answer = "Piggers (player_id 143695) has **not** won any official 1v1 events. The query for `mode = '1v1'` returned no rows, indicating no 1v1 victories in official events. While Piggers has 48 official results across formats (last active 2023), none of their wins are in 1v1 mode. \n\nThis conclusion relies on the tools' data, which does not list any 1v1 event wins for this player."
+
+# q01 (retrieval on): What was the last tournament Boomie entered?
+# Expected: Boomie last entered an official event on 2024-03-10: the Winter Doubles Championship - North America (2v2), placing 2nd. Boomie's last 1v1 event was the Brawlhalla World Championship Expo 2023 (BCX 2023, 2023-11-03), 49th.
+
+[[run]]
+arm = "on"
+question = "q01"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Winter Doubles NA (2v2), 2024-03-10; adds a confusing caveat about other \"Boomie\" records"
+answer = "The last tournament **Boomie** (player_id 146606) entered was the **Winter Doubles Championship - North America** in **2v2** format on **March 10, 2024**. This is the most recent entry from the seven possible \"Boomie\" players, as this account has the most official results (147) and the latest activity. \n\nOther \"Boomie\" players (e.g., player_id 145938) had later entries, but the question did not specify which player to use."
+
+[[run]]
+arm = "on"
+question = "q01"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Winter Doubles NA (2v2), 2024-03-10, 2nd"
+answer = "The last tournament **Boomie** (player_id 146606) entered was the **Winter Doubles Championship - North America** in **2024-03-10**, where they placed **2nd** in the **Brawlhalla Championship 2v2** event. \n\nThis is the most recent entry from the three latest results retrieved. If there are further tournaments beyond this, they would require a broader query."
+
+[[run]]
+arm = "on"
+question = "q01"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Winter Doubles NA (2v2), 2024-03-10, 2nd"
+answer = "The last tournament **Boomie** (player_id 146606) entered was the **Winter Doubles Championship - North America** on **2024-03-10**. He competed in the **2v2** format under the **Brawlhalla Championship 2v2** event and placed **2nd**. \n\nThis is the most recent entry in the database for this player. Earlier entries include a 49th-place finish in a 1v1 event and a 7th-place finish in 2v2 at the 2023 World Championship Expo."
+
+# q02 (retrieval on): How many majors has Raydish won?
+# Expected: 6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.
+
+[[run]]
+arm = "on"
+question = "q02"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "6 official events, right, but says they include 2v2 wins (all six count as 1v1; no 2v2 wins)"
+answer = "Raydish has won **6 official events** (majors) as of the latest data. These include victories in both 1v1 and 2v2 formats, though the exact breakdown by mode isn't specified in the query. The count comes from their official win records in the results database."
+
+[[run]]
+arm = "on"
+question = "q02"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "6 official events"
+answer = "Raydish has won **6 official events** (majors) as of the latest data. This count includes all 1v1 and 2v2 victories in official tournaments, as tracked by the `v_official_wins` view."
+
+[[run]]
+arm = "on"
+question = "q02"
+seed = 2
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "6 official events, right, but says they span \"both 1v1 and 2v2\" (all six count as 1v1; no 2v2 wins)"
+answer = "Raydish has won **6 official events** (majors) across both 1v1 and 2v2 formats. This total comes from the official results in the `v_official_wins` view, which aggregates all sanctioned competitions where Raydish placed first."
+
+# q03 (retrieval on): Has Hexo ever placed top 8 in 1v1?
+# Expected: Yes, once at an official event: Hexoo placed 5th at Brawlhalla Community Tournament #2 (2025-09-28). Community events aren't in the data, so top 8s there aren't counted.
+
+[[run]]
+arm = "on"
+question = "q03"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "the final answer replies to the answer check (a false alarm on \"did\"): it cites the 5th place but gives no plain yes or the event"
+answer = "The answer does not refer to a player named \"did.\" The term \"did\" is used as a verb (e.g., \"Has Hexo ever placed top 8 in 1v1?\") and is not a player name. The response correctly cites Hexo’s (player_id 169084) 5th-place finish in a 1v1 event. No tool returned \"did\" as a player, so the answer stands as written."
+
+[[run]]
+arm = "on"
+question = "q03"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "yes, 5th at Brawlhalla Community Tournament #2 (2025-09-28)"
+answer = "Yes, Hexo (player_id 169084) placed **5th** in the **Brawlhalla Community Tournament #2** on **2025-09-28** in a 1v1 format, which qualifies as a top 8 finish. This is the earliest recorded instance of this achievement."
+
+[[run]]
+arm = "on"
+question = "q03"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "yes, 5th at Brawlhalla Community Tournament #2 (2025-09-28)"
+answer = "Hexo has placed top 8 in 1v1. Their earliest top-8 placement in 1v1 was **5th place** at the *Brawlhalla Community Tournament #2* on **2025-09-28**. This result is confirmed by official event records."
+
+# q04 (retrieval on): What does Impala vs Balloonboy's history look like?
+# Expected: Impala leads BBBalloonBoy 2-1 in 1v1 sets at official events (8-4 in games), DQs and forfeits left out: - Trial of Frigg - North America (Moose Wars), 2024-03-17: Impala won 3-0 - Trial of Skuld - North America, 2024-08-04: Impala won 3-1 - Brawlhalla World Championship Expo 2024 (BCX 2024), 2024-11-15: BBBalloonBoy won 3-2 They never met in 2v2. Both placed at 23 of the same official 1v1 events and 3 of the same 2v2 events.
+
+[[run]]
+arm = "on"
+question = "q04"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2-1 in sets, 8-4 in games"
+answer = "At official events, in 1v1 mode, **Impala** (player ID 168635) has a 2-1 record against **Balloonboy** (player ID 149305). Impala won 8 games and lost 4 in their 3 matches, with no unscored matches. \n\nNote: There is another player named \"Impala\" (ID 42213) with only 1 official result, but this analysis uses the more active player (ID 168635) unless specified otherwise."
+
+[[run]]
+arm = "on"
+question = "q04"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2-1 in sets, 8-4 in games"
+answer = "At official events, **Impala (player_id 168635)** has a 2-1 record against **Balloonboy (player_id 149305)** in 1v1 matches. Impala won 8 games to Balloonboy's 4, with no unscored matches. \n\nThis record comes from 3 total matches, where Impala secured 2 wins and 1 loss."
+
+[[run]]
+arm = "on"
+question = "q04"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2-1 in sets, 8-4 in games"
+answer = "At official events, Impala (player ID 168635) has a 2-1 record against Balloonboy (player ID 149305) in 1v1 matches. Their head-to-head stats show Impala won 8 games and lost 4, with no unscored matches. This record comes from 3 total matches. \n\nNote: The name \"Impala\" matched two players, but the analysis used the first candidate (168635) with 48 official results, as the question did not specify which player."
+
+# q05 (retrieval on): List the top 10 highest-earning players in Brawlhalla history.
+# Expected: The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00
+
+[[run]]
+arm = "on"
+question = "q05"
+seed = 0
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "0 query results"
+answer = "The question asks for the top 10 highest-earning players in Brawlhalla history, but the available tools and data do not track financial earnings or prize money. The provided database schema includes results, medals, and rankings but no column for earnings. Therefore, this query cannot be answered with the available tools."
+
+[[run]]
+arm = "on"
+question = "q05"
+seed = 1
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "0 query results"
+answer = "The question asks for the \"top 10 highest-earning players in Brawlhalla history,\" but **no official esports results data tracks player earnings or prize money** in the provided database. The views (e.g., `v_official_wins`, `v_medals`, `v_results`) only record placements, event participation, and match statistics, not financial compensation. \n\nTo answer this, you would need access to a separate dataset linking players to earnings, which is not available here."
+
+[[run]]
+arm = "on"
+question = "q05"
+seed = 2
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "0 query results"
+answer = "The tools provided do not have access to player earnings data or prize money information from Brawlhalla events. None of the available tables/views (e.g., `v_official_wins`, `v_player_medals`, or `v_results`) track financial rewards or earnings. Therefore, it is not possible to answer this question with the current tools."
+
+# q06 (retrieval on): Who has megd played with in 2v2 tournaments, and how did they place?
+# Expected: megD has had 17 partners at official 2v2 events. The most frequent: - Raydish: 20 events, best 2nd - hardymj: 4 events, best 9th - Winged_Shell: 3 events, best 17th - bestjava and buko pandan: 2 events each, best 5th - Walshy and Moni-: 2 events each, best 7th - JuicyDiaper: 2 events, best 25th and nine more with one event each: Snowy!! (7th), Anon Alex, Cody Travis and flowerVS (9th), Ultra and warmsink26 (13th), wubz (17th), iLLu and .kira (25th).
+
+[[run]]
+arm = "on"
+question = "q06"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "17 partners with the right counts, except Raydish's 20 events written as 2 (the result had 20)"
+answer = "megD (player_id 142100) has played in 2v2 tournaments with these partners, along with their best placement and event count:\n\n1. **Raydish** (2 events, best placement 2nd, 0 wins)  \n2. **hardymj** (4 events, best placement 9th, 0 wins)  \n3. **Winged_Shell** (3 events, best placement 17th, 0 wins)  \n4. **bestjava** (2 events, best placement 5th, 0 wins)  \n5. **buko pandan** (2 events, best placement 5th, 0 wins)  \n6. **Walshy** (2 events, best placement 7th, 0 wins)  \n7. **Moni-** (2 events, best placement 7th, 0 wins)  \n8. **JuicyDiaper** (2 events, best placement 25th, 0 wins)  \n9. **Snowy!!** (1 event, best placement 7th, 0 wins)  \n10. **Anon Alex** (1 event, best placement 9th, 0 wins)  \n... and 7 others with similar stats.\n\nNo 2v2 wins (placement = 1) were recorded with these partners. All placements are from official 2v2 events."
+
+[[run]]
+arm = "on"
+question = "q06"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "17 partners and Raydish's 20, but leaves out hardymj (4 events, the second most), gives JuicyDiaper's best as 17th (25th), and says Raydish \"consistently placed 2nd\""
+answer = "At official 2v2 tournaments, **megD** (player_id 142100) has partnered with 17 players, with the following results:\n\n- **Raydish**: Teamed up 20 times, best placement **2nd** (no 1st-place finishes).\n- **bestjava** & **buko pandan**: 2 events each, best placement **5th**.\n- **Winged_Shell** & **JuicyDiaper**: 3 and 2 events respectively, best placements **17th**.\n- **iLLu** & **.kira**: 1 event each, best placements **25th**.\n\nNo partner achieved a 1st-place finish in any 2v2 event with megD. The most successful partnership was with **Raydish**, who consistently placed 2nd across 20 events."
+
+[[run]]
+arm = "on"
+question = "q06"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "17 partners, Raydish 20, hardymj 4, Winged_Shell 3, the rest summarized; a muddled aside that \"only 3 partnerships\" reached the top 3 (only Raydish did)"
+answer = "At official 2v2 tournaments, **megD (player_id 142100)** has partnered with 17 players, with **Raydish** being their most frequent 2v2 teammate in **20 events**. Here's how they placed:\n\n- **Raydish**: Best placement **2nd** (no wins, 3 top-3 finishes)  \n- **hardymj**: 4 events, best placement **9th**  \n- **Winged_Shell**: 3 events, best placement **17th**  \n- **bestjava**, **buko pandan**, **Walshy**, **Moni-**, and others had 2–1 events, with best placements ranging from **5th** to **25th**.  \n\nNo 2v2 partner of megD placed **1st** (wins = 0 across all partnerships). The top-3 placements were rare, with only 3 partnerships achieving it. All results are from official 2v2 events."
+
+# q07 (retrieval on): How many medals does Balloonboy have?
+# Expected: 27 medals (top-3 placements at official events) for BBBalloonBoy: - 1v1: 2 gold, 8 silver, 5 bronze (15), including a crew battle silver, a team result - 2v2: 5 gold, 3 silver, 4 bronze (12) Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.
+
+[[run]]
+arm = "on"
+question = "q07"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "15 in 1v1 and 12 in 2v2, 27 in all; the modes read from row order, as the query had no mode column"
+answer = "Balloonboy has **15 medals in 1v1** and **12 medals in 2v2**, totaling **27 official medals** across all modes. \n\nThis is derived from the `v_player_medals` view, which aggregates medal counts per mode. The first row (2 gold, 8 silver, 5 bronze) sums to 15 medals in 1v1, and the second row (5 gold, 3 silver, 4 bronze) sums to 12 medals in 2v2."
+
+[[run]]
+arm = "on"
+question = "q07"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "27: 15 in 1v1 and 12 in 2v2; the modes read from row order, as the query had no mode column"
+answer = "Balloonboy has a total of **27 medals** across all official events. This includes 15 medals in 1v1 mode and 12 medals in 2v2 mode, as retrieved from the `v_player_medals` view."
+
+[[run]]
+arm = "on"
+question = "q07"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "27: 15 and 12 per mode, left unnamed as \"one category\" and \"another\" (the query had no mode column)"
+answer = "Balloonboy has a total of **27 medals** across all modes. This includes **15 medals** from one category (2 gold, 8 silver, 5 bronze) and **12 medals** from another category (5 gold, 3 silver, 4 bronze). The totals were summed across all modes in the `v_player_medals` view."
+
+# q08 (retrieval on): Who has the best record against marckiemoo?
+# Expected: By 1v1 set win rate against Marckiem00 at official events, among players with at least 5 sets against them (DQs and forfeits left out): 1. V3M_T4NQUIL0: 3-2 (60%) 2. Raydish: 6-7 (46%) 3. gdsandstorm: 4-7 (36%) V3M_T4NQUIL0 is the only one of them with a winning record.
+
+[[run]]
+arm = "on"
+question = "q08"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "V3M_T4NQUIL0 3-2 (60%), then Raydish and gdsandstorm; the minimum of 5 stated"
+answer = "At official events, the best 1v1 record against **Marckiem00** (player_id 146052) is held by **V3M_T4NQUIL0** with a **60.0% win rate (3-2 in 5 matches)**. Other players with notable records include **Raydish** (46.2%, 6-7 in 13 matches) and **gdsandstorm** (36.4%, 4-7 in 11 matches). The analysis excludes players with fewer than 5 matches."
+
+[[run]]
+arm = "on"
+question = "q08"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "V3M_T4NQUIL0 3-2, then Raydish and gdsandstorm; the minimum given as \"5 games\" (it is 5 sets)"
+answer = "At official events, the best 1v1 record against **Marckiem00** (player_id 146052) is held by **V3M_T4NQUIL0** with a **60.0% win rate** (3 wins, 2 losses in 5 matches). Other notable players include **Raydish** (46.2%, 6-7 record in 13 matches) and **gdsandstorm** (36.4%, 4-7 in 11 matches). The analysis considers only 1v1 matches with at least 5 games."
+
+[[run]]
+arm = "on"
+question = "q08"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "V3M_T4NQUIL0 3-2, then Raydish and gdsandstorm; the minimum of 5 stated"
+answer = "At official events, in 1v1 matches against **marckiemoo** (player_id 146052), the best record is held by **V3M_T4NQUIL0** with a **60.0% win rate** (3 wins, 2 losses in 5 matches). \n\nOther top performers include:\n- **Raydish** (46.2%, 6 wins, 7 losses in 13 matches)\n- **gdsandstorm** (36.4%, 4 wins, 7 losses in 11 matches)\n\nThe record is calculated based on head-to-head 1v1 results where players have at least 5 matches against marckiemoo."
+
+# q09 (retrieval on): What tournament did sandstorm make the most money from?
+# Expected: The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 0
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "says the data can't say, but claims it has no earnings at all (career totals exist); no tool called, sandstorm not looked up"
+answer = "The question asks about tournament prize money, but the available tools' databases do not track financial data like earnings or prize pools. The views (e.g., `v_results`, `v_entries`) track placements, event details, and modes but lack columns for monetary rewards. Without access to prize pool information, this query cannot be answered with the provided tools."
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 1
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "says it can't be answered, but claims no earnings are tracked at all (career totals exist)"
+answer = "The question asks about prize money earned from tournaments, but the available tools and database do not track financial data (e.g., prize pools, earnings) for players or events. The views and tables provided only include results, placements, event details, and participation, not monetary values. Without explicit data on earnings, this question cannot be answered using the available tools."
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 2
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "says it can't be answered, but claims no earnings are recorded at all (career totals exist)"
+answer = "The question asks about prize money, but the tools do not track financial data. The available tables (e.g., `v_results`, `v_entries`) only record placements, event names, and game statistics, not prize pools or earnings. Without access to prize money fields, it is impossible to determine which tournament yielded the highest earnings for \"sandstorm\" or any other player. \n\nTo answer this, the database would need a `prize_pool` column in an event table or a `earnings` field in a player result, which is not present here."
+
+# q10 (retrieval on): Give me the bracket link of BCX 2022.
+# Expected: BCX 2022 is the Brawlhalla World Championship Expo 2022 (2022-11-04), with two events: - 1v1: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets - 2v2: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets
+
+[[run]]
+arm = "on"
+question = "q10"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "both bracket links"
+answer = "The bracket links for **BCX 2022** (Brawlhalla World Championship Expo 2022) are:\n\n- **1v1 Division**: [Bracket Link](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets)\n- **2v2 Division**: [Bracket Link](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets)\n\nThese links are official and correspond to the tournament's 1v1 and 2v2 formats."
+
+[[run]]
+arm = "on"
+question = "q10"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "both bracket links"
+answer = "The bracket links for BCX 2022 (Brawlhalla World Championship Expo 2022) are:\n\n- **1v1 Bracket**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets)\n- **2v2 Bracket**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets)\n\nThese links correspond to the two separate brackets for the 1v1 and 2v2 formats under the same tournament."
+
+[[run]]
+arm = "on"
+question = "q10"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "both bracket links"
+answer = "The bracket links for **BCX 2022** (Brawlhalla World Championship Expo 2022) are:\n\n- **1v1 Bracket**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets)\n- **2v2 Bracket**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets)\n\nThese links are official and correspond to the two formats (1v1 and 2v2) of the same tournament."
+
+# q11 (retrieval on): What is Raydish's most dominant tournament win?
+# Expected: By games lost across the run (fewest first, then fewest sets dropped, then most games won): the Trial of Laufey - North America (Moose Wars) (2024-08-25), where Raydish won all 9 sets, 25 games to 2: two 2-0s, then 3-0, 3-1, 3-0, 3-0, 3-0 (Bunny meow), 3-0 and 3-1 (both against BBBalloonBoy). The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship win is left out: its sets are crew against crew, so not comparable.
+
+[[run]]
+arm = "on"
+question = "q11"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the Trial of Laufey NA, 9-0 in sets, 25-2 in games"
+answer = "Raydish's most dominant tournament win was at **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in 1v1 mode. He won **25 games** with just **2 games lost**, dropping **0 sets** across **9 sets played** (no unscored sets). This result reflects his highest dominance in official events, with minimal losses and maximal wins."
+
+[[run]]
+arm = "on"
+question = "q11"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the Trial of Laufey NA, 25-2 in games, 9 sets, none dropped"
+answer = "Raydish's most dominant tournament win is **\"Trial of Laufey - North America (Moose Wars)\"** on **2024-08-25** in **1v1** mode. The result was a **25-2 games** victory across **9 sets** (0 sets dropped, 0 unscored sets). This win ranks as their most dominant 1v1 tournament performance based on the fewest games lost (2), no sets dropped, and maximum games won (25)."
+
+[[run]]
+arm = "on"
+question = "q11"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the Trial of Laufey NA, 9-0 in sets, 25-2 in games"
+answer = "Raydish's most dominant tournament win was **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in 1v1 mode. He swept all 9 sets (0 dropped), winning 25 games to 2, with no unscored sets. This result reflects his highest level of dominance in a tournament, minimizing games lost and sets dropped while maximizing games won."
+
+# q12 (retrieval on): What was flowers' first top 8?
+# Expected: flowerVS's first 1v1 top 8 at an official event was 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15). An earlier top 8 came in 2v2: 7th at the Summer Doubles Championship - North America (2024-07-21). "flowers" is taken as flowerVS; another player, Flowers (156897), has that display name.
+
+[[run]]
+arm = "on"
+question = "q12"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "7th in 2v2 at the Summer Doubles NA (2024-07-21), stated as the earliest top 8 in any mode (an accepted reading)"
+answer = "The first top 8 placement for **flowerVS** (player_id 169119) was **7th place** in the **Brawlhalla Championship 2v2** event at the **Summer Doubles Championship - North America** on **2024-07-21**. This is the earliest recorded result with placement ≤8 in their official history."
+
+[[run]]
+arm = "on"
+question = "q12"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "7th in 2v2 at the Summer Doubles NA (2024-07-21), the earliest top 8 (an accepted reading); calls the player \"flowers\" only"
+answer = "flowers' first top 8 was in the **Brawlhalla Championship 2v2** at the **Summer Doubles Championship - North America** on **2024-07-21**, where they placed **7th**. This was their earliest result with placement ≤8 in the 2v2 mode."
+
+[[run]]
+arm = "on"
+question = "q12"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "7th in 2v2 at the Summer Doubles NA (2024-07-21), as flowerVS's earliest top 8 in any mode (an accepted reading)"
+answer = "The first top 8 result for **flowerVS** (player_id 169119) was in **2v2** mode at the **Summer Doubles Championship - North America** event. They placed **7th** in the **Brawlhalla Championship 2v2** tournament on **July 21, 2024**. \n\nThis is the earliest official result with placement ≤8 in their career."
+
+# q13 (retrieval on): who won winters 2023 na 1v1
+# Expected: Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.
+
+[[run]]
+arm = "on"
+question = "q13"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Raydish, 2023-02-05"
+answer = "The winner of the **North America - Winter Championship 2023** (1v1) was **Raydish**, who placed 1st on **February 5, 2023**."
+
+[[run]]
+arm = "on"
+question = "q13"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Raydish, 2023-02-05"
+answer = "The winner of the **Winters 2023 NA 1v1** event was **Raydish**. They placed 1st in the tournament titled \"North America - Winter Championship 2023,\" which started on February 5, 2023."
+
+[[run]]
+arm = "on"
+question = "q13"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Raydish, 2023-02-05"
+answer = "The winner of the **North America - Winter Championship 2023** (1v1) was **Raydish**, with a placement of 1 on **2023-02-05**."
+
+# q14 (retrieval on): Who made top 8 at Trial of Laufey NA?
+# Expected: Trial of Laufey - North America (Moose Wars), 1v1, 2024-08-25: - 1st: Raydish - 2nd: BBBalloonBoy - 3rd: Marckiem00 - 4th: gdsandstorm - 5th: Bunny meow and wrenchd - 7th: STING RAY and antireplay
+
+[[run]]
+arm = "on"
+question = "q14"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "all eight right, but antireplay numbered 8th (tied 7th with STING RAY)"
+answer = "At the **Trial of Laufey - North America (Moose Wars) / Brawlhalla 1v1** event, the top 8 players were:\n\n1. **Raydish**  \n2. **BBBalloonBoy**  \n3. **Marckiem00**  \n4. **gdsandstorm**  \n5. **Bunny meow**  \n5. **wrenchd**  \n7. **STING RAY**  \n8. **antireplay**  \n\nThese placements are based on official 1v1 results from the event."
+
+[[run]]
+arm = "on"
+question = "q14"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all eight, with the shared 5th and 7th"
+answer = "At the **Trial of Laufey - North America (Moose Wars) / Brawlhalla 1v1** event, the players who made **top 8** are:\n\n1. **Raydish** (1st)  \n2. **BBBalloonBoy** (2nd)  \n3. **Marckiem00** (3rd)  \n4. **gdsandstorm** (4th)  \n5. **Bunny meow** (5th)  \n5. **wrenchd** (5th)  \n7. **STING RAY** (7th)  \n7. **antireplay** (7th)  \n\nThese placements are based on official results from the event, which concluded on **2024-08-25**."
+
+[[run]]
+arm = "on"
+question = "q14"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all eight, with the shared 5th and 7th"
+answer = "At the **Trial of Laufey - North America (Moose Wars) / Brawlhalla 1v1** event, the top 8 players are:\n\n1. **Raydish** (1st)  \n2. **BBBalloonBoy** (2nd)  \n3. **Marckiem00** (3rd)  \n4. **gdsandstorm** (4th)  \n5. **Bunny meow** (5th)  \n5. **wrenchd** (5th)  \n7. **STING RAY** (7th)  \n7. **antireplay** (7th)  \n\nThese placements are based on official results from the 1v1 competition."
+
+# q15 (retrieval on): did godly win eu summers 2026
+# Expected: Yes, both events. Zivai (formerly Kingdom | Godly) won the Summer Championship - Europe 2026 - 1v1 (2026-07-18), ahead of Ahmet_, and the 2v2 (2026-07-25) with bamya, ahead of acno? and Blaze.
+
+[[run]]
+arm = "on"
+question = "q15"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "yes, both events, as Zivai (the wins counted in SQL)"
+answer = "The player **godly** (player ID 147982, canonical name **Zivai**) won **2 official events** under the \"eu summers 2026\" tournament:  \n- **Summer Championship - Europe 2026 - 1v1** (event ID `44268709-24b7-405c-6d14-08dea8b61f65`)  \n- **Summer Championship - Europe 2026 - 2v2** (event ID `eb136372-9608-404d-e246-08deac38d3d7`).  \n\nNote: The name \"godly\" matched **4 players** in the database, but the analysis above uses the first candidate (**Zivai**). If you meant a different player with the same name, please clarify."
+
+[[run]]
+arm = "on"
+question = "q15"
+seed = 1
+verdict = "wrong"
+stage = "name resolution"
+review = "auto"
+note = "godly: resolved, but queried with [108185]; eu summers 2026: IDs in a query"
+answer = "At official events, **Godly** (player_id 108185) did not win any of the \"eu summers 2026\" tournaments. The query checked both the 1v1 and 2v2 events under that name, and no official wins were recorded for this player in those competitions. \n\nNote: The name \"godly\" ambiguously matched four players, but the analysis above uses the display name \"Godly\" (player_id 108185) as the primary candidate."
+
+[[run]]
+arm = "on"
+question = "q15"
+seed = 2
+verdict = "wrong"
+stage = "name resolution"
+review = "needs review"
+note = "queried all four \"godly\" candidates in one query, then says \"no single player\" is confirmed to have won; never says yes, or that Zivai won both"
+answer = "The player(s) associated with \"godly\" (including **Godly** (ID 108185), **Zivai** (ID 147982), and others) achieved **2 official wins** in the \"Eu Summers 2026\" events (1v1 and 2v2). However, **no single player** named \"godly\" is confirmed to have won the event specifically, as the results span multiple players. The exact distribution of wins among the resolved players is not specified in the query result."
+
+# q16 (retrieval on): who won sa 2v2 springs 2026
+# Expected: SiB | Wess and V3M_T4NQUIL0 (vem) won the Spring Championship - South America 2026 - 2v2 (2026-05-02), ahead of loreszz and whoiskyna.
+
+[[run]]
+arm = "on"
+question = "q16"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "SiB | Wess and V3M_T4NQUIL0"
+answer = "The winner of the **2v2** event **Spring Championship - South America 2026 - 2v2** was the team **SiB | Wess / V3M_T4NQUIL0**, who placed 1st."
+
+[[run]]
+arm = "on"
+question = "q16"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "SiB | Wess and V3M_T4NQUIL0"
+answer = "The winners of the **Spring Championship - South America 2026 - 2v2** event were the team **SiB | Wess / V3M_T4NQUIL0**, who placed 1st in the competition."
+
+[[run]]
+arm = "on"
+question = "q16"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "SiB | Wess and V3M_T4NQUIL0"
+answer = "The winner of the **South America 2v2 Spring Championship 2026** (event ID: `9ea32cbc-e2b0-4039-d80c-08de6a223b1e`) is the team **SiB | Wess / V3M_T4NQUIL0**, who placed 1st in the tournament."
+
+# q17 (retrieval on): top 8 at bcx 2025 1v1?
+# Expected: Brawlhalla World Championship Expo 2025 - 1v1 (2025-11-22): - 1st: Marckiem00 - 2nd: BBBalloonBoy - 3rd: Raydish - 4th: STING RAY - 5th: V3M_T4NQUIL0 and Zivai - 7th: Mounir and yüz
+
+[[run]]
+arm = "on"
+question = "q17"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all eight, with the ties"
+answer = "At the **Brawlhalla World Championship Expo 2025 - 1v1** (BCX 2025 1v1), the top 8 placements are as follows:\n\n1. **Marckiem00** (1st)  \n2. **BBBalloonBoy** (2nd)  \n3. **Raydish** (3rd)  \n4. **STING RAY** (4th)  \n5. **V3M_T4NQUIL0** (5th)  \n5. **Zivai** (5th)  \n7. **yüz** (7th)  \n7. **Mounir** (7th)  \n\nNote: Placements 5 and 7 are shared by two players each."
+
+[[run]]
+arm = "on"
+question = "q17"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all eight, with the ties"
+answer = "At the **Brawlhalla World Championship Expo 2025 - 1v1** (BCX 2025 1v1), the top 8 players and their placements are:\n\n1. **Marckiem00** (1st)  \n2. **BBBalloonBoy** (2nd)  \n3. **Raydish** (3rd)  \n4. **STING RAY** (4th)  \n5. **V3M_T4NQUIL0** (5th)  \n5. **Zivai** (5th)  \n7. **yüz** (7th)  \n7. **Mounir** (7th)  \n\nNote: Two players tied for 5th and two tied for 7th."
+
+[[run]]
+arm = "on"
+question = "q17"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "all eight, with the ties"
+answer = "At the **Brawlhalla World Championship Expo 2025 - 1v1** (start date: 2025-11-22), the top 8 players are:\n\n1. **Marckiem00** (1st)  \n2. **BBBalloonBoy** (2nd)  \n3. **Raydish** (3rd)  \n4. **STING RAY** (4th)  \n5. **V3M_T4NQUIL0** (5th)  \n5. **Zivai** (5th)  \n7. **yüz** (7th)  \n7. **Mounir** (7th)  \n\nNote: Two players tied for 5th and two tied for 7th. The results include all players with placements ≤8, as per the event's standings."
+
+# q18 (retrieval on): who won 2v2 at autumns 2023 NA?
+# Expected: bestjava and fakey7 won the North America - Autumn Championship 2023 2v2 (2023-10-01); megD and Raydish were 2nd.
+
+[[run]]
+arm = "on"
+question = "q18"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "bestjava and fakey7, 2023-10-01"
+answer = "The 2v2 winners at **North America - Autumn Championship 2023** were **bestjava** and **fakey7**, who placed 1st in the standard format. The tournament occurred on October 1, 2023."
+
+[[run]]
+arm = "on"
+question = "q18"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "bestjava and fakey7"
+answer = "The 2v2 winners at **Autumns 2023 NA** were **bestjava** and **fakey7**, both placed 1st in the \"Brawlhalla Championship 2v2\" event. \n\nThis result reflects the official standings for the 2v2 format at that tournament, where both players achieved the top placement."
+
+[[run]]
+arm = "on"
+question = "q18"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "bestjava and fakey7, 2023-10-01"
+answer = "The 2v2 winners at **North America - Autumn Championship 2023 / Brawlhalla Championship 2v2** (October 1, 2023) were **bestjava** and **fakey7**, who placed 1st as a team. \n\nThis result comes from the official event records, where both players were credited with the top placement in the 2v2 format."
+
+# q19 (retrieval on): Who won the Midseason Championship 2026?
+# Expected: BBBalloonBoy won both events (2026-06-12): the 1v1, ahead of Marckiem00, and the 2v2 with Mounir, ahead of loreszz and whoiskyna.
+
+[[run]]
+arm = "on"
+question = "q19"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "BBBalloonBoy in both, the 2v2 with Mounir"
+answer = "At the **Midseason Championship 2026**, the winners were:\n\n- **1v1 Division**: **BBBalloonBoy** (placement 1)  \n- **2v2 Division**: **BBBalloonBoy** and **Mounir** (both placed 1st in the 2v2 event)  \n\nThe 2v2 event likely awarded two individual winners (possibly as a team), while the 1v1 had a single winner. All results are from the tournament held on **June 12, 2026**."
+
+[[run]]
+arm = "on"
+question = "q19"
+seed = 1
+verdict = "wrong"
+stage = "answer writing"
+review = "needs review"
+note = "says Mounir won the 1v1 and BBBalloonBoy the 2v2, when BBBalloonBoy won the 1v1 and the 2v2 with Mounir; the results had it right"
+answer = "At the **Midseason Championship 2026**, the winners were:\n\n- **1v1**: **Mounir** (1st place)  \n- **2v2**: **BBBalloonBoy** (1st place)  \n\nThe event featured both 1v1 and 2v2 formats, with BBBalloonBoy securing victory in the 2v2 division and Mounir winning the 1v1 bracket."
+
+[[run]]
+arm = "on"
+question = "q19"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "BBBalloonBoy in both, the 2v2 with Mounir"
+answer = "At the **Midseason Championship 2026**, the winners were:\n\n- **2v2 Event**:  \n  - **Mounir** (placement 1, June 12, 2026)  \n  - **BBBalloonBoy** (placement 1, June 12, 2026)  \n\n- **1v1 Event**:  \n  - **BBBalloonBoy** (placement 1, June 12, 2026)  \n\nThe tournament included both **1v1** and **2v2** formats, with **BBBalloonBoy** winning both events."
+
+# q20 (retrieval on): what was the score of the 1v1 grand final at dreamhack valencia 2023
+# Expected: Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the winners' semi-final to luna, came through the losers' side.
+
+[[run]]
+arm = "on"
+question = "q20"
+seed = 0
+verdict = "partly"
+stage = "SQL logic"
+review = "needs review"
+note = "the score (Zivai 3-0) is right, but the query took only the winner's side of the last match, so it never names Impala"
+answer = "The 1v1 grand final at Dreamhack Valencia 2023 was won by **Zivai** with a score of **3-0**. This result comes from the latest recorded match in the 1v1 mode of the event, where Zivai (player_id 147982) secured victory without losing any games."
+
+[[run]]
+arm = "on"
+question = "q20"
+seed = 1
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "the queries returned player IDs only, and the answer invents names for them (\"Lucky\" for Zivai, \"Mao\" for Impala), kept after the answer check on the last step; the score (3-0) is right"
+answer = "The 1v1 grand final at DreamHack Valencia 2023 was won by **Lucky** (player_id 147982) with a score of **3-0** against **Mao** (player_id 168635). The match was scored (is_scored = 1) and took place on July 7, 2023, at 16:47:45 UTC."
+
+[[run]]
+arm = "on"
+question = "q20"
+seed = 2
+verdict = "wrong"
+stage = "answer writing"
+review = "needs review"
+note = "Zivai over Impala, right, but the score given as 3-2: the result's first rows were the grand final, Zivai 3-0 and Impala 0-3"
+answer = "The 1v1 grand final at Dreamhack Valencia 2023 was between **Zivai** and **Impala**. The match result was **Zivai 3–2 Impala**, with Zivai winning the final. This is inferred from the latest scored match in the 1v1 division (latest by `start_time`) where these two players faced off, with Zivai securing victory."
+
+# q21 (retrieval on): how many official events has baloonboy won?
+# Expected: BBBalloonBoy has won 7 official events: 5 in 2v2 and 2 in 1v1. - 2v2: Autumn Doubles Championship - North America (2024-10-06), Winter Championship - North America 2025 (2025-03-02), Winter Championship - North America 2026 (2026-03-01), Midseason Championship 2026 (2026-06-12), Summer Championship - North America 2026 (2026-07-26) - 1v1: Midseason Championship 2026 (2026-06-12), Autumn Championship - North America 2026 (2026-09-20)
+
+[[run]]
+arm = "on"
+question = "q21"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "7, right, but never names BBBalloonBoy: it echoes \"Baloonboy\", with the player ID only"
+answer = "Baloonboy has won **7 official events**. This count comes from the official wins recorded in the `v_official_wins` view for his player_id (149305)."
+
+[[run]]
+arm = "on"
+question = "q21"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "7, with the 2 and 5 split, right, but never names BBBalloonBoy: it echoes \"Baloonboy\", with the player ID only"
+answer = "Baloonboy (player_id 149305) has won **7 official events** in total:  \n- **2** in **1v1** mode  \n- **5** in **2v2** mode  \n\nThese results come from the `v_official_wins` view, which includes only placements of 1st place at official events."
+
+[[run]]
+arm = "on"
+question = "q21"
+seed = 2
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "7, with the 5 and 2 split, right, but never names BBBalloonBoy: it echoes \"Baloonboy\""
+answer = "Baloonboy has won **7 official events** in total, split as follows:  \n- **2v2**: 5 wins  \n- **1v1**: 2 wins  \n\nThis totals **7 wins** across both modes in official events."
+
+# q22 (retrieval on): did markiemoo ever win worlds
+# Expected: Yes: Marckiem00 won the 1v1 at the Brawlhalla World Championship Expo 2025 (worlds 2025, 2025-11-22), ahead of BBBalloonBoy. Marckiem00's other world championship results: 7th in the 2025 2v2, and 3rd in both the 1v1 and the 2v2 at BCX 2024.
+
+[[run]]
+arm = "on"
+question = "q22"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "suggestions with Marckiem00 first (accepted)"
+answer = "I couldn't find a player named \"markiemoo\", so I won't guess. The closest names in the data:\n1. Marckiem00: 47 official results, 2022 to 2026 (matched \"marckiemoo\", similar spelling)\n2. Markled: 2 official results, 2020 (matched \"Markled\", similar spelling)\n3. Arklem: 1 official result, 2018 (matched \"Arklem\", similar spelling)\nWhich one did you mean?"
+
+[[run]]
+arm = "on"
+question = "q22"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "suggestions with Marckiem00 first (accepted)"
+answer = "I couldn't find a player named \"markiemoo\", so I won't guess. The closest names in the data:\n1. Marckiem00: 47 official results, 2022 to 2026 (matched \"marckiemoo\", similar spelling)\n2. Markled: 2 official results, 2020 (matched \"Markled\", similar spelling)\n3. Arklem: 1 official result, 2018 (matched \"Arklem\", similar spelling)\nWhich one did you mean?"
+
+[[run]]
+arm = "on"
+question = "q22"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "suggestions with Marckiem00 first (accepted)"
+answer = "I couldn't find a player named \"markiemoo\", so I won't guess. The closest names in the data:\n1. Marckiem00: 47 official results, 2022 to 2026 (matched \"marckiemoo\", similar spelling)\n2. Markled: 2 official results, 2020 (matched \"Markled\", similar spelling)\n3. Arklem: 1 official result, 2018 (matched \"Arklem\", similar spelling)\nWhich one did you mean?"
+
+# q23 (retrieval on): kingdom | godly vs impala head to head
+# Expected: Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at official events, 12-9 in games to Zivai: - Brawlhalla World Championship Expo 2022 (2022-11-04): Impala won 3-0 and 3-1 - DreamHack San Diego 2023 (2023-04-07): Impala won 3-2 - DreamHack Valencia 2023 (2023-07-07): Zivai won 3-0 - Brawlhalla World Championship Expo 2023 (2023-11-03): Zivai won 3-0 - Brawlhalla World Championship Expo 2024 (2024-11-15): Zivai won 3-0 They never met in 2v2.
+
+[[run]]
+arm = "on"
+question = "q23"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "3-3 in sets, 12-9 in games to Zivai"
+answer = "At official events, **Zivai (Kingdom | Godly)** and **Impala** have a split 3-3 head-to-head record in 1v1 matches (6 total).  \n\n- **Zivai** has 12 game wins and 9 losses against Impala.  \n- **Impala** has 9 game wins and 12 losses against Zivai.  \n\nBoth players share a 50% win rate against each other, with no clear dominance in the series. The results reflect a closely balanced rivalry."
+
+[[run]]
+arm = "on"
+question = "q23"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "3-3 in sets, 12-9 in games to Zivai"
+answer = "At official events, **Zivai (player_id 147982)** and **Impala (player_id 168635)** have a mutual 3-3 head-to-head record in 1v1 matches (6 total matches). Zivai leads in total games won (12) vs. games lost (9), but both players share an identical 50% win rate against each other. The results reflect their 1v1 encounters across all official events. \n\n**Note**: The name \"godly\" was ambiguous and resolved to Zivai (player_id 147982), while \"impala\" was unambiguously resolved to player_id 168635."
+
+[[run]]
+arm = "on"
+question = "q23"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "3-3 in sets, 12-9 in games to Zivai"
+answer = "At official events, **Godly (Zivai)** and **Impala** have a 3-3 split in their 1v1 head-to-head record across 6 matches. \n\n- **Godly (Zivai)**: 3 wins, 3 losses, 12 games won, 9 games lost.  \n- **Impala**: 3 wins, 3 losses, 9 games won, 12 games lost.  \n\nThe series is tied, with both players maintaining a 50% win rate against each other. All matches were scored (0 unscored)."
+
+# q24 (retrieval on): who won msi 1v1
+# Expected: Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational: luna won its 1v1 (2022-06-12), ahead of megD. If another midseason event was meant: BBBalloonBoy won the Midseason Championship 2026 1v1.
+
+[[run]]
+arm = "on"
+question = "q24"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "luna, naming the 2022 Brawlhalla Midseason Championship"
+answer = "The winner of the **MSI 1v1** (Brawlhalla Midseason Championship 1v1) was **luna**, who placed 1st on June 12, 2022."
+
+[[run]]
+arm = "on"
+question = "q24"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "luna, at the 2022 Brawlhalla Midseason Championship"
+answer = "The winner of the **Brawlhalla Midseason Championship 1v1** (MSI 1v1) in **2022** was **luna**, who placed 1st on **2022-06-12**."
+
+[[run]]
+arm = "on"
+question = "q24"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "luna, at the 2022 Brawlhalla Midseason Championship"
+answer = "The winner of the **Brawlhalla Midseason Championship 1v1** (MSI 1v1) in **2022** was **luna**, who placed 1st on **2022-06-12**. \n\nThis result is from the official event with ID `tournament/brawlhalla-midseason-championship/event/brawlhalla-championship-1v1`."
+
+# q25 (retrieval on): how many official tournaments has RAYDISH won
+# Expected: 6, all counted as 1v1: the NA Summer Championship 2022, the NA Winter Championship 2023, the Trials of Ymir, Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: a team result, counted as 1v1).
+
+[[run]]
+arm = "on"
+question = "q25"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "6 official tournaments"
+answer = "RAYDISH (player_id 160000) has won **6 official tournaments**. This count comes from distinct entries in the `v_official_wins` view, which tracks all 1st-place finishes in official events."
+
+[[run]]
+arm = "on"
+question = "q25"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "6 official tournaments"
+answer = "RAYDISH has won **6 official tournaments** as of the latest data. This count comes from the `v_official_wins` view, which tracks all 1st-place finishes (wins) in official events. The result is derived from querying their player_id (160000) and counting distinct tournament victories."
+
+[[run]]
+arm = "on"
+question = "q25"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "6 official tournaments"
+answer = "RAYDISH (player_id 160000) has won **6 official tournaments** as of their last recorded result. This count comes from their placements in the `v_official_wins` view, which tracks 1st-place finishes in official events."
+
+# q26 (retrieval on): How many times has M30W | BalloonBoy finished top 3 at an official event?
+# Expected: 27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.
+
+[[run]]
+arm = "on"
+question = "q26"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "27; misspells the current name as \"BBA balloonBoy\""
+answer = "M30W | BalloonBoy (player_id 149305, current name **BBA balloonBoy**) has finished in the top 3 at **27 official events**. This count comes from all placements of 1st, 2nd, or 3rd in the `v_results` view, which aggregates results across official competitions."
+
+[[run]]
+arm = "on"
+question = "q26"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "27, naming BBBalloonBoy"
+answer = "BBBalloonBoy has finished in the top 3 at **27 official events**. This count includes all placements of 1st, 2nd, and 3rd across official tournaments, as filtered by the `v_results` view which only includes official events."
+
+[[run]]
+arm = "on"
+question = "q26"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "27, naming BBBalloonBoy"
+answer = "M30W | BalloonBoy (canonical ID 149305, current name **BBBalloonBoy**) has finished in the top 3 at **27 official events**. This count includes all placements of 1st, 2nd, or 3rd in official competitions."
+
+# q27 (retrieval on): whats bbballoonboy's 1v1 record vs impala
+# Expected: BBBalloonBoy is 1-2 against Impala in 1v1 sets at official events (4-8 in games): lost 0-3 at the Trial of Frigg NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 2024 (2024-11-15).
+
+[[run]]
+arm = "on"
+question = "q27"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "1-2 in sets, 4-8 in games"
+answer = "At official events, **BBBalloonBoy (149305)** has a 1v1 record of **1 win, 2 losses** in 3 matches against **Impala (168635)**. This includes 4 games won and 8 games lost, with no unscored matches. \n\nNote: The name \"impala\" matched two players, but the analysis above uses the more active one (ID 168635) unless specified otherwise."
+
+[[run]]
+arm = "on"
+question = "q27"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "1-2 in sets"
+answer = "At official events, **BBBalloonBoy** (player_id 149305) has a 1v1 record of **1 win, 2 losses** in 3 matches against **Impala** (player_id 168635), with a **33.3% win rate**. The data reflects all head-to-head encounters between these two players in 1v1 formats."
+
+[[run]]
+arm = "on"
+question = "q27"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "1-2 in sets, 4-8 in games"
+answer = "At official events, BBBalloonBoy (player_id 149305) has a 1v1 record of **1 win, 2 losses** in **3 matches** against Impala (player_id 168635). Their head-to-head games stats:  \n- **Games won**: 4  \n- **Games lost**: 8  \n- **Unscored matches**: 0  \n\nThis reflects BBBalloonBoy's 33% win rate (1/3) against Impala in 1v1 format. Note: \"Impala\" was ambiguous, and the analysis uses the player with 48 official results (player_id 168635) unless specified otherwise."
+
+# q28 (retrieval on): who won worlds 2019 1v1
+# Expected: gdsandstorm won the 2019 World Championship 1v1 (DreamHack Atlanta 2019, 2019-11-15); simpLe was 2nd.
+
+[[run]]
+arm = "on"
+question = "q28"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm at DreamHack Atlanta 2019"
+answer = "The winner of the **1v1** at the **DreamHack Atlanta 2019** (officially \"Brawlhalla World Championship 1v1\") was **gdsandstorm**, who placed 1st on **2019-11-15**. This result comes from the official event with ID `tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1`."
+
+[[run]]
+arm = "on"
+question = "q28"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm at DreamHack Atlanta 2019"
+answer = "The winner of the **Worlds 2019 1v1** (DreamHack Atlanta 2019 / Brawlhalla World Championship 1v1) was **gdsandstorm**, who placed 1st in the event."
+
+[[run]]
+arm = "on"
+question = "q28"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm at DreamHack Atlanta 2019"
+answer = "The winner of the **1v1** at the **DreamHack Atlanta 2019** (officially titled \"Brawlhalla World Championship 1v1\") was **gdsandstorm**, who placed 1st on **2019-11-15**."
+
+# q29 (retrieval on): Who won the 1v1 at DreamHack Atlanta 2019?
+# Expected: gdsandstorm won DreamHack Atlanta 2019's 1v1, the Brawlhalla World Championship 1v1 (2019-11-15); simpLe was 2nd.
+
+[[run]]
+arm = "on"
+question = "q29"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm, 2019-11-15"
+answer = "The winner of the 1v1 at **DreamHack Atlanta 2019** was **gdsandstorm**, who placed 1st in the tournament on **November 15, 2019**. \n\nThis result comes from the official event **\"DreamHack Atlanta 2019 / Brawlhalla World Championship 1v1\"** (event ID: `tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1`)."
+
+[[run]]
+arm = "on"
+question = "q29"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm, 2019-11-15"
+answer = "The winner of the 1v1 at DreamHack Atlanta 2019 was **gdsandstorm**, who placed 1st in the tournament on November 15, 2019."
+
+[[run]]
+arm = "on"
+question = "q29"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm, 2019-11-15"
+answer = "The winner of the 1v1 at **DreamHack Atlanta 2019** was **gdsandstorm**, who placed 1st in the tournament on **November 15, 2019**. This result is from the official 1v1 event \"DreamHack Atlanta 2019 / Brawlhalla World Championship 1v1\"."
+
+# q30 (retrieval on): who won ceo dreamland 2020
+# Expected: Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.
+
+[[run]]
+arm = "on"
+question = "q30"
+seed = 0
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "names CEO Dreamland ONLINE's winners (gdsandstorm; gdsandstorm and Boomie) as CEO Dreamland 2020's; never says it wasn't held, though resolve_event listed it as cancelled"
+answer = "At **CEO Dreamland 2020**, the winners were:\n\n- **1v1 Championship**: **gdsandstorm** (event: *Brawlhalla CEO Dreamland ONLINE*).  \n- **2v2 Championship**: **Team gdsandstorm & Boomie** (event: *Brawlhalla CEO Dreamland ONLINE*).  \n\nThe 1v1 and 2v2 events were both part of the same tournament, with gdsandstorm winning both individually and as part of a team."
+
+[[run]]
+arm = "on"
+question = "q30"
+seed = 1
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "never says the event wasn't held, though resolve_event listed it as cancelled; the final answer only replies to the answer check (\"The answer is correct\"), naming no one"
+answer = "The answer is correct. The SQL query results directly identify the players who achieved placement 1 (winner) in each relevant event. No further tool calls are needed, as the data already names the winners via their player IDs and canonical names. The answer accurately reflects the tools' returned results."
+
+[[run]]
+arm = "on"
+question = "q30"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "says the name matches the cancelled 2020 event and gives the ONLINE event's winners (gdsandstorm; gdsandstorm and Boomie); \"cancelled\" comes only in passing"
+answer = "At the **Brawlhalla CEO Dreamland ONLINE** tournament in 2020:\n\n- **1v1 Championship**: **gdsandstorm** won first place.\n- **2v2 Championship**: **gdsandstorm** and **Boomie** both placed first (likely as teammates in a 2v2 format).\n\nThe \"CEO Dreamland 2020\" name primarily matches the cancelled 2020 event, but the active ONLINE events (March 2020) are where the winners were determined."
+
+# q31 (retrieval on): Who won SEA League Week 1/4?
+# Expected: In SEA League (Week 1/4)'s matches (2017-04-22), TigerBrawlhalla was the only player who didn't lose a set: 6-0.
+
+[[run]]
+arm = "on"
+question = "q31"
+seed = 0
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "\"no recorded winner\", claiming the event isn't in the results; never checks its status (placements_unreliable) or its matches (TigerBrawlhalla 6-0), after the lookup check"
+answer = "The query for the SEA League Week 1/4 event returned no results, and the diagnosis confirms the event_id `tournament/sea-league-week-1-4/event/brawlhalla-singles` does not exist in the results database. This suggests the event either lacks official results or the data is incomplete. No player is recorded as winning this event in the official results. \n\n**Final Answer**:  \nThere is no recorded winner for the SEA League Week 1/4 event in the official results database. The event may not have had official results, or the data might be incomplete."
+
+[[run]]
+arm = "on"
+question = "q31"
+seed = 1
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "says the event ID \"does not exist\" and \"is invalid\"; never checks its status (placements_unreliable) or its matches (TigerBrawlhalla 6-0), after the lookup check"
+answer = "The event ID `tournament/sea-league-week-1-4/event/brawlhalla-singles` does not exist in the official results database. After re-validating with `resolve_event`, no matching event was found, and the diagnosis confirms the event ID is invalid. This suggests the query is based on incorrect or outdated data. No winner can be determined from the dataset for this event."
+
+[[run]]
+arm = "on"
+question = "q31"
+seed = 2
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "says the event \"likely does not exist\" or is a side format, though resolve_event listed it as placements_unreliable; never checks its matches (TigerBrawlhalla 6-0)"
+answer = "The event ID `tournament/sea-league-week-1-4/event/brawlhalla-singles` likely does not exist in the official results database. After verifying the event resolution and querying without the event ID filter (which returned 872 rows), there is no evidence of a \"SEA League Week 1/4\" event in the data. This suggests the event name is either incorrect, not officially recorded, or falls under a side format (e.g., crew battle) excluded from `v_results`.\n\n**Answer:**  \nNo official winner was recorded for \"SEA League Week 1/4\" in the database. The event may not exist, the name might be incorrect, or it could be a side-format event not tracked in the results. Verify the event details or check for alternative names."
+
+# q32 (retrieval on): how much prize money did vem win at max mode 2025
+# Expected: The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 (2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.
+
+[[run]]
+arm = "on"
+question = "q32"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the data has no prize money (per tournament); looked nothing up, which the answer didn't need"
+answer = "The question asks about prize money, but the available tables (v_results, v_entries, etc.) do not include a column for prize money. The tools provided cannot retrieve this information. \n\nTo proceed, you would need access to a table or dataset that explicitly tracks prize pools or distributions, which is not available here. Therefore, the answer is: **There is no data available on prize money in the official Brawlhalla esports results database.**"
+
+[[run]]
+arm = "on"
+question = "q32"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the data has no prize money (per event); a stray <final_answer> tag"
+answer = "The question asks about prize money, but the provided database tables (v_results, v_events, etc.) do not include a column for prize money. The tools available cannot retrieve this information. \n\n<final_answer>\nThere is no data available in the official Brawlhalla esports results database about prize money distributions for events or players. The tables provided do not include prize money fields.\n</final_answer>"
+
+[[run]]
+arm = "on"
+question = "q32"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the data has no prize money"
+answer = "The tools provided do not include prize money data in any of the tables or views. The available data tracks player results, event details, and head-to-head statistics, but there is no field for prize money amounts. Therefore, it is not possible to answer this question using the provided tools."
+
+# q33 (retrieval on): how much money has boomie made from brawlhalla
+# Expected: The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.
+
+[[run]]
+arm = "on"
+question = "q33"
+seed = 0
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "can't say how much, right, but claims no earnings are recorded at all; Boomie has no figure, having no PR ranking"
+answer = "The tools do not have access to financial data or prize money information for players. While \"Boomie\" (player_id 146606, with 147 official results from 2017–2024) is a valid player, the available views (e.g., `v_official_wins`, `v_medals`) track competitive outcomes, not earnings. Prize pools or individual earnings are not recorded in the provided dataset. Thus, it is not possible to determine how much money \"Boomie\" has made from Brawlhalla using the tools."
+
+[[run]]
+arm = "on"
+question = "q33"
+seed = 1
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "can't say how much, right, but claims no earnings are recorded at all; Boomie has no figure, having no PR ranking"
+answer = "The tools provided do not have access to financial data or earnings tracking for players. The available database tables and views (e.g., `v_official_wins`, `v_results`, etc.) only record competitive outcomes, placements, and match statistics, not prize money or revenue. Without explicit financial records in the dataset, it is impossible to calculate how much Boomie (or any player) has earned from Brawlhalla."
+
+[[run]]
+arm = "on"
+question = "q33"
+seed = 2
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "can't say how much, right, but claims no earnings are recorded at all; Boomie has no figure, having no PR ranking"
+answer = "The tools provided do not track financial data such as prize money, sponsorships, or earnings. The database only records competitive results, placements, and match statistics (e.g., wins, losses, formats). There is no column or view that links players to monetary compensation from Brawlhalla. \n\nTo answer this question, external data sources (e.g., official announcements, esports contracts, or third-party financial trackers) would be required, which are not accessible through the current tools."
+
+# q34 (retrieval on): Who won the 2016 Brawlhalla World Championship?
+# Expected: The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.
+
+[[run]]
+arm = "on"
+question = "q34"
+seed = 0
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "says 2016 isn't in the data, right, but not that it starts in 2017, and invents that earlier events were \"labeled differently (e.g., BCX)\""
+answer = "The 2016 Brawlhalla World Championship is not an official event in the Brawlhalla esports database. The `resolve_event` tool found no matches for \"worlds 2016,\" and the closest aliases listed (e.g., \"worlds 2017–2025\") do not include 2016. Official events prior to 2017 were labeled differently (e.g., \"BCX\" for \"Brawlhalla Championship\"). If you meant a different event or year, clarify the name, and I’ll check again."
+
+[[run]]
+arm = "on"
+question = "q34"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2016's championship isn't in the data; doesn't say the data starts in 2017"
+answer = "The 2016 Brawlhalla World Championship is not listed as an official event in the database. The `resolve_event` tool returned \"not_found\" for \"worlds 2016,\" and no aliases or event names matching this description exist in the official records. Therefore, there is no official winner for this event in the Brawlhalla esports database."
+
+[[run]]
+arm = "on"
+question = "q34"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2016's championship isn't in the data, whose \"worlds\" start in 2017"
+answer = "The database contains no official record of a \"2016 Brawlhalla World Championship\" event. The closest matches are official events named \"worlds\" starting in 2017 (e.g., \"worlds 2017\", \"worlds 2018\", etc.). If you meant a different event or year, please clarify, but based on official records, no winner exists for this specific name."
+
+# q35 (retrieval on): what legend does godly main
+# Expected: The data can't say: the database has no legend (character) data. Godly is Zivai (147982).
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 0
+verdict = "wrong"
+stage = "name resolution"
+review = "needs review"
+note = "sent \"godly main\" to resolve_player and asked the user about \"godly gaming\"; never says the data has no legends"
+answer = "I couldn't find a player named \"godly main\", so I won't guess. The closest names in the data:\n1. godly gaming: 1 official result, 2018 (matched \"godly gaming\", similar spelling)\nWhich one did you mean?"
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 1
+verdict = "wrong"
+stage = "name resolution"
+review = "needs review"
+note = "sent \"godly main\" to resolve_player and asked the user about \"godly gaming\"; never says the data has no legends"
+answer = "I couldn't find a player named \"godly main\", so I won't guess. The closest names in the data:\n1. godly gaming: 1 official result, 2018 (matched \"godly gaming\", similar spelling)\nWhich one did you mean?"
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 2
+verdict = "wrong"
+stage = "name resolution"
+review = "needs review"
+note = "sent \"godly main\" to resolve_player and asked the user about \"godly gaming\"; never says the data has no legends"
+answer = "I couldn't find a player named \"godly main\", so I won't guess. The closest names in the data:\n1. godly gaming: 1 official result, 2018 (matched \"godly gaming\", similar spelling)\nWhich one did you mean?"
+
+# q36 (retrieval on): How many community tournaments has raydish won?
+# Expected: The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. ("Brawlhalla Community Tournament #2", 2025, is an official event despite its name, and Raydish didn't enter it.)
+
+[[run]]
+arm = "on"
+question = "q36"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the data covers official events only, so it can't say"
+answer = "The tools provided only track official Brawlhalla esports events (e.g., \"BCX 2022\", \"Worlds\"), not community tournaments. Since \"community tournaments\" are not part of the official records, there is no data to answer this question. If you meant to ask about official events, clarify the event name or details, and I can assist further."
+
+[[run]]
+arm = "on"
+question = "q36"
+seed = 1
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "answers 6 official wins and says they include \"community\" events, when the data has no community tournaments"
+answer = "Raydish has won **6 official events** (as of the latest data). These include all official Brawlhalla esports tournaments from 2017 onward, regardless of their specific type (e.g., community, regional, etc.). The count comes from their 1v1 and 2v2 victories in the `v_official_wins` view."
+
+[[run]]
+arm = "on"
+question = "q36"
+seed = 2
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "answers \"0 community tournaments\", counting the official event named \"Brawlhalla Community Tournament #2\", when the data has no community tournaments"
+answer = "Raydish has not won any community tournaments in the official Brawlhalla esports database. The query for **Brawlhalla Community Tournament #2** (the only event matching \"community tournaments\") shows no official wins for player_id 160000 (Raydish). \n\n**Answer:** 0 community tournaments won."
+
+# q37 (retrieval on): Who has won the most official tournaments?
+# Expected: gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.
+
+[[run]]
+arm = "on"
+question = "q37"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 48, then Boomie 44 (per event, the default)"
+answer = "gdsandstorm has won the most official tournaments with **48 victories**, followed by Boomie with **44**. These counts come from first-place finishes in official events (v_official_wins), filtered by mode and format rules. The top players are ranked by total tournament wins."
+
+[[run]]
+arm = "on"
+question = "q37"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 48, then Boomie 44 and acno? 36"
+answer = "gdsandstorm has won the most official tournaments with **48 victories**, followed by Boomie (44) and acno? (36). These counts come from official 1v1 and 2v2 events, as tracked in the results database."
+
+[[run]]
+arm = "on"
+question = "q37"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 48, then Boomie 44"
+answer = "gdsandstorm has won the most official tournaments with **48 victories**, followed by Boomie with 44. These counts reflect first-place finishes (placement = 1) in official events, as recorded in the v_official_wins view."
+
+# q38 (retrieval on): rank the top 5 players by official 1v1 wins
+# Expected: 1. gdsandstorm, 30 (2 of them crew battles) 2. TigerBrawlhalla, 26 3. Zivai, 23 (1 crew battle) 4. Kylar Alice, 19 5. yüz, 14 (1 crew battle) Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.
+
+[[run]]
+arm = "on"
+question = "q38"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 30, TigerBrawlhalla 26, Zivai 23, Kylar Alice 19, yüz 14"
+answer = "The top 5 players by official **1v1 wins** (from the `v_official_wins` view, which includes all placements where a player finished 1st in 1v1 mode) are:\n\n1. **gdsandstorm** (30 wins)  \n2. **TigerBrawlhalla** (26 wins)  \n3. **Zivai** (23 wins)  \n4. **Kylar Alice** (19 wins)  \n5. **yüz** (14 wins)  \n\nThese counts reflect their total victories in official 1v1 events."
+
+[[run]]
+arm = "on"
+question = "q38"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 30, TigerBrawlhalla 26, Zivai 23, Kylar Alice 19, yüz 14"
+answer = "The top 5 players by official **1v1 wins** are:\n\n1. **gdsandstorm** - 30 wins  \n2. **TigerBrawlhalla** - 26 wins  \n3. **Zivai** - 23 wins  \n4. **Kylar Alice** - 19 wins  \n5. **yüz** - 14 wins  \n\nThese rankings are based on official 1v1 events in the database."
+
+[[run]]
+arm = "on"
+question = "q38"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 30, TigerBrawlhalla 26, Zivai 23, Kylar Alice 19, yüz 14"
+answer = "The top 5 players by official **1v1 wins** are:\n\n1. **gdsandstorm** - 30 wins  \n2. **TigerBrawlhalla** - 26 wins  \n3. **Zivai** - 23 wins  \n4. **Kylar Alice** - 19 wins  \n5. **yüz** - 14 wins  \n\nThese rankings are based on placements of **1st** in official **1v1** events, as recorded in the results database."
+
+# q39 (retrieval on): who has more medals, boomie or sandstorm?
+# Expected: Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69: - Boomie: 1v1 12 gold, 11 silver, 11 bronze (34); 2v2 32, 8 and 6 (46) - gdsandstorm: 1v1 30, 6 and 6 (42); 2v2 18, 4 and 5 (27) gdsandstorm has more wins (48 to 44), and Boomie more medals.
+
+[[run]]
+arm = "on"
+question = "q39"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie 80 to gdsandstorm's 69, both modes"
+answer = "Boomie (player_id 146606) has **80 medals**, while Sandstorm (player_id 74433) has **69 medals**. Therefore, **Boomie has more medals** than Sandstorm across official events in both 1v1 and 2v2 modes."
+
+[[run]]
+arm = "on"
+question = "q39"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie 80 to gdsandstorm's 69, both modes"
+answer = "Boomie (player_id 146606) has **80 medals** in total, while Sandstorm (player_id 74433) has **69 medals**. Based on official events and all modes (1v1 and 2v2), **Boomie has more medals** than Sandstorm."
+
+[[run]]
+arm = "on"
+question = "q39"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie 80 to gdsandstorm's 69, both modes"
+answer = "Boomie (player_id 146606) has **80 medals**, while gdsandstorm (player_id 74433) has **69 medals**. Therefore, **Boomie has more medals** in official Brawlhalla events. \n\nThis totals all gold, silver, and bronze medals across both 1v1 and 2v2 formats in their careers."
+
+# q40 (retrieval on): who has raydish lost to the most in 1v1
+# Expected: gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).
+
+[[run]]
+arm = "on"
+question = "q40"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm, 10 losses"
+answer = "Raydish has lost to **gdsandstorm** the most in 1v1 matches, with a total of **10 losses**. \n\nThis result comes from aggregating all 1v1 head-to-head records where Raydish (player_id 160000) faced opponents, summing the losses per opponent, and identifying the opponent with the highest count."
+
+[[run]]
+arm = "on"
+question = "q40"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm, 10 losses"
+answer = "Raydish has lost the most to **gdsandstorm** in 1v1 matches, with **10 losses** recorded in official events. This is the highest count among all opponents in the head-to-head 1v1 records."
+
+[[run]]
+arm = "on"
+question = "q40"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 10, then luna 8 and Marckiem00 7"
+answer = "Raydish has lost to **gdsandstorm** the most in 1v1 matches, with **10 losses**. Other players like **luna** (8 losses) and **Marckiem00** (7 losses) are next. The data shows Raydish's top rivals in 1v1 based on head-to-head records."
+
+# q41 (retrieval on): Who has won the most 1v1 world championships?
+# Expected: gdsandstorm, with 3: 2018 (DreamHack Atlanta 2018), 2019 (DreamHack Atlanta 2019) and 2020, when the World Championship was held separately in five regions (gdsandstorm won North America's). yüz has 2 (BCX 2023 and 2024). Counting only the single worldwide championships, leaving out 2020 and 2021's regional ones, gdsandstorm and yüz tie at 2.
+
+[[run]]
+arm = "on"
+question = "q41"
+seed = 0
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "2 query results"
+answer = "The player with the most 1v1 wins at official \"world championships\" is **yüz** with **2 wins**, followed by Impala, Cody Travis, and powerbh each with 1 win. These results come from events like the *Brawlhalla World Championship Expo* (2022–2025) and regional qualifiers like North America/South America 2021. Note that \"world championships\" here includes both global and regional events under the \"worlds\" alias."
+
+[[run]]
+arm = "on"
+question = "q41"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 3, then yüz 2 (the default, regional 2020 included)"
+answer = "The player with the most 1v1 world championship wins is **gdsandstorm** with **3 wins**, followed by **yüz** with **2 wins**. These counts come from official events categorized under \"worlds\" (e.g., \"Brawlhalla World Championship Expo\") in the 1v1 mode."
+
+[[run]]
+arm = "on"
+question = "q41"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "gdsandstorm 3, then yüz 2"
+answer = "At official 1v1 world championships (events named \"worlds\" in aliases), **gdsandstorm** has the most wins with **3 titles**. They triumphed in three of the \"worlds\" events, while other top contenders like yüz secured 2 wins. These victories are sourced from the official results database."
+
+# q42 (retrieval on): what was the biggest official brawlhalla tournament ever?
+# Expected: By entrants in one event, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.
+
+[[run]]
+arm = "on"
+question = "q42"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "the right event and 7,240 entrants, but calls it \"Brawlhalla Championship 1v1\", the event's own title, with the tournament (NA SteelSeries Championship) only in its ID"
+answer = "The biggest official Brawlhalla tournament ever was **Brawlhalla Championship 1v1** (event ID: `tournament/north-america-steelseries-championship-1/event/brawlhalla-championship-1v1`), which had **7,240 unique participants** across its 1v1 format. This event likely represents the largest player turnout in the game's history based on official records."
+
+[[run]]
+arm = "on"
+question = "q42"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the North America - SteelSeries Championship 1v1, 7,240 entrants"
+answer = "The biggest official Brawlhalla tournament ever, based on participant count, was the **North America - SteelSeries Championship** (event name: *Brawlhalla Championship 1v1*), which had **7,240 unique players** competing. This event likely represents the largest gathering of players in the game's history."
+
+[[run]]
+arm = "on"
+question = "q42"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the North America - SteelSeries Championship 1v1 (2020-08-22), 7,240 entrants"
+answer = "The biggest official Brawlhalla tournament ever, based on the number of participants, was the **North America - SteelSeries Championship** in 2020. It had **7,240 unique players** competing in the **standard** format. The event was part of the \"Brawlhalla Championship 1v1\" series and took place on **August 22, 2020**."
+
+# q43 (retrieval on): what was megd's first major win?
+# Expected: megD's first official event win was the Summer Championship - North America 2026 - 1v1 (2026-07-19). The second came on 2026-08-30, at the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle).
+
+[[run]]
+arm = "on"
+question = "q43"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the Summer Championship NA 2026 1v1, 2026-07-19"
+answer = "megD's first major win was at the **Summer Championship - North America 2026 - 1v1** tournament on **July 19, 2026**, where they placed **1st** in **1v1** mode. The result is documented here: [bracket link](https://www.challengermode.com/s/Brawlhalla/tournaments/2a4486e4-cfe5-4d25-6d16-08dea8b61f65). \n\nThis was their earliest official 1v1 victory in the database."
+
+[[run]]
+arm = "on"
+question = "q43"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the Summer Championship NA 2026 1v1, 2026-07-19"
+answer = "Megd's first major win was at the **Summer Championship - North America 2026 - 1v1** on **2026-07-19**, where they placed **1st in 1v1 mode**. This is the earliest recorded official win in their career."
+
+[[run]]
+arm = "on"
+question = "q43"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "the Summer Championship NA 2026 1v1, 2026-07-19"
+answer = "megD's first major win was **1st place in the 1v1 format** at the *Summer Championship - North America 2026* tournament on **July 19, 2026** (start time: 19:57:54 UTC). This marks their earliest official victory in the database."
+
+# q44 (retrieval on): How many times did Ahmet finish second to Godly in 2026?
+# Expected: 3 times, all in 1v1 at official events, each won by Zivai (formerly Godly) with Ahmet_ 2nd: the Spring (2026-04-25), Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.
+
+[[run]]
+arm = "on"
+question = "q44"
+seed = 0
+verdict = "wrong"
+stage = "name resolution"
+review = "auto"
+note = "Ahmet: queried with it; Godly: resolved, but queried with [108185]"
+answer = "Ahmet (player_id 75405) did not finish second to Godly (player_id 108185) in any official events during 2026. The query found **0 instances** where Ahmet placed 2nd in the same event as Godly placing 1st, and the event's start date fell in 2026. \n\nThis result assumes the question refers to 1v1 placements in the same event. If the query scope or player IDs changed, the count could differ."
+
+[[run]]
+arm = "on"
+question = "q44"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "3 times, with Godly taken as player 147982 (Zivai) and its assumptions stated"
+answer = "Ahmet (player_id 75405) finished second to Godly (player_id 147982) **3 times** in 2026, as determined by official event records where Ahmet placed 2nd and Godly placed 1st in the same 1v1 match. \n\n**Key assumptions:**  \n- \"Ahmet\" refers to the player with 38 official results (player_id 75405).  \n- \"Godly\" refers to the player with 74 official results (player_id 147982).  \n- The count includes only matches in 2026, filtered by event start dates."
+
+[[run]]
+arm = "on"
+question = "q44"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "3 times, naming Ahmet_ and Zivai (formerly Kingdom | Godly)"
+answer = "Ahmet_ (player_id 75405) finished second to Zivai (player_id 147982, former name \"Kingdom | Godly\") **3 times** in 2026, based on official event results where Ahmet placed 2nd and Godly placed 1st in the same event. \n\nNote: The name \"Godly\" matched four players, but the analysis used the first candidate (Zivai) with the most official results. If the question refers to a different Godly, the count might vary."
+
+# q45 (retrieval on): who has earned more money, raydish or impala?
+# Expected: Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).
+
+[[run]]
+arm = "on"
+question = "q45"
+seed = 0
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "0 query results"
+answer = "The tools provided do not include any data or tables related to player earnings or prize money. Therefore, I cannot determine who has earned more money between Raydish and Impala."
+
+[[run]]
+arm = "on"
+question = "q45"
+seed = 1
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "0 query results"
+answer = "The question asks about players' earnings, but the available data does not include information about prize money or financial rewards. The tools provided only track results, placements, and match statistics, not monetary earnings. Therefore, it is not possible to determine who has earned more money between Raydish and Impala based on the official esports data."
+
+[[run]]
+arm = "on"
+question = "q45"
+seed = 2
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "0 query results"
+answer = "The question cannot be answered with the available data. The tools provided do not include any information about player earnings, prize money, or financial rewards from tournaments. The database tracks results, placements, and match statistics but does not record monetary compensation. Therefore, there is no way to determine which player has earned more money."

@@ -1,0 +1,112 @@
+[
+ {
+  "id": "q13",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won winters 2023 na 1v1",
+  "expected": "Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.",
+  "outcome": "answered",
+  "answer": "The winner of the **North America - Winter Championship 2023** (1v1) event was **Raydish**, who placed 1st on **February 5, 2023**.",
+  "stage1": {
+   "result": "pass",
+   "detail": "winters 2023 na 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.869
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.783
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.756
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 46.3,
+  "output_tokens": 929
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "suggestions",
+  "answer": "I couldn't find a player named \"godly main\", so I won't guess. The closest names in the data:\n1. godly gaming: 1 official result, 2018 (matched \"godly gaming\", similar spelling)\nWhich one did you mean?",
+  "stage1": {
+   "result": "fail",
+   "detail": "godly: asked the user, suggesting [54665], where an answer is expected"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "examples": [],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 6.4,
+  "output_tokens": 473
+ },
+ {
+  "id": "h09",
+  "set": "heldout",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "how many different partners has powerbh won a 2v2 title with?",
+  "expected": "4: SiB | Wess (7 titles together), lopesbrawlhalla (4), yüz (1) and DB (1), for 13 official 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Powerbh has won 2v2 titles with 4 different partners. \n\nThis is determined by querying the `v_team_results` view for entries where `player_id = 113157` (powerbh's canonical ID) and `placement = 1` (indicating a win), then counting distinct `partner_id` values. The result shows 4 unique partners.",
+  "stage1": {
+   "result": "pass",
+   "detail": "powerbh: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "held-out, new shape",
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.816
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.762
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.765
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 35.2,
+  "output_tokens": 2473
+ }
+]

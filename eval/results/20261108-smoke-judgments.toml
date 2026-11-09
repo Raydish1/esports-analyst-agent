@@ -1,0 +1,43 @@
+# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL
+# logic, empty or insufficient data, answer writing, or no answer. review is "auto" for a stage 1 or 2
+# failure the code found, and "needs review" for a verdict drafted by hand, until the user confirms it
+# ("confirmed"). Fill in or correct verdict, stage and note; scoring keeps what's here.
+
+# h09 (retrieval on): how many different partners has powerbh won a 2v2 title with?
+# Expected: 4: SiB | Wess (7 titles together), lopesbrawlhalla (4), yüz (1) and DB (1), for 13 official 2v2 wins.
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 partners, not named"
+answer = "Powerbh has won 2v2 titles with 4 different partners. \n\nThis is determined by querying the `v_team_results` view for entries where `player_id = 113157` (powerbh's canonical ID) and `placement = 1` (indicating a win), then counting distinct `partner_id` values. The result shows 4 unique partners."
+
+# q13 (retrieval on): who won winters 2023 na 1v1
+# Expected: Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.
+
+[[run]]
+arm = "on"
+question = "q13"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "names Raydish and the date"
+answer = "The winner of the **North America - Winter Championship 2023** (1v1) event was **Raydish**, who placed 1st on **February 5, 2023**."
+
+# q35 (retrieval on): what legend does godly main
+# Expected: The data can't say: the database has no legend (character) data. Godly is Zivai (147982).
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 0
+verdict = "wrong"
+stage = "name resolution"
+review = "auto"
+note = "godly: asked the user, suggesting [54665], where an answer is expected"
+answer = "I couldn't find a player named \"godly main\", so I won't guess. The closest names in the data:\n1. godly gaming: 1 official result, 2018 (matched \"godly gaming\", similar spelling)\nWhich one did you mean?"
