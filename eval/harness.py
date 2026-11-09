@@ -23,9 +23,9 @@ Each run's verdict (right, partly, wrong) comes with the first stage that failed
 Stages 3 and 4 are judged by hand: score drafts them in eval/results/<run>-judgments.toml as "needs review", to be
 filled in and confirmed. A run that fails stage 1 or 2 is "wrong" there, marked "auto".
 
-Groups (2026-11-08): the 5 questions the agent was tuned on; and every other question by whether retrieval returns
-an example of a helpful shape (eval/questions/shapes.toml) above the threshold: "known shape" or "new shape", for
-the existing and held-out sets apart.
+Groups (2026-11-08): the questions the agent was tuned on by the day of the run (TUNED); and every other question by
+whether retrieval returns an example of a helpful shape (eval/questions/shapes.toml) above the threshold: "known
+shape" or "new shape", for the existing and held-out sets apart.
 """
 
 import argparse
@@ -50,7 +50,11 @@ RAW = ROOT / "data" / "experiments"
 RESULTS = ROOT / "eval" / "results"
 SHAPES = ROOT / "eval" / "questions" / "shapes.toml"
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
-TUNED = ["q04", "q06", "q08", "q21", "q22"]  # changed the prompt, checks and examples (docs/experiments.md)
+# The questions the agent was tuned on, each with the day of the step that tuned on it (docs/experiments.md). A run
+# counts a question as tuned from that day on, so an earlier run keeps its groups when it's reported again.
+TUNED = {"q04": "20261018", "q06": "20261018", "q08": "20261018", "q21": "20261023", "q22": "20261023",
+         "q05": "20261109", "q09": "20261109", "q33": "20261109", "q35": "20261109", "q36": "20261109",
+         "q45": "20261109"}
 # The existing questions retrieval gave no helpful example in its measurement (2026-10-26): the near-clean half of
 # the retrieval-off arm, with the held-out set
 NEAR_CLEAN = ["q05", "q09", "q14", "q15", "q23", "q32", "q33", "q34", "q35", "q36", "q39", "q42", "q45"]
@@ -214,8 +218,15 @@ def shape(question, trace, labels):
     return "known shape" if {e["shape"] for e in found["examples"]} & set(labels.get(question["id"], [])) else "new shape"
 
 
-def group(question, known):
-    if question["id"] in TUNED:
+def tuned(question, run_id=""):
+    """Whether the agent had been tuned on a question by the day of a run, which its id starts with (an id without a
+    day counts as today)."""
+    day = run_id[:8] if run_id[:8].isdigit() else "99999999"
+    return question["id"] in TUNED and TUNED[question["id"]] <= day
+
+
+def group(question, known, run_id=""):
+    if tuned(question, run_id):
         return "tuned"
     return f"{'held-out' if question['set'] == 'heldout' else 'existing'}, {known}"
 
@@ -325,7 +336,7 @@ def score(run_ids, db, labels):
                 "id": q["id"], "set": q["set"], "category": q["category"], "seed": t["seed"], "arm": header["arm"],
                 "question": q["question"], "expected": " ".join(q["answer"].split()), "outcome": t["outcome"],
                 "answer": t["answer"],
-                "stage1": stage1(q, t, db), "stage2": stage2(q, t, names), "shape": known, "group": group(q, known),
+                "stage1": stage1(q, t, db), "stage2": stage2(q, t, names), "shape": known, "group": group(q, known, run_id),
                 "label": (labels.get(q["id"]) or ["none (no query answers it)"])[0], "needs_data": CHECKS[q["id"]] is not NA,
                 "ended_empty": ended_empty(t),
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,

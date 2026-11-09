@@ -182,6 +182,12 @@ class GroupTest(unittest.TestCase):
         self.assertEqual(harness.group(POWERBH, "known shape"), "held-out, known shape")
         self.assertEqual(harness.group({"id": "q14", "set": "existing"}, "new shape"), "existing, new shape")
 
+    def test_a_question_counts_as_tuned_only_in_runs_from_the_day_it_was_tuned_on(self):
+        q05 = {"id": "q05", "set": "existing"}  # tuned on in step 1, 2026-11-09
+        self.assertEqual(harness.group(q05, "new shape", "20261108-eval-on"), "existing, new shape")
+        self.assertEqual(harness.group(q05, "new shape", "20261109-step1"), "tuned")
+        self.assertEqual(harness.group({"id": "q13", "set": "existing"}, "known shape", "my-run"), "existing, known shape")
+
     def test_a_run_without_retrieval_takes_its_questions_shape_from_a_run_with_it(self):
         with tempfile.TemporaryDirectory() as folder, mock.patch.object(harness, "RAW", Path(folder)):
             for run_id, arm, shapes in (("on", "on", ["teammates"]), ("off", "off", None)):
