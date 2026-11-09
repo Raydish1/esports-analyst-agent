@@ -75,10 +75,22 @@ def queries(trace):
     return [args.get("query", "") for args, _ in calls(trace, "run_sql")]
 
 
-def results(trace):
+ID_COLUMN = re.compile(r"(player|partner|opponent|winner)\d?_?id$", re.I)
+
+
+def results(trace, names=None):
     """The rows each query showed the agent (none for a result too large to show), then the events each
-    resolve_event call listed, as rows of their values: an event's status (cancelled) can come from there."""
-    shown = [obs.get("rows", []) for _, obs in calls(trace, "run_sql") if "error" not in obs]
+    resolve_event call listed, as rows of their values: an event's status (cancelled) can come from there. With
+    names ({player_id: name}), a player ID in an ID column also counts as the player's name, since an agent often
+    fetches IDs first and names in a second query."""
+    shown = []
+    for _, obs in calls(trace, "run_sql"):
+        if "error" in obs:
+            continue
+        rows, ids = obs.get("rows", []), [i for i, c in enumerate(obs.get("columns", [])) if ID_COLUMN.search(c)]
+        if names and ids:
+            rows = [list(r) + [names[r[i]] for i in ids if r[i] in names] for r in rows]
+        shown.append(rows)
     return shown + [[list(e.values()) for e in obs["events"]] for _, obs in calls(trace, "resolve_event") if obs.get("events")]
 
 
@@ -179,14 +191,14 @@ def stage1(question, trace, db):
 
 # Stage 2: SQL logic
 
-def stage2(question, trace):
+def stage2(question, trace, names=None):
     """{result: pass, fail or n/a, detail}: the question's check on the results the agent saw."""
     check = CHECKS[question["id"]]
     if check is NA:
         return {"result": "n/a", "detail": "the right answer needs no query result"}
     if trace.get("outcome") == "suggestions":
         return {"result": "n/a", "detail": "asked the user instead of querying"}
-    shown = results(trace)
+    shown = results(trace, names)
     return {"result": "pass" if check(shown) else "fail", "detail": f"{len(shown)} query results"}
 
 
@@ -294,6 +306,7 @@ def score(run_ids, db, labels):
     """Each trace of the runs scored: {run_id: [record]}. A question's shape comes from a run with retrieval."""
     questions = {q["id"]: q for q in load_questions()}
     loaded = {r: load_traces(r) for r in run_ids}
+    names = dict(db.execute("SELECT player_id, name FROM players")) if db else None
     shapes = {}
     for _, traces in loaded.values():
         for t in traces:
@@ -311,7 +324,7 @@ def score(run_ids, db, labels):
                 "id": q["id"], "set": q["set"], "category": q["category"], "seed": t["seed"], "arm": header["arm"],
                 "question": q["question"], "expected": " ".join(q["answer"].split()), "outcome": t["outcome"],
                 "answer": t["answer"],
-                "stage1": stage1(q, t, db), "stage2": stage2(q, t), "shape": known, "group": group(q, known),
+                "stage1": stage1(q, t, db), "stage2": stage2(q, t, names), "shape": known, "group": group(q, known),
                 "label": (labels.get(q["id"]) or ["none (no query answers it)"])[0], "needs_data": CHECKS[q["id"]] is not NA,
                 "ended_empty": ended_empty(t),
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,
