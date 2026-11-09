@@ -396,9 +396,11 @@ def correct_names(answer, resolved, names):
                 return m.group(0)
             to = name if done or named < m.start() else shown
             done.append({"kind": "the question's spelling", "from": m.group(0), "to": to, "player_id": pid})
-            return to
+            return to + (m.group(1) or "")  # the bold closing it, when it was closed before '(Zivai)'
 
-        answer = re.sub(rf"(?<!\w){re.escape(spelling)}(?!\w)", swap, answer, flags=re.I)
+        # with the name after it in parentheses, as one: 'Godly (Zivai)' is 'Zivai (formerly Godly)', not '... (Zivai)'
+        after = rf"(?:(\**)\s*\(\s*{re.escape(name)}\s*\))?"
+        answer = re.sub(rf"(?<!\w){re.escape(spelling)}(?!\w){after}", swap, answer, flags=re.I)
         swaps += done
     for span in dict.fromkeys(name_spans(answer)):
         def by_id(m):

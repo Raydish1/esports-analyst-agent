@@ -402,6 +402,12 @@ class LoopTest(Fixture):
         self.assertEqual(trace["steps"][1]["name_swaps"], trace["name_swaps"])
         self.assertEqual(trace["steps"][1]["content"], "**godly** won both events, and godly's runs were clean.")  # as written
 
+    def test_a_spelling_with_the_name_after_it_in_parentheses_becomes_the_display_once(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "godly"})]),
+                       reply("**Godly** (Zivai) won, and Godly (Zivai) lost once."))
+        trace = react.run("did godly win?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "**Zivai (formerly Godly)** won, and Zivai lost once.")
+
     def test_a_spelling_quoted_or_explaining_the_name_and_a_case_variant_are_left_alone(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "godly"})]),
                        reply('Zivai (godly) won; the name "godly" also matched others.'))
