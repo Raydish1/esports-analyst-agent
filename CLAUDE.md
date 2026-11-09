@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-10-25)
+## Project status (2026-11-09)
 **Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
 - The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
@@ -63,6 +63,11 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - Measured alone: a helpful example shape is in the top 3 for 32 of 39 evaluation questions (35 without the threshold).
   - Off and on, seeds 0–5, same prompt: question 4 right in 5 then 6 of 6, question 6 in 0 then 6 (fixed: every run grouped by partner, the teammates example's pattern), question 8 in 3 then 5, q21 in 4 then 0 (the counts stay right, but no answer names BBBalloonBoy).
   - The traces of question 6, seed 1 and question 4, seed 4, off and on, are saved for the write-up in `docs/traces/`.
+- The full evaluation (2026-11-08, in the log): `eval/harness.py` ran the agent on the 45 questions and a held-out set of 16 (`eval/questions/heldout.toml`), seeds 0–2, retrieval on (183 runs) and off (87: the held-out and the 13 near-clean questions), scoring each run by the first stage that failed.
+  - Retrieval on: 130 of 183 runs right (71%), and 34 of 61 questions right in every seed. Held-out: 26 of 33 runs right with a known shape, 10 of 15 with a new one. Of the 53 runs not right, 17 failed at empty or insufficient data, 16 at answer writing, 14 at SQL logic and 6 at name resolution.
+  - Retrieval off, the same 29 questions: 32 of 87 runs right, against 53 on, with 17 not judged yet.
+  - The biggest misses: the prompt names no earnings view, so every earnings run says none are recorded (12 of 12); answers echo a variant spelling instead of the player's name (7); resolve_event's cancelled and placements_unreliable statuses go unread (5 of 6).
+  - Every verdict is a draft for the user to review: 248 of 270 are marked "needs review", the other 22 automatic.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -135,7 +140,13 @@ Evaluation (`eval/`):
   - q22 also accepts suggestions with Marckiem00 first (decided 2026-10-23): "markiemoo" matches only by a similar spelling, which the agent doesn't guess. Near-misses of curated nicknames stay below the confident threshold.
   - `tied_to_eval_v1` marks the 7 answers that Phase 2 (or, for legends, Phase 3) will change.
   - It covers the target questions, the known events, names written casually (nicknames, former names, case, misspellings, team tags), event aliases and terms, four paraphrase pairs, and questions the data can't answer.
-- `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; the harness that does is still to come.
+- `review_questions.py` writes `questions/review.md`, the page to review the set from: it runs every question's queries on eval-v1 and shows their results next to each answer (`python eval/review_questions.py`). Edit `questions.toml`, never `review.md`. It doesn't run the agent; `harness.py` does.
+- `questions/heldout.toml` is the held-out set (verified 2026-11-08): 16 questions in the same format, never to go into the example bank or tune the agent. `tests/test_harness.py` checks the bank for its questions, players and events.
+- `harness.py` runs the agent on both sets and scores it (2026-11-08):
+  - `py -3.14 eval/harness.py run --all --seeds 0 1 2` (or `--ids`, `--near-clean`, `--examples off`) appends each trace to `data/experiments/<run>/`, so a run resumes;
+  - `score RUN [RUN ...]` scores stages 1 and 2 offline and writes `eval/results/<run>-scores.json` and `<run>-judgments.toml`, where stages 3 and 4 are drafted by hand ("needs review") and kept across rescoring;
+  - `report RUN [RUN ...]` prints the tables by group, held-out shape, query shape, category and failing stage, with raw counts next to every rate;
+  - `result_checks.py` holds stage 2's check per question; `python eval/result_checks.py` verifies each on its question's reference queries.
 
 Agent (`agent/`, a prototype):
 - `ask.py` is for asking the agent yourself: `py -3.14 agent/ask.py "question"` prints the answer, `--trace` also prints each step (its thinking in short, tool calls, observations), `--seed N` picks the sampling seed (default 0), and with no question it starts a session. In a session, follow-ups build on earlier answers, and "exit" quits. Transcripts go to `data/experiments/sessions/`.
@@ -252,11 +263,9 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's decisions on the prototype's next fixes**, proposed in the experiment log's 2026-10-19, 2026-10-23 and 2026-10-25 entries:
-- a check that an answer names the player a misspelled name resolved to (q21 lost it with examples on), and the retrieval threshold;
-- the prompt lines on `v_team_results` (only 2v2) and integer division;
-- current names, and the minimum number of matches;
-- how to get question 6 aggregated (an example in the prompt, a check, or a larger model). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
+Next step: **the user's review of the full evaluation's drafted verdicts** (`eval/results/20261108-eval-on-judgments.toml` and `-eval-off-judgments.toml`), then their decisions on its proposals in the log's 2026-11-08 entry: naming the earnings view in the prompt, a check that an answer names the resolved player, event statuses, and answers after failed queries.
+- For the harness: count a player's name only when a tool returned it, then draft the retrieval-off arm's 17 runs left and read its 11 unread machine verdicts.
+- Still open from the 2026-10-19 to 2026-10-25 entries: the retrieval threshold; the prompt lines on `v_team_results` (only 2v2) and integer division; current names, and the minimum number of matches; how to get question 6 aggregated (with retrieval on, all 3 runs did). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
 - The user runs long fetches themselves: don't start any fetch beyond a pilot without asking, and check with the user before starting any new crawl stage.
 

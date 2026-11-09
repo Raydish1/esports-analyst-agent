@@ -2,6 +2,113 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-08: the full evaluation, on the evaluation set and a held-out set, retrieval on and off, seeds 0–2
+
+**Question:** where does the agent fall short, measured on questions it wasn't tuned on?
+
+**Setup:** the agent as of commit adf4cf0, unchanged since the retrieval runs: qwen3:8b with thinking, Ollama 0.40.15, eval-v1, the x64 Python 3.14.
+- **Questions:** 61, the 45 of the evaluation set and 16 of a held-out set (`eval/questions/heldout.toml`, written and verified on 2026-11-08). `tests/test_harness.py` checks that no held-out question, player, player ID or event is in the example bank, and that its players are new to the evaluation set.
+- **Groups:** the 5 questions the agent was tuned on (q04, q06, q08, q21, q22). Every other question is "known shape" when retrieval returns an example of a helpful shape (`eval/questions/shapes.toml`) at 0.70 or more, and "new shape" when it doesn't: 27 and 13 of the existing set, 11 and 5 of the held-out set.
+- **Runs:** retrieval on, all 61 questions × seeds 0–2 (run `20261108-eval-on`, 183 runs), then retrieval off, the 16 held-out and the 13 near-clean existing questions (q05, q09, q14, q15, q23, q32–q36, q39, q42, q45) × seeds 0–2 (`20261108-eval-off`, 87 runs). No run failed or was retried.
+- **Scoring** (`eval/harness.py`): each run gets a verdict (right, partly, wrong) and the first stage that failed, in the pipeline's order:
+  1. name resolution, automatic: the players and events the question names became the right IDs in the queries;
+  2. SQL logic, automatic: the tool results hold the facts the answer needs (`eval/result_checks.py`, one check per question, each passing on its question's reference queries);
+  3. empty or insufficient data, by hand: a "none", a "not held" or missing data told apart from a lookup mistake, said, and not filled in;
+  4. answer writing, by hand: the answer states what the results show, with what the question requires.
+- **Judging:** right is the verified answer, or an accepted one with its assumption, with what the question's notes require (the player's name, where they ask for it). Partly is the main fact right with a required part missing or a secondary fact wrong. Wrong is the main fact wrong or missing.
+- **All verdicts are drafts pending the user's review: 248 of 270 are marked "needs review"**, and the other 22 are automatic stage-1 or 2 failures. They are in `eval/results/20261108-eval-on-judgments.toml` and `20261108-eval-off-judgments.toml`, next to each run's answer.
+- **The retrieval-off arm isn't fully judged.** 17 runs have no verdict: 16 in seed 2 (q23, q33, q34, q36, q39, h01–h03, h06–h10, h14–h16) and q14 seed 1. 11 more in seed 2 carry machine verdicts nobody read: 8 automatic (q14, q15, q42, q45, h04, h05, h11, h12) and 3 drafts (h13, q32, q35). q32's draft says wrong, but its answer reads like the right one. All 9 automatic verdicts of the retrieval-on arm were read.
+
+**Results, retrieval on** (183 runs):
+
+| Group | Runs right | Runs partly | Questions right in every seed |
+|---|---|---|---|
+| tuned | 10/15 (67%) | 5/15 (33%) | 3/5 (60%) |
+| existing, known shape | 67/81 (83%) | 4/81 (5%) | 19/27 (70%) |
+| existing, new shape | 17/39 (44%) | 9/39 (23%) | 3/13 (23%) |
+| held-out, known shape | 26/33 (79%) | 5/33 (15%) | 6/11 (55%) |
+| held-out, new shape | 10/15 (67%) | 3/15 (20%) | 3/5 (60%) |
+| all | 130/183 (71%) | 26/183 (14%) | 34/61 (56%) |
+
+| Held-out set, by shape | Runs right | Runs partly | Questions right in every seed |
+|---|---|---|---|
+| known shape, new names | 26/33 (79%) | 5/33 (15%) | 6/11 (55%) |
+| new shape | 10/15 (67%) | 3/15 (20%) | 3/5 (60%) |
+
+Retrieval returned a helpful shape for h01 (ex11, wins list), h05, h06 and h07 (ex01, event winner), h08 (ex10 and ex27), h10 (ex19, best record), h11 and h15 (ranking), h12 and h13 (ex28, set record) and h16 (ex24, empty result), in every seed. It didn't for h02 and h03 (placements), h04 (head-to-head), h09 (teammates) and h14 (no shape helps). Every labelled shape is in the bank, so a new shape here is one retrieval missed.
+
+| Category | Runs right | Runs partly | Questions right in every seed |
+|---|---|---|---|
+| event_result | 36/42 (86%) | 3/42 (7%) | 9/14 (64%) |
+| head_to_head | 16/18 (89%) | 0/18 (0%) | 5/6 (83%) |
+| multi_step | 41/48 (85%) | 2/48 (4%) | 11/16 (69%) |
+| partial | 0/15 (0%) | 5/15 (33%) | 0/5 (0%) |
+| player_record | 27/39 (69%) | 12/39 (31%) | 7/13 (54%) |
+| unanswerable | 10/21 (48%) | 4/21 (19%) | 2/7 (29%) |
+
+| First stage that failed | All (53 of 183 not right) | Tuned (5 of 15) | Existing (36 of 120) | Held-out (12 of 48) |
+|---|---|---|---|---|
+| name resolution | 6/53 (11%) | 0/5 (0%) | 6/36 (17%) | 0/12 (0%) |
+| SQL logic | 14/53 (26%) | 0/5 (0%) | 9/36 (25%) | 5/12 (42%) |
+| empty or insufficient data | 17/53 (32%) | 0/5 (0%) | 14/36 (39%) | 3/12 (25%) |
+| answer writing | 16/53 (30%) | 5/5 (100%) | 7/36 (19%) | 4/12 (33%) |
+
+Every run ended in an answer or in suggestions. With retrieval off, the 38 runs judged not right failed at name resolution 4 times, SQL logic 20 (8 of them the unread automatic verdicts), empty or insufficient data 10 and answer writing 4.
+
+**Retrieval off and on**, the off arm's 29 questions and the same seeds:
+
+| Questions, retrieval | Runs right | Runs partly | Questions right in every seed | Not judged yet |
+|---|---|---|---|---|
+| held-out, off | 19/48 (40%) | 8/48 (17%) | 0/16 (0%) | 11 |
+| held-out, on | 36/48 (75%) | 8/48 (17%) | 9/16 (56%) | 0 |
+| existing, near-clean, off | 13/39 (33%) | 6/39 (15%) | 0/13 (0%) | 6 |
+| existing, near-clean, on | 17/39 (44%) | 9/39 (23%) | 3/13 (23%) | 0 |
+| all, off | 32/87 (37%) | 14/87 (16%) | 0/29 (0%) | 17 |
+| all, on | 53/87 (61%) | 17/87 (20%) | 12/29 (41%) | 0 |
+
+Retrieval helps the held-out set: even if all 11 runs not judged were right, it would be 30 of 48 off (63%) against 36 of 48 on (75%). For the near-clean existing questions it isn't settled: 13 to 19 of 39 off (33% to 49%) against 17 on (44%). The off arm's all-seeds column is 0 only because no seed-2 run is judged right yet.
+
+**Where it falls short** (retrieval on, unless marked "off"):
+- **Earnings, 12 of 12 runs not right (q05, q09, q33, q45), and the 11 judged off.** Every run says no earnings are recorded, and q05 and q45 call no tool. The system prompt lists the views the agent may query, and `v_career_earnings` isn't one: `agent/react.py` never mentions earnings.
+- **The player not named, 7 runs (q21 s0–s2, h01 s1, h03 s0–s2), 3 off.** The answer echoes the question's spelling ("Baloonboy", "Pugsyxd", "Neze") where the notes ask for the player's name.
+- **An event's status ignored, 5 of 6 runs of q30 and q31.** resolve_event listed CEO Dreamland 2020 as cancelled and SEA League Week 1/4 as placements_unreliable in every run. q30 s0 gave CEO Dreamland ONLINE's winners as the 2020 event's (s1 ended on a reply to the answer check), and every q31 run called SEA League's event nonexistent or invalid.
+- **Placements without matches, h13, 3 of 3 runs, 2 off.** A set count of 0 at the Pro Series finals becomes "Santy may not have taken part", when Santy's crew won.
+- **"godly", 6 runs.** q15 s1 and q44 s0 queried the display name Godly (108185), and q15 s2 all four candidates at once, over the resolver's first candidate, Zivai (a former name). In every q35 run the model sent "godly main" as the name, and the turn ended in suggestions about "godly gaming".
+- **Community tournaments, q36 s1 and s2, 1 off.** The answers counted official wins, or the official event named "Brawlhalla Community Tournament #2".
+- **One row kept of several, 2 runs, 3 off.** h05 s1 and h07 s2 named one winner of a team, as did h07 s0 and s1 off, and h11 s0 off one of two tied players (LIMIT 1, where the query was read).
+- **Facts no tool returned.** In h04 s1 and s2 every query timed out (in s1, queries ORing the two pairings), and both answers give the same invented record, 12-8. q20 s1 named two player IDs "Lucky" and "Mao", and h11 s0 off called Zivai's ID "Kappa". The no-tool check fires only when no tool was called.
+- **Guardrail side effects.** q03 s0 and q30 s1 end on a reply to the answer check, not an answer (q03 after a false alarm on "did"). In h11 s0 off, the check sent "Kappa" back, and the model looked the name up and switched to another player.
+- **A format for a mode, off.** h09 s1 filtered `format = '2v2'` in a COUNT, which returns one row of 0, so no diagnosis ran ("no 2v2 titles"). h11 s1 answered "no official 1v1 events in 2024" after the lookup check had flagged its filter.
+- **Off only:** a set record counted in games (h12 s0) or from v_win_runs' winning runs (h12 s1), placements as bare player IDs (q14 s1), and the 2026 events "have not occurred yet" (q15 s1).
+
+**The 16 answer-writing failures (retrieval on):**
+- **Name echo or misspelling, 7:** q21 s0–s2, h01 s1, h03 s0–s2.
+- **Unsupported claim, a fact in no tool result, 7:** q02 s0 and s2 (wins "in both 1v1 and 2v2"; all six count as 1v1), q06 s0 (Raydish's 20 events as 2), q06 s1 (JuicyDiaper's best as 17th, Raydish "consistently" 2nd), q14 s0 (antireplay 8th, tied 7th), q19 s1 (the 1v1 and 2v2 winners swapped), q20 s2 (3-2 for the 3-0 at the top of the result).
+- **Other, 2:** q03 s0 (the final reply answers the answer check) and q42 s0 (the event named by its own title, the tournament only in its ID).
+
+**The partial category, 0 of 15 right:** a real weakness more than strict verdicts. 10 of the 15 are wrong on the facts: q05 and q45 (6, automatic: no query, and earnings denied), q31 (3: an event listed as placements_unreliable called invalid) and h13 s1 (Santy "did not participate"). Only 5 hinge on how strict the verdict is: q33's 3 (right that Boomie's earnings can't be given, wrong that none are recorded) and h13 s0 and s2 (hedged, with a false reason). Counting all 5 right would make 5 of 15. 9 of the 15 runs are earnings questions.
+
+**Scoring changes made while reading the results** (none to the agent; each applies to every run of both arms):
+- Checks widened to the results right answers came from: q07 and q26 (medals without a mode column), q15 (a count of 2 wins), q40 and h10 (losses without the record), q42 (the event by its ID), h05, h06 and h07 (winners as player IDs, one per row, through a new `exactly()` that an entrant list doesn't pass).
+- Stage 2 reads the events resolve_event listed, with their status. It moved all 6 runs of q30 and q31 from stage 2 to stage 3.
+- Stage 2 reads a player ID in an ID column as the player's name. A flaw, found writing this entry: it also passes a run that never fetched the names, and so dropped q14 s1 off's verdict (bare IDs). A name should count only if a tool returned it.
+- A stage-2 failure whose last query found nothing (no rows, or one row of nulls and zeros) is drafted as stage 3, not marked wrong automatically.
+- A stage-1 miss where the right answer needs no data is a draft. A run that called no tool fails at stage 2, not 1. One query holding several candidates for a name fails stage 1 (q15 s2).
+- A verdict by hand over an automatic failure stays while the run still fails that stage, so "wrong" can be "partly" (q20 s0).
+- The held-out answers name players instead of using pronouns (no fact changed).
+
+**Caveats:**
+- Small groups: with 11 and 5 held-out questions, one question moves a group's all-seeds rate by 9 or 20 points.
+- One judge, Claude, who also wrote the held-out set, the example bank and the checks.
+- The scoring rules and checks changed while seed 0 was being read. All of them widened what passes, except the several-candidates rule, which failed one run.
+
+**For the agent** (proposals; the decisions are the user's):
+- Name `v_career_earnings` in the prompt, with its rule that a missing figure isn't $0 (all 4 earnings questions).
+- The check proposed on 2026-10-25, that an answer names the player a variant spelling resolved to (7 runs).
+- resolve_event's note saying plainly when an event wasn't held or its placements are unreliable (5 runs), and a prompt line that the Pro Series finals have placements but no matches (h13).
+- The no-tool check widened to answers stating facts when no query returned rows (h04, q20), and the empty-result diagnosis run on a COUNT of 0 (h09 off).
+- For the harness: count a name only when a tool returned it, then draft the 17 retrieval-off runs left and read its 11 unread machine verdicts.
+
 ## 2026-10-25: retrieval of worked examples, off and on, on questions 4, 6 and 8 and q21, seeds 0–5
 
 **Question:** do the retrieved examples change the agent's queries and answers?
