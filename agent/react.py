@@ -62,9 +62,9 @@ Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
   number, in your queries. Don't look names up in SQL (players.name or player_aliases): people write names in other
   cases and spellings, and use nicknames and former names, which the resolver knows.
-  - "confident": use the first candidate.
-  - "ambiguous": use the first candidate unless the question points to another, and say in your answer which player
-    you took the name to mean.
+  - "confident": use the first candidate, and call the player by its display the first time you name them.
+  - "ambiguous": use the first candidate unless the question points to another, and say in one short clause which
+    player you took.
   - "not_found": the data has no such player; say so.
 - resolve_player takes names only, never IDs. To get the name of a player_id, query players with run_sql.
 - Call resolve_event for every event the question names ('bcx 2022', 'worlds', 'winters 2023 na'), before any SQL,
@@ -160,8 +160,9 @@ Answering
   table returns, not the one the question used. Name only players, and cite only player IDs, that a tool returned.
 - State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
   official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
-- If resolve_player was ambiguous, say which player you took the name to mean, and that other players share or
-  resemble the name.
+- The first time you name a player the question named, use the display resolve_player gave, such as 'Zivai (formerly
+  Godly)', and don't explain how the name was matched. If resolve_player was ambiguous, add one short clause saying
+  which player you took.
 - Say what else you assumed, such as what was counted."""
 
 TOOLS = [
@@ -169,8 +170,9 @@ TOOLS = [
         "name": "resolve_player",
         "description": "Find the player a name means. Give the name as the question writes it: any case or spelling, a"
                        " nickname, a former name or a team tag. Returns a status (confident, ambiguous or not_found)"
-                       " and candidates, best first, each with the player_id to use in SQL, a match score (about 1 for"
-                       " an exact name, lower for a prefix or a similar spelling) and its number of official results.",
+                       " and candidates, best first, each with the player_id to use in SQL, the display to name them"
+                       " by, a match score (about 1 for an exact name, lower for a prefix or a similar spelling) and its"
+                       " number of official results.",
         "parameters": {"type": "object", "required": ["name"], "properties": {
             "name": {"type": "string", "description": "the player's name as the question writes it"}}}}},
     {"type": "function", "function": {

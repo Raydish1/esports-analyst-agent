@@ -17,7 +17,8 @@ PLAYERS = [  # (player_id, name, canonical_id, official results)
     (1, "Impala", 1, 3), (2, "Impala", 2, 1), (3, "BBBalloonBoy", 3, 5), (4, "Marckiem00", 4, 4),
     (5, "flowerVS", 5, 2), (6, "Flowers", 6, 1), (7, "megD", 7, 2), (8, "megdee", 7, 0), (9, "Boomie", 9, 2),
     (10, "Boomie", 10, 0), (11, "Raydish", 11, 6), (12, "lFiend", 12, 1), (13, "Ca$h", 13, 1), (14, "tike36", 14, 3),
-    (15, "exact", 15, 2), (16, "7th", 16, 1), (17, "Notes", 17, 1), (18, "1234", 18, 1)]
+    (15, "exact", 15, 2), (16, "7th", 16, 1), (17, "Notes", 17, 1), (18, "1234", 18, 1), (19, "Zivai", 19, 6),
+    (20, "Godly", 20, 1)]
 ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("impala", 1, "display_name", "Impala", None), ("impala", 2, "display_name", "Impala", None),
     ("bbballoonboy", 3, "display_name", "BBBalloonBoy", None), ("balloonboy", 3, "former_name", "LGN | BalloonBoy", None),
@@ -29,7 +30,8 @@ ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("lfiend", 12, "display_name", "lFiend", None), ("cah", 13, "display_name", "Ca$h", None),
     ("tike36", 14, "display_name", "tike36", None), ("exact", 15, "display_name", "exact", None),
     ("7th", 16, "display_name", "7th", None), ("notes", 17, "display_name", "Notes", None),
-    ("1234", 18, "display_name", "1234", None)]
+    ("1234", 18, "display_name", "1234", None), ("zivai", 19, "display_name", "Zivai", None),
+    ("godly", 19, "former_name", "Kingdom | Godly", None), ("godly", 20, "display_name", "Godly", None)]
 EVENTS = [  # (event_id, tournament_name, event_name, start_date, year, counts_as, status, sgg_tournament_slug)
     ("bcx22-1", "Brawlhalla World Championship Expo 2022", "1v1", "2022-11-04", 2022, "1v1", None, "bcx-2022"),
     ("bcx22-2", "Brawlhalla World Championship Expo 2022", "2v2", "2022-11-04", 2022, "2v2", None, "bcx-2022"),
@@ -117,6 +119,23 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("boomie"), ("confident", [9, 10]))
         first = self.resolver.resolve("impala")["candidates"][0]
         self.assertEqual((first["official_results"], first["results_from"], first["results_to"]), (3, "2020-01-01", "2022-01-01"))
+
+    def test_a_shared_name_whose_first_player_is_far_ahead_resolves_to_that_player_alone(self):
+        out = self.resolver.resolve("godly")  # Zivai, 6 official results, as a former name; Godly, 1
+        self.assertEqual((out["status"], [c["player_id"] for c in out["candidates"]]), ("confident", [19]))
+        self.assertEqual(out["note"], "Use player_id 19, and call them Zivai (formerly Godly).")
+        self.assertEqual(self.resolve("impala"), ("ambiguous", [1, 2]))  # 3 to 1, under tools.CLEAR_CUT
+        self.assertIn("say in one short clause which player you took", self.resolver.resolve("impala")["note"])
+
+    def test_each_candidate_has_the_display_to_name_them_by_with_a_former_name_the_match_went_through(self):
+        def display(name):
+            return self.resolver.resolve(name)["candidates"][0]["display"]
+        self.assertEqual(display("balloonboy"), "BBBalloonBoy (formerly BalloonBoy)")  # LGN | BalloonBoy, without its tag
+        self.assertEqual(display("M30W | BalloonBoy"), "BBBalloonBoy (formerly BalloonBoy)")
+        self.assertEqual(display("kingdom | godly"), "Zivai (formerly Godly)")
+        for name, shown in (("flowers", "flowerVS"), ("RAYDISH", "Raydish"), ("baloonboy", "BBBalloonBoy"), ("megdee", "megD")):
+            self.assertEqual(display(name), shown)  # a nickname, a case variant, a misspelling, a merged record
+        self.assertEqual(self.resolver.resolve("raydish")["note"], "Use player_id 11, and call them Raydish.")
 
     def test_swaps_are_confident_but_prefixes_and_misspellings_are_ambiguous(self):
         self.assertEqual(self.resolve("baloonboy"), ("confident", [3]))

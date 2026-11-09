@@ -89,6 +89,10 @@ TIERS = ["nickname", "exact", "swap", "prefix", "fuzzy"]
 # Tune the scores and CONFIDENT on the evaluation set's misspelling questions (q21, q22).
 SCORES = {"nickname": 1.0, "exact": 0.98, "swap": 0.92, "prefix": 0.85, "fuzzy": 0.85}
 CONFIDENT = 0.9
+# A name several players share exactly is clear-cut when the first has at least this many times the next one's official
+# results, and resolves to that player alone. On the evaluation set's shared names (2026-11-09), the first was the
+# player meant every time, 14.8 to 48 times ahead, so the 5 isn't tuned: no shared name there is closer.
+CLEAR_CUT = 5
 MATCH = {"nickname": "curated nickname", "display_name": "display name", "without_tag": "display name without team tag",
          "former_name": "former name", "swap": "spelling variant (character swaps)",
          "prefix": "name starting with it", "fuzzy": "similar spelling"}
@@ -110,6 +114,15 @@ YEAR = re.compile(r"20\d\d")
 EVENTS_LISTED = 10
 IDS_IN_SQL = 12  # a set this small is given by its IDs; a bigger alias set by a subquery on event_aliases
 IDS_AT_MOST = 40  # a bigger set of name matches gets no sql: too many IDs to copy into a query
+
+
+def display(name, former=None):
+    """How an answer names a player: the current name, and after it the former name the match went through, without
+    its team tag ('Zivai (formerly Godly)' for Kingdom | Godly). Only the team tag changed: the name alone."""
+    if not former:
+        return name
+    old = former.split("|")[-1].strip()
+    return name if normalize(old) == normalize(name or "") else f"{name} (formerly {old})"
 
 
 def skeleton(name):
@@ -192,23 +205,32 @@ class Resolver:
         best = found[ranked[0]][0][0]
         tied = [pid for pid in ranked if found[pid][0][0] == best]
         placed = [pid for pid in tied if pid in self.results]
-        if max(found[pid][4] for pid in ranked) < CONFIDENT:
-            status, note = "ambiguous", ("No player has exactly this name; these are the closest. Use the first unless"
-                                         " the question points to another, and say which name you took it as.")
+        loose = max(found[pid][4] for pid in ranked) < CONFIDENT
+        counts = [self.results.get(pid, (0,))[0] for pid in tied]
+        if loose:
+            status = "ambiguous"
         elif len(tied) == 1 or (TIERS[best] != "nickname" and len(placed) == 1):
-            status, note = "confident", f"Use player_id {ranked[0]}."
-            if len(ranked) > 1:
-                note += " The other candidates share or resemble the name."
+            status = "confident"
+        elif counts[0] > 0 and counts[0] >= CLEAR_CUT * counts[1]:
+            status, ranked = "confident", ranked[:1]  # the player people mean, alone, so no other can be picked
         else:
-            status, note = "ambiguous", (f"{len(tied)} players match this name, ranked by official results. Use the"
-                                         " first unless the question points to another, and say which player you took.")
-        return {"name": name, "status": status, "note": note,
-                "candidates": [self.candidate(pid, *found[pid][1:]) for pid in ranked[:CANDIDATES]]}
+            status = "ambiguous"
+        candidates = [self.candidate(pid, *found[pid][1:], former=found[pid][0][1] == KINDS["former_name"])
+                      for pid in ranked[:CANDIDATES]]
+        if loose:
+            note = ("No player has exactly this name; these are the closest. Use the first unless the question points to"
+                    " another, and say which name you took it as.")
+        elif status == "confident":
+            note = f"Use player_id {ranked[0]}, and call them {candidates[0]['display']}."
+        else:
+            note = (f"{len(tied)} players match this name, ranked by official results. Use the first unless the question"
+                    " points to another, and say in one short clause which player you took.")
+        return {"name": name, "status": status, "note": note, "candidates": candidates}
 
-    def candidate(self, pid, match, shown, note, score):
+    def candidate(self, pid, match, shown, note, score, former=False):
         results, first, last = self.results.get(pid, (0, None, None))
-        out = {"player_id": pid, "name": self.names.get(pid), "matched": shown, "match": MATCH[match], "score": score,
-               "official_results": results}
+        out = {"player_id": pid, "name": self.names.get(pid), "display": display(self.names.get(pid), shown if former else None),
+               "matched": shown, "match": MATCH[match], "score": score, "official_results": results}
         if results:
             out["results_from"], out["results_to"] = first, last
         if match == "nickname" and note:
