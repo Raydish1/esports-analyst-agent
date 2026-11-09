@@ -1,0 +1,258 @@
+import json
+import re
+import sqlite3
+import sys
+import tempfile
+import tomllib
+import unittest
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "eval"))
+sys.path.insert(0, str(ROOT / "agent"))
+import result_checks as checks  # noqa: E402
+import harness  # noqa: E402
+import retrieval  # noqa: E402
+from names import normalize  # noqa: E402
+
+HELDOUT = ROOT / "eval" / "questions" / "heldout.toml"
+
+
+def call(name, arguments, observation):
+    return {"name": name, "arguments": arguments, "observation": json.dumps(observation), "seconds": 0.1}
+
+
+def sql(query, rows):
+    return call("run_sql", {"query": query}, {"complete": True, "columns": ["a"] * len(rows[0] if rows else []),
+                                              "rows": rows, "row_count": len(rows)})
+
+
+def player(name, *ids):
+    return call("resolve_player", {"name": name},
+                {"name": name, "status": "confident", "candidates": [{"player_id": i, "name": f"p{i}"} for i in ids]})
+
+
+def trace(*calls, outcome="answered", suggestions=None, shapes=None):
+    step = {"tool_calls": list(calls), **({"suggestions": suggestions} if suggestions else {})}
+    found = None if shapes is None else {"threshold": 0.7, "candidates": len(shapes),
+                                         "examples": [{"id": f"ex{i}", "shape": s, "similarity": 0.8} for i, s in enumerate(shapes)]}
+    return {"steps": [step], "outcome": outcome, "answer": "an answer", "examples": found, "steps_used": 1,
+            "model_seconds": 1.0, "output_tokens": 10}
+
+
+def events_db():
+    """v_events with a yearly series: the same tournament name in 2024 and 2025."""
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE v_events (event_id TEXT, tournament_name TEXT, start_date TEXT)")
+    db.executemany("INSERT INTO v_events VALUES (?, ?, ?)", [("e24", "Spring Doubles Championship - Europe", "2024-05-04"),
+                                                             ("e25", "Spring Doubles Championship - Europe", "2025-05-03")])
+    return db
+
+
+POWERBH = {"id": "h09", "set": "heldout", "players": {"powerbh": 113157}}
+MARKIEMOO = {"id": "q22", "set": "existing", "players": {"markiemoo": 146052},
+             "accept": [{"assumption": "", "answer": "offers suggestions with Marckiem00 first"}]}
+SPRINGS = {"id": "h05", "set": "heldout", "events": {"eu springs 2024": "e24"}}
+
+
+class ChecksTest(unittest.TestCase):
+    def test_values_match_cells_loosely(self):
+        self.assertTrue(checks.matches(7, "7"))  # a year as substr() gives it
+        self.assertTrue(checks.matches(83825, 83825.004))
+        self.assertTrue(checks.matches("raydish", "megD / Raydish"))
+        self.assertFalse(checks.matches("yüz", "yüzbaşı"))  # under four characters, text must be the whole cell
+        self.assertTrue(checks.matches("yüz", "YÜZ"))
+        self.assertFalse(checks.matches(7, "Trial of Laufey 7"))  # a number never matches inside text
+
+    def test_a_result_must_hold_the_facts_in_the_shape_asked(self):
+        self.assertTrue(checks.single(4)([[(4,)]]))
+        self.assertFalse(checks.single(4)([[(4,), (5,)]]))
+        both = checks.rows(("Zivai", 7), ("whoiskyna", 7))
+        self.assertFalse(both([[("Zivai", 7)], [("whoiskyna", 7)]]))  # one result must have both
+        self.assertTrue(both([[("Zivai", 7), ("whoiskyna", 7), ("Boomie", 5)]]))
+        self.assertTrue(checks.listing(2, "lopes")([[("SiB | Wess",), ("lopesbrawlhalla",)]]))
+        self.assertFalse(checks.listing(2, "lopes")([[("SiB | Wess",), ("lopesbrawlhalla",), ("DB",)]]))
+
+    def test_every_question_of_both_sets_has_a_check(self):
+        self.assertEqual(sorted(q["id"] for q in checks.load_questions()), sorted(checks.CHECKS))
+
+    @unittest.skipUnless(harness.SNAPSHOT.exists(), "needs the eval-v1 snapshot (data/ isn't committed)")
+    def test_every_check_passes_on_its_questions_reference_queries(self):
+        db = sqlite3.connect(harness.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
+        self.assertEqual(checks.verify(db), [])
+
+
+class NameResolutionTest(unittest.TestCase):
+    def test_a_player_passes_when_the_queries_use_their_id(self):
+        result = harness.stage1(POWERBH, trace(sql("SELECT * FROM v_team_results WHERE player_id = 113157", [])), None)
+        self.assertEqual(result["result"], "pass")
+
+    def test_a_player_fails_when_the_queries_use_another_candidate(self):
+        t = trace(player("powerbh", 113157, 22222), sql("SELECT * FROM v_team_results WHERE player_id = 22222", []))
+        self.assertEqual(harness.stage1(POWERBH, t, None)["result"], "fail")
+        t = trace(player("PowerBH", 22222, 113157))
+        self.assertEqual(harness.stage1(POWERBH, t, None), {"result": "fail", "detail": "powerbh: resolved to [22222, 113157]"})
+
+    def test_suggestions_pass_only_where_the_question_accepts_them_with_the_player_first(self):
+        asked = trace(outcome="suggestions", suggestions={"markiemoo": [146052, 1, 2]})
+        self.assertEqual(harness.stage1(MARKIEMOO, asked, None)["result"], "pass")
+        self.assertEqual(harness.stage1({**MARKIEMOO, "accept": []}, asked, None)["result"], "fail")
+        wrong_first = trace(outcome="suggestions", suggestions={"markiemoo": [1, 146052, 2]})
+        self.assertEqual(harness.stage1(MARKIEMOO, wrong_first, None)["result"], "fail")
+
+    def test_an_event_passes_by_its_id_or_by_a_resolve_event_condition_the_queries_used(self):
+        db = events_db()
+        by_id = trace(sql("SELECT * FROM v_placements WHERE event_id = 'e24' AND placement = 1", []))
+        self.assertEqual(harness.stage1(SPRINGS, by_id, db)["result"], "pass")
+        condition = "event_id IN (SELECT event_id FROM v_events WHERE start_date < '2025')"
+        used = trace(call("resolve_event", {"name": "eu springs 2024"}, {"sql": condition}),
+                     sql(f"SELECT * FROM v_placements WHERE {condition} AND placement = 1", []))
+        self.assertEqual(harness.stage1(SPRINGS, used, db)["result"], "pass")
+        unused = trace(call("resolve_event", {"name": "eu springs 2024"}, {"sql": condition}),
+                       sql("SELECT * FROM v_placements WHERE placement = 1", []))
+        self.assertEqual(harness.stage1(SPRINGS, unused, db)["result"], "fail")
+
+    def test_an_event_found_by_name_passes_only_with_its_year(self):
+        db = events_db()
+        shown = trace(sql("SELECT tournament_name, start_date FROM v_events WHERE ...",
+                          [["Spring Doubles Championship - Europe", "2024-05-04"]]))
+        self.assertEqual(harness.stage1(SPRINGS, shown, db)["result"], "pass")
+        next_year = trace(sql("SELECT tournament_name, start_date FROM v_events WHERE ...",
+                              [["Spring Doubles Championship - Europe", "2025-05-03"]]))
+        self.assertEqual(harness.stage1(SPRINGS, next_year, db)["result"], "fail")
+
+    def test_a_question_naming_no_player_or_event_has_no_name_resolution_stage(self):
+        self.assertEqual(harness.stage1({"id": "h11", "set": "heldout"}, trace(), None)["result"], "n/a")
+
+
+class SqlLogicTest(unittest.TestCase):
+    def test_the_check_reads_the_rows_of_every_result_shown(self):
+        with mock.patch.dict(harness.CHECKS, {"x01": checks.row(30, 2)}):
+            right = trace(sql("SELECT 1", [[1]]), sql("SELECT wins, losses ...", [[30, 2]]))
+            self.assertEqual(harness.stage2({"id": "x01"}, right)["result"], "pass")
+            wrong = trace(sql("SELECT wins, losses ...", [[29, 3]]),
+                          call("run_sql", {"query": "SELECT ..."}, {"error": "OperationalError: no such column"}),
+                          call("run_sql", {"query": "SELECT ..."}, {"complete": False, "row_count": 900, "columns": []}))
+            self.assertEqual(harness.stage2({"id": "x01"}, wrong), {"result": "fail", "detail": "2 query results"})
+
+    def test_no_check_applies_to_an_unanswerable_question_or_to_suggestions(self):
+        self.assertEqual(harness.stage2({"id": "q35"}, trace())["result"], "n/a")
+        self.assertEqual(harness.stage2({"id": "q22"}, trace(outcome="suggestions"))["result"], "n/a")
+
+
+class GroupTest(unittest.TestCase):
+    LABELS = {"h09": ["teammates", "partnership"], "q14": ["event_top8"]}
+
+    def test_a_question_has_a_known_shape_when_retrieval_returns_a_helpful_example(self):
+        self.assertEqual(harness.shape(POWERBH, trace(shapes=["ranking", "teammates"]), self.LABELS), "known shape")
+        self.assertEqual(harness.shape(POWERBH, trace(shapes=["ranking"]), self.LABELS), "new shape")
+        self.assertEqual(harness.shape(POWERBH, trace(shapes=[]), self.LABELS), "new shape")  # none above the threshold
+        self.assertIsNone(harness.shape(POWERBH, trace(), self.LABELS))  # retrieval off
+
+    def test_groups_put_the_tuned_questions_apart_and_split_the_rest_by_set_and_shape(self):
+        self.assertEqual(harness.group({"id": "q04", "set": "existing"}, "known shape"), "tuned")
+        self.assertEqual(harness.group(POWERBH, "known shape"), "held-out, known shape")
+        self.assertEqual(harness.group({"id": "q14", "set": "existing"}, "new shape"), "existing, new shape")
+
+    def test_a_run_without_retrieval_takes_its_questions_shape_from_a_run_with_it(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(harness, "RAW", Path(folder)):
+            for run_id, arm, shapes in (("on", "on", ["teammates"]), ("off", "off", None)):
+                (Path(folder) / run_id).mkdir()
+                (Path(folder) / run_id / "header.json").write_text(json.dumps({"arm": arm}), encoding="utf-8")
+                line = {"id": "h09", "seed": 0, **trace(shapes=shapes)}
+                (Path(folder) / run_id / "traces.jsonl").write_text(json.dumps(line) + "\n", encoding="utf-8")
+            scored = harness.score(["off", "on"], None, self.LABELS)
+        self.assertEqual([(r["arm"], r["group"]) for r in scored["off"] + scored["on"]],
+                         [("off", "held-out, known shape"), ("on", "held-out, known shape")])
+
+
+class DraftTest(unittest.TestCase):
+    def record(self, one, two, outcome="answered"):
+        return {"outcome": outcome, "stage1": {"result": one, "detail": "d1"}, "stage2": {"result": two, "detail": "d2"}}
+
+    def test_the_first_automatic_stage_that_fails_decides_the_draft(self):
+        self.assertEqual(harness.draft(self.record("fail", "fail")),
+                         {"verdict": "wrong", "stage": "name resolution", "review": "auto", "note": "d1"})
+        self.assertEqual(harness.draft(self.record("n/a", "fail"))["stage"], "SQL logic")
+
+    def test_runs_past_the_automatic_stages_are_drafted_for_review(self):
+        self.assertEqual(harness.draft(self.record("pass", "pass", "step limit")),
+                         {"verdict": "wrong", "stage": "no answer", "review": "needs review", "note": "outcome: step limit"})
+        self.assertEqual(harness.draft(self.record("pass", "n/a"))["review"], "needs review")
+
+
+class JudgmentsTest(unittest.TestCase):
+    def test_rewriting_the_judgments_keeps_what_was_judged_and_drafts_the_rest(self):
+        records = [{"arm": "on", "id": i, "seed": 0, "outcome": "answered", "stage1": {"result": "pass", "detail": ""},
+                    "stage2": {"result": "pass", "detail": ""}} for i in ("h01", "h02")]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "judgments.toml"
+            harness.write_judgments(path, records)
+            judged = harness.read_judgments(path)
+            judged[("on", "h01", 0)].update(verdict="partly", stage="answer writing", note='said "4" without the 1v1 split')
+            harness.write_judgments(path, records, judged)
+            again = harness.read_judgments(path)
+        self.assertEqual(again[("on", "h01", 0)]["note"], 'said "4" without the 1v1 split')
+        self.assertEqual((again[("on", "h02", 0)]["verdict"], again[("on", "h02", 0)]["review"]), ("", "needs review"))
+
+
+class ReportTest(unittest.TestCase):
+    def test_every_rate_comes_with_its_raw_count(self):
+        self.assertEqual(harness.counted(11, 16), "11/16 (69%)")
+        self.assertEqual(harness.counted(0, 0), "0/0")
+
+    def test_a_question_counts_as_right_only_when_every_seed_is(self):
+        records = [{"arm": "on", "id": i, "seed": s} for i in ("h01", "h02") for s in (0, 1, 2)]
+        judged = {("on", "h01", s): {"verdict": "right"} for s in (0, 1, 2)}
+        judged.update({("on", "h02", 0): {"verdict": "right"}, ("on", "h02", 1): {"verdict": "partly"}})
+        self.assertEqual(harness.tally(records, judged),
+                         {"runs": 6, "right": 4, "partly": 1, "unjudged": 1, "questions": 2, "all_right": 1})
+
+    def test_the_report_counts_runs_by_the_stage_that_failed(self):
+        records = [{"arm": "on", "id": "h01", "set": "heldout", "category": "player records", "seed": s,
+                    "group": "held-out, known shape", "shape": "known shape"} for s in (0, 1, 2)]
+        judged = {("on", "h01", 0): {"verdict": "right"},
+                  ("on", "h01", 1): {"verdict": "wrong", "stage": "SQL logic", "review": "auto"},
+                  ("on", "h01", 2): {"verdict": "partly", "stage": "answer writing", "review": "needs review"}}
+        lines = harness.report(records, judged)
+        self.assertIn("| held-out, known shape | 1/3 (33%) | 1/3 (33%) | 0/1 (0%) |", lines)
+        self.assertIn("| SQL logic | 1/2 (50%) |", lines)
+        self.assertIn("Judgments needing review: 1 of 3.", lines)
+
+
+class HeldOutLeakTest(unittest.TestCase):
+    """The held-out set must never reach the example bank (decided 2026-11-08), and names players the agent wasn't
+    tuned on."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(HELDOUT, "rb") as f:
+            cls.heldout = tomllib.load(f)["question"]
+        cls.bank = retrieval.load()
+        cls.bank_text = retrieval.EXAMPLES.read_text(encoding="utf-8")
+
+    def test_no_held_out_question_is_in_the_bank(self):
+        bank = {" ".join(e["question"].casefold().split()) for e in self.bank}
+        for q in self.heldout:
+            self.assertNotIn(" ".join(q["question"].casefold().split()), bank, q["id"])
+
+    def test_no_bank_query_or_text_names_a_held_out_player_or_event(self):
+        words = {normalize(w) for w in re.split(r"[\s'\"(),=]+", self.bank_text)} - {""}
+        for q in self.heldout:
+            for name, pid in (q.get("players") or {}).items():
+                self.assertNotIn(pid, [p for e in self.bank for p in retrieval.player_ids(e["sql"])], q["id"])
+                self.assertIsNone(re.search(rf"(?<!\d){pid}(?!\d)", self.bank_text), f"{q['id']}: {pid}")
+                self.assertNotIn(normalize(name), words, f"{q['id']}: {name}")
+            for ids in (q.get("events") or {}).values():
+                for event_id in ids if isinstance(ids, list) else [ids]:
+                    self.assertNotIn(event_id, self.bank_text, q["id"])
+
+    def test_the_held_out_players_are_new_to_the_evaluation_set(self):
+        existing = {pid for q in checks.load_questions() if q["set"] == "existing" for pid in (q.get("players") or {}).values()}
+        for q in self.heldout:
+            self.assertFalse(set((q.get("players") or {}).values()) & existing, q["id"])
+
+
+if __name__ == "__main__":
+    unittest.main()
