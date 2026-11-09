@@ -144,11 +144,14 @@ def event_found(trace, ids, db):
 
 
 def stage1(question, trace, db):
-    """{result: pass, fail or n/a, detail}."""
+    """{result: pass, fail or n/a, detail}. A run that called no tool tried no lookup, so its failure is the query it
+    never ran (stage 2), not a lookup."""
     expected = [("player", n, p) for n, p in (question.get("players") or {}).items()]
     expected += [("event", n, i if isinstance(i, list) else [i]) for n, i in (question.get("events") or {}).items()]
     if not expected:
         return {"result": "n/a", "detail": "names no player or event"}
+    if not any(step["tool_calls"] for step in trace["steps"]):
+        return {"result": "n/a", "detail": "called no tool"}
     details, ok = [], True
     for kind, name, target in expected:
         good, how = player_resolved(question, trace, name, target) if kind == "player" else event_found(trace, target, db)

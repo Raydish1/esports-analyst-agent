@@ -95,10 +95,11 @@ class NameResolutionTest(unittest.TestCase):
         self.assertEqual(harness.stage1(POWERBH, t, None), {"result": "fail", "detail": "powerbh: resolved to [22222, 113157]"})
 
     def test_suggestions_pass_only_where_the_question_accepts_them_with_the_player_first(self):
-        asked = trace(outcome="suggestions", suggestions={"markiemoo": [146052, 1, 2]})
+        asked = trace(player("markiemoo", 146052, 1, 2), outcome="suggestions", suggestions={"markiemoo": [146052, 1, 2]})
         self.assertEqual(harness.stage1(MARKIEMOO, asked, None)["result"], "pass")
         self.assertEqual(harness.stage1({**MARKIEMOO, "accept": []}, asked, None)["result"], "fail")
-        wrong_first = trace(outcome="suggestions", suggestions={"markiemoo": [1, 146052, 2]})
+        wrong_first = trace(player("markiemoo", 1, 146052, 2), outcome="suggestions",
+                            suggestions={"markiemoo": [1, 146052, 2]})
         self.assertEqual(harness.stage1(MARKIEMOO, wrong_first, None)["result"], "fail")
 
     def test_an_event_passes_by_its_id_or_by_a_resolve_event_condition_the_queries_used(self):
@@ -124,6 +125,11 @@ class NameResolutionTest(unittest.TestCase):
 
     def test_a_question_naming_no_player_or_event_has_no_name_resolution_stage(self):
         self.assertEqual(harness.stage1({"id": "h11", "set": "heldout"}, trace(), None)["result"], "n/a")
+
+    def test_a_run_that_called_no_tool_fails_at_the_query_it_never_ran_not_at_a_lookup(self):
+        self.assertEqual(harness.stage1(POWERBH, trace(), None), {"result": "n/a", "detail": "called no tool"})
+        with mock.patch.dict(harness.CHECKS, {"h09": checks.single(4)}):
+            self.assertEqual(harness.stage2(POWERBH, trace())["result"], "fail")
 
 
 class SqlLogicTest(unittest.TestCase):

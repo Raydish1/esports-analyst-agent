@@ -121,10 +121,10 @@ CHECKS = {
                   rows(("gdsandstorm", 28), ("TigerBrawlhalla", 26), ("Zivai", 22), ("Kylar Alice", 19))),
     "q39": any_of(rows(("Boomie", 80), ("gdsandstorm", 69)), rows(("Boomie", "1v1", 34), ("gdsandstorm", "1v1", 42)),
                   rows((146606, 80), (74433, 69)), rows((146606, "1v1", 34), (74433, "1v1", 42))),
-    "q40": any_of(row("gdsandstorm", 10, 3), row(74433, 10, 3)),
+    "q40": any_of(row("gdsandstorm", 10), row(74433, 10)),  # the losses, with or without the 3 wins
     "q41": any_of(row("gdsandstorm", 3), row(74433, 3), rows(("gdsandstorm", 2), ("yüz", 2))),
     "q42": any_of(row("North America - SteelSeries Championship", 7240), row("Low Tier City Midseason Online (NA)", 10451),
-                  row(18298), row(22666)),
+                  row("north-america-steelseries-championship", 7240), row(18298), row(22666)),  # or its event ID
     "q43": any_of(row("Summer Championship - North America 2026 - 1v1"), row("2026-07-19")),
     "q44": any_of(single(3), listing(3, "Autumn Championship - Europe 2026 - 1v1")),
     "q45": any_of(row("Raydish", 83825), row(160000, 83825)),
