@@ -1,0 +1,365 @@
+# The held-out evaluation set: questions the agent has never been run, tuned or tested on, for measuring how it does on
+# questions it hasn't seen (drafted 2026-11-08). Same format as questions.toml: a candidate answer computed from eval-v1,
+# the SQL behind it, and `verified`, which the user fills in (`yes`, `yes: ...`, or `no: ...` / `partly: ...` with
+# what's right).
+#
+# The rules that keep it held out:
+# - Never add these questions, their players or their events to the example bank (agent/examples/examples.toml), and
+#   never write an example from them.
+# - Never change the prompt, the examples, the checks or the retrieval settings because of a result here. Report it;
+#   if something must change because of it, the question moves to the development set and a new one replaces it.
+# - No player named in a question here is named anywhere in questions.toml, the target questions or the example bank.
+#   Answers may name anyone.
+
+[[question]]
+id = "h01"
+question = "how many 2v2 titles does pugsyxd have?"
+category = "player_record"
+tests = ["held-out", "curated nickname", "official wins in one mode"]
+players = { pugsyxd = 146298 }
+answer = """
+Pugsy has won 4 official 2v2 events, all in North America in 2022: the Winter Championship (2022-01-30), the \
+SteelSeries Invitational (2022-04-10), the Summer Championship (2022-07-24) and the Autumn Championship (2022-09-18). \
+He also has 1 official 1v1 win.
+"""
+notes = '"pugsyxd" is a curated nickname for Pugsy (his Esports Earnings handle). The answer names Pugsy.'
+verified = ""
+
+[[question.query]]
+purpose = "official 2v2 wins"
+sql = '''
+SELECT start_date, tournament_name FROM v_official_wins
+WHERE player_id = 146298 AND mode = '2v2' ORDER BY start_time
+'''
+
+[[question]]
+id = "h02"
+question = "how many official top 8s does halloween! have?"
+category = "player_record"
+tests = ["held-out", "curated nickname", "punctuation in a name", "crew battles count as 1v1"]
+players = { "halloween!" = 149587 }
+answer = """
+Pink | Teehee has 4 top 8s at official events, all counted as 1v1: 7th at Trial of Heimdall - Europe (Brawl League, \
+2024-07-13), 7th at Trial of Freya - Europe (2024-09-14), 7th at the Summer Championship - Europe 2026 1v1 \
+(2026-07-18), and 5th at the Eternal Sports Crew Battle Championship 2026 - Europe (2026-08-29), a crew battle, \
+which counts as 1v1.
+"""
+notes = '"halloween!" is a curated nickname for Pink | Teehee, who has used that name. The answer names Pink | Teehee.'
+verified = ""
+
+[[question.query]]
+purpose = "top 8s, both modes"
+sql = '''
+SELECT start_date, tournament_name, mode, format, placement FROM v_results
+WHERE player_id = 149587 AND placement <= 8 ORDER BY start_time
+'''
+
+[[question]]
+id = "h03"
+question = "what's neze's best official 1v1 finish?"
+category = "player_record"
+tests = ["held-out", "misspelling", "character swap", "best placement"]
+players = { neze = 149303 }
+answer = """
+Neeze's best official 1v1 finish is 1st: he won the 1v1 at the Brawlhalla Autumn Championship 2019 (EU), \
+2019-09-28, his only official 1v1 win.
+"""
+notes = '"neze" drops a letter of Neeze; the resolver matches it as a character swap (doubled letters collapsed). The answer must say the player is Neeze.'
+verified = ""
+
+[[question.query]]
+purpose = "best 1v1 placement and where"
+sql = '''
+SELECT start_date, tournament_name, placement FROM v_results
+WHERE player_id = 149303 AND mode = '1v1'
+  AND placement = (SELECT MIN(placement) FROM v_results WHERE player_id = 149303 AND mode = '1v1')
+'''
+
+[[question]]
+id = "h04"
+question = "Legion | kaito vs sacwastaken in 1v1, who's ahead?"
+category = "head_to_head"
+tests = ["held-out", "team tag", "shared name", "one side of the head-to-head"]
+players = { "Legion | kaito" = 156785, sacwastaken = 113328 }
+answer = """
+sacwastaken leads Legion | kaito 5-4 in 1v1 sets at official events (20-17 in games), with no unscored sets.
+"""
+notes = """
+"kaito" is also another player's display name and a former name, so the resolver returns Legion | kaito first among \
+several; the answer may say which kaito it took.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "Legion | kaito's record against sacwastaken"
+sql = '''
+SELECT wins, losses, matches, games_won, games_lost, unscored_matches FROM v_head_to_head_1v1
+WHERE player_id = 156785 AND opponent_id = 113328
+'''
+
+[[question]]
+id = "h05"
+question = "who won the eu springs in 2024?"
+category = "event_result"
+tests = ["held-out", "event term", "region abbreviation", "2v2-only seasonal"]
+events = { "eu springs 2024" = "tournament/spring-doubles-championship-europe/event/brawlhalla-championship-2v2" }
+answer = """
+Zivai and Blaze won the Spring Doubles Championship - Europe (2024-05-04). The 2024 seasonal championships were \
+2v2 only, so there was no 1v1 event.
+"""
+notes = '"springs" stands for the seasonal championships, which in 2024 were the "Spring Doubles Championship".'
+verified = ""
+
+[[question.query]]
+purpose = "the 2024 European spring seasonal and its winners"
+sql = '''
+SELECT v.event_id, v.tournament_name, v.start_date, GROUP_CONCAT(p.name, ' / ') AS winners
+FROM v_events v JOIN v_official_wins w ON w.event_id = v.event_id JOIN players p ON p.player_id = w.player_id
+WHERE v.tournament_name LIKE 'Spring%Championship - Europe%' AND v.year = 2024
+GROUP BY v.event_id
+'''
+
+[[question]]
+id = "h06"
+question = "who won the autumn royale?"
+category = "event_result"
+tests = ["held-out", "ambiguous event", "say which event"]
+answer = """
+There have been three official Autumn Royales, all 1v1: loreszz won in 2023 (2023-10-14), Marckiem00 in 2024 \
+(2024-10-11) and Ahmet_ in 2025 (2025-10-12).
+"""
+notes = "The name matches three editions; an answer that picks one must say so."
+verified = ""
+
+[[question.accept]]
+assumption = "the question means every Autumn Royale (the default)"
+answer = "loreszz (2023), Marckiem00 (2024) and Ahmet_ (2025)"
+
+[[question.accept]]
+assumption = "the question means the latest, with the answer saying there were three"
+answer = "Ahmet_ won the 2025 Autumn Royale"
+
+[[question.query]]
+purpose = "every Autumn Royale and its winner"
+sql = '''
+SELECT v.tournament_name, v.start_date, p.name
+FROM v_events v JOIN v_official_wins w ON w.event_id = v.event_id JOIN players p ON p.player_id = w.player_id
+WHERE v.tournament_name LIKE '%Autumn Royale%' ORDER BY v.start_time
+'''
+
+[[question]]
+id = "h07"
+question = "who won the north america crew battle invitational?"
+category = "event_result"
+tests = ["held-out", "crew battle", "a crew of three"]
+events = { "north america crew battle invitational" = "tournament/north-america-crew-battle-invitational/event/brawlhalla-crew-battle-3v3" }
+answer = """
+Boomie, capsar and antireplay's crew won the North America - Crew Battle Invitational (2022-03-20), ahead of Anon \
+Alex, Phazon and Raydish. Crew battles count as 1v1.
+"""
+notes = "Each crew member has their own result row, so the winners are the three placement = 1 rows."
+verified = ""
+
+[[question.query]]
+purpose = "the top two crews"
+sql = '''
+SELECT r.placement, GROUP_CONCAT(p.name, ' / ') AS crew
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.event_id = 'tournament/north-america-crew-battle-invitational/event/brawlhalla-crew-battle-3v3' AND r.placement <= 2
+GROUP BY r.placement ORDER BY r.placement
+'''
+
+[[question]]
+id = "h08"
+question = "in which year did powerbh win the most official events?"
+category = "multi_step"
+tests = ["held-out", "count per year", "most"]
+players = { powerbh = 113157 }
+answer = """
+2021, with 7 official wins. powerbh won 5 in 2022, 4 in 2020 and 1 in 2023: 17 in all (4 in 1v1, 13 in 2v2).
+"""
+verified = ""
+
+[[question.query]]
+purpose = "official wins per year"
+sql = '''
+SELECT substr(start_date, 1, 4) AS year, COUNT(*) AS wins FROM v_official_wins
+WHERE player_id = 113157 GROUP BY year ORDER BY wins DESC, year
+'''
+
+[[question]]
+id = "h09"
+question = "how many different partners has powerbh won a 2v2 title with?"
+category = "multi_step"
+tests = ["held-out", "distinct partners", "wins only"]
+players = { powerbh = 113157 }
+answer = """
+4: SiB | Wess (7 titles together), lopesbrawlhalla (4), yüz (1) and DB (1), for 13 official 2v2 wins.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "2v2 titles per partner"
+sql = '''
+SELECT p.name, COUNT(*) AS titles FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
+WHERE t.player_id = 113157 AND t.placement = 1 GROUP BY t.partner_id ORDER BY titles DESC
+'''
+
+[[question]]
+id = "h10"
+question = "who has keiththepoopoo beaten the most times in 1v1?"
+category = "head_to_head"
+tests = ["held-out", "most wins against an opponent", "one side of the head-to-head"]
+players = { keiththepoopoo = 111680 }
+answer = """
+plumthegreat: keiththepoopoo has beaten him 8 times in 1v1 sets at official events (8-1). Next come TigerBrawlhalla \
+(6-1), hrzz (6-3) and SireXDD (6-6), with 6 wins each.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "keiththepoopoo's opponents by his wins"
+sql = '''
+SELECT p.name, h.wins, h.losses, h.matches FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.opponent_id
+WHERE h.player_id = 111680 ORDER BY h.wins DESC, h.losses LIMIT 5
+'''
+
+[[question]]
+id = "h11"
+question = "who won the most official 1v1 events in 2024?"
+category = "multi_step"
+tests = ["held-out", "ranking in a year", "tie"]
+answer = """
+Zivai and whoiskyna, tied with 7 official 1v1 wins each in 2024. yüz is next with 4.
+"""
+notes = "A tie: an answer naming only one of them is wrong."
+verified = ""
+
+[[question.query]]
+purpose = "1v1 wins per player in 2024"
+sql = '''
+SELECT p.name, COUNT(*) AS wins FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
+WHERE w.mode = '1v1' AND substr(w.start_date, 1, 4) = '2024'
+GROUP BY w.player_id ORDER BY wins DESC LIMIT 6
+'''
+
+[[question]]
+id = "h12"
+question = "what was himwy's 1v1 set record in 2024?"
+category = "multi_step"
+tests = ["held-out", "set record", "date filter"]
+players = { himwy = 111683 }
+answer = """
+30-2 in 1v1 sets at official events in 2024, with no unscored sets.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "1v1 sets in 2024"
+sql = '''
+SELECT SUM(won) AS wins, COUNT(*) - SUM(won) AS losses, SUM(is_scored = 0) AS unscored
+FROM v_match_results WHERE player_id = 111683 AND mode = '1v1' AND substr(start_date, 1, 4) = '2024'
+'''
+
+[[question]]
+id = "h13"
+question = "what was Santy's set record at the 2021 Pro Series finals?"
+category = "partial"
+tests = ["held-out", "no match data", "crew battle", "shared name"]
+players = { santy = 147613 }
+events = { "2021 Pro Series finals" = "series/pro-series-2021-na" }
+answer = """
+The data has no sets for the Pro Series finals, only placements, so his set record there isn't available. Santy's \
+crew won the Pro Series 2021 finals (1st), with gdsandstorm, DEZZ, Snowy!!, S!mba and Zinquer.
+"""
+notes = """
+No platform has the Pro Series finals: their placements come from the Stats API, which has no matches \
+(check_exceptions.csv). Three players are called Santy; this one has 101 official results.
+"""
+verified = ""
+
+[[question.query]]
+purpose = "his placement, his crew, and the matches stored for the event"
+sql = '''
+SELECT r.placement, (SELECT GROUP_CONCAT(p.name, ', ') FROM v_results x JOIN players p ON p.player_id = x.player_id
+                     WHERE x.event_id = r.event_id AND x.placement = r.placement) AS crew,
+       (SELECT COUNT(*) FROM matches WHERE event_id = r.event_id) AS matches
+FROM v_results r WHERE r.player_id = 147613 AND r.event_id = 'series/pro-series-2021-na'
+'''
+
+[[question]]
+id = "h14"
+question = "what country is Fozey from?"
+category = "unanswerable"
+tests = ["held-out", "data not available", "an empty column"]
+players = { fozey = 118096 }
+answer = """
+The data doesn't say: no player's country is recorded (the players table has a country column, but it's empty for \
+every player).
+"""
+notes = "The prompt doesn't describe players.country; an agent that finds it must still read its emptiness as missing, not as an answer."
+verified = ""
+
+[[question.query]]
+purpose = "countries recorded"
+sql = '''
+SELECT COUNT(*) AS players, SUM(country IS NOT NULL AND country <> '') AS with_country FROM players
+'''
+
+[[question]]
+id = "h15"
+question = "who has the most official top 8s without ever winning an official event?"
+category = "multi_step"
+tests = ["held-out", "never", "anti-join", "state the assumption"]
+answer = """
+sphynx., with 36 top 8s at official events across 1v1 and 2v2 and no official win. Next come Goddess (33) and \
+hermisen (32).
+"""
+verified = ""
+
+[[question.accept]]
+assumption = "top 8s and wins in both modes (the default)"
+answer = "sphynx., 36"
+
+[[question.accept]]
+assumption = "1v1 only: the most 1v1 top 8s without a 1v1 win"
+answer = "Phazon, 28 (he has official 2v2 wins)"
+
+[[question.query]]
+purpose = "top 8s of players with no official win, both modes"
+sql = '''
+SELECT p.name, COUNT(*) AS top8s FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.placement <= 8 AND r.player_id NOT IN (SELECT player_id FROM v_official_wins)
+GROUP BY r.player_id ORDER BY top8s DESC LIMIT 5
+'''
+
+[[question.query]]
+purpose = "1v1 only"
+sql = '''
+SELECT p.name, COUNT(*) AS top8s FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.placement <= 8 AND r.mode = '1v1'
+  AND r.player_id NOT IN (SELECT player_id FROM v_official_wins WHERE mode = '1v1')
+GROUP BY r.player_id ORDER BY top8s DESC LIMIT 5
+'''
+
+[[question]]
+id = "h16"
+question = "has Piggers ever won a 1v1 event?"
+category = "player_record"
+tests = ["held-out", "true none", "an empty result that is right"]
+players = { piggers = 143695 }
+answer = """
+No: Piggers has no official 1v1 win. His best official 1v1 finish is 2nd (in 27 1v1 results). All 11 of his \
+official wins are in 2v2.
+"""
+notes = "An empty result here is the right answer: the agent shouldn't relax the mode or call it a lookup mistake."
+verified = ""
+
+[[question.query]]
+purpose = "1v1 wins, best 1v1 finish, 2v2 wins"
+sql = '''
+SELECT (SELECT COUNT(*) FROM v_official_wins WHERE player_id = 143695 AND mode = '1v1') AS wins_1v1,
+       (SELECT MIN(placement) FROM v_results WHERE player_id = 143695 AND mode = '1v1') AS best_1v1,
+       (SELECT COUNT(*) FROM v_results WHERE player_id = 143695 AND mode = '1v1') AS results_1v1,
+       (SELECT COUNT(*) FROM v_official_wins WHERE player_id = 143695 AND mode = '2v2') AS wins_2v2
+'''
