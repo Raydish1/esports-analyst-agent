@@ -36,7 +36,9 @@ Under the user's calls on the before runs (q02's "across 1v1 and 2v2" and q09's 
 - q45 seed 1: "Raydish has earned more", counting Impala's missing figure as $0 despite the new line.
 - q34 seed 1: explains the missing 2016 as "Brawlhalla's major official events began in 2017".
 
-**Tuned on:** this step tuned on q05, q09, q33, q35, q36 and q45. The harness counts them as tuned in runs from 2026-11-09 on: `TUNED` now holds the day each question was tuned on, so the 2026-11-08 runs keep their groups (checked: their group table is unchanged). `NEAR_CLEAN`, the retrieval-off arm's list, still names them.
+**Changed after this run** (2026-11-09, the user's decision): q05's verified requirement no longer asks the answer to name Boomie as missing. It asks the answer to say the list covers only players with a figure, since Boomie has no row and nothing in the data could point the agent to him. All three q05 runs say so, so under the new requirement they are right, and the targeted questions are 19/21 (90%) right. The table above keeps the verdicts as first drafted.
+
+**Tuned on:** this step tuned on q05, q09, q33, q35, q36 and q45. The harness counts them as tuned in runs from 2026-11-09 on: `TUNED` now holds the day each question was tuned on, so the 2026-11-08 runs keep their groups (checked: their group table is unchanged). `NEAR_CLEAN`, the retrieval-off arm's list, no longer names them (changed after this run).
 
 **Caveats:** 10 questions and 3 seeds, judged by Claude. The gains are on the questions the change was written for, so they show it works where aimed, not that it carries over. The held-out set wasn't run.
 

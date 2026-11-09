@@ -43,30 +43,30 @@ answer = "Raydish has won **6 official events (majors)** as of the latest data. 
 arm = "on"
 question = "q05"
 seed = 0
-verdict = "partly"
-stage = "empty or insufficient data"
+verdict = "right"
+stage = ""
 review = "needs review"
-note = "the top 10 and their figures are right, and it says the list covers only players with a figure; the verified answer also asks it to name Boomie as missing, which none does"
+note = "the top 10 and their figures, saying the list covers only players with a figure (the requirement changed on 2026-11-09)"
 answer = "Here are the top 10 highest-earning players in Brawlhalla history, based on official career earnings data (as of the latest recorded figures):\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\n*Note:* These figures are derived from the `v_career_earnings` view, which includes only players with a PR ranking. Some players may not have their earnings recorded in the data."
 
 [[run]]
 arm = "on"
 question = "q05"
 seed = 1
-verdict = "partly"
-stage = "empty or insufficient data"
+verdict = "right"
+stage = ""
 review = "needs review"
-note = "the top 10 and their figures are right, and it says the list covers only players with a figure; the verified answer also asks it to name Boomie as missing, which none does"
+note = "the top 10 and their figures, saying the list covers only players with a figure (the requirement changed on 2026-11-09)"
 answer = "Here are the top 10 highest-earning players in Brawlhalla history, based on official career earnings data:\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\nThese figures are sourced from the official Brawlhalla Stats API and represent career earnings from official events. Note that not all players may have their earnings recorded, and some may have multiple entries if they met the criteria for multiple earnings reports."
 
 [[run]]
 arm = "on"
 question = "q05"
 seed = 2
-verdict = "partly"
-stage = "empty or insufficient data"
+verdict = "right"
+stage = ""
 review = "needs review"
-note = "the top 10 and their figures are right, and it says the list covers only players with a figure; the verified answer also asks it to name Boomie as missing, which none does"
+note = "the top 10 and their figures, saying the list covers only players with a figure (the requirement changed on 2026-11-09)"
 answer = "Here are the top 10 highest-earning players in Brawlhalla history, based on career earnings from official records:\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\nThese figures are sourced from the `v_career_earnings` view, which aggregates earnings data for players with a PR ranking. Players without recorded earnings are excluded from this list."
 
 # q09 (retrieval on): What tournament did sandstorm make the most money from?

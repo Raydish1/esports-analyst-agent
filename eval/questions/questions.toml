@@ -220,7 +220,7 @@ tied_to_eval_v1 = """
 Phase 2 adds the Esports Earnings snapshot (2026-10-04) as the fallback for players without a Stats API figure, so \
 unranked earners join the list: Esports Earnings has Boomie at #2 with $210,282.67.
 """
-verified = "partly: candidate list is right, but Boomie is missing because he has no earnings figure; the answer must name him in what's missing"
+verified = "partly: candidate list is right, but the answer must say the list covers only players with a figure"
 
 [[question.query]]
 purpose = "the 10 highest career figures"

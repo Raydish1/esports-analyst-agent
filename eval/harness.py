@@ -55,9 +55,9 @@ SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
 TUNED = {"q04": "20261018", "q06": "20261018", "q08": "20261018", "q21": "20261023", "q22": "20261023",
          "q05": "20261109", "q09": "20261109", "q33": "20261109", "q35": "20261109", "q36": "20261109",
          "q45": "20261109"}
-# The existing questions retrieval gave no helpful example in its measurement (2026-10-26): the near-clean half of
-# the retrieval-off arm, with the held-out set
-NEAR_CLEAN = ["q05", "q09", "q14", "q15", "q23", "q32", "q33", "q34", "q35", "q36", "q39", "q42", "q45"]
+# The existing questions retrieval gave no helpful example in its measurement (2026-10-26), less those tuned on since
+# (q05, q09, q33, q35, q36 and q45, in step 1): the near-clean half of the retrieval-off arm, with the held-out set
+NEAR_CLEAN = ["q14", "q15", "q23", "q32", "q34", "q39", "q42"]
 STAGES = ["name resolution", "SQL logic", "empty or insufficient data", "answer writing", "no answer"]
 TRIES, WAIT = 3, 60  # attempts at a run when the Ollama server fails, and seconds between them
 VERDICTS = ["right", "partly", "wrong"]
@@ -545,7 +545,7 @@ def main():
     pick = go.add_mutually_exclusive_group(required=True)
     pick.add_argument("--ids", nargs="+", help="question ids, such as q13 h09")
     pick.add_argument("--all", action="store_true", help="every question of both sets")
-    pick.add_argument("--near-clean", action="store_true", help="the held-out set and the 13 near-clean existing questions")
+    pick.add_argument("--near-clean", action="store_true", help="the held-out set and the near-clean existing questions")
     go.add_argument("--seeds", nargs="+", type=int, default=[0])
     go.add_argument("--examples", choices=["on", "off"], default="on")
     go.add_argument("--run", help="a run id to resume")
