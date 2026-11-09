@@ -68,6 +68,10 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - Retrieval off, the same 29 questions: 32 of 87 runs right, against 53 on, with 17 not judged yet.
   - The biggest misses: the prompt names no earnings view, so every earnings run says none are recorded (12 of 12); answers echo a variant spelling instead of the player's name (7); resolve_event's cancelled and placements_unreliable statuses go unread (5 of 6).
   - Every verdict is a draft for the user to review: 248 of 270 are marked "needs review", the other 22 automatic.
+- Step 1 of the fixes (2026-11-09, in the log, commit 268b3a9): the prompt names `v_career_earnings` (a missing figure isn't $0) and says what the data doesn't cover (legends; community tournaments, since every event is official whatever its name), with a rule to say so instead of answering from a nearby table.
+  - On the 7 questions it targets, seeds 0–2: 3 of 21 runs right before, 16 of 21 after. The 3 controls (q02, q26, q37) went from 7 of 9 to 9 of 9.
+  - Left: q05 doesn't name Boomie as missing, as its verified answer asks; q45 seed 1 counted Impala's missing figure as $0.
+  - The harness now counts q05, q09, q33, q35, q36 and q45 as tuned, in runs from 2026-11-09 on.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -264,7 +268,7 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's review of the full evaluation's drafted verdicts** (`eval/results/20261108-eval-on-judgments.toml` and `-eval-off-judgments.toml`), then their decisions on its proposals in the log's 2026-11-08 entry: naming the earnings view in the prompt, a check that an answer names the resolved player, event statuses, and answers after failed queries.
+Next step: **step 2 of the fixes, after the user's go-ahead**: the resolver decides a clear-cut name (one candidate far ahead by official results) and gives the words to name the player by, and a check sends back an answer that doesn't name the player a misspelled name resolved to (q15, q44, q21). Then step 3, `resolve_event` leading with a cancelled status and listing no partial sets (q30, q41); step 4, a check of names against player IDs and the answer check's wording (q20, q03); step 5, an answer verifier replayed on the recorded runs first. The user's review of the drafted verdicts (`eval/results/2026110*-judgments.toml`) is still pending.
 - For the harness: count a player's name only when a tool returned it, then draft the retrieval-off arm's 17 runs left and read its 11 unread machine verdicts.
 - Still open from the 2026-10-19 to 2026-10-25 entries: the retrieval threshold; the prompt lines on `v_team_results` (only 2v2) and integer division; current names, and the minimum number of matches; how to get question 6 aggregated (with retrieval on, all 3 runs did). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.

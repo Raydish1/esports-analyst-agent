@@ -2,6 +2,44 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-09: step 1, the prompt learns about career earnings and what the data doesn't cover
+
+**Change** (commit 268b3a9), from the 2026-11-08 entry's first proposal. The system prompt's views now include `v_career_earnings`, with the rules that a missing figure isn't $0, that a ranking covers only players with a figure, and that there is no prize money per tournament. Two notes say that legends aren't recorded and that every event is official whatever its name says, so community tournaments aren't in the data. A rule says to answer what the data doesn't cover by saying so, and what it does have, never from a nearby table. Nothing else in the agent changed. A new test checks that the prompt describes every view of eval-v1 except `v_player_ids` and `v_event_coverage`, left out on purpose. It failed before the change, on `v_career_earnings` alone.
+
+**Run:** `20261109-step1`, retrieval on, seeds 0–2: the 7 questions the change targets and 3 answerable controls (q02, q26, q37), 30 runs. Judged as before, all drafts needing the user's review. For q09, "the data has no prize money per tournament" counts as right, as the user decided.
+
+| Question | Before (20261108-eval-on), seeds 0 / 1 / 2 | After | Runs right |
+|---|---|---|---|
+| q05 top 10 earners | wrong / wrong / wrong | partly / partly / partly | 0 → 0 |
+| q09 sandstorm's best-paying tournament | partly / partly / partly | right / right / right | 0 → 3 |
+| q33 Boomie's earnings | partly / partly / partly | right / right / right | 0 → 3 |
+| q34 the 2016 World Championship | partly / right / right | right / partly / right | 2 → 2 |
+| q35 godly's legend | wrong / wrong / wrong | right / right / right | 0 → 3 |
+| q36 Raydish's community wins | right / wrong / wrong | right / right / right | 1 → 3 |
+| q45 Raydish or Impala, earnings | wrong / wrong / wrong | right / wrong / right | 0 → 2 |
+| **Targeted, 7 questions** | | | **3/21 (14%) → 16/21 (76%)** |
+| q02 Raydish's majors (control) | partly / right / partly | right / right / right | 1 → 3 |
+| q26 BalloonBoy's top 3s (control) | right / right / right | right / right / right | 3 → 3 |
+| q37 most official wins (control) | right / right / right | right / right / right | 3 → 3 |
+| **Controls, 3 questions** | | | **7/9 (78%) → 9/9 (100%)** |
+
+Under the user's calls on the before runs (q02's "across 1v1 and 2v2" and q09's "no prize money" both right), the before counts are 6/21 and 9/9. Questions right in every seed: 2 of 10 before, 7 of 10 after.
+
+**What changed in the answers:**
+- Every earnings run used `v_career_earnings`. q05 gave the exact top 10 in all 3 seeds, q33 said Boomie has no figure, and q45 gave Raydish's $83,825 with no figure for Impala. Before, all 12 runs said no earnings are recorded.
+- q35 said in all 3 seeds that legends aren't recorded, without calling a tool. Before, all 3 looked up a player named "godly main".
+- q36 said in all 3 seeds that community tournaments aren't in the data.
+- No control got worse. q02 dropped its claims of 2v2 wins.
+
+**Still not right:**
+- q05, 3 partly: the list and its coverage are right, but the verified answer asks it to name Boomie as missing. Boomie has no row, so nothing in the data points the agent to him.
+- q45 seed 1: "Raydish has earned more", counting Impala's missing figure as $0 despite the new line.
+- q34 seed 1: explains the missing 2016 as "Brawlhalla's major official events began in 2017".
+
+**Tuned on:** this step tuned on q05, q09, q33, q35, q36 and q45. The harness counts them as tuned in runs from 2026-11-09 on: `TUNED` now holds the day each question was tuned on, so the 2026-11-08 runs keep their groups (checked: their group table is unchanged). `NEAR_CLEAN`, the retrieval-off arm's list, still names them.
+
+**Caveats:** 10 questions and 3 seeds, judged by Claude. The gains are on the questions the change was written for, so they show it works where aimed, not that it carries over. The held-out set wasn't run.
+
 ## 2026-11-08: the full evaluation, on the evaluation set and a held-out set, retrieval on and off, seeds 0–2
 
 **Question:** where does the agent fall short, measured on questions it wasn't tuned on?

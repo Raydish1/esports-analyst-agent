@@ -1,0 +1,1215 @@
+[
+ {
+  "id": "q02",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many majors has Raydish won?",
+  "expected": "6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Raydish (player_id 160000) has won **6 official events** (majors) in the data. This count includes all formats and modes, as the data considers every official event a \"major.\"",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.815
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.742
+   ],
+   [
+    "ex13",
+    "placements",
+    0.731
+   ]
+  ],
+  "checks": [
+   "answer_check"
+  ],
+  "steps": 4,
+  "model_seconds": 13.9,
+  "output_tokens": 937
+ },
+ {
+  "id": "q05",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "List the top 10 highest-earning players in Brawlhalla history.",
+  "expected": "The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00",
+  "outcome": "answered",
+  "answer": "Here are the top 10 highest-earning players in Brawlhalla history, based on official career earnings data (as of the latest recorded figures):\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\n*Note:* These figures are derived from the `v_career_earnings` view, which includes only players with a PR ranking. Some players may not have their earnings recorded in the data.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex11",
+    "wins_list",
+    0.704
+   ],
+   [
+    "ex12",
+    "medals",
+    0.702
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 11.7,
+  "output_tokens": 1198
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track prize money or earnings per tournament. The `v_career_earnings` view only provides aggregated career earnings figures (e.g., total prize money across all tournaments) for players with a PR ranking. Since there is no per-tournament earnings data in the official results database, it is not possible to determine which specific tournament sandstorm earned the most money from.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 8.3,
+  "output_tokens": 856
+ },
+ {
+  "id": "q26",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+  "expected": "27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.",
+  "outcome": "answered",
+  "answer": "M30W | BalloonBoy (player_id 149305, current name **BBA BalloonBoy**) has finished in the top 3 at **27 official events**. This count includes all placements of 1st, 2nd, or 3rd across both 1v1 and 2v2 modes at official tournaments.",
+  "stage1": {
+   "result": "pass",
+   "detail": "M30W | BalloonBoy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.819
+   ],
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.78
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 10.9,
+  "output_tokens": 1143
+ },
+ {
+  "id": "q33",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "how much money has boomie made from brawlhalla",
+  "expected": "The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.",
+  "outcome": "answered",
+  "answer": "The data does not record career earnings for **Boomie** (player_id 146606). The `v_career_earnings` view only includes players with a PR ranking, and no row exists for this ID. Earnings data is sourced from the Stats API, which excludes players without a PR ranking. Thus, no figure is available for this player.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": true,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.706
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 10.9,
+  "output_tokens": 1027
+ },
+ {
+  "id": "q34",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who won the 2016 Brawlhalla World Championship?",
+  "expected": "The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.",
+  "outcome": "answered",
+  "answer": "The 2016 Brawlhalla World Championship is not an official event in the database. Official Brawlhalla esports events in the data start from 2017 (e.g., \"Worlds 2017\"). No records exist for 2016 championships or similar events in the official results.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.762
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.737
+   ],
+   [
+    "ex24",
+    "empty_result",
+    0.749
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 12.8,
+  "output_tokens": 1196
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which characters (legends) players typically main. Official esports results track placements, event participation, and performance metrics but do not include information about players' character preferences or \"main\" legends. \n\nIf you're asking about a specific player's in-game tendencies, this information is not available in the official results database. Let me know if you'd like details about their tournament performance, rankings, or other measurable stats!",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 2.4,
+  "output_tokens": 244
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "Raydish has won **6 official events** in the data, but there are no community tournaments recorded in the official results. The count is based on official events only, as the dataset does not include community tournaments.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 8.4,
+  "output_tokens": 818
+ },
+ {
+  "id": "q37",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who has won the most official tournaments?",
+  "expected": "gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.",
+  "outcome": "answered",
+  "answer": "The player with the most official tournament wins is **gdsandstorm** with **48 victories**. They are followed by **Boomie** (44 wins) and **acno?** (36 wins). These totals come from first-place finishes in official events across all modes (1v1 and 2v2), as recorded in the results database.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.83
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.811
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.814
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 8.4,
+  "output_tokens": 817
+ },
+ {
+  "id": "q45",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "who has earned more money, raydish or impala?",
+  "expected": "Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).",
+  "outcome": "answered",
+  "answer": "Raydish has earned $83,825.00 in official events, while there is no recorded career earnings data for Impala (player_id 168635) in the available results. The data does not cover Impala's earnings.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 7.8,
+  "output_tokens": 767
+ },
+ {
+  "id": "q02",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many majors has Raydish won?",
+  "expected": "6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Raydish has won **6 majors** at official events. This count comes from their 1st-place finishes (v_official_wins) across all formats and modes, reflecting their total number of tournament titles.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.815
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.742
+   ],
+   [
+    "ex13",
+    "placements",
+    0.731
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 15.9,
+  "output_tokens": 1620
+ },
+ {
+  "id": "q05",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "List the top 10 highest-earning players in Brawlhalla history.",
+  "expected": "The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00",
+  "outcome": "answered",
+  "answer": "Here are the top 10 highest-earning players in Brawlhalla history, based on official career earnings data:\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\nThese figures are sourced from the official Brawlhalla Stats API and represent career earnings from official events. Note that not all players may have their earnings recorded, and some may have multiple entries if they met the criteria for multiple earnings reports.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex11",
+    "wins_list",
+    0.704
+   ],
+   [
+    "ex12",
+    "medals",
+    0.702
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 11.5,
+  "output_tokens": 1157
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track earnings per tournament, but based on the **v_career_earnings** view, **gdsandstorm** (player_id 74433) has the highest recorded earnings source as **\"Stats API\"** with **$258,984.17**. This likely represents cumulative career earnings rather than a specific tournament. The data does not break down prize money by individual tournaments.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 22.9,
+  "output_tokens": 2318
+ },
+ {
+  "id": "q26",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+  "expected": "27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.",
+  "outcome": "answered",
+  "answer": "M30W | BalloonBoy (player_id 149305) has finished in the top 3 at **27 official events**. This count includes all modes (1v1 and 2v2) across their career, based on their placements (1st, 2nd, or 3rd) in the v_results view.",
+  "stage1": {
+   "result": "pass",
+   "detail": "M30W | BalloonBoy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.819
+   ],
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.78
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 14.2,
+  "output_tokens": 1427
+ },
+ {
+  "id": "q33",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "how much money has boomie made from brawlhalla",
+  "expected": "The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.",
+  "outcome": "answered",
+  "answer": "The data does not record career earnings for the player with ID 146606 (\"Boomie\" as resolved from the ambiguous name). The `v_career_earnings` view only includes players with a PR ranking and recorded earnings, and no row exists for this player. Other players named \"Boomie\" (e.g., ID 145938) may have different earnings, but the question did not specify which, so the answer reflects the first resolved player.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": true,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.706
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 10.0,
+  "output_tokens": 1002
+ },
+ {
+  "id": "q34",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who won the 2016 Brawlhalla World Championship?",
+  "expected": "The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.",
+  "outcome": "answered",
+  "answer": "The 2016 Brawlhalla World Championship is not listed as an official event in the database. The tool search for \"worlds 2016\" returned no matches, and no official events from 2016 are documented under aliases like \"worlds\" or \"world championship.\" Brawlhalla's major official events (e.g., BCX, Worlds) began in 2017, so there is no recorded winner for a 2016 \"World Championship\" in the official results.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.762
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.737
+   ],
+   [
+    "ex24",
+    "empty_result",
+    0.749
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 7.6,
+  "output_tokens": 738
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not track which legends players \"main\" (i.e., which characters they typically use). Official esports results and statistics in Brawlhalla focus on tournament performance, rankings, and match outcomes, but not on player character preferences. \n\nIf you're asking about a specific player's usual character, this information is not available in the official results database. Let me know if you'd like details about their tournament performance, medal counts, or head-to-head records!",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 3.5,
+  "output_tokens": 357
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data does not include community tournaments. All events in the results database are official events, regardless of their names (which may include terms like \"Community\" or \"Open\"). Since the question asks about community tournaments, and the tools only track official events, there is no way to answer this query with the available data.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 4.2,
+  "output_tokens": 430
+ },
+ {
+  "id": "q37",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who has won the most official tournaments?",
+  "expected": "gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.",
+  "outcome": "answered",
+  "answer": "The player with the most official tournament wins is **gdsandstorm** with **48 victories**, followed by **Boomie** (44 wins) and **acno?** (36 wins). These totals come from 1st-place finishes in official events, as tracked by the `v_official_wins` view. The list includes the top 10 players with the highest counts.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.83
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.811
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.814
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 13.0,
+  "output_tokens": 1257
+ },
+ {
+  "id": "q45",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "who has earned more money, raydish or impala?",
+  "expected": "Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).",
+  "outcome": "answered",
+  "answer": "Raydish (player_id 160000) has earned $83,825.00 in official events, while Impala (player_id 168635) does not have any recorded career earnings in the data. Therefore, Raydish has earned more money based on available records.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 7.6,
+  "output_tokens": 748
+ },
+ {
+  "id": "q02",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many majors has Raydish won?",
+  "expected": "6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Raydish has won **6 official events (majors)** as of the latest data. This count comes from their 1st-place finishes in 6 distinct tournaments recorded in the official results database.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.815
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.742
+   ],
+   [
+    "ex13",
+    "placements",
+    0.731
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 10.4,
+  "output_tokens": 974
+ },
+ {
+  "id": "q05",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "List the top 10 highest-earning players in Brawlhalla history.",
+  "expected": "The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00",
+  "outcome": "answered",
+  "answer": "Here are the top 10 highest-earning players in Brawlhalla history, based on career earnings from official records:\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\nThese figures are sourced from the `v_career_earnings` view, which aggregates earnings data for players with a PR ranking. Players without recorded earnings are excluded from this list.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex11",
+    "wins_list",
+    0.704
+   ],
+   [
+    "ex12",
+    "medals",
+    0.702
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 13.4,
+  "output_tokens": 1298
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track prize money or earnings per tournament. The `v_career_earnings` view only provides aggregate career earnings figures for players with a PR ranking, not per-event details. Since no table links tournaments to specific earnings, the question cannot be answered with the available tools.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 7.5,
+  "output_tokens": 744
+ },
+ {
+  "id": "q26",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+  "expected": "27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.",
+  "outcome": "answered",
+  "answer": "At official events, **M30W | BalloonBoy** (player_id 149305) has finished in the top 3 **27 times**:\n- **1v1 mode**: 15 times\n- **2v2 mode**: 12 times\n\nThis totals all placements of 1st, 2nd, or 3rd across their career in official tournaments.",
+  "stage1": {
+   "result": "pass",
+   "detail": "M30W | BalloonBoy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.819
+   ],
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.78
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 18.6,
+  "output_tokens": 1750
+ },
+ {
+  "id": "q33",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "how much money has boomie made from brawlhalla",
+  "expected": "The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.",
+  "outcome": "answered",
+  "answer": "The data does not record earnings for the player identified as **Boomie** (player_id 146606). The `v_career_earnings` view excludes players without a PR ranking, and no row exists for this ID. \n\n**Assumptions made**:\n- Chose the first resolved player (\"Boomie\" with 147 official results) due to ambiguity in the name.\n- The data does not track prize money per tournament, only aggregate career earnings (if recorded).\n\nNo earnings figure is available for this player in the official records.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": true,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.706
+   ]
+  ],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 12.8,
+  "output_tokens": 1258
+ },
+ {
+  "id": "q34",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who won the 2016 Brawlhalla World Championship?",
+  "expected": "The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.",
+  "outcome": "answered",
+  "answer": "The data does not include an official event named \"2016 Brawlhalla World Championship.\" The closest official event is the **2018 World Championship** (alias \"world championship 2018\"), but no 2016 World Championship exists in the records. If you meant a different event, please clarify its name or year.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.762
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.737
+   ],
+   [
+    "ex24",
+    "empty_result",
+    0.749
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 8.3,
+  "output_tokens": 862
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which legends players main. It tracks event results, earnings, and match statistics but does not include information about character preferences. For official events, we can provide details about player achievements, tournament outcomes, or earnings, but not their preferred legends.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "steps": 1,
+  "model_seconds": 3.6,
+  "output_tokens": 387
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data does not include community tournaments. All events in the database are official, and there is no record of community tournaments or their results. Therefore, it is not possible to determine how many community tournaments **raydish** has won based on the provided tools and data.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "called no tool"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [
+   "no_tool_check"
+  ],
+  "steps": 2,
+  "model_seconds": 7.2,
+  "output_tokens": 769
+ },
+ {
+  "id": "q37",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who has won the most official tournaments?",
+  "expected": "gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most official tournaments with **48** victories, followed by Boomie with **44**, and acno? with **36**. These totals reflect first-place finishes in official events (tournaments) across Brawlhalla's esports history. The count includes all modes (1v1 and 2v2) and formats, as per the official results database.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.83
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.811
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.814
+   ]
+  ],
+  "checks": [],
+  "steps": 2,
+  "model_seconds": 11.7,
+  "output_tokens": 1195
+ },
+ {
+  "id": "q45",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "who has earned more money, raydish or impala?",
+  "expected": "Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).",
+  "outcome": "answered",
+  "answer": "Raydish has earned $83,825 in official events, while Impala's earnings are not recorded in the data (no row found for player_id 168635). The data only includes career earnings for players with a PR ranking, so Impala's earnings are not available here. \n\n**Note**: The name \"Impala\" matched two players, but I used the top candidate (player_id 168635) with 48 official results. If the question refers to the other Impala (player_id 42213), their earnings also aren't recorded.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "steps": 3,
+  "model_seconds": 12.5,
+  "output_tokens": 1292
+ }
+]
