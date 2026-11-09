@@ -85,7 +85,7 @@ CHECKS = {
     "q04": any_of(row(2, 1, 3), rows(("2024-03-17",), ("2024-08-04",), ("2024-11-15",))),
     "q05": rows(("gdsandstorm", 258984.17), ("Raydish", 83825)),
     "q06": any_of(rows(("Raydish", 20), ("hardymj", 4), ("Winged_Shell", 3)), rows((160000, 20), (145900, 4), (143709, 3))),
-    "q07": any_of(rows(("1v1", 15), ("2v2", 12)), rows((2, 8, 5), (5, 3, 4)), single(27)),  # gold, silver, bronze
+    "q07": any_of(rows(("1v1", 15), ("2v2", 12)), rows((2, 8, 5), (5, 3, 4)), rows((15,), (12,)), single(27)),
     "q08": any_of(row("V3M_T4NQUIL0", 3, 2), row(71736, 3, 2), row("Ahmet_", 3, 1), row(75405, 3, 1)),
     "q09": NA,
     "q10": rows(("https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets",),
@@ -105,7 +105,8 @@ CHECKS = {
     "q23": row(3, 3, 6),
     "q24": any_of(row("luna", 1), row("BBBalloonBoy", 1)),
     "q25": any_of(single(6), single(5), row("1v1", 6), listing(6, "Trial of Laufey - North America (Moose Wars)")),
-    "q26": any_of(rows(("1v1", 15), ("2v2", 12)), rows((2, 8, 5), (5, 3, 4)), single(27), single(26), single(29)),
+    "q26": any_of(rows(("1v1", 15), ("2v2", 12)), rows((2, 8, 5), (5, 3, 4)), rows((15,), (12,)), single(27),
+                  single(26), single(29)),
     "q27": row(1, 2, 3),
     "q28": any_of(row("gdsandstorm", 1), row(74433, 1)),
     "q29": any_of(row("gdsandstorm", 1), row(74433, 1)),

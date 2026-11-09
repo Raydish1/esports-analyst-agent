@@ -94,6 +94,13 @@ class NameResolutionTest(unittest.TestCase):
         t = trace(player("PowerBH", 22222, 113157))
         self.assertEqual(harness.stage1(POWERBH, t, None), {"result": "fail", "detail": "powerbh: resolved to [22222, 113157]"})
 
+    def test_a_player_fails_when_one_query_takes_every_candidate_for_the_name(self):
+        both = trace(player("powerbh", 113157, 22222), sql("SELECT ... WHERE player_id IN (113157, 22222)", []))
+        self.assertEqual(harness.stage1(POWERBH, both, None)["result"], "fail")  # the name left unresolved
+        explored = trace(player("powerbh", 113157, 22222), sql("SELECT ... WHERE player_id = 22222", []),
+                         sql("SELECT ... WHERE player_id = 113157", []))
+        self.assertEqual(harness.stage1(POWERBH, explored, None)["result"], "pass")
+
     def test_suggestions_pass_only_where_the_question_accepts_them_with_the_player_first(self):
         asked = trace(player("markiemoo", 146052, 1, 2), outcome="suggestions", suggestions={"markiemoo": [146052, 1, 2]})
         self.assertEqual(harness.stage1(MARKIEMOO, asked, None)["result"], "pass")

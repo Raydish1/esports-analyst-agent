@@ -104,15 +104,25 @@ def accepts_suggestions(question):
     return any("suggestion" in a.get("answer", "") for a in question.get("accept", []))
 
 
+def numbers(query):
+    return {int(n) for n in re.findall(r"(?<![\w.])-?\d+(?![\w.])", query)}
+
+
 def player_resolved(question, trace, name, pid):
-    """Whether the agent took a player name to the right person: it queried with the player_id, or the resolver gave
-    it first and the agent queried with no other candidate; or, where the question accepts it, suggested it first."""
-    used = {int(n) for q in queries(trace) for n in re.findall(r"(?<![\w.])-?\d+(?![\w.])", q)}
+    """Whether the agent took a player name to the right person: it queried with the player_id, never in one query
+    with another candidate for the name (which leaves the name unresolved), or the resolver gave it first and the
+    agent queried with no other candidate; or, where the question accepts it, suggested it first."""
+    used = set().union(*map(numbers, queries(trace)))
     if trace.get("outcome") == "suggestions":
         offered = [ids for step in trace["steps"] for n, ids in (step.get("suggestions") or {}).items() if same_name(n, name)]
         if not accepts_suggestions(question):
             return False, f"asked the user, suggesting {offered[0] if offered else 'others'}, where an answer is expected"
         return bool(offered and offered[0][:1] == [pid]), f"suggested {offered[0] if offered else 'others'}"
+    rivals = {c["player_id"] for args, obs in calls(trace, "resolve_player") if same_name(args.get("name", ""), name)
+              for c in obs.get("candidates", [])} - {pid}
+    for query in queries(trace):
+        if pid in numbers(query) and numbers(query) & rivals:
+            return False, f"queried with it and other candidates {sorted(numbers(query) & rivals)} at once"
     if pid in used:
         return True, "queried with it"
     for args, obs in calls(trace, "resolve_player"):
