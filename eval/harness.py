@@ -27,10 +27,12 @@ the existing and held-out sets apart.
 """
 
 import argparse
+import http.client
 import json
 import re
 import sqlite3
 import sys
+import time
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,6 +53,7 @@ TUNED = ["q04", "q06", "q08", "q21", "q22"]  # changed the prompt, checks and ex
 # the retrieval-off arm, with the held-out set
 NEAR_CLEAN = ["q05", "q09", "q14", "q15", "q23", "q32", "q33", "q34", "q35", "q36", "q39", "q42", "q45"]
 STAGES = ["name resolution", "SQL logic", "empty or insufficient data", "answer writing", "no answer"]
+TRIES, WAIT = 3, 60  # attempts at a run when the Ollama server fails, and seconds between them
 VERDICTS = ["right", "partly", "wrong"]
 
 
@@ -97,7 +100,9 @@ def player_resolved(question, trace, name, pid):
     used = {int(n) for q in queries(trace) for n in re.findall(r"(?<![\w.])-?\d+(?![\w.])", q)}
     if trace.get("outcome") == "suggestions":
         offered = [ids for step in trace["steps"] for n, ids in (step.get("suggestions") or {}).items() if same_name(n, name)]
-        return bool(accepts_suggestions(question) and offered and offered[0][:1] == [pid]), "suggested"
+        if not accepts_suggestions(question):
+            return False, f"asked the user, suggesting {offered[0] if offered else 'others'}, where an answer is expected"
+        return bool(offered and offered[0][:1] == [pid]), f"suggested {offered[0] if offered else 'others'}"
     if pid in used:
         return True, "queried with it"
     for args, obs in calls(trace, "resolve_player"):
@@ -206,8 +211,17 @@ def run(questions, seeds, examples_on, run_id=None, log=print):
     tools, todo = react.Tools(), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
     log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}; {len(todo)} to go")
     for n, (seed, q) in enumerate(todo, 1):
-        trace = react.run(q["question"], tools, retriever=retriever, log=lambda *_: None, model=react.MODEL,
-                          think=True, seed=seed)
+        for attempt in range(1, TRIES + 1):  # a run that fails isn't written, so the retry starts it afresh
+            try:
+                trace = react.run(q["question"], tools, retriever=retriever, log=lambda *_: None, model=react.MODEL,
+                                  think=True, seed=seed)
+                break
+            # the server unreachable or timed out, or a reply cut off
+            except (OSError, ValueError, http.client.HTTPException) as e:
+                if attempt == TRIES:
+                    raise
+                log(f"  {q['id']} seed {seed}: {type(e).__name__}: {e}; trying again in {WAIT} s")
+                time.sleep(WAIT)
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps({"id": q["id"], "number": q["id"], "set": q["set"], "seed": seed, **trace},
                                ensure_ascii=False) + "\n")
@@ -245,7 +259,8 @@ def score(run_ids, db, labels):
             found = t.get("examples")
             records.append({
                 "id": q["id"], "set": q["set"], "category": q["category"], "seed": t["seed"], "arm": header["arm"],
-                "question": q["question"], "outcome": t["outcome"], "answer": t["answer"],
+                "question": q["question"], "expected": " ".join(q["answer"].split()), "outcome": t["outcome"],
+                "answer": t["answer"],
                 "stage1": stage1(q, t, db), "stage2": stage2(q, t), "shape": known, "group": group(q, known),
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,
                 "checks": sorted({k for s in t["steps"] for k in ("size_check", "lookup_check", "no_tool_check",
@@ -260,18 +275,27 @@ def toml_string(value):
 
 
 def write_judgments(path, records, keep=None):
-    """The judgments file: each run's verdict, stage and review mark, drafted from the automatic stages, keeping any
-    entry already judged (keep: {(arm, id, seed): entry})."""
+    """The judgments file: each run's verdict, stage and review mark. An automatic verdict (stage 1 or 2 failed) is
+    recomputed every time, so a corrected check needs no rerun; a verdict judged by hand (keep: {(arm, id, seed):
+    entry}) stays unless the run now fails stage 1 or 2, and one the user confirmed always stays. Each question's
+    text and expected answer, and each run's answer, are there to judge from; scoring reads only the verdicts."""
     keep = keep or {}
     lines = ["# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL",
              "# logic, empty or insufficient data, answer writing, or no answer. review is \"auto\" for a stage 1 or 2",
              "# failure the code found, and \"needs review\" for a verdict drafted by hand, until the user confirms it",
              "# (\"confirmed\"). Fill in or correct verdict, stage and note; scoring keeps what's here.", ""]
+    last = None
     for r in sorted(records, key=lambda r: (r["arm"], r["id"], r["seed"])):
-        entry = keep.get((r["arm"], r["id"], r["seed"])) or draft(r)
+        if (r["arm"], r["id"]) != last and r.get("question"):
+            lines += [f"# {r['id']} (retrieval {r['arm']}): {r['question']}", f"# Expected: {r['expected']}", ""]
+        last = (r["arm"], r["id"])
+        fresh, kept = draft(r), keep.get((r["arm"], r["id"], r["seed"]))
+        by_hand = kept and kept.get("review") != "auto"
+        entry = kept if by_hand and (kept.get("review") == "confirmed" or fresh["review"] != "auto") else fresh
         lines += ["[[run]]", f"arm = {toml_string(r['arm'])}", f"question = {toml_string(r['id'])}", f"seed = {r['seed']}",
                   f"verdict = {toml_string(entry['verdict'])}", f"stage = {toml_string(entry['stage'])}",
-                  f"review = {toml_string(entry['review'])}", f"note = {toml_string(entry.get('note', ''))}", ""]
+                  f"review = {toml_string(entry['review'])}", f"note = {toml_string(entry.get('note', ''))}",
+                  f"answer = {toml_string(r.get('answer') or '')}", ""]
     Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -300,10 +324,13 @@ def tally(records, judged):
 
 
 def table(title, rows, label):
-    out = [f"**{title}**", "", f"| {label} | Runs right | Runs partly | Questions right in every seed |", "|---|---|---|---|"]
+    """A table of tallies; a column of runs not yet judged while any are, so they don't read as wrong."""
+    unjudged = any(t["unjudged"] for _, t in rows)
+    out = [f"**{title}**", "", f"| {label} | Runs right | Runs partly | Questions right in every seed |"
+           + (" Not judged yet |" if unjudged else ""), "|---|---|---|---|" + ("---|" if unjudged else "")]
     for name, t in rows:
         out.append(f"| {name} | {counted(t['right'], t['runs'])} | {counted(t['partly'], t['runs'])} |"
-                   f" {counted(t['all_right'], t['questions'])} |")
+                   f" {counted(t['all_right'], t['questions'])} |" + (f" {t['unjudged']} |" if unjudged else ""))
     return out + [""]
 
 
@@ -327,8 +354,8 @@ def report(records, judged):
             continue
         failed = [judged.get((r["arm"], r["id"], r["seed"]), {}) for r in rs]
         failed = [j for j in failed if j.get("verdict") in ("partly", "wrong")]
-        out += [f"**{name}, by failing stage** ({len(failed)} runs not right, of {len(rs)})", "", "| Stage | Runs |",
-                "|---|---|"]
+        out += [f"**{name}, by failing stage** (the runs not right: {len(failed)} of {len(rs)})", "",
+                "| Stage | Runs not right |", "|---|---|"]
         out += [f"| {s} | {counted(sum(j.get('stage') == s for j in failed), len(failed))} |" for s in STAGES]
         out.append("")
     if off:

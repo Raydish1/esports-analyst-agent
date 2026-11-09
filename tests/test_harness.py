@@ -185,7 +185,8 @@ class DraftTest(unittest.TestCase):
 class JudgmentsTest(unittest.TestCase):
     def test_rewriting_the_judgments_keeps_what_was_judged_and_drafts_the_rest(self):
         records = [{"arm": "on", "id": i, "seed": 0, "outcome": "answered", "stage1": {"result": "pass", "detail": ""},
-                    "stage2": {"result": "pass", "detail": ""}} for i in ("h01", "h02")]
+                    "stage2": {"result": "pass", "detail": ""}, "question": "how many?", "expected": "4",
+                    "answer": 'He has "4" titles.\nAll in NA.'} for i in ("h01", "h02")]
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "judgments.toml"
             harness.write_judgments(path, records)
@@ -195,6 +196,21 @@ class JudgmentsTest(unittest.TestCase):
             again = harness.read_judgments(path)
         self.assertEqual(again[("on", "h01", 0)]["note"], 'said "4" without the 1v1 split')
         self.assertEqual((again[("on", "h02", 0)]["verdict"], again[("on", "h02", 0)]["review"]), ("", "needs review"))
+        self.assertEqual(again[("on", "h02", 0)]["answer"], 'He has "4" titles.\nAll in NA.')  # to judge from
+
+    def test_an_automatic_verdict_follows_a_corrected_check_and_a_confirmed_one_stays(self):
+        def record(i, two):
+            return {"arm": "on", "id": i, "seed": 0, "outcome": "answered", "stage1": {"result": "n/a", "detail": ""},
+                    "stage2": {"result": two, "detail": "1 query results"}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "judgments.toml"
+            harness.write_judgments(path, [record("h01", "fail"), record("h02", "fail")])
+            judged = harness.read_judgments(path)
+            judged[("on", "h02", 0)].update(verdict="right", stage="", review="confirmed", note="the check missed it")
+            harness.write_judgments(path, [record("h01", "pass"), record("h02", "fail")], judged)  # h01's check fixed
+            again = harness.read_judgments(path)
+        self.assertEqual((again[("on", "h01", 0)]["verdict"], again[("on", "h01", 0)]["review"]), ("", "needs review"))
+        self.assertEqual((again[("on", "h02", 0)]["verdict"], again[("on", "h02", 0)]["review"]), ("right", "confirmed"))
 
 
 class ReportTest(unittest.TestCase):
