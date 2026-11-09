@@ -392,6 +392,48 @@ class LoopTest(Fixture):
         self.assertIn("it names 'tike36', which no tool returned", message["content"])
         self.assertNotIn(react.LAST_STEP, message["content"])
 
+    def test_the_questions_spelling_of_a_decided_player_is_corrected_in_code_and_every_swap_is_traced(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "godly"})]),
+                       reply("**godly** won both events, and godly's runs were clean."))
+        trace = react.run("did godly win both events?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "**Zivai (formerly Godly)** won both events, and Zivai's runs were clean.")
+        self.assertEqual([(x["from"], x["to"]) for x in trace["name_swaps"]],
+                         [("godly", "Zivai (formerly Godly)"), ("godly", "Zivai")])  # the display first, the name after
+        self.assertEqual(trace["steps"][1]["name_swaps"], trace["name_swaps"])
+        self.assertEqual(trace["steps"][1]["content"], "**godly** won both events, and godly's runs were clean.")  # as written
+
+    def test_a_spelling_quoted_or_explaining_the_name_and_a_case_variant_are_left_alone(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "godly"})]),
+                       reply('Zivai (godly) won; the name "godly" also matched others.'))
+        self.assertEqual(react.run("did godly win?", self.tools, ask=ask, log=lambda *_: None)["name_swaps"], [])
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "RAYDISH"})]), reply("RAYDISH has 6 official results."))
+        trace = react.run("how many results has RAYDISH?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["name_swaps"]), ("RAYDISH has 6 official results.", []))
+
+    def test_a_wrong_name_next_to_a_player_id_becomes_the_datas_name_for_that_id(self):
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 19 AS player_id"})]),
+                       reply("The grand final was won by **Lucky** (player_id 19), 3-0."))
+        trace = react.run("who won the grand final?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "The grand final was won by **Zivai** (player_id 19), 3-0.")
+        self.assertEqual(trace["name_swaps"], [{"kind": "the name for a player ID", "from": "Lucky", "to": "Zivai",
+                                                "player_id": 19}])
+        self.assertNotIn("answer_check", trace["steps"][1])  # corrected, so nothing went back
+
+    def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
+                       reply("The answer is correct: both are players."))
+        trace = react.run("who won with raydish?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["steps"][1]["answer_check"]["action"], "sent back")
+        self.assertEqual((trace["answer"], trace["steps"][2]["meta_reply"]["action"]),
+                         ("**Raydish** and **tike36** won 6.", "kept the answer it replied about"))
+
+    def test_a_reply_that_gives_new_figures_after_a_check_is_a_new_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
+                       reply("The previous answer missed one: **Raydish** won 7."))
+        trace = react.run("who won with raydish?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "The previous answer missed one: **Raydish** won 7.")
+        self.assertNotIn("meta_reply", trace["steps"][2])
+
     def test_an_answer_citing_a_player_id_no_tool_returned_goes_back_once(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]),
                        reply("His rival Markled is player_id 12345."), reply("Marckiem00 is player_id 4."))
