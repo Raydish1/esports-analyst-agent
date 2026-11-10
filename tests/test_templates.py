@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "tests"))  # for the other tests' fixtures, howeve
 import react  # noqa: E402
 import templates  # noqa: E402
 from test_agent import Scripted, reply  # noqa: E402
-from test_views import A, B, C, D, F, populate  # noqa: E402
+from test_views import A, A2, B, C, D, E, F, populate  # noqa: E402
 
 
 class Fixture(unittest.TestCase):
@@ -50,7 +50,10 @@ class RegistryTest(Fixture):
             self.assertEqual(offered[name]["description"], template.description)
             self.assertEqual(set(offered[name]["parameters"]["required"]), set(template.required))
         self.assertEqual(self.call("event_results", event="cup 2020")["template"], "event_results")
-        self.assertIn("run_sql and event_results", self.call("nothing")["error"])
+        unknown = self.call("nothing")["error"]
+        self.assertTrue(unknown.startswith("there is no tool named 'nothing': the tools are resolve_player,"))
+        for name in templates.TEMPLATES:
+            self.assertIn(name, unknown)
 
     def test_arguments_a_template_cant_use_get_errors_the_model_can_act_on(self):
         self.assertEqual(self.call("event_results")["error"], "event_results needs event: event_results takes event, top")
@@ -160,6 +163,64 @@ class EventResultsTest(Fixture):
             out = self.call("event_results", event="cup 2020")
         self.assertIn("matches 2 events, too many to answer for", out["notes"][0])
         self.assertIn("event is the event's name", self.call("event_results", event=7)["error"])
+
+
+class PlayerResultsTest(Fixture):
+    def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
+        out = self.call("player_results", player_id=A)
+        self.assertEqual((out["player"], out["scope"]), ({"player_id": A, "name": "A"}, "official events, 1v1 and 2v2"))
+        self.assertEqual(self.rows(out, "A's results, counted by mode"), [
+            ["A", "1v1", 3, 2, 1, 0, 3, 1], ["A", "2v2", 2, 1, 0, 1, 2, 1], ["A", "1v1 and 2v2", 5, 3, 1, 1, 5, 1]])
+        self.assertEqual(self.rows(out, "the first and the latest"), [
+            ["first", "1v1", "1970-01-01", "Cup", 1], ["latest", "1v1", "1970-01-01", "Crew Battle 3v3", 1],
+            ["first", "2v2", "1970-01-01", "Duos", 1], ["latest", "2v2", "1970-01-01", "Duos 2", 3]])
+        self.assertEqual(self.rows(out, "each of them, oldest first"), [
+            ["1970-01-01", "Cup", "1v1", 1], ["1970-01-01", "Duos", "2v2", 1], ["1970-01-01", "Duos 2", "2v2", 3],
+            ["1970-01-01", "League", "1v1", 2], ["1970-01-01", "Crew Battle 3v3", "1v1 (crew battle)", 1]])
+        self.assertEqual(out["notes"], ["1 of the 1v1 results is a crew battle: a team result, counted as 1v1."])
+        self.assertEqual(len(out["ran"]), 3)
+        self.assertIn(f"WHERE r.player_id = {A} GROUP BY r.mode", out["ran"][0])
+
+    def test_top_mode_year_and_event_narrow_the_results_and_the_scope_says_so(self):
+        wins = self.call("player_results", player_id=A, top=1, mode="doubles")
+        self.assertEqual((wins["scope"], self.rows(wins, "A's wins (1st places)")),
+                         ("official events, 2v2", [["A", "2v2", 1, 1, 0, 0, 1, 1]]))
+        self.assertEqual(self.rows(wins, "the first and the latest"), [["only", "2v2", "1970-01-01", "Duos", 1]])
+        year = self.call("player_results", player_id=A, year=1970)
+        self.assertEqual((year["scope"], self.rows(year, "A's results")[-1][2]), ("official events, 1v1 and 2v2, in 1970", 5))
+        cup = self.call("player_results", player_id=A, event="cup 2020")
+        self.assertEqual((cup["scope"], cup["event"]["status"]),
+                         ("official events, 1v1 and 2v2, at the 2 events the name means", "confident"))
+        self.assertEqual([row[1] for row in self.rows(cup, "each of them")], ["Cup", "Duos"])
+
+    def test_a_count_of_zero_says_what_it_is_zero_of(self):
+        out = self.call("player_results", player_id=D, top=1)
+        self.assertEqual(self.rows(out, "D's wins"), [["D", "1v1", 0, 0, 0, 0, 0, None], ["D", "2v2", 0, 0, 0, 0, 0, None],
+                                                      ["D", "1v1 and 2v2", 0, 0, 0, 0, 0, None]])
+        self.assertEqual(out["notes"], ["None of D's 2 official results (1 in 1v1, 1 in 2v2) is among these: the count is"
+                                        " 0, which isn't the same as never having played."])
+        self.assertEqual(len(out["tables"]), 1)  # nothing first or latest, and no list
+        self.assertEqual(self.call("player_results", player_id=E)["notes"],
+                         ["E has no official 1v1 or 2v2 results in the data."])
+        self.assertEqual(self.rows(self.call("player_results", player_id=A, year=2026), "A's results")[-1][2], 0)
+
+    def test_an_event_name_must_be_one_tournament_and_its_status_comes_with_the_results(self):
+        out = self.call("player_results", player_id=A, event="league")
+        self.assertTrue(out["notes"][0].endswith("Call again with one tournament's name, as listed here."))
+        self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))
+        out = self.call("player_results", player_id=C, event="league week 1")
+        self.assertIn("has unreliable placements", out["notes"][0])
+        self.assertIn("the count is 0", out["notes"][1])  # C "won" it, but its placements aren't results
+
+    def test_a_player_is_given_by_id_and_a_merged_record_is_the_person(self):
+        out = self.call("player_results", player_id=A2)
+        self.assertEqual(out["player"], {"player_id": A, "name": "A"})
+        self.assertIn(f"player_id {A2} is another record of A (player_id {A}): these are the person's.", out["notes"])
+        self.assertEqual(self.call("player_results", player_id=str(A))["player"]["player_id"], A)  # a number as text
+        self.assertIn("not a name: call resolve_player with 'Raydish' first", self.call("player_results", player_id="Raydish")["error"])
+        self.assertIn("no player has player_id 999", self.call("player_results", player_id=999)["error"])
+        self.assertEqual(self.call("player_results", player_id=A, mode="standard")["error"], "mode is '1v1' or '2v2', not 'standard'")
+        self.assertIn("top is a whole number, 1 or more", self.call("player_results", player_id=A, top=0)["error"])
 
 
 if __name__ == "__main__":

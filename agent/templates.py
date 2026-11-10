@@ -32,7 +32,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Callable
 
-from tools import ABOUT_ALIAS, EVENT_SCORES, SQL_SECONDS, TOKEN_BUDGET, cell, connect, quoted, tokens
+from tools import ABOUT_ALIAS, EVENT_SCORES, MODE_WORDS, SQL_SECONDS, TOKEN_BUDGET, cell, connect, quoted, tokens
 
 EVENTS_AT_MOST = 60  # a name matching more events gets no results, only the closest few to choose from
 CANDIDATES = 10
@@ -40,6 +40,7 @@ LINKS_AT_MOST = 4  # bracket links are listed for a tournament's events, not for
 SCOPE = "official events"
 LEFT_OUT = "{n} rows, too many to show with the rest: narrow the question (an event, a year, a mode, a lower top)."
 DECIDED = re.compile(r"\s*\(decided \d{4}-\d{2}-\d{2}\)")  # a curated note's own bookkeeping, not for an answer
+CUTS = {1: "wins (1st places)", 3: "medals (placed 3rd or better)", 8: "top 8s (placed 8th or better)"}
 
 
 class Refused(ValueError):
@@ -100,14 +101,46 @@ class Template:
 # What the templates share
 
 def whole(value, name, least=1):
-    """An argument as a whole number of at least `least`: 5, 5.0 or '5', since a model writes numbers as text too."""
+    """An argument as a whole number of at least `least` (None: any): 5, 5.0 or '5', since a model writes numbers as
+    text too."""
     if isinstance(value, str) and re.fullmatch(r"\s*-?\d+\s*", value):
         value = int(value)
     if isinstance(value, float) and value.is_integer():
         value = int(value)
-    if isinstance(value, bool) or not isinstance(value, int) or value < least:
-        raise Refused(f"{name} is a whole number, {least} or more, not {value!r}")
+    if isinstance(value, bool) or not isinstance(value, int) or (least is not None and value < least):
+        raise Refused(f"{name} is a whole number{'' if least is None else f', {least} or more'}, not {value!r}")
     return value
+
+
+def person(tools, value, name="player_id"):
+    """A player argument as (the person's player_id, their name, the ID given): the number resolve_player returned. A
+    name is refused: every name goes through resolve_player, whose doubts go to the user. A merged record's ID is
+    the person's."""
+    if isinstance(value, str) and not re.fullmatch(r"\s*-?\d+\s*", value):
+        raise Refused(f"{name} is the number resolve_player returns, not a name: call resolve_player with {value!r}"
+                      " first, and pass the player_id it gives")
+    given = whole(value, name, least=None)
+    if given not in tools.resolver.canonical:
+        raise Refused(f"no player has player_id {given}: pass the player_id resolve_player returns")
+    canonical = tools.resolver.canonical[given]
+    return canonical, tools.resolver.names.get(canonical), given
+
+
+def one_mode(value):
+    """A mode argument as '1v1' or '2v2' ('singles' and 'doubles' too). A format isn't a mode."""
+    mode = MODE_WORDS.get(value.strip().lower()) if isinstance(value, str) else None
+    if mode is None:
+        raise Refused(f"mode is '1v1' or '2v2', not {value!r}")
+    return mode
+
+
+def ordinal(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def cut(top):
+    """What a placement cutoff keeps, as a table says it."""
+    return "results" if top is None else CUTS.get(top, f"results placed {ordinal(top)} or better")
 
 
 def table(what, columns, rows, optional=False):
@@ -116,10 +149,12 @@ def table(what, columns, rows, optional=False):
     return {**out, "optional": True} if optional else out
 
 
-def observation(name, scope, notes, tables, ran, event=None):
-    """A template's result (the module docstring). Over TOKEN_BUDGET, the optional tables lose their rows, the largest
-    first, and keep their row count with a note."""
-    out = {"template": name, "scope": scope, **({"event": event} if event else {}), "notes": notes, "tables": tables}
+def observation(name, scope, notes, tables, ran, **about):
+    """A template's result (the module docstring), with what it is about (event, player) after its name. Tables
+    without rows to show are left out. Over TOKEN_BUDGET, the optional tables lose their rows, the largest first, and
+    keep their row count with a note."""
+    tables = [t for t in tables if t is not None]
+    out = {"template": name, **{k: v for k, v in about.items() if v}, "scope": scope, "notes": notes, "tables": tables}
     lists = sorted((t for t in tables if t.pop("optional", False)), key=lambda t: -len(json.dumps(t["rows"])))
     for t in lists:
         if tokens(json.dumps(out, ensure_ascii=False)) <= TOKEN_BUDGET:
@@ -188,12 +223,49 @@ def label(event):
 def unanswered(name, found, query):
     """A template's result for an event name it can't answer for: why, and the closest events to choose from."""
     closest = [[e["name"], e["start_date"], mode_label(e), e.get("status")] for e in found.events[:CANDIDATES]]
-    listed = [table("the closest events", ["event", "date", "mode", "status"], closest)] if closest else []
-    return observation(name, SCOPE, found.notes, listed, query.ran, found.about)
+    listed = table("the closest events", ["event", "date", "mode", "status"], closest) if closest else None
+    return observation(name, SCOPE, found.notes, [listed], query.ran, event=found.about)
 
 
 def in_ids(events):
     return ", ".join(quoted(e["event_id"]) for e in events)
+
+
+def status_note(event, reason):
+    """What an answer must say about an event that wasn't held or whose placements are unreliable, with the data's
+    own note on it; None for any other event."""
+    reason = DECIDED.sub("", reason or "").strip().rstrip(".")
+    about = f" The data's note on it: {reason}." if reason else ""
+    if event.get("status") == "cancelled":
+        return (f"{label(event)} was not held, so it has no results: say it wasn't held, not that its results are"
+                f" missing.{about}")
+    if event.get("status") == "placements_unreliable":
+        return (f"{label(event)} has unreliable placements, so they aren't results and it has no reliable winner: say"
+                f" so, and why.{about}")
+    return f"{label(event)} is marked {event['status']}.{about}" if event.get("status") else None
+
+
+def status_notes(query, events):
+    """status_note for each event with a status, for a template that doesn't read the events themselves."""
+    marked = [e for e in events if e.get("status")]
+    if not marked:
+        return []
+    reasons = dict(query.rows(f"SELECT event_id, note FROM v_events WHERE event_id IN ({in_ids(marked)})"))
+    return [note for note in (status_note(e, reasons.get(e["event_id"])) for e in marked) if note]
+
+
+def conditions(mode=None, year=None, events=None):
+    """The conditions on a result r that a mode, a year and a set of events make, and the scope they leave."""
+    where, said = [], [mode or "1v1 and 2v2"]
+    if mode:
+        where.append(f"r.mode = '{mode}'")
+    if year:
+        where.append(f"substr(r.start_date, 1, 4) = '{year}'")
+        said.append(f"in {year}")
+    if events is not None:
+        where.append(f"r.event_id IN ({in_ids(events)})")
+        said.append(f"at the {len(events)} event{'' if len(events) == 1 else 's'} the name means")
+    return where, f"{SCOPE}, {', '.join(said)}"
 
 
 # event_results
@@ -237,15 +309,9 @@ def event_results(query, tools, event, top=1):
             notes.append(f"{' and '.join(label(e) for e in competition)} are phases of one competition: each player's"
                          " result counts once, at the last phase they reached.")
     for e in events:
-        note = DECIDED.sub("", info[e["event_id"]][0] or "").strip().rstrip(".")
-        about = f" The data's note on it: {note}." if note else ""
         sides = placed(e, rows.get(e["event_id"], []))
-        if e.get("status") == "cancelled":
-            notes.append(f"{label(e)} was not held, so it has no results: say it wasn't held, not that its results"
-                         f" are missing.{about}")
-        elif e.get("status") == "placements_unreliable":
-            notes.append(f"{label(e)} has unreliable placements, so they aren't results and it has no reliable winner:"
-                         f" say so, and why.{about}")
+        if e.get("status"):
+            notes.append(status_note(e, info[e["event_id"]][0]))
         elif e["counts_as"] is None:
             notes.append(f"{label(e)} counts as neither 1v1 nor 2v2, so its placements aren't results here. v_entries"
                          " has them.")
@@ -264,7 +330,72 @@ def event_results(query, tools, event, top=1):
     return observation("event_results", SCOPE, notes, [
         table("the events the name means", ["event", "date", "mode", "status"] + (["bracket_url"] if links else []), listed),
         table(f"{what}, a team's players together", ["event", "date", "mode", "placement", "players", "player_ids"],
-              placements, optional=True)], query.ran, found.about)
+              placements, optional=True)], query.ran, event=found.about)
+
+
+# player_results
+
+def event_name(tournament, event):
+    return f"{tournament} / {event}" if event else tournament
+
+
+def first_and_latest(rows, when):
+    """(which, row) for the rows first and latest in time, of rows in time order (`when` gives a row's time). Every
+    row sharing the first time is first, and likewise the latest. Rows that all share one time are each 'only'."""
+    if not rows:
+        return []
+    first = [r for r in rows if when(r) == when(rows[0])]
+    latest = [r for r in rows if when(r) == when(rows[-1])]
+    if when(rows[0]) == when(rows[-1]):
+        return [("only", r) for r in first]
+    return [("first", r) for r in first] + [("latest", r) for r in latest]
+
+
+def player_results(query, tools, player_id, top=None, mode=None, year=None, event=None):
+    player, name, given = person(tools, player_id)
+    top = None if top is None else whole(top, "top")
+    mode = None if mode is None else one_mode(mode)
+    year = None if year is None else whole(year, "year")
+    found = None if event is None else match_events(tools, event)
+    if found and not found.usable:
+        return unanswered("player_results", found, query)
+    where, scope = conditions(mode, year, found.events if found else None)
+    where = " AND ".join([f"r.player_id = {player}"] + ([f"r.placement <= {top}"] if top else []) + where)
+    counted = {m: figures for m, *figures in query.rows(
+        "SELECT r.mode, COUNT(*), SUM(r.placement = 1), SUM(r.placement = 2), SUM(r.placement = 3),"
+        " SUM(r.placement <= 8), MIN(r.placement), SUM(r.format = 'crew_battle')"
+        f" FROM v_results r WHERE {where} GROUP BY r.mode")}
+    listed = query.rows(
+        "SELECT r.start_date, r.tournament_name, r.event_name, r.mode, r.format, r.placement, r.start_time"
+        f" FROM v_results r WHERE {where} ORDER BY r.start_time, r.mode")
+    every = dict(query.rows(f"SELECT r.mode, COUNT(*) FROM v_results r WHERE r.player_id = {player} GROUP BY r.mode"))
+    notes = found.notes + status_notes(query, found.events) if found else []
+    if given != player:
+        notes.append(f"player_id {given} is another record of {name} (player_id {player}): these are the person's.")
+    modes = [mode] if mode else ["1v1", "2v2"]  # a mode has its row even with nothing in it: a 0 to read, not a gap
+    summary = [[name, m, *(counted[m][:6] if m in counted else [0, 0, 0, 0, 0, None])] for m in modes]
+    if not mode:
+        best = min((row[7] for row in summary if row[7] is not None), default=None)
+        summary.append([name, "1v1 and 2v2", *(sum(row[i] for row in summary) for i in range(2, 7)), best])
+    if not listed:
+        notes.append(f"{name} has no official 1v1 or 2v2 results in the data." if not every else
+                     f"None of {name}'s {sum(every.values())} official results"
+                     f" ({', '.join(f'{n} in {m}' for m, n in sorted(every.items()))}) is among these: the count is 0,"
+                     " which isn't the same as never having played.")
+    crews = sum(figures[6] or 0 for figures in counted.values())
+    if crews:
+        notes.append(f"{crews} of the 1v1 {cut(top)} {'is a crew battle: a team result' if crews == 1 else 'are crew battles: team results'},"
+                     " counted as 1v1.")
+    ends = [[which, m, r[0], event_name(r[1], r[2]), r[5]] for m in modes
+            for which, r in first_and_latest([r for r in listed if r[3] == m], lambda r: r[6])]
+    each = [[r[0], event_name(r[1], r[2]), f"{r[3]} (crew battle)" if r[4] == "crew_battle" else r[3], r[5]] for r in listed]
+    return observation("player_results", scope, notes, [
+        table(f"{name}'s {cut(top)}, counted by mode",
+              ["player", "mode", "results", "first", "second", "third", "top8", "best"], summary),
+        table("the first and the latest of them in each mode", ["which", "mode", "date", "event", "placement"], ends)
+        if ends else None,
+        table("each of them, oldest first", ["date", "event", "mode", "placement"], each, optional=True)
+        if each else None], query.ran, player={"player_id": player, "name": name}, event=found and found.about)
 
 
 TEMPLATES = {t.name: t for t in (
@@ -279,4 +410,17 @@ TEMPLATES = {t.name: t for t in (
          "top": {"type": "integer", "description": "how many places to return: 1 for the winners (the default), 8 for"
                                                    " the top 8"}},
         ("event",), event_results),
+    Template(
+        "player_results",
+        "One player's results at official events: how many, by mode (1st, 2nd and 3rd places, top 8s, the best), the"
+        " first and the latest, and the list. Use it for a player's wins, titles or majors (top 1), medals (top 3), top"
+        " 8s (top 8) or every result (no top), and narrow it to a mode, a year, or an event or series ('worlds', 'bcx"
+        " 2024') when the question does.",
+        {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
+         "top": {"type": "integer", "description": "keep results placed this or better: 1 for wins, 3 for medals, 8 for"
+                                                   " top 8s; leave out for every result"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "one mode only; leave out for both"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        ("player_id",), player_results),
 )}
