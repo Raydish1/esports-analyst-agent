@@ -5,6 +5,8 @@
 # A question with no shapes has no example that helps, since no query answers it: prize money per tournament (q09,
 # q32), career earnings (q33, which the views don't hold), results before 2017 (q34), legends (q35) and community
 # events (q36). For those, the measurement counts how many examples are retrieved anyway.
+#
+# q20 also has event_final since 2026-11-10, when that shape's example (ex29, on v_sets_1v1) was added to the bank.
 
 [shapes]
 q01 = ["last_event"]
@@ -26,7 +28,7 @@ q16 = ["event_winner"]
 q17 = ["event_top8"]
 q18 = ["event_winner"]
 q19 = ["event_winner"]
-q20 = ["head_to_head_sets", "event_winner"]
+q20 = ["event_final", "head_to_head_sets", "event_winner"]
 q21 = ["official_wins"]
 q22 = ["series_results"]
 q23 = ["head_to_head"]

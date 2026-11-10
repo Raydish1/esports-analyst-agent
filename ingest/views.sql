@@ -10,7 +10,9 @@
 --     rather than a window function, so the views on top of it stay fast when filtered by player;
 --   * v_entries also has players who played without a placement;
 --   * v_events leaves a held-out event out of the counts (decision 3);
---   * v_win_runs is new, and v_event_coverage computes per event what the schema proposal's §4 listed.
+--   * v_win_runs is new, and v_event_coverage computes per event what the schema proposal's §4 listed;
+--   * v_sets_1v1 and v_event_series are new (2026-11-10), written for the agent: a set with both players, and the
+--     events of a yearly series. A snapshot frozen before them gets them as temporary views (agent/tools.py).
 
 CREATE VIEW v_events AS
 -- Every official event with its effective mode and format, and what it counts toward (decided rules).
@@ -315,3 +317,65 @@ FROM (
              AS twos_without_team
     FROM v_events v
     LEFT JOIN event_sources s ON s.event_id = v.event_id) x) c;
+
+CREATE VIEW v_sets_1v1 AS
+-- One row per counted 1v1 set, with both players, the score, and where each of them finished: the sets
+-- v_head_to_head_1v1 counts. One player a side, so a crew battle's crew-against-crew sets are left out, and so are
+-- DQs, forfeits and ties (v_match_results).
+--   winner_id, loser_id    canonical players; winner_name and loser_name are their current names.
+--   winner_games, loser_games  NULL for a set with a winner but no game score (is_scored = 0).
+--   winner_placement, loser_placement  each player's result in that competition (v_results). NULL for a player
+--                          without one, and at an event whose placements are unreliable.
+--   start_time             when the set started, where the platform reported it (some start.gg sets have none).
+-- Finding a final: no round names are stored. A final is a set the winner took from the runner-up, winner_placement
+-- = 1 AND loser_placement = 2: the last by start_time if they met more than once (an earlier set in the winners'
+-- bracket, or the first set of a final that was reset). An event's last set by start_time alone isn't always it: a
+-- set's time can be missing or out of order (on eval-v1, the last set is 1st beating 2nd in 331 of 354 standard 1v1
+-- events, and DreamHack Dallas 2023's reset has no time).
+-- Fast when filtered by event_id, by winner_id, by loser_id, or by both players. winner_id = X OR loser_id = X reads
+-- every set, which takes seconds: for one player's sets, won and lost, query each side, or use v_match_results.
+-- (Each placement is a subquery per row, read only when a query asks for it. As joins, some queries took 13 s.)
+SELECT m.match_id, v.event_id, v.competition_key, v.tournament_name, v.event_name, v.start_date, m.start_time,
+       wi.canonical_id AS winner_id, wn.name AS winner_name,
+       (SELECT r.placement FROM v_results r
+         WHERE r.player_id = wi.canonical_id AND r.competition_key = v.competition_key) AS winner_placement,
+       li.canonical_id AS loser_id, ln.name AS loser_name,
+       (SELECT r.placement FROM v_results r
+         WHERE r.player_id = li.canonical_id AND r.competition_key = v.competition_key) AS loser_placement,
+       CASE WHEN m.is_scored = 1 THEN CASE m.winner_side WHEN 1 THEN m.side1_score ELSE m.side2_score END END
+         AS winner_games,
+       CASE WHEN m.is_scored = 1 THEN CASE m.winner_side WHEN 1 THEN m.side2_score ELSE m.side1_score END END
+         AS loser_games,
+       m.is_scored
+FROM matches m
+JOIN match_players w ON w.match_id = m.match_id AND w.side = m.winner_side
+JOIN match_players l ON l.match_id = m.match_id AND l.side <> m.winner_side
+JOIN players wi      ON wi.player_id = w.player_id
+JOIN players wn      ON wn.player_id = wi.canonical_id
+JOIN players li      ON li.player_id = l.player_id
+JOIN players ln      ON ln.player_id = li.canonical_id
+JOIN v_events v      ON v.event_id = m.event_id
+WHERE m.is_no_contest = 0
+  AND m.winner_side IS NOT NULL
+  AND v.counts_as = '1v1'
+  AND (SELECT COUNT(*) FROM match_players s WHERE s.match_id = m.match_id) = 2;
+
+CREATE VIEW v_event_series AS
+-- The events of each yearly series: an event alias that is a name and a year ('worlds 2019'), for a name with two
+-- years or more, as resolve_event reads a series. On eval-v1: 'worlds' (the World Championship, 2017 on) and 'bcx'
+-- (the years it was held as the Brawlhalla World Championship Expo).
+--   * An event can be in two series (BCX 2022 is also Worlds 2022), so always filter series: series = 'worlds'.
+--   * mode is what the event counts as ('1v1' or '2v2').
+--   * regional is 1 when that year's championship was several events in that mode: Worlds 2020 and 2021 were held
+--     as five regional championships each. An answer that counts titles says whether it counted those.
+SELECT substr(a.alias, 1, length(a.alias) - 5) AS series, CAST(substr(a.alias, -4) AS INTEGER) AS year,
+       v.event_id, v.tournament_name, v.event_name, v.start_date, v.counts_as AS mode,
+       (SELECT COUNT(*) FROM event_aliases a2
+          JOIN v_events v2 ON v2.event_id = a2.event_id
+         WHERE a2.alias = a.alias AND v2.counts_as IS v.counts_as) > 1 AS regional
+FROM event_aliases a
+JOIN v_events v ON v.event_id = a.event_id
+WHERE a.alias GLOB '* 20[0-9][0-9]'
+  AND (SELECT COUNT(DISTINCT a3.alias) FROM event_aliases a3
+        WHERE a3.alias GLOB '* 20[0-9][0-9]'
+          AND substr(a3.alias, 1, length(a3.alias) - 5) = substr(a.alias, 1, length(a.alias) - 5)) >= 2;

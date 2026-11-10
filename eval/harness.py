@@ -45,6 +45,7 @@ sys.path.insert(0, str(ROOT / "ingest"))
 sys.path.insert(0, str(ROOT / "eval"))
 from result_checks import NA, all_checks, load_questions  # noqa: E402
 from names import normalize, normalize_full  # noqa: E402
+from tools import add_views  # noqa: E402
 
 CHECKS = all_checks()  # stage 2's check per question, of both sets
 RAW = ROOT / "data" / "experiments"
@@ -586,6 +587,7 @@ def main():
         print(run(chosen, args.seeds, args.examples == "on", args.run))
         return
     db = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
+    add_views(db)  # as the agent's connections have them: a resolve_event condition can be on v_event_series
     with open(SHAPES, "rb") as f:
         labels = tomllib.load(f)["shapes"]
     scored = score(args.runs, db, labels)

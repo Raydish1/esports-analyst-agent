@@ -40,8 +40,9 @@ Each tier has a score (EVENT_SCORES), times the share of the words matched for s
 - ambiguous  every word matching several tournaments ('ceo dreamland 2020': the cancelled event and the online one,
              the closer name first), or some words only;
 - not_found  nothing matched.
-The result has a sql condition on event_id for the events: their IDs when there are few, else a subquery on the
-aliases, so the model needn't copy 34 IDs for 'worlds'.
+The result has a sql condition on event_id for the events: their IDs when there are few, else a subquery, so the
+model needn't copy 34 IDs for 'worlds': on v_event_series for a whole series (series = 'worlds'), else on the
+aliases.
 
 run_sql(query) runs one query read-only, stopped after a time limit. It returns every row if the result fits in about
 4,000 tokens (TOKEN_BUDGET, an eighth of the context). A bigger result goes back with no rows, only its row count, its
@@ -52,12 +53,17 @@ and the model answered from them: question 6's 46 rows (395 tokens) held only 10
 megD (docs/experiments.md). A result with no rows comes back with a diagnosis (diagnose.py): which condition emptied
 it, and whether the value it filters on occurs in that column.
 
+Every connection the tools query through (connect) also has the views of ingest/views.sql that the database lacks, as
+temporary views: eval-v1 was frozen before v_sets_1v1 and v_event_series were written, and gets them this way, for
+that connection only, with its file unchanged (add_views).
+
 Not built yet (decided 2026-10-19): when a user explicitly asks for a long list, the answer should summarize it, and
 the full table should go to the user directly, without passing through the model.
 """
 
 import bisect
 import difflib
+import functools
 import json
 import re
 import sqlite3
@@ -72,6 +78,7 @@ from diagnose import diagnose  # noqa: E402
 from names import normalize, normalize_full, normalize_words  # noqa: E402
 
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
+VIEWS = ROOT / "ingest" / "views.sql"
 SQL_SECONDS = 30  # a head-to-head view filtered by a literal player ID takes 0.1-0.4 s; with the ID looked up inside
 # the query it takes 18 s to over 90 s (docs/experiments.md), which this limit is meant to catch
 TOKEN_BUDGET = 4000  # a result estimated over this goes back without rows
@@ -388,11 +395,15 @@ class EventResolver:
         return None
 
     def sql(self, ranked, tier, aliases, mode):
-        """A condition on event_id for the events: their IDs, a subquery on the aliases for a bigger alias set, or
-        None for too many name matches."""
+        """A condition on event_id for the events: their IDs; for a bigger set, a subquery on v_event_series if the
+        aliases are a whole series, else on the aliases; or None for too many name matches."""
         if len(ranked) <= IDS_IN_SQL or (not aliases and len(ranked) <= IDS_AT_MOST):
             ordered = sorted(ranked, key=lambda e: (self.events[e]["start_date"], e))
             return f"event_id IN ({', '.join(quoted(e) for e in ordered)})"
+        series = next((stem for stem, yearly in self.series.items() if yearly == aliases), None)
+        if series:  # short enough to copy whole: one run pasted 6 of the 10 IDs listed for the 34 Worlds events
+            only = f" AND mode = '{mode}'" if mode else ""
+            return f"event_id IN (SELECT event_id FROM v_event_series WHERE series = {quoted(series)}{only})"
         if aliases:
             names = ", ".join(quoted(a) for a in aliases)
             if mode:
@@ -432,10 +443,35 @@ def tokens(text):
     return round(marks + (len(text) - marks) / 4)
 
 
+@functools.lru_cache(maxsize=None)
+def view_definitions():
+    """{name: its CREATE VIEW statement} for every view in ingest/views.sql, read once."""
+    found, statement = {}, ""
+    for line in VIEWS.read_text(encoding="utf-8").splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            name = re.search(r"^CREATE VIEW (\w+)", statement, re.M)
+            if name:
+                found[name.group(1)] = statement
+            statement = ""
+    return found
+
+
+def add_views(db):
+    """Create, as temporary views, the views of ingest/views.sql that the database has nothing named like: a snapshot
+    frozen before a view was written gets it for this connection only. Returns their names."""
+    have = {name for (name,) in db.execute("SELECT name FROM sqlite_master")}
+    added = [name for name in view_definitions() if name not in have]
+    for name in added:
+        db.execute(re.sub(r"^CREATE VIEW", "CREATE TEMP VIEW", view_definitions()[name], count=1, flags=re.M))
+    return added
+
+
 def connect(path, seconds):
-    """A read-only connection to the snapshot, on which no other database can be attached, and whose queries stop
-    after `seconds`."""
+    """A read-only connection to the snapshot, with the views it lacks (add_views), on which no other database can
+    be attached, and whose queries stop after `seconds`."""
     db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
+    add_views(db)
     db.execute("PRAGMA query_only = ON")
     db.set_authorizer(lambda action, *_: sqlite3.SQLITE_DENY if action == sqlite3.SQLITE_ATTACH else sqlite3.SQLITE_OK)
     deadline = time.monotonic() + seconds

@@ -65,6 +65,9 @@ class ViewsTest(unittest.TestCase):
                        [(m[0], side, pid) for m in matches for side, pids in ((1, m[5]), (2, m[6])) for pid in pids])
         db.executemany("INSERT INTO player_earnings VALUES (?, ?, ?, '2026-10-02', 't')",
                        [(A, "stats_api", 100.0), (A2, "stats_api", 150.0), (B, "esportsearnings_manual", 50.0)])
+        db.executemany("INSERT INTO event_aliases VALUES (?, ?, NULL)", [  # 'cup' has two years: a series
+            ("cup 2020", "e1"), ("cup 2020", "e2"), ("cup 2021", "cancelled"), ("cup 2021", "unreliable"),
+            ("solo 2020", "e1"), ("the cup", "e1")])
 
     @classmethod
     def tearDownClass(cls):
@@ -151,6 +154,35 @@ class ViewsTest(unittest.TestCase):
         self.assertEqual(self.rows("SELECT sets_played, sets_dropped, games_won, games_lost FROM v_win_runs"
                                    " WHERE player_id = ? AND competition_key = 'league'", C),
                          [(1, 0, 3, 0)])  # every phase of the competition counts
+
+    def test_sets_have_both_players_the_score_and_where_each_finished(self):
+        sets = {m: rest for m, *rest in self.rows(
+            "SELECT match_id, winner_id, winner_name, loser_id, loser_name, winner_games, loser_games, winner_placement,"
+            " loser_placement FROM v_sets_1v1")}
+        self.assertEqual(sorted(sets), ["m1", "m10", "m11", "m12", "m3", "m4", "m5"])  # no DQ, forfeit, tie, crew or 2v2
+        self.assertEqual(sets["m1"], [A, "A", B, "B", 3, 1, 1, 2])
+        self.assertEqual(sets["m3"], [A, "A", D, "D", None, None, 1, 4])  # a winner but no score
+        self.assertEqual(sets["m5"][:2], [A, "A"])  # A's other record, under A's ID and name
+        self.assertEqual(sets["m10"][-2:], [2, 5])  # a Swiss set: where each finished in the whole competition
+        self.assertEqual(sets["m12"][-2:], [None, None])  # unreliable placements aren't results
+        self.assertEqual(self.rows("SELECT match_id FROM v_sets_1v1 WHERE competition_key = 'league'"
+                                   " AND winner_placement = 1 AND loser_placement = 2"), [("m11",)])  # the final
+
+    def test_sets_count_what_the_head_to_head_view_counts(self):
+        for player, opponent in ((A, B), (B, A), (A, D), (A, C)):
+            wins, losses = self.rows("SELECT wins, losses FROM v_head_to_head_1v1 WHERE player_id = ? AND opponent_id = ?",
+                                     player, opponent)[0]
+            self.assertEqual(self.rows("SELECT COUNT(*) FROM v_sets_1v1 WHERE winner_id = ? AND loser_id = ?",
+                                       player, opponent), [(wins,)])
+            self.assertEqual(self.rows("SELECT COUNT(*) FROM v_sets_1v1 WHERE winner_id = ? AND loser_id = ?",
+                                       opponent, player), [(losses,)])
+
+    def test_a_yearly_series_has_its_events_and_marks_a_year_held_as_several(self):
+        self.assertEqual(self.rows("SELECT series, year, event_id, mode, regional FROM v_event_series"
+                                   " ORDER BY year, event_id"),
+                         [("cup", 2020, "e1", "1v1", 0), ("cup", 2020, "e2", "2v2", 0),
+                          ("cup", 2021, "cancelled", "1v1", 1), ("cup", 2021, "unreliable", "1v1", 1)])
+        # not 'solo', which has one year, nor 'the cup', which has none
 
 
 if __name__ == "__main__":

@@ -190,7 +190,7 @@ class EventResolverTest(Fixture):
     def selected(self, name):
         """The status and every event the result's sql condition selects."""
         out = self.events.resolve(name)
-        db = sqlite3.connect(self.path)
+        db = tools.connect(self.path, 5)  # as run_sql connects: with v_event_series
         try:
             return out["status"], {e for (e,) in db.execute(f"SELECT event_id FROM v_events WHERE {out['sql']}")}
         finally:
@@ -205,9 +205,14 @@ class EventResolverTest(Fixture):
         worlds = {"dha18", "dha19", "bcx22-1", "bcx22-2"}  # not the Last Chance Qualifier
         self.assertEqual(self.selected("worlds"), ("confident", worlds))
         self.assertEqual(self.selected("world championships"), ("confident", worlds))  # 2018 through its alias
-        with patch.object(tools, "IDS_IN_SQL", 1):  # a subquery on the aliases instead of the IDs
+        with patch.object(tools, "IDS_IN_SQL", 1):  # a subquery instead of the IDs: on the series view for a series
             self.assertEqual(self.selected("worlds"), ("confident", worlds))
             self.assertEqual(self.selected("worlds 1v1"), ("confident", {"dha18", "dha19", "bcx22-1"}))
+            self.assertEqual(self.events.resolve("worlds 1v1")["sql"],
+                             "event_id IN (SELECT event_id FROM v_event_series WHERE series = 'worlds' AND mode = '1v1')")
+            self.assertEqual(self.selected("world championships"), ("confident", worlds))
+            self.assertIn("FROM event_aliases WHERE alias IN ('bcx 2022')", self.events.resolve("bcx 2022")["sql"])
+            self.assertEqual(self.selected("bcx 2022"), ("confident", {"bcx22-1", "bcx22-2"}))  # one year: no series
         self.assertEqual(self.selected("world championship last chance qualifier"), ("confident", {"lcq21"}))
 
     def test_terms_and_years_match_the_words_names_use(self):
@@ -282,6 +287,25 @@ class RunSqlTest(Fixture):
         self.assertTrue(tools.run_sql(forever, self.path, seconds=0.5)["error"].startswith("stopped after 0.5 s"))
         self.assertIn("no such column: nope", tools.run_sql("SELECT nope FROM t", self.path)["error"])
         self.assertIn("one statement", tools.run_sql("SELECT 1; SELECT 2", self.path)["error"])
+
+    def test_a_connection_gets_the_views_its_database_lacks_as_temporary_views(self):
+        db = tools.connect(self.path, 5)
+        try:
+            series = db.execute("SELECT series, year, event_id, mode, regional FROM v_event_series"
+                                " ORDER BY year, event_id").fetchall()
+            temporary = {name for (name,) in db.execute("SELECT name FROM sqlite_temp_master WHERE type = 'view'")}
+        finally:
+            db.close()
+        self.assertEqual(series, [("worlds", 2018, "dha18", "1v1", 0), ("worlds", 2019, "dha19", "1v1", 0),
+                                  ("worlds", 2022, "bcx22-1", "1v1", 0), ("worlds", 2022, "bcx22-2", "2v2", 0)])
+        self.assertIn("v_sets_1v1", temporary)
+        self.assertNotIn("v_results", temporary)  # the database has something by that name, which stays as it is
+        self.assertEqual(tools.run_sql("SELECT COUNT(*) FROM v_results", self.path)["rows"],
+                         [[sum(results for *_, results in PLAYERS)]])
+        plain = sqlite3.connect(self.path)
+        self.assertEqual(plain.execute("SELECT COUNT(*) FROM sqlite_master WHERE name = 'v_event_series'").fetchone(), (0,))
+        plain.close()  # nothing was written to the file
+        self.assertIn("readonly", tools.run_sql("CREATE TEMP VIEW mine AS SELECT 1", self.path)["error"])
 
 
 class AnswerCheckTest(Fixture):
@@ -667,8 +691,9 @@ class PromptTest(unittest.TestCase):
 
     @unittest.skipUnless(react.SNAPSHOT.exists(), "needs the eval-v1 snapshot (data/ isn't committed)")
     def test_the_prompt_describes_every_view_of_the_snapshot_but_those_left_out_on_purpose(self):
-        db = sqlite3.connect(react.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
-        views = {name for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'view'")}
+        db = tools.connect(react.SNAPSHOT, 30)  # with the views the agent's connections add to the snapshot's own
+        views = {name for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'view' UNION"
+                                                " SELECT name FROM sqlite_temp_master WHERE type = 'view'")}
         db.close()
         described = {line[2:].split("(")[0].split(":")[0].split()[0] for line in react.SYSTEM.splitlines()
                      if line.startswith("- v_")}

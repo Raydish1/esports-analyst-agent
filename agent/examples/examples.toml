@@ -359,3 +359,16 @@ SELECT SUM(won) AS wins, COUNT(*) - SUM(won) AS losses, COUNT(*) AS sets, SUM(is
 FROM v_match_results
 WHERE player_id = 116646 AND mode = '2v2'
 '''
+
+[[example]]
+id = "ex29"
+shape = "event_final"
+question = "What was the score in the grand final of Trial of Freya EU?"
+note = "No round names are stored: the final is the set the winner (placement 1) took from the runner-up (placement 2). With several rows, the last by start_time decided the event, and the others are their earlier sets."
+sql = '''
+SELECT winner_name, loser_name, winner_games, loser_games, start_time
+FROM v_sets_1v1
+WHERE event_id IN ('tournament/trial-of-freya-europe/event/brawlhalla-championship-1v1')
+  AND winner_placement = 1 AND loser_placement = 2
+ORDER BY start_time
+'''

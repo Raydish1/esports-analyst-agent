@@ -121,6 +121,16 @@ Views
   Stats API, which has figures only for players with a PR ranking. A player with no row has no figure, which isn't
   $0, so say it isn't recorded. A ranking by earnings covers only players with a figure, so say that it does. There
   is no prize money per tournament.
+- v_sets_1v1(match_id, event_id, competition_key, tournament_name, event_name, start_date, start_time, winner_id,
+  winner_name, winner_placement, loser_id, loser_name, loser_placement, winner_games, loser_games, is_scored): one row
+  per 1v1 set, with both players' names, the score, and each player's placement at that event. No round names are
+  stored: an event's final is the set its winner took from its runner-up (winner_placement = 1 AND loser_placement
+  = 2), the last by start_time if there are several. Filter by event_id, winner_id or loser_id. For one player's
+  sets, won and lost, query each side: winner_id = X OR loser_id = X reads every set and takes seconds.
+- v_event_series(series, year, event_id, tournament_name, event_name, start_date, mode, regional): the events of a
+  yearly series, 'worlds' (the World Championship) or 'bcx'. Always filter series. regional is 1 for a year held as
+  several regional championships (worlds 2020 and 2021, five each): an answer that counts titles says whether it
+  counted them.
 
 Views that hold each pairing more than once
 - v_head_to_head_1v1 holds every pairing twice, once from each player's side. The row with player_id = A and
