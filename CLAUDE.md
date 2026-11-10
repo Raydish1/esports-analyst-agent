@@ -155,7 +155,7 @@ Evaluation (`eval/`):
   - `score RUN [RUN ...]` scores stages 1 and 2 offline and writes `eval/results/<run>-scores.json` and `<run>-judgments.toml`, where stages 3 and 4 are drafted by hand ("needs review") and kept across rescoring;
   - `report RUN [RUN ...]` prints the tables by group, held-out shape, query shape, category and failing stage, with raw counts next to every rate;
   - `failures RUN` writes a page to review from, `data/experiments/<run>/failures.md` (git-ignored, next to the traces it reads): every run not right, grouped by question, with its judgment, full answer and the SQL it executed. It reads the run's files and changes none of them;
-  - `result_checks.py` holds stage 2's check per question; `python eval/result_checks.py` verifies each on its question's reference queries.
+  - `result_checks.py` holds stage 2's check per question of the evaluation set; `python eval/result_checks.py` verifies each on its question's reference queries. The held-out set's checks are in `heldout_checks.py` (moved 2026-11-10), which holds that set's answers: don't open it, `heldout.toml` or a held-out trace in a session that must leave the held-out set unread.
 
 Agent (`agent/`, a prototype):
 - `ask.py` is for asking the agent yourself: `py -3.14 agent/ask.py "question"` prints the answer, `--trace` also prints each step (its thinking in short, tool calls, observations), `--seed N` picks the sampling seed (default 0), and with no question it starts a session. In a session, follow-ups build on earlier answers, and "exit" quits. Transcripts go to `data/experiments/sessions/`.

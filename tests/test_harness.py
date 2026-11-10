@@ -77,7 +77,7 @@ class ChecksTest(unittest.TestCase):
         self.assertFalse(checks.exactly(147982, 149204)([[(147982,), (149204,), (5,)]]))  # or an entrant list
 
     def test_every_question_of_both_sets_has_a_check(self):
-        self.assertEqual(sorted(q["id"] for q in checks.load_questions()), sorted(checks.CHECKS))
+        self.assertEqual(sorted(q["id"] for q in checks.load_questions()), sorted(checks.all_checks()))
 
     @unittest.skipUnless(harness.SNAPSHOT.exists(), "needs the eval-v1 snapshot (data/ isn't committed)")
     def test_every_check_passes_on_its_questions_reference_queries(self):

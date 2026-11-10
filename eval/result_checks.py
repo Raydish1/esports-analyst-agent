@@ -1,5 +1,7 @@
 """Stage 2 of the evaluation harness (eval/harness.py): whether the queries the agent ran returned the facts its
-answer needs, for each question of the evaluation set and the held-out set.
+answer needs, for each question of the evaluation set and the held-out set. The evaluation set's checks are here
+(CHECKS). The held-out set's are in eval/heldout_checks.py, since they hold that set's answers; all_checks() gives
+both.
 
 A check reads the results of the agent's queries (the rows each run_sql observation showed it, then the events each
 resolve_event call listed, which carry an event's status) and passes when the facts are in them, wherever the
@@ -142,27 +144,13 @@ CHECKS = {
     "q43": any_of(row("Summer Championship - North America 2026 - 1v1"), row("2026-07-19")),
     "q44": any_of(single(3), listing(3, "Autumn Championship - Europe 2026 - 1v1")),
     "q45": any_of(row("Raydish", 83825), row(160000, 83825)),
-    "h01": any_of(single(4), row("2v2", 4), listing(4, "North America - Autumn Championship 2022")),
-    "h02": any_of(single(4), row("1v1", 4), listing(4, "Trial of Heimdall - Europe (Brawl League)")),
-    "h03": any_of(row("Brawlhalla Autumn Championship 2019 (EU)", 1), row("2019-09-28", 1), single(1)),
-    "h04": row(4, 5, 9),
-    "h05": any_of(winners("Zivai", "Blaze"), winners(147982, 149204), row("Zivai", "Blaze"), row(147982, 149204),
-                  exactly("Zivai", "Blaze"), exactly(147982, 149204)),
-    "h06": any_of(rows(("loreszz", 1), ("Marckiem00", 1), ("Ahmet_", 1)),
-                  rows(("loreszz", "Autumn Royale"), ("Marckiem00", "Autumn Royale"), ("Ahmet_", "Autumn Royale")),
-                  row("Ahmet_", 1), row("Ahmet_", "Autumn Royale 2025"), row(75405, "Autumn Royale 2025")),
-    "h07": any_of(winners("Boomie", "capsar", "antireplay"), winners(146606, 147569, 158406),
-                  exactly("Boomie", "capsar", "antireplay"), exactly(146606, 147569, 158406)),
-    "h08": row("2021", 7),
-    "h09": any_of(single(4), listing(4, "lopesbrawlhalla")),
-    "h10": any_of(row("plumthegreat", 8), row(150037, 8)),  # the wins, with or without the 1 loss
-    "h11": rows(("Zivai", 7), ("whoiskyna", 7)),
-    "h12": row(30, 2),
-    "h13": any_of(row("Pro Series 2021", 1), row("series/pro-series-2021-na", 1), row("Zinquer", 1), single(1)),
-    "h14": NA,
-    "h15": any_of(row("sphynx.", 36), row("Phazon", 28)),
-    "h16": NA,
 }
+
+
+def all_checks():
+    """Every question's check: the evaluation set's (CHECKS) and the held-out set's (eval/heldout_checks.py)."""
+    import heldout_checks  # here, not at the top: it imports the matchers from this module
+    return {**CHECKS, **heldout_checks.CHECKS}
 
 
 def load_questions(paths=QUESTIONS):
@@ -178,19 +166,19 @@ def load_questions(paths=QUESTIONS):
 def verify(db):
     """Each check against its question's reference queries: [(id, problem)] for a check that fails on them, a question
     without a check, or a check without a question."""
-    problems = []
+    problems, checks = [], all_checks()
     questions = load_questions()
     for q in questions:
-        if q["id"] not in CHECKS:
+        if q["id"] not in checks:
             problems.append((q["id"], "no check"))
             continue
-        check = CHECKS[q["id"]]
+        check = checks[q["id"]]
         if check is NA:
             continue
         results = [db.execute(x["sql"]).fetchall() for x in q.get("query", [])]
         if not check(results):
             problems.append((q["id"], "fails on its reference queries"))
-    problems += [(i, "no such question") for i in sorted(set(CHECKS) - {q["id"] for q in questions})]
+    problems += [(i, "no such question") for i in sorted(set(checks) - {q["id"] for q in questions})]
     return problems
 
 
@@ -198,5 +186,5 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(errors="replace")
     db = sqlite3.connect((ROOT / "data" / "db" / "eval" / "eval-v1.sqlite").resolve().as_uri() + "?mode=ro", uri=True)
     found = verify(db)
-    print("\n".join(f"{i}: {p}" for i, p in found) or f"all {len(CHECKS)} checks pass on their reference queries")
+    print("\n".join(f"{i}: {p}" for i, p in found) or f"all {len(all_checks())} checks pass on their reference queries")
     sys.exit(1 if found else 0)

@@ -43,9 +43,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "agent"))
 sys.path.insert(0, str(ROOT / "ingest"))
 sys.path.insert(0, str(ROOT / "eval"))
-from result_checks import CHECKS, NA, load_questions  # noqa: E402
+from result_checks import NA, all_checks, load_questions  # noqa: E402
 from names import normalize, normalize_full  # noqa: E402
 
+CHECKS = all_checks()  # stage 2's check per question, of both sets
 RAW = ROOT / "data" / "experiments"
 RESULTS = ROOT / "eval" / "results"
 SHAPES = ROOT / "eval" / "questions" / "shapes.toml"
