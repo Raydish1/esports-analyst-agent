@@ -121,6 +121,7 @@ YEAR = re.compile(r"20\d\d")
 EVENTS_LISTED = 10
 IDS_IN_SQL = 12  # a set this small is given by its IDs; a bigger alias set by a subquery on event_aliases
 IDS_AT_MOST = 40  # a bigger set of name matches gets no sql: too many IDs to copy into a query
+ABOUT_ALIAS = " About this alias: "  # before an alias's own note, at the end of resolve_event's note
 
 
 def display(name, former=None):
@@ -289,9 +290,9 @@ class EventResolver:
         for term, means in db.execute("SELECT term, means FROM event_terms"):
             self.terms[term].append(means)
 
-    def resolve(self, name):
+    def resolve(self, name, listed=EVENTS_LISTED):
         """{name, status, note, matched, score, event_count, tournament_count, sql, events}: the events an event
-        name means (the module docstring)."""
+        name means (the module docstring). events lists the first `listed` of them, best first (None: all)."""
         tokens = normalize_words(name).split()
         modes = {MODE_WORDS[t] for t in tokens if t in MODE_WORDS}
         mode = modes.pop() if len(modes) == 1 else None
@@ -331,14 +332,14 @@ class EventResolver:
                      " region or a mode.")
         notes = [self.notes[a] for a in matched if a in self.notes]
         if notes:
-            note += " About this alias: " + " ".join(dict.fromkeys(notes))
+            note += ABOUT_ALIAS + " ".join(dict.fromkeys(notes))
         what = {"alias": f"alias '{matched[0]}'" if matched else "alias",
                 "series": f"aliases '{matched[0]}' to '{matched[-1]}'" if matched else "aliases",
                 "words": f"every word: the events of aliases '{matched[0]}' to '{matched[-1]}'" if matched else "every word",
                 "some words": f"some of the words ({share:.0%})"}[tier]
         return {**out, "status": status, "note": note, "matched": what + (f", {mode} only" if mode else ""),
                 "score": round(EVENT_SCORES[tier] * share, 2), "event_count": len(found),
-                "tournament_count": len(tournaments), "sql": sql, "events": [self.listed(e) for e in ranked[:EVENTS_LISTED]]}
+                "tournament_count": len(tournaments), "sql": sql, "events": [self.listed(e) for e in ranked[:listed]]}
 
     def by_alias(self, text):
         """(events, tier, aliases, closeness, share) for an alias or a series of yearly aliases, or nothing."""
@@ -433,6 +434,16 @@ def cell(value):
     if isinstance(value, str) and len(value) > CELL_CHARS:
         return value[:CELL_CHARS] + f"... ({len(value)} characters)"
     return value
+
+
+def tables(observation):
+    """Every table an observation holds, as (columns, rows): a query's own result, or each table of a template's
+    (agent/templates.py). A table too large to show has no rows."""
+    if "tables" in observation:
+        return [(t.get("columns", []), t.get("rows", [])) for t in observation["tables"]]
+    if "columns" in observation:
+        return [(observation["columns"], observation.get("rows", []))]
+    return []
 
 
 def tokens(text):

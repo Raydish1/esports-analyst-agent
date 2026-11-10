@@ -56,6 +56,19 @@ def observed(text, rows=5, width=150):
     data = json.loads(text)
     if "error" in data:
         return [f"error: {react.short(data['error'], width)}"]
+    if "tables" in data:  # a template: its notes, then each table as a query's result is shown
+        lines = [react.short(f"note: {note}", 2 * width) for note in data.get("notes", [])]
+        for t in data["tables"]:
+            lines.append(f"{t['what']}: {t['row_count']} row{'' if t['row_count'] == 1 else 's'}")
+            lines.append(react.short(" | ".join(map(str, t["columns"])), width))
+            shown = t.get("rows")
+            if shown is None:
+                lines.append("(too large to show: no rows went to the model)")
+                continue
+            lines += [react.short(" | ".join("NULL" if v is None else str(v) for v in row), width) for row in shown[:rows]]
+            if len(shown) > rows:
+                lines.append(f"({len(shown) - rows} more rows went to the model)")
+        return lines
     if "events" in data:
         return [react.short(f"{data['status']}: {data.get('event_count', 0)} events, {data.get('matched', 'no match')};"
                             f" sql {data.get('sql')}", 2 * width)]

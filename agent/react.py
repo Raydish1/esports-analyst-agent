@@ -44,7 +44,8 @@ from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
 import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
-from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, run_sql  # noqa: E402
+from templates import TEMPLATES  # noqa: E402
+from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, run_sql, tables  # noqa: E402
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -202,7 +203,8 @@ TOOLS = [
                        f" emptied it; or an error.",
         "parameters": {"type": "object", "required": ["query"], "properties": {
             "query": {"type": "string", "description": "one SQLite SELECT statement"}}}}},
-]
+] + [template.schema() for template in TEMPLATES.values()]
+QUERIES = {"run_sql", *TEMPLATES}  # the tools that query the results: a call to one is a new query
 LAST_STEP = "You have one step left: reply with your answer, without calling a tool."
 CHECK = ("Before this answer is final: it {what}, which no tool returned in this conversation. If that means a"
          " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
@@ -286,7 +288,10 @@ class Tools:
             if isinstance(value, str) and value.strip():
                 return run_sql(value, self.path)
             return {"error": "run_sql takes one argument, query: one SQLite SELECT statement"}
-        return {"error": f"there is no tool named {name!r}: the tools are resolve_player, resolve_event and run_sql"}
+        if name in TEMPLATES:
+            return TEMPLATES[name].call(self, arguments)
+        return {"error": f"there is no tool named {name!r}: the tools are"
+                         f" {listed([tool['function']['name'] for tool in TOOLS])}"}
 
 
 # The answer check
@@ -346,8 +351,10 @@ class Shown:
         if name == "resolve_player":
             self.players |= {c["player_id"] for c in observation.get("candidates", ())}
         canonical = self.resolver.canonical
-        for row in observation.get("rows", ()):
-            self.players |= {canonical[v] for v in row if isinstance(v, int) and v in canonical}
+        for _, rows in tables(observation):
+            for row in rows:  # a cell can be a team's player_ids, as a template lists them
+                values = [x for v in row for x in (v if isinstance(v, list) else [v])]
+                self.players |= {canonical[v] for v in values if isinstance(v, int) and v in canonical}
 
     def unreturned(self, answer):
         """The names in an answer (name_spans) that are only the current names of players no tool returned:
@@ -661,8 +668,9 @@ class Conversation:
                 begun = time.monotonic()
                 observation = self.tools.call(name, arguments)
                 seconds = time.monotonic() - begun
+                ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
                 self.shown.observe(name, observation)
-                if name == "run_sql":  # only a new query clears a result too large to show, or a lookup miss
+                if name in QUERIES:  # only a new query clears a result too large to show, or a lookup miss
                     too_big = observation.get("complete") is False
                     missing, missed = missing_text(observation.get("diagnosis")), False
                 if name == "resolve_player" and unsure(question, observation.get("name") or "", observation):
@@ -674,7 +682,8 @@ class Conversation:
                 if number == max_steps - 1 and i == len(calls) - 1:
                     observation = {**observation, "last_step": LAST_STEP}
                 text = json.dumps(observation, ensure_ascii=False)
-                step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text, "seconds": round(seconds, 3)})
+                step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
+                                           "seconds": round(seconds, 3), **({} if ran is None else {"ran": ran})})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:
@@ -814,6 +823,8 @@ def markdown(traces, header):
                 args = c["arguments"]
                 text = args.get("query") if c["name"] == "run_sql" and isinstance(args, dict) and "query" in args else json.dumps(args, ensure_ascii=False)
                 out += [f"**Tool call:** `{c['name']}`", "", f"```{'sql' if c['name'] == 'run_sql' else 'json'}", str(text).strip(), "```", ""]
+                if c.get("ran"):
+                    out += ["**The SQL it ran**", "", "```sql", *c["ran"], "```", ""]
                 if c["observation"] is None:
                     out += ["**Observation:** not run (step limit)", ""]
                 else:
@@ -832,6 +843,8 @@ def preview(observation, width=200):
     data = json.loads(observation)
     if "error" in data:
         return f"error: {data['error']}"
+    if "tables" in data:  # a template
+        return short("; ".join(f"{t['what']}: {t['row_count']} rows" for t in data["tables"]), width)
     if "events" in data:
         return f"{data['status']}: {data.get('event_count', 0)} events ({data.get('matched', 'no match')})"
     if "status" in data:

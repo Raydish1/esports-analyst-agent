@@ -9,65 +9,71 @@ import build  # noqa: E402
 A, B, C, D, A2, E, F = 1, 2, 3, 4, 5, 6, 7  # A2 is a second record of A, merged into A
 
 
+def populate(db):
+    """The tables, the views, and a small hand-made set of results that exercises the decided counting rules (the
+    templates' tests build on it too)."""
+    db.executescript(build.SCHEMA.read_text(encoding="utf-8"))
+    db.executescript(build.VIEWS.read_text(encoding="utf-8"))
+    db.executemany("INSERT INTO players (player_id, name, source, updated_at, canonical_id)"
+                   " VALUES (?, ?, 'stats_api', 't', ?)",
+                   [(A, "A", A), (B, "B", B), (C, "C", C), (D, "D", D), (A2, "A again", A), (E, "E", E), (F, "F", F)])
+    db.execute("INSERT INTO player_merges VALUES (?, ?, 'curated', NULL)", (A2, A))
+    db.executemany("INSERT INTO format_rules VALUES (?, ?, ?)", [
+        ("%crew battle%", "crew_battle", 1), ("%kung foot%", "kung_foot", 2), ("%3v3%", "3v3", 3),
+        ("%beta%", "bbb", 2), ("%alpha%", "aaa", 2)])  # the last two tie on priority: the pattern decides
+    events = [  # (ID, name, is_twos, start, mode_override, competition, phase, status)
+        ("e1", "Cup", 0, 100, None, None, None, None), ("e2", "Duos", 1, 200, None, None, None, None),
+        ("e2b", "Duos 2", 1, 250, None, None, None, None),
+        ("swiss", "League", 0, 300, None, "league", 1, None), ("top8", "League", 0, 310, None, "league", 2, None),
+        ("crew", "Crew Battle 3v3", 0, 400, None, None, None, None),
+        ("kungfoot", "Kung Foot", 1, 500, None, None, None, None),
+        ("filed1v1", "Doubles", 0, 600, "2v2", None, None, None),
+        ("ab", "Alpha Beta Cup", 0, 700, None, None, None, None),
+        ("cancelled", "Dreamland", 0, 800, None, None, None, "cancelled"),
+        ("unreliable", "League Week 1", 0, 900, None, None, None, "placements_unreliable")]
+    db.executemany("INSERT INTO events (event_id, host, tournament_name, year, start_time, is_official, is_twos,"
+                   " is_online, mode_override, competition_id, phase_order, status, fetched_at)"
+                   " VALUES (?, 'SGG', ?, 2020, ?, 1, ?, 0, ?, ?, ?, ?, 't')",
+                   [(e, name, start, twos, mode, comp, phase, status)
+                    for e, name, twos, start, mode, comp, phase, status in events])
+    db.executemany("INSERT INTO teams VALUES (?, ?, ?)", [(1, A, B), (2, C, D), (3, B, A2)])
+    placements = [("e1", A, 1, None), ("e1", B, 2, None), ("e1", C, 3, None), ("e1", D, 4, None),
+                  ("e1", A2, 9, None),  # two records of A in one event: the better placement counts
+                  ("e2", A, 1, 1), ("e2", B, 1, 1), ("e2", C, 2, 2), ("e2", D, 2, 2),
+                  ("e2b", B, 3, 3), ("e2b", A2, 3, 3),
+                  ("swiss", A, 2, None), ("swiss", B, 5, None), ("top8", A, 2, None), ("top8", C, 1, None),
+                  ("crew", A, 1, None), ("crew", B, 1, None), ("crew", C, 1, None), ("kungfoot", A, 1, None),
+                  ("unreliable", C, 1, None), ("unreliable", D, 1, None)]  # both "won": its standings are wrong
+    db.executemany("INSERT INTO placements VALUES (?, ?, ?, ?, 'startgg', 't')", placements)
+    db.execute("INSERT INTO unplaced_entries VALUES ('e1', ?)", (E,))
+    matches = [  # (ID, event, score 1, score 2, reported winner, side 1, side 2)
+        ("m1", "e1", 3, 1, 1, [A], [B]), ("m2", "e1", 0, -1, 1, [A], [C]),  # C DQ'd: a no-contest
+        ("m3", "e1", None, None, 1, [A], [D]),  # a winner but no score
+        ("m4", "e1", 2, 0, 1, [B], [C]), ("m5", "e1", 3, 0, 1, [A2], [B]),  # A's other record
+        ("m6", "crew", 2, 1, 1, [A, B, C], [D, E, F]),  # crew against crew
+        ("m7", "e1", 0, 0, 1, [A], [B]),  # a forfeit
+        ("m8", "e1", 1, 1, 1, [A], [B]),  # a tie
+        ("m9", "e2", 3, 2, 1, [A, B], [C, D]),
+        ("m10", "swiss", 2, 0, 1, [A], [B]), ("m11", "top8", 0, 3, 2, [A], [C]),
+        ("m12", "unreliable", 2, 0, 1, [C], [D])]
+    db.executemany("INSERT INTO matches (match_id, event_id, side1_score, side2_score, reported_winner_side,"
+                   " source, fetched_at) VALUES (?, ?, ?, ?, ?, 'startgg', 't')", [m[:5] for m in matches])
+    db.executemany("INSERT INTO match_players VALUES (?, ?, ?)",
+                   [(m[0], side, pid) for m in matches for side, pids in ((1, m[5]), (2, m[6])) for pid in pids])
+    db.executemany("INSERT INTO player_earnings VALUES (?, ?, ?, '2026-10-02', 't')",
+                   [(A, "stats_api", 100.0), (A2, "stats_api", 150.0), (B, "esportsearnings_manual", 50.0)])
+    db.executemany("INSERT INTO event_aliases VALUES (?, ?, NULL)", [  # 'cup' has two years: a series
+        ("cup 2020", "e1"), ("cup 2020", "e2"), ("cup 2021", "cancelled"), ("cup 2021", "unreliable"),
+        ("solo 2020", "e1"), ("the cup", "e1")])
+
+
 class ViewsTest(unittest.TestCase):
     """The decided counting rules, as the views apply them, on a small hand-made database."""
 
     @classmethod
     def setUpClass(cls):
-        db = cls.db = sqlite3.connect(":memory:")
-        db.executescript(build.SCHEMA.read_text(encoding="utf-8"))
-        db.executescript(build.VIEWS.read_text(encoding="utf-8"))
-        db.executemany("INSERT INTO players (player_id, name, source, updated_at, canonical_id)"
-                       " VALUES (?, ?, 'stats_api', 't', ?)",
-                       [(A, "A", A), (B, "B", B), (C, "C", C), (D, "D", D), (A2, "A again", A), (E, "E", E), (F, "F", F)])
-        db.execute("INSERT INTO player_merges VALUES (?, ?, 'curated', NULL)", (A2, A))
-        db.executemany("INSERT INTO format_rules VALUES (?, ?, ?)", [
-            ("%crew battle%", "crew_battle", 1), ("%kung foot%", "kung_foot", 2), ("%3v3%", "3v3", 3),
-            ("%beta%", "bbb", 2), ("%alpha%", "aaa", 2)])  # the last two tie on priority: the pattern decides
-        events = [  # (ID, name, is_twos, start, mode_override, competition, phase, status)
-            ("e1", "Cup", 0, 100, None, None, None, None), ("e2", "Duos", 1, 200, None, None, None, None),
-            ("e2b", "Duos 2", 1, 250, None, None, None, None),
-            ("swiss", "League", 0, 300, None, "league", 1, None), ("top8", "League", 0, 310, None, "league", 2, None),
-            ("crew", "Crew Battle 3v3", 0, 400, None, None, None, None),
-            ("kungfoot", "Kung Foot", 1, 500, None, None, None, None),
-            ("filed1v1", "Doubles", 0, 600, "2v2", None, None, None),
-            ("ab", "Alpha Beta Cup", 0, 700, None, None, None, None),
-            ("cancelled", "Dreamland", 0, 800, None, None, None, "cancelled"),
-            ("unreliable", "League Week 1", 0, 900, None, None, None, "placements_unreliable")]
-        db.executemany("INSERT INTO events (event_id, host, tournament_name, year, start_time, is_official, is_twos,"
-                       " is_online, mode_override, competition_id, phase_order, status, fetched_at)"
-                       " VALUES (?, 'SGG', ?, 2020, ?, 1, ?, 0, ?, ?, ?, ?, 't')",
-                       [(e, name, start, twos, mode, comp, phase, status)
-                        for e, name, twos, start, mode, comp, phase, status in events])
-        db.executemany("INSERT INTO teams VALUES (?, ?, ?)", [(1, A, B), (2, C, D), (3, B, A2)])
-        placements = [("e1", A, 1, None), ("e1", B, 2, None), ("e1", C, 3, None), ("e1", D, 4, None),
-                      ("e1", A2, 9, None),  # two records of A in one event: the better placement counts
-                      ("e2", A, 1, 1), ("e2", B, 1, 1), ("e2", C, 2, 2), ("e2", D, 2, 2),
-                      ("e2b", B, 3, 3), ("e2b", A2, 3, 3),
-                      ("swiss", A, 2, None), ("swiss", B, 5, None), ("top8", A, 2, None), ("top8", C, 1, None),
-                      ("crew", A, 1, None), ("crew", B, 1, None), ("crew", C, 1, None), ("kungfoot", A, 1, None),
-                      ("unreliable", C, 1, None), ("unreliable", D, 1, None)]  # both "won": its standings are wrong
-        db.executemany("INSERT INTO placements VALUES (?, ?, ?, ?, 'startgg', 't')", placements)
-        db.execute("INSERT INTO unplaced_entries VALUES ('e1', ?)", (E,))
-        matches = [  # (ID, event, score 1, score 2, reported winner, side 1, side 2)
-            ("m1", "e1", 3, 1, 1, [A], [B]), ("m2", "e1", 0, -1, 1, [A], [C]),  # C DQ'd: a no-contest
-            ("m3", "e1", None, None, 1, [A], [D]),  # a winner but no score
-            ("m4", "e1", 2, 0, 1, [B], [C]), ("m5", "e1", 3, 0, 1, [A2], [B]),  # A's other record
-            ("m6", "crew", 2, 1, 1, [A, B, C], [D, E, F]),  # crew against crew
-            ("m7", "e1", 0, 0, 1, [A], [B]),  # a forfeit
-            ("m8", "e1", 1, 1, 1, [A], [B]),  # a tie
-            ("m9", "e2", 3, 2, 1, [A, B], [C, D]),
-            ("m10", "swiss", 2, 0, 1, [A], [B]), ("m11", "top8", 0, 3, 2, [A], [C]),
-            ("m12", "unreliable", 2, 0, 1, [C], [D])]
-        db.executemany("INSERT INTO matches (match_id, event_id, side1_score, side2_score, reported_winner_side,"
-                       " source, fetched_at) VALUES (?, ?, ?, ?, ?, 'startgg', 't')", [m[:5] for m in matches])
-        db.executemany("INSERT INTO match_players VALUES (?, ?, ?)",
-                       [(m[0], side, pid) for m in matches for side, pids in ((1, m[5]), (2, m[6])) for pid in pids])
-        db.executemany("INSERT INTO player_earnings VALUES (?, ?, ?, '2026-10-02', 't')",
-                       [(A, "stats_api", 100.0), (A2, "stats_api", 150.0), (B, "esportsearnings_manual", 50.0)])
-        db.executemany("INSERT INTO event_aliases VALUES (?, ?, NULL)", [  # 'cup' has two years: a series
-            ("cup 2020", "e1"), ("cup 2020", "e2"), ("cup 2021", "cancelled"), ("cup 2021", "unreliable"),
-            ("solo 2020", "e1"), ("the cup", "e1")])
+        cls.db = sqlite3.connect(":memory:")
+        populate(cls.db)
 
     @classmethod
     def tearDownClass(cls):
