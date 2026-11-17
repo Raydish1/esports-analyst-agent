@@ -110,10 +110,24 @@ class EventResultsTest(Fixture):
         out = self.call("event_results", event="cup 2020")
         self.assertEqual((out["scope"], out["event"]), ("official events", {
             "name": "cup 2020", "status": "confident", "matched": "alias 'cup 2020'"}))
-        self.assertEqual(self.rows(out, "the events"), [["Cup", "1970-01-01", "1v1", None, None],
-                                                        ["Duos", "1970-01-01", "2v2", None, None]])
+        self.assertEqual(self.rows(out, "the events"), [["Cup", "e1", "1970-01-01", "1v1", None, None],
+                                                        ["Duos", "e2", "1970-01-01", "2v2", None, None]])
         self.assertEqual(self.rows(out, "each event's winners"), [["Cup", "1970-01-01", "1v1", 1, "A", [A]],
                                                                   ["Duos", "1970-01-01", "2v2", 1, "A / B", [A, B]]])
+
+    def test_each_event_comes_with_its_event_id_for_a_query_of_its_sets(self):
+        events = next(t for t in self.call("event_results", event="cup 2020")["tables"]
+                      if t["what"] == "the events the name means")
+        self.assertEqual((events["columns"][:2], [row[:2] for row in events["rows"]]),
+                         (["event", "event_id"], [["Cup", "e1"], ["Duos", "e2"]]))
+        final = self.call("run_sql", query="SELECT winner_name, loser_name FROM v_sets_1v1 WHERE event_id ="
+                                           f" '{events['rows'][0][1]}' AND winner_placement = 1 AND loser_placement = 2")
+        self.assertEqual({tuple(row) for row in final["rows"]}, {("A", "B")})  # the Cup's final, found by its ID
+        with patch.object(templates, "IDS_IN_SQL", 1):  # more events than resolve_event gives IDs for, as a series
+            many = self.call("event_results", event="cup 2020")
+        self.assertNotIn("event_id", many["tables"][0]["columns"])
+        self.assertIn("For SQL on these 2 events, use resolve_event's sql condition for 'cup 2020': their IDs are too"
+                      " many to list.", many["notes"])
 
     def test_a_cutoff_never_splits_a_tie(self):
         out = self.call("event_results", event="cup 2020", top=3)
@@ -125,10 +139,10 @@ class EventResultsTest(Fixture):
     def test_an_event_that_wasnt_held_or_has_unreliable_placements_says_so_first_and_has_no_winner(self):
         out = self.call("event_results", event="dreamland")
         self.assertTrue(out["notes"][0].startswith("Dreamland (1970-01-01) was not held, so it has no results"))
-        self.assertEqual((self.rows(out, "the events")[0][3], self.rows(out, "each event's winners")), ("cancelled", []))
+        self.assertEqual((self.rows(out, "the events")[0][4], self.rows(out, "each event's winners")), ("cancelled", []))
         out = self.call("event_results", event="league week 1")
         self.assertIn("has unreliable placements, so they aren't results and it has no reliable winner", out["notes"][0])
-        self.assertEqual((self.rows(out, "the events")[0][3], self.rows(out, "each event's winners")),
+        self.assertEqual((self.rows(out, "the events")[0][4], self.rows(out, "each event's winners")),
                          ("placements_unreliable", []))  # C and D both "won" it: neither is listed
 
     def test_a_crew_is_one_row_and_a_side_format_has_no_results(self):
@@ -137,7 +151,7 @@ class EventResultsTest(Fixture):
                          [["Crew Battle 3v3", "1970-01-01", "1v1 (crew battle)", 1, "A / B / C", [A, B, C]]])
         self.assertIn("A crew battle's placement is the crew's: a team result, which counts as 1v1.", out["notes"])
         out = self.call("event_results", event="kung foot")
-        self.assertEqual(self.rows(out, "the events")[0][2], "kung foot (neither 1v1 nor 2v2)")
+        self.assertEqual(self.rows(out, "the events")[0][3], "kung foot (neither 1v1 nor 2v2)")
         self.assertEqual(self.rows(out, "each event's winners"), [])
         self.assertIn("counts as neither 1v1 nor 2v2, so its placements aren't results here", out["notes"][0])
 

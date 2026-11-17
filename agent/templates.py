@@ -32,7 +32,8 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Callable
 
-from tools import ABOUT_ALIAS, EVENT_SCORES, MODE_WORDS, SQL_SECONDS, TOKEN_BUDGET, cell, connect, quoted, tokens
+from tools import (ABOUT_ALIAS, EVENT_SCORES, IDS_IN_SQL, MODE_WORDS, SQL_SECONDS, TOKEN_BUDGET, cell, connect, quoted,
+                   tokens)
 
 EVENTS_AT_MOST = 60  # a name matching more events gets no results, only the closest few to choose from
 CANDIDATES = 10
@@ -341,11 +342,16 @@ def event_results(query, tools, event, top=1):
     if tied:
         notes.append("Rows on the same placement in one event are tied there: give them the same place.")
     links = len(events) <= LINKS_AT_MOST
-    listed = [[e["name"], e["start_date"], mode_label(e), e.get("status")] + ([info[e["event_id"]][1]] if links else [])
-              for e in events]
+    ids = len(events) <= IDS_IN_SQL  # an event_id for any SQL that follows, as resolve_event gives IDs for so few
+    if not ids:
+        notes.append(f"For SQL on these {len(events)} events, use resolve_event's sql condition for {event!r}: their"
+                     " IDs are too many to list.")
+    listed = [[e["name"], *([e["event_id"]] if ids else []), e["start_date"], mode_label(e), e.get("status")]
+              + ([info[e["event_id"]][1]] if links else []) for e in events]
     what = "each event's winners" if top == 1 else f"each event's top {top}: everyone placed {top} or better"
     return observation("event_results", SCOPE, notes, [
-        table("the events the name means", ["event", "date", "mode", "status"] + (["bracket_url"] if links else []), listed),
+        table("the events the name means", ["event", *(["event_id"] if ids else []), "date", "mode", "status"]
+              + (["bracket_url"] if links else []), listed),
         table(f"{what}, a team's players together", ["event", "date", "mode", "placement", "players", "player_ids"],
               placements, optional=True)], query.ran, event=found.about)
 
@@ -535,10 +541,10 @@ TEMPLATES = {t.name: t for t in (
     Template(
         "event_results",
         "An official event's results: its winners, or its top N with top, a team's players together and every tie"
-        " included, with the event's date, mode, status (not held, placements unreliable) and bracket link. Use it for"
-        " who won an event, its top 8, when it was held or where its bracket is. Give the event's name as the question"
-        " writes it, with its year, region and mode if the question has them ('winters 2023 na 1v1', 'bcx 2022',"
-        " 'worlds'): the tool finds the events itself.",
+        " included, with the events' event_ids, dates, modes, statuses (not held, placements unreliable) and bracket links."
+        " Use it for who won an event, its top 8, when it was held or where its bracket is. Give the event's name as"
+        " the question writes it, with its year, region and mode if the question has them ('winters 2023 na 1v1',"
+        " 'bcx 2022', 'worlds'): the tool finds the events itself.",
         {"event": {"type": "string", "description": "the event's name as the question writes it"},
          "top": {"type": "integer", "description": "how many places to return: 1 for the winners (the default), 8 for"
                                                    " the top 8"}},
