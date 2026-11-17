@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "agent"))
 sys.path.insert(0, str(ROOT / "eval"))
 import model_comparison as mc  # noqa: E402
 import react  # noqa: E402
+import templates  # noqa: E402
 import tools  # noqa: E402
 
 PLAYERS = [  # (player_id, name, canonical_id, official results)
@@ -699,6 +700,12 @@ class PromptTest(unittest.TestCase):
                      if line.startswith("- v_")}
         self.assertEqual(sorted(views - described - set(self.LEFT_OUT)), [])
         self.assertLessEqual(set(self.LEFT_OUT), views)  # each reason names a real view
+
+    def test_the_prompt_says_when_to_call_each_template(self):
+        choosing = react.SYSTEM.split("\nChoosing a tool\n")[1].split("\n\n")[0]
+        for name in templates.TEMPLATES:
+            self.assertRegex(choosing, rf"\n  - [^\n]+: {name}\n", name)
+        self.assertIn("so don't call resolve_event first", " ".join(choosing.split()))
 
     def test_the_prompt_keeps_the_comparison_prompts_views_and_counting_rules(self):
         views = mc.PROMPT.split("\nViews\n")[1].split("\n\nCounting rules")[0]

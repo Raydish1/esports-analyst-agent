@@ -9,13 +9,18 @@
 #   questions (ingest/target_questions.py), so an example never gives away an evaluation answer.
 # - shape names the question shape, for the retrieval measurement; expect = "empty" marks a query whose right result
 #   has no rows.
-# - Every query is checked on eval-v1: python agent/retrieval.py check
+# - call, for an example a template answers (agent/templates.py): the template calls, one a line, that the model is
+#   shown instead of the sql, with call_note in place of note. The sql stays as the reference the calls are checked
+#   against.
+# - Every query and call is checked on eval-v1: python agent/retrieval.py check
 
 [[example]]
 id = "ex01"
 shape = "event_winner"
 question = "Who won the 1v1 at the Spring Championship in Europe 2025?"
 note = "The event_ids come from resolve_event ('eu springs 2025 1v1'); placement = 1 in v_results is the winner."
+call = 'event_results(event="spring championship europe 2025 1v1")'
+call_note = "event_results finds the event from its name as the question writes it, the mode included, and returns its winners."
 sql = '''
 SELECT p.name, r.placement, r.tournament_name, r.start_date
 FROM v_results r JOIN players p ON p.player_id = r.player_id
@@ -27,6 +32,8 @@ id = "ex02"
 shape = "event_winner"
 question = "which duo took the doubles at LTC 7?"
 note = "A 2v2 result is one row per player, so the winning team is the placement = 1 rows grouped by team_id."
+call = 'event_results(event="ltc 7 doubles")'
+call_note = "A 2v2 team comes back as one row with both players, and 'doubles' in the name picks the 2v2 event."
 sql = '''
 SELECT GROUP_CONCAT(p.name, ' / ') AS team, r.placement
 FROM v_results r JOIN players p ON p.player_id = r.player_id
@@ -39,6 +46,8 @@ id = "ex03"
 shape = "event_top8"
 question = "Top 8 of the 2v2 at the Europe Summer Championship 2022?"
 note = "Placements tie (two 5ths, two 7ths), so take every team with placement <= 8, not the first 8 rows."
+call = 'event_results(event="europe summer championship 2022 2v2", top=8)'
+call_note = "top=8 returns every team placed 8th or better, so tied places (two 5ths, two 7ths) come whole."
 sql = '''
 SELECT r.placement, GROUP_CONCAT(p.name, ' / ') AS team
 FROM v_results r JOIN players p ON p.player_id = r.player_id
@@ -52,6 +61,8 @@ id = "ex04"
 shape = "event_facts"
 question = "where can I find the bracket for Trial of Freya EU?"
 note = "Facts about an event (its bracket link, its date) come from v_events, filtered by resolve_event's event_ids."
+call = 'event_results(event="trial of freya eu")'
+call_note = "The table of the events the name means has each one's date and bracket link."
 sql = '''
 SELECT tournament_name, event_name, start_date, bracket_url
 FROM v_events
@@ -63,6 +74,8 @@ id = "ex05"
 shape = "head_to_head"
 question = "noeL vs Remmy, what's their 1v1 history?"
 note = "v_head_to_head_1v1 holds each pairing twice: read only the row with the first player as player_id, never both."
+call = 'head_to_head(player_id=115723, opponent_id=79652)'
+call_note = "Both player_ids come from resolve_player. The record is the first player's, in sets, with the games and each set."
 sql = '''
 SELECT wins, losses, matches, games_won, games_lost, unscored_matches
 FROM v_head_to_head_1v1
@@ -73,14 +86,18 @@ WHERE player_id = 115723 AND opponent_id = 79652
 id = "ex06"
 shape = "head_to_head_sets"
 question = "show me each set Addymestic and M for Mini have played against each other, newest first"
-note = "To list the sets, join v_match_results to itself on match_id with the players on opposite sides; won is the first player's."
+note = "v_sets_1v1 has one row per set with both players and the score: query each side, since winner_id = X OR loser_id = X reads every set."
+call = 'head_to_head(player_id=115695, opponent_id=115567)'
+call_note = "head_to_head lists every 1v1 set between them with its winner and score, oldest first: give them newest first, as asked."
 sql = '''
-SELECT a.start_date, e.tournament_name, a.games_won, a.games_lost, a.won, a.is_scored
-FROM v_match_results a
-JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
-JOIN v_events e ON e.event_id = a.event_id
-WHERE a.player_id = 115695 AND b.player_id = 115567 AND a.mode = '1v1'
-ORDER BY a.start_date DESC
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games
+FROM v_sets_1v1
+WHERE winner_id = 115695 AND loser_id = 115567
+UNION ALL
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games
+FROM v_sets_1v1
+WHERE winner_id = 115567 AND loser_id = 115695
+ORDER BY start_date DESC
 '''
 
 [[example]]
@@ -124,6 +141,8 @@ id = "ex10"
 shape = "official_wins"
 question = "How many official events has blews won?"
 note = "Group the wins by mode, so the answer gives the total and its 1v1 and 2v2 split; v_official_wins applies the counting rules."
+call = 'player_results(player_id=149206, top=1)'
+call_note = "top=1 counts wins, by mode and in all, so the answer gives the total and its 1v1 and 2v2 split."
 sql = '''
 SELECT mode, COUNT(*) AS wins
 FROM v_official_wins
@@ -136,6 +155,8 @@ id = "ex11"
 shape = "wins_list"
 question = "list every doubles title Remmy has"
 note = "mode = '2v2' picks the doubles titles; order by start_time to list them in time."
+call = 'player_results(player_id=79652, top=1, mode="2v2")'
+call_note = "mode='2v2' keeps the doubles titles, and the list has each one, oldest first."
 sql = '''
 SELECT start_date, tournament_name, event_name
 FROM v_official_wins
@@ -148,6 +169,8 @@ id = "ex12"
 shape = "medals"
 question = "How many 1v1 medals has noeL got?"
 note = "v_player_medals has the counts per player and mode; a medal is a top 3 at an official event."
+call = 'player_results(player_id=115723, top=3, mode="1v1")'
+call_note = "top=3 counts medals, with the 1st, 2nd and 3rd places apart."
 sql = '''
 SELECT gold, silver, bronze, medals
 FROM v_player_medals
@@ -159,6 +182,8 @@ id = "ex13"
 shape = "placements"
 question = "how often has Phazon finished runner-up?"
 note = "Count placements in v_results, by mode so both are given; a runner-up is placement = 2."
+call = 'player_results(player_id=147522, top=2)'
+call_note = "The second column counts the 2nd places, in each mode and in all."
 sql = '''
 SELECT mode, COUNT(*) AS second_places
 FROM v_results
@@ -171,8 +196,10 @@ id = "ex14"
 shape = "mode_filter"
 question = "Which doubles events did hysen medal at?"
 note = "2v2 is a mode: filter mode = '2v2'. The format column holds standard or a side format, never '2v2'."
+call = 'player_results(player_id=147499, top=3, mode="2v2")'
+call_note = "2v2 is a mode, so mode='2v2'; top=3 keeps the medals, and the list has each one's event."
 sql = '''
-SELECT start_date, tournament_name, medal
+SELECT start_date, tournament_name, placement
 FROM v_medals
 WHERE player_id = 147499 AND mode = '2v2'
 ORDER BY start_time
@@ -183,6 +210,8 @@ id = "ex15"
 shape = "first_win"
 question = "What was Addymestic's first official title?"
 note = "The first is the earliest by start_time: ORDER BY start_time LIMIT 1."
+call = 'player_results(player_id=115695, top=1)'
+call_note = "The first and the latest win in each mode come as rows of their own."
 sql = '''
 SELECT start_date, tournament_name, event_name, mode
 FROM v_official_wins
@@ -196,6 +225,8 @@ id = "ex16"
 shape = "first_top8"
 question = "When did Machete first make top 8 in 2v2?"
 note = "A first top 8 is the earliest result with placement <= 8, in the mode the question names."
+call = 'player_results(player_id=6296, top=8, mode="2v2")'
+call_note = "top=8 with mode='2v2' keeps the 2v2 top 8s, and the row marked first is the first of them."
 sql = '''
 SELECT start_date, tournament_name, event_name, placement
 FROM v_results
@@ -209,13 +240,15 @@ id = "ex17"
 shape = "ranking"
 question = "Who has the most official 2v2 wins?"
 note = "Rank in SQL with GROUP BY and ORDER BY ... LIMIT, taking a few more than asked so ties at the cutoff show."
+call = 'rank_players(by="wins", mode="2v2")'
+call_note = "rank_players includes every player tied at the cutoff, so the top 5 can be more than five rows."
 sql = '''
 SELECT p.name, COUNT(*) AS wins
 FROM v_official_wins w JOIN players p ON p.player_id = w.player_id
 WHERE w.mode = '2v2'
 GROUP BY w.player_id
 ORDER BY wins DESC
-LIMIT 10
+LIMIT 5
 '''
 
 [[example]]
@@ -223,13 +256,15 @@ id = "ex18"
 shape = "ranking"
 question = "who won the most medals in 2024?"
 note = "Filter a year with substr(start_date, 1, 4), then count medals per player in SQL and rank them."
+call = 'rank_players(by="medals", year=2024)'
+call_note = "year narrows the ranking to one calendar year."
 sql = '''
-SELECT p.name, COUNT(*) AS medals, SUM(m.medal = 'gold') AS golds
+SELECT p.name, COUNT(*) AS medals
 FROM v_medals m JOIN players p ON p.player_id = m.player_id
 WHERE substr(m.start_date, 1, 4) = '2024'
 GROUP BY m.player_id
-ORDER BY medals DESC, golds DESC
-LIMIT 10
+ORDER BY medals DESC
+LIMIT 5
 '''
 
 [[example]]
@@ -276,6 +311,8 @@ id = "ex22"
 shape = "series_results"
 question = "How has Remmy done at Worlds over the years?"
 note = "'Worlds' is a series of event aliases: use resolve_event's sql condition, not LIKE on event names, which miss some."
+call = 'player_results(player_id=79652, event="worlds")'
+call_note = "An event or series name narrows a player's results: 'worlds' is every World Championship."
 sql = '''
 SELECT r.start_date, r.tournament_name, r.mode, r.placement
 FROM v_results r
@@ -304,6 +341,8 @@ shape = "empty_result"
 expect = "empty"
 question = "Has noeL ever won a 2v2 event?"
 note = "No rows is a real 'no' here: the player_id came from resolve_player and '2v2' is a mode the column holds."
+call = 'player_results(player_id=115723, top=1, mode="2v2")'
+call_note = "A count of 0 comes with what it is 0 of, so after resolve_player it is a real no."
 sql = '''
 SELECT start_date, tournament_name
 FROM v_official_wins
@@ -328,6 +367,11 @@ id = "ex26"
 shape = "comparison"
 question = "Who has more official wins, Remmy or Cake?"
 note = "Count both players in one query; a LEFT JOIN from players keeps one with no wins at 0."
+call = '''
+player_results(player_id=79652, top=1)
+player_results(player_id=110, top=1)
+'''
+call_note = "One call per player, then compare their totals."
 sql = '''
 SELECT p.name, COUNT(w.event_id) AS wins
 FROM players p LEFT JOIN v_official_wins w ON w.player_id = p.player_id
@@ -371,4 +415,20 @@ FROM v_sets_1v1
 WHERE event_id IN ('tournament/trial-of-freya-europe/event/brawlhalla-championship-1v1')
   AND winner_placement = 1 AND loser_placement = 2
 ORDER BY start_time
+'''
+
+[[example]]
+id = "ex30"
+shape = "ranking"
+question = "Who has made the most top 8s at Worlds?"
+note = "'Worlds' is a series: filter it on v_event_series, then count per player in SQL and rank, a few rows past the cutoff so ties show."
+call = 'rank_players(by="top8s", event="worlds")'
+call_note = "A series name narrows the ranking, and its regional championships (worlds 2020 and 2021) are counted in a column of their own."
+sql = '''
+SELECT p.name, COUNT(*) AS top8s
+FROM v_results r JOIN players p ON p.player_id = r.player_id
+WHERE r.placement <= 8 AND r.event_id IN (SELECT event_id FROM v_event_series WHERE series = 'worlds')
+GROUP BY r.player_id
+ORDER BY top8s DESC
+LIMIT 5
 '''

@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "agent"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import react  # noqa: E402
 import retrieval  # noqa: E402
+import templates  # noqa: E402
 from test_agent import Fixture, Scripted, reply  # noqa: E402  the tiny database and a scripted model
 
 CHROMA = importlib.util.find_spec("chromadb") is not None  # not on Windows ARM64's Python (retrieval's docstring)
@@ -40,6 +41,14 @@ class MmrTest(unittest.TestCase):
         self.assertTrue(text.endswith("\n\nQuestion: Who has megd played with?"))
         self.assertEqual(retrieval.prompt("q", {"examples": []}), "q")
         self.assertEqual(retrieval.prompt("q", None), "q")
+
+    def test_an_example_a_template_answers_shows_its_call_instead_of_its_sql(self):
+        called = {**example("ex10", "How many official events has blews won?"), "call": "player_results(player_id=1, top=1)",
+                  "call_note": "top=1 counts wins.", "similarity": 0.8, "mmr": 0.5}
+        text = retrieval.prompt("How many wins has Raydish?", {"examples": [called]})
+        self.assertIn("Example 1: How many official events has blews won?\nplayer_results(player_id=1, top=1)\n"
+                      "Why: top=1 counts wins.", text)
+        self.assertNotIn("SELECT", text)
 
 
 @unittest.skipUnless(CHROMA, "chromadb isn't installed for this Python")
@@ -155,8 +164,31 @@ class BankTest(unittest.TestCase):
         self.assertGreaterEqual(len({e["shape"] for e in examples}), 15)
         for e in examples:
             self.assertNotIn("\n", e["note"].strip(), e["id"])
+            self.assertNotIn("\n", e.get("call_note", "").strip(), e["id"])
             self.assertIn(e.get("expect", "rows"), ("rows", "empty"), e["id"])
             self.assertTrue(e["sql"].lstrip().upper().startswith(("SELECT", "WITH")), e["id"])
+
+    def test_every_call_names_a_template_with_arguments_it_takes(self):
+        called = [(e["id"], name, arguments) for e in retrieval.load() for name, arguments in retrieval.calls(e)]
+        self.assertGreaterEqual(len({i for i, _, _ in called}), 18)
+        for i, name, arguments in called:
+            template = templates.TEMPLATES[name]
+            self.assertLessEqual(set(arguments), set(template.parameters), i)
+            self.assertLessEqual(set(template.required), set(arguments), i)
+        self.assertEqual(retrieval.calls({"id": "x", "call": "head_to_head(player_id=1, opponent_id=2)\nrank_players(by='wins')"}),
+                         [("head_to_head", {"player_id": 1, "opponent_id": 2}), ("rank_players", {"by": "wins"})])
+
+    def test_a_call_without_its_note_or_that_isnt_a_call_with_named_arguments_is_an_error(self):
+        one = 'id = "a"\nshape = "s"\nquestion = "q"\nnote = "n"\nsql = "SELECT 1"\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "examples.toml"
+            path.write_text(f"[[example]]\n{one}call = 'rank_players(by=\"wins\")'\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "has no call_note"):
+                retrieval.load(path)
+            for call in ("rank_players('wins')", "SELECT 1", "rank_players(by=wins)"):
+                path.write_text(f"[[example]]\n{one}call = \"{call}\"\ncall_note = \"n\"\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "isn't a call with named arguments", msg=call):
+                    retrieval.load(path)
 
     def test_a_missing_field_or_a_repeated_id_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

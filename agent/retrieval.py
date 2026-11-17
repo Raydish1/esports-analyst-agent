@@ -1,7 +1,10 @@
 """Retrieval of worked examples (agent/examples/examples.toml): questions of common shapes with the queries that
-answer them, shown to the model beside a user's question as query patterns.
+answer them, shown to the model beside a user's question as query patterns. An example a template answers
+(agent/templates.py) also has the template call, which the model is shown instead of the SQL: shown SQL, it would keep
+writing SQL. Its SQL stays as the reference the call is checked against.
 
-    python agent/retrieval.py check          run every example's query on eval-v1, and check its players aren't the
+    python agent/retrieval.py check          run every example's query and call on eval-v1, check that each call's
+                                             result holds every row of the query's, and that its players aren't the
                                              evaluation set's
     py -3.14 agent/retrieval.py retrieve "question"
                                              the examples a question retrieves, with their scores
@@ -19,6 +22,7 @@ without it. Everything else here is the standard library.
 """
 
 import argparse
+import ast
 import hashlib
 import json
 import math
@@ -33,7 +37,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import fold  # noqa: E402
-from tools import SNAPSHOT, connect, run_sql  # noqa: E402
+from tools import SNAPSHOT, connect, run_sql, tables  # noqa: E402
 
 EMBED_MODEL = "nomic-embed-text"
 # nomic-embed-text's task prefix for comparing texts of one kind, here a question with questions. On the evaluation
@@ -57,17 +61,46 @@ PLAYER_IDS = re.compile(r"\b(?:player_id|partner_id|opponent_id|opponent1_id|opp
 
 def load(path=EXAMPLES):
     """The examples, each a dict with id, shape, question, note, sql and, for a query whose right result is empty,
-    expect = 'empty'. A missing field or a repeated id is an error."""
+    expect = 'empty'; and for an example a template answers, call and call_note (calls). A missing field, a call that
+    doesn't parse or a repeated id is an error."""
     with open(path, "rb") as f:
         examples = tomllib.load(f)["example"]
     for e in examples:
         missing = FIELDS - set(e)
+        if "call" in e and "call_note" not in e:
+            missing.add("call_note")
         if missing:
             raise ValueError(f"example {e.get('id')!r} has no {', '.join(sorted(missing))}")
+        calls(e)
     ids = [e["id"] for e in examples]
     if len(set(ids)) != len(ids):
         raise ValueError(f"repeated example ids: {sorted({i for i in ids if ids.count(i) > 1})}")
     return examples
+
+
+def calls(example):
+    """The template calls an example shows, as (tool, arguments): its call, one a line, written tool(argument=value,
+    ...); none for an example without one."""
+    out = []
+    for line in example.get("call", "").strip().splitlines():
+        try:
+            node = ast.parse(line.strip(), mode="eval").body
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.args:
+                raise ValueError
+            out.append((node.func.id, {k.arg: ast.literal_eval(k.value) for k in node.keywords}))
+        except (SyntaxError, ValueError):
+            raise ValueError(f"example {example.get('id')!r}: {line.strip()!r} isn't a call with named arguments,"
+                             " such as player_results(player_id=1, top=1)") from None
+    return out
+
+
+def cells(row):
+    """A row's values as the check compares them: a list's items, and the names in a ' / '-joined cell (a team, an
+    event's tournament and event), each on its own, since a query may join them in another order."""
+    out = []
+    for v in row:
+        out += v if isinstance(v, list) else v.split(" / ") if isinstance(v, str) and " / " in v else [v]
+    return out
 
 
 def player_ids(sql):
@@ -80,12 +113,14 @@ def player_ids(sql):
 
 def check(examples, path=SNAPSHOT):
     """Each example's problems on the snapshot: its query fails, is too large to show, has rows when it should have
-    none or none when it should have some, or filters on a player the evaluation set names. {id: [problem]}, and the
-    run's lines to print."""
+    none or none when it should have some, or filters on a player the evaluation set names; its call fails, or its
+    result doesn't hold every row of the query's (held). {id: [problem]}, and the run's lines to print."""
+    import react  # here: react imports this module
     evaluation = fold(" ".join(p.read_text(encoding="utf-8") for p in EVALUATION))
     db = connect(path, 30)
     names = dict(db.execute("SELECT player_id, name FROM players"))
     db.close()
+    agent_tools = react.Tools(path) if any(e.get("call") for e in examples) else None
     problems, lines = {}, []
     for e in examples:
         begun = time.monotonic()
@@ -98,18 +133,41 @@ def check(examples, path=SNAPSHOT):
             found.append(f"too large to show: {out['row_count']} rows")
         elif (out["row_count"] == 0) != (e.get("expect") == "empty"):
             found.append(f"{out['row_count']} rows, expected {'none' if e.get('expect') == 'empty' else 'some'}")
-        for pid in player_ids(e["sql"]):
+        for pid in dict.fromkeys(player_ids(e["sql"] + "\n" + e.get("call", ""))):
             name = names.get(pid)
             if name is None:
                 found.append(f"no player {pid}")
             elif fold(name) in evaluation or fold(name.split("|")[-1].strip()) in evaluation:
                 found.append(f"{name} ({pid}) is named in the evaluation set")
+        timed = ""
+        if e.get("call"):
+            begun = time.monotonic()
+            found += held(e, out.get("rows", []), agent_tools)
+            timed = f", call {time.monotonic() - begun:5.2f} s"
         if found:
             problems[e["id"]] = found
         first = out.get("rows", [None])[0] if out.get("rows") else None
-        lines.append(f"{e['id']} {e['shape']:<18} {out.get('row_count', '-')!s:>4} rows {seconds:5.2f} s"
+        lines.append(f"{e['id']} {e['shape']:<18} {out.get('row_count', '-')!s:>4} rows {seconds:5.2f} s{timed}"
                      f"  {'; '.join(found) if found else first}")
     return problems, lines
+
+
+def held(example, rows, agent_tools):
+    """The problems of an example's calls against its query's rows: a call that fails, or a row of the query's that no
+    row of the calls' tables holds, compared as stage 2 of the evaluation compares (result_checks.has, on cells)."""
+    if str(ROOT / "eval") not in sys.path:
+        sys.path.insert(0, str(ROOT / "eval"))
+    from result_checks import has
+    shown, found = [], []
+    for name, arguments in calls(example):
+        observation = agent_tools.call(name, arguments)
+        if "error" in observation:
+            found.append(f"{name} failed: {observation['error']}")
+        shown += [cells(row) for _, table_rows in tables(observation) for row in table_rows]
+    missing = [row for row in rows if not any(has(s, [v for v in cells(row) if v is not None]) for s in shown)]
+    if missing:
+        found.append(f"the call's result holds {len(rows) - len(missing)} of the query's {len(rows)} rows, not {missing[0]}")
+    return found
 
 
 # Embedding and retrieval
@@ -184,7 +242,8 @@ class Retriever:
                                       include=["distances", "embeddings"])
         above = [(i, 1 - d, list(v)) for i, d, v in zip(found["ids"][0], found["distances"][0], found["embeddings"][0])
                  if 1 - d >= threshold]
-        picked = [{**{f: self.examples[i][f] for f in ("id", "shape", "question", "sql", "note")},
+        picked = [{**{f: self.examples[i][f] for f in ("id", "shape", "question", "sql", "note", "call", "call_note")
+                      if f in self.examples[i]},
                    "similarity": round(similarity, 3), "mmr": round(score, 3)} for i, similarity, score in mmr(above, k)]
         return {"threshold": threshold, "candidates": len(above), "examples": picked}
 
@@ -216,12 +275,14 @@ def summarize(rows):
 
 
 def prompt(question, retrieved):
-    """The question as the model reads it: the retrieved examples first, with what they are, then the question."""
+    """The question as the model reads it: the retrieved examples first, with what they are, then the question. An
+    example with a template call shows the call and why, instead of its SQL."""
     if not retrieved or not retrieved.get("examples"):
         return question
     parts = [NOTE, ""]
     for n, e in enumerate(retrieved["examples"], 1):
-        parts += [f"Example {n}: {e['question']}", e["sql"].strip(), f"Why: {e['note']}", ""]
+        shown, why = (e["call"], e["call_note"]) if e.get("call") else (e["sql"], e["note"])
+        parts += [f"Example {n}: {e['question']}", shown.strip(), f"Why: {why}", ""]
     return "\n".join(parts + [f"Question: {question}"])
 
 

@@ -1,5 +1,5 @@
-"""A minimal ReAct prototype: a local model answers a question about the data with three tools, resolve_player,
-resolve_event and run_sql (agent/tools.py), through Ollama's native tool calling.
+"""A minimal ReAct prototype: a local model answers a question about the data with resolve_player, resolve_event and
+run_sql (agent/tools.py) and four template tools (agent/templates.py), through Ollama's native tool calling.
 
     python agent/react.py "Who has megd played with in 2v2 tournaments?"
     python agent/react.py --target 4 --target 6 --target 8          target questions (ingest/target_questions.py)
@@ -17,7 +17,8 @@ until the model queries again, and, once, one right after an empty result whose 
 value the query filters on, a likely lookup mistake (diagnose.missing_text). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
 with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
 comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
-a section on the views that hold each pairing more than once, and how to use the tools and write the answer.
+a section on the views that hold each pairing more than once, which tool fits which question, and how to use the tools
+and write the answer.
 
 The console shows each step in short. Every step in full (thinking, reply, tool calls and observations, exactly as
 sent) goes to data/experiments/<run>/traces.jsonl and traces.md (git-ignored). A run of target questions also writes
@@ -55,9 +56,23 @@ REQUEST_SECONDS = 900
 RESULTS = ROOT / "eval" / "results"
 RAW = ROOT / "data" / "experiments"
 
-SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using three
-tools: resolve_player finds the player a name means, resolve_event the events an event name means, and run_sql queries
-a SQLite database of the results. Every player_id in a view is a person's canonical ID.
+SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using these
+tools: resolve_player finds the player a name means, resolve_event the events an event name means, four templates answer
+the most common questions with tested queries, and run_sql queries a SQLite database of the results. Every player_id in
+a view is a person's canonical ID.
+
+Choosing a tool
+- Call resolve_player for every player the question names, first.
+- If a template fits the question, call it, and write no SQL for what it returns:
+  - who won an event, its top 8, its date or its bracket link: event_results
+  - one player's wins, medals, top 8s or placements, overall, in a year or at an event: player_results
+  - two players against each other: head_to_head
+  - who has the most wins, medals or top 8s: rank_players
+- Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
+  first.
+- A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
+- For anything else (partners, records against a player, the last event entered, sets at an event, dominance,
+  earnings), use run_sql, with resolve_event for an event's name.
 
 Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
