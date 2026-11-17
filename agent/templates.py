@@ -42,6 +42,10 @@ SETS_SCOPE = "official events, 1v1 sets with one player a side; DQs, forfeits an
 LEFT_OUT = "{n} rows, too many to show with the rest: narrow the question (an event, a year, a mode, a lower top)."
 DECIDED = re.compile(r"\s*\(decided \d{4}-\d{2}-\d{2}\)")  # a curated note's own bookkeeping, not for an answer
 CUTS = {1: "wins (1st places)", 3: "medals (placed 3rd or better)", 8: "top 8s (placed 8th or better)"}
+BY = {"wins": 1, "medals": 3, "top8s": 8}  # what rank_players counts, and the placement it counts up to
+BY_WORDS = {"wins": {"wins", "win", "titles", "title"}, "medals": {"medals", "medal", "podiums", "podium"},
+            "top8s": {"top8s", "top8", "top8finishes"}}  # as a model may write them, without spaces or punctuation
+RANKED_AT_MOST = 30  # rows of a ranking listed; a tie group past them is counted instead
 
 
 class Refused(ValueError):
@@ -144,6 +148,11 @@ def one_mode(value):
 
 def ordinal(n):
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def joined(items):
+    """'a', 'a and b', 'a, b and c'."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
 def cut(top):
@@ -443,6 +452,85 @@ def head_to_head(query, tools, player_id, opponent_id):
                        player={"player_id": player, "name": name}, opponent={"player_id": opponent, "name": other})
 
 
+# rank_players
+
+def one_by(value):
+    """A by argument as 'wins', 'medals' or 'top8s', as a model may write them ('titles', 'top 8s')."""
+    word = re.sub(r"[^a-z0-9]", "", value.lower()) if isinstance(value, str) else ""
+    by = next((by for by, words in BY_WORDS.items() if word in words), None)
+    if by is None:
+        raise Refused(f"by is 'wins', 'medals' or 'top8s', not {value!r}")
+    return by
+
+
+def tie_groups(rows):
+    """Ranked rows (rank first, in rank order) as their tie groups, in order."""
+    groups = []
+    for row in rows:
+        if groups and groups[-1][0][0] == row[0]:
+            groups[-1].append(row)
+        else:
+            groups.append([row])
+    return groups
+
+
+def rank_players(query, tools, by, top=5, mode=None, year=None, event=None):
+    by, top = one_by(by), whole(top, "top")
+    mode = None if mode is None else one_mode(mode)
+    year = None if year is None else whole(year, "year")
+    found = None if event is None else match_events(tools, event)
+    if found and not found.usable:
+        return unanswered("rank_players", found, query)
+    where, scope = conditions(mode, year, found.events if found else None)
+    regional = query.rows("SELECT DISTINCT event_id, series || ' ' || year FROM v_event_series WHERE regional = 1 AND"
+                          f" event_id IN ({in_ids(found.events)}) ORDER BY 2") if found else []
+    counts = {by: "COUNT(*)"}  # each column after the player's, with how it's counted
+    if not mode:
+        counts.update({"1v1": "SUM(r.mode = '1v1')", "2v2": "SUM(r.mode = '2v2')"})
+    if mode != "2v2":
+        counts["crew battles"] = "SUM(r.format = 'crew_battle')"
+    if regional:
+        counts["at regional championships"] = f"SUM(r.event_id IN ({', '.join(quoted(e) for e, _ in regional)}))"
+    rows = query.rows(
+        f"WITH counted AS (SELECT r.player_id, {', '.join(f'{sql} AS c{i}' for i, sql in enumerate(counts.values()))}"
+        f" FROM v_results r WHERE {' AND '.join([f'r.placement <= {BY[by]}'] + where)} GROUP BY r.player_id),"
+        " ranked AS (SELECT *, RANK() OVER (ORDER BY c0 DESC) AS rank FROM counted)"
+        f" SELECT ranked.rank, p.name, ranked.player_id, {', '.join(f'c{i}' for i in range(len(counts)))} FROM ranked"
+        f" JOIN players p ON p.player_id = ranked.player_id WHERE ranked.rank <= {top} ORDER BY ranked.rank, p.name")
+    listed, left = [], []  # whole tie groups: past RANKED_AT_MOST rows, a group is counted instead of listed
+    for members in tie_groups(rows):
+        if left or len(listed) + len(members) > RANKED_AT_MOST:
+            left.append(members)
+        else:
+            listed += members
+    notes = found.notes + status_notes(query, found.events) if found else []
+    if not rows:
+        notes.append(f"No player has any {CUTS[BY[by]]} here ({scope}), so the ranking is empty.")
+    if left:
+        counted = [f"{len(group)} tied at rank {group[0][0]} with {group[0][3]} {by} each" for group in left[:3]]
+        below = sum(len(group) for group in left[3:])
+        notes.append(f"Past {RANKED_AT_MOST} rows a tie isn't split, so these players are counted but not listed:"
+                     f" {joined(counted)}{f', and {below} ranked below them' if below else ''}. Narrow the question (a"
+                     " mode, a year, an event) or ask for fewer ranks to list them.")
+    if len({row[0] for row in listed}) < len(listed):
+        notes.append("Players on the same rank are tied: give them the same place.")
+    if not mode and rows:
+        notes.append(f"A tournament's 1v1 and 2v2 are separate events, and each counts: {CUTS[BY[by]]} at both count"
+                     " twice. Say so.")
+    crews = 3 + list(counts).index("crew battles") if "crew battles" in counts else None
+    if crews and any(row[crews] for row in listed):
+        notes.append("The crew battles column counts each player's crew battles among these: a crew's placement is a team"
+                     " result, counted as 1v1. Say so.")
+    if regional:
+        years = list(dict.fromkeys(y for _, y in regional))
+        notes.append(f"{joined([repr(y) for y in years])} {'was' if len(years) == 1 else 'were each'} held as several"
+                     f" regional championships, all counted here: 'at regional championships' counts each player's {by}"
+                     " at them. Say whether your answer counts them.")
+    return observation("rank_players", scope, notes, [
+        table(f"players ranked by {CUTS[BY[by]]}, everyone ranked {ordinal(top)} or better: ties all included",
+              ["rank", "player", "player_id", *counts], listed)], query.ran, event=found and found.about)
+
+
 TEMPLATES = {t.name: t for t in (
     Template(
         "event_results",
@@ -478,4 +566,17 @@ TEMPLATES = {t.name: t for t in (
                                                          " is theirs"},
          "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"}},
         ("player_id", "opponent_id"), head_to_head),
+    Template(
+        "rank_players",
+        "Players ranked by their wins (1st places), medals (top 3) or top 8s at official events, every tie included:"
+        " the top 5 is everyone ranked 5th or better. Each row has the player's count, its 1v1 and 2v2 split and its"
+        " crew battles. Use it for who has the most wins, titles, majors, medals or top 8s, overall or in a mode, a"
+        " year, or an event or series ('worlds', 'bcx').",
+        {"by": {"type": "string", "enum": list(BY), "description": "what to count: wins, medals or top8s"},
+         "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is everyone ranked 5th or"
+                                                   " better"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "one mode only; leave out for both"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        ("by",), rank_players),
 )}

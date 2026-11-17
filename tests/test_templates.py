@@ -269,5 +269,65 @@ class HeadToHeadTest(Fixture):
                          "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id")
 
 
+class RankPlayersTest(Fixture):
+    def test_players_are_ranked_with_every_tie_and_the_split_by_mode(self):
+        out = self.call("rank_players", by="wins")
+        self.assertEqual(out["scope"], "official events, 1v1 and 2v2")
+        self.assertEqual(self.rows(out, "players ranked by wins (1st places), everyone ranked 5th or better"),
+                         [[1, "A", A, 3, 2, 1, 1], [2, "B", B, 2, 1, 1, 1], [2, "C", C, 2, 2, 0, 1]])
+        self.assertEqual(out["tables"][0]["columns"], ["rank", "player", "player_id", "wins", "1v1", "2v2", "crew battles"])
+        self.assertEqual(out["notes"], [
+            "Players on the same rank are tied: give them the same place.",
+            "A tournament's 1v1 and 2v2 are separate events, and each counts: wins (1st places) at both count twice. Say so.",
+            "The crew battles column counts each player's crew battles among these: a crew's placement is a team result,"
+            " counted as 1v1. Say so."])
+        self.assertEqual([row[:4] for row in self.rows(self.call("rank_players", by="top8s", top=1), "players ranked")],
+                         [[1, "A", A, 5], [1, "B", B, 5]])  # a cutoff never splits a tie
+        self.assertEqual([row[1] for row in self.rows(self.call("rank_players", by="medals", top=2), "players ranked")],
+                         ["A", "B", "C"])
+
+    def test_a_mode_a_year_and_an_event_narrow_the_ranking_and_the_scope_says_so(self):
+        out = self.call("rank_players", by="wins", mode="1v1")
+        self.assertEqual((out["scope"], out["tables"][0]["columns"]),
+                         ("official events, 1v1", ["rank", "player", "player_id", "wins", "crew battles"]))
+        self.assertEqual(self.rows(out, "players ranked"), [[1, "A", A, 2, 1], [1, "C", C, 2, 1], [3, "B", B, 1, 1]])
+        self.assertEqual(self.rows(self.call("rank_players", by="wins", mode="2v2"), "players ranked"),
+                         [[1, "A", A, 1], [1, "B", B, 1]])  # no crew battles in 2v2
+        cup = self.call("rank_players", by="wins", event="cup 2020")
+        self.assertEqual((cup["scope"], cup["event"]["status"]),
+                         ("official events, 1v1 and 2v2, at the 2 events the name means", "confident"))
+        self.assertEqual(self.rows(cup, "players ranked"), [[1, "A", A, 2, 1, 1, 0], [2, "B", B, 1, 0, 1, 0]])
+        empty = self.call("rank_players", by="wins", year=2026)
+        self.assertEqual((self.rows(empty, "players ranked"), empty["notes"]), ([], [
+            "No player has any wins (1st places) here (official events, 1v1 and 2v2, in 2026), so the ranking is empty."]))
+
+    def test_a_series_with_regional_championships_counts_them_apart_and_statuses_come_first(self):
+        out = self.call("rank_players", by="wins", event="cup")
+        self.assertEqual(out["tables"][0]["columns"][-1], "at regional championships")
+        self.assertEqual(self.rows(out, "players ranked"), [[1, "A", A, 2, 1, 1, 0, 0], [2, "B", B, 1, 0, 1, 0, 0]])
+        self.assertEqual(sorted(note.split(" (")[0] for note in out["notes"][:2]), ["Dreamland", "League Week 1"])
+        self.assertEqual(out["notes"][-1], "'cup 2021' was held as several regional championships, all counted here: 'at"
+                                           " regional championships' counts each player's wins at them. Say whether your"
+                                           " answer counts them.")
+
+    def test_past_the_rows_listed_a_tie_group_is_counted_whole_not_split(self):
+        with patch.object(templates, "RANKED_AT_MOST", 2):
+            out = self.call("rank_players", by="wins")
+        self.assertEqual(self.rows(out, "players ranked"), [[1, "A", A, 3, 2, 1, 1]])
+        self.assertTrue(out["notes"][0].startswith("Past 2 rows a tie isn't split, so these players are counted but not"
+                                                   " listed: 2 tied at rank 2 with 2 wins each. Narrow the question"))
+
+    def test_arguments_it_cant_use_get_errors_and_an_event_must_be_one_tournament(self):
+        self.assertEqual(self.call("rank_players", by="points")["error"], "by is 'wins', 'medals' or 'top8s', not 'points'")
+        self.assertEqual(self.rows(self.call("rank_players", by="Top 8s"), "players ranked by top 8s")[0][:2], [1, "A"])
+        self.assertEqual(self.rows(self.call("rank_players", by="titles"), "players ranked by wins")[0][:2], [1, "A"])
+        self.assertEqual(self.call("rank_players")["error"],
+                         "rank_players needs by: rank_players takes by, top, mode, year, event")
+        self.assertEqual(self.call("rank_players", by="wins", mode="crew")["error"], "mode is '1v1' or '2v2', not 'crew'")
+        out = self.call("rank_players", by="wins", event="league")
+        self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))
+        self.assertTrue(out["notes"][0].endswith("Call again with one tournament's name, as listed here."))
+
+
 if __name__ == "__main__":
     unittest.main()
