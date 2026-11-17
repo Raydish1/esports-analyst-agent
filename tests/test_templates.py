@@ -223,5 +223,51 @@ class PlayerResultsTest(Fixture):
         self.assertIn("top is a whole number, 1 or more", self.call("player_results", player_id=A, top=0)["error"])
 
 
+class HeadToHeadTest(Fixture):
+    def test_the_record_is_the_first_players_with_each_set_and_names_next_to_ids(self):
+        out = self.call("head_to_head", player_id=A, opponent_id=B)
+        self.assertEqual((out["player"], out["opponent"]), ({"player_id": A, "name": "A"}, {"player_id": B, "name": "B"}))
+        self.assertEqual(self.rows(out, "A's 1v1 record against B"), [["A", A, "B", B, 3, 0, 3, 8, 1, 0]])
+        self.assertEqual(self.rows(out, "each 1v1 set between them"), [  # not the forfeit, the tie or the crew battle
+            ["1970-01-01", "Cup", "A", A, 3, 1], ["1970-01-01", "Cup", "A", A, 3, 0], ["1970-01-01", "League", "A", A, 2, 0]])
+        self.assertEqual(self.rows(self.call("head_to_head", player_id=B, opponent_id=A), "B's 1v1 record against A"),
+                         [["B", B, "A", A, 0, 3, 3, 1, 8, 0]])
+
+    def test_each_side_of_the_sets_is_its_own_filter_since_an_or_reads_every_set(self):
+        ran = " ".join(self.call("head_to_head", player_id=A, opponent_id=B)["ran"])
+        self.assertIn(f"WHERE winner_id = {A} AND loser_id = {B} UNION ALL", ran)
+        self.assertNotIn(" OR ", ran)
+
+    def test_2v2_meetings_are_counted_apart_from_the_1v1_record(self):
+        self.assertIn("In 2v2, A and B never met on opposite teams.",  # partners, never opponents
+                      self.call("head_to_head", player_id=A, opponent_id=B)["notes"])
+        out = self.call("head_to_head", player_id=A, opponent_id=C)
+        self.assertEqual(self.rows(out, "A's 1v1 record"), [["A", A, "C", C, 0, 1, 1, 0, 3, 0]])  # the DQ doesn't count
+        self.assertIn("In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0. Those aren't in the 1v1"
+                      " record.", out["notes"])
+
+    def test_unscored_sets_are_flagged_and_players_who_never_met_get_a_record_of_zero(self):
+        out = self.call("head_to_head", player_id=A, opponent_id=D)
+        self.assertEqual(self.rows(out, "A's 1v1 record"), [["A", A, "D", D, 1, 0, 1, None, None, 1]])
+        self.assertIn("1 of the 1 sets has no recorded score, so the games leave it out: say the record includes sets"
+                      " with no recorded score.", out["notes"])
+        out = self.call("head_to_head", player_id=E, opponent_id=F)
+        self.assertEqual(([t["what"] for t in out["tables"]], self.rows(out, "E's 1v1 record")),
+                         (["E's 1v1 record against F, in sets"], [["E", E, "F", F, 0, 0, 0, None, None, 0]]))
+        self.assertEqual(out["notes"], ["E and F have no counted 1v1 sets against each other at official events (DQs,"
+                                        " forfeits and ties aren't counted).", "In 2v2, E and F never met on opposite teams."])
+
+    def test_players_are_given_by_id_and_a_merged_record_is_the_person(self):
+        out = self.call("head_to_head", player_id=A2, opponent_id=B)
+        self.assertEqual(self.rows(out, "A's 1v1 record against B")[0][4:7], [3, 0, 3])
+        self.assertIn(f"player_id {A2} is another record of A (player_id {A}): these are the person's.", out["notes"])
+        self.assertEqual(self.call("head_to_head", player_id=A, opponent_id=A2)["error"],
+                         "player_id and opponent_id are both A: pass the two players' player_ids")
+        self.assertIn("opponent_id is the number resolve_player returns, not a name: call resolve_player with 'B'",
+                      self.call("head_to_head", player_id=A, opponent_id="B")["error"])
+        self.assertEqual(self.call("head_to_head", player_id=A)["error"],
+                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id")
+
+
 if __name__ == "__main__":
     unittest.main()

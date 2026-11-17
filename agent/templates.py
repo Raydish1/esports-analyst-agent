@@ -38,6 +38,7 @@ EVENTS_AT_MOST = 60  # a name matching more events gets no results, only the clo
 CANDIDATES = 10
 LINKS_AT_MOST = 4  # bracket links are listed for a tournament's events, not for a whole series
 SCOPE = "official events"
+SETS_SCOPE = "official events, 1v1 sets with one player a side; DQs, forfeits and ties left out"
 LEFT_OUT = "{n} rows, too many to show with the rest: narrow the question (an event, a year, a mode, a lower top)."
 DECIDED = re.compile(r"\s*\(decided \d{4}-\d{2}-\d{2}\)")  # a curated note's own bookkeeping, not for an answer
 CUTS = {1: "wins (1st places)", 3: "medals (placed 3rd or better)", 8: "top 8s (placed 8th or better)"}
@@ -124,6 +125,13 @@ def person(tools, value, name="player_id"):
         raise Refused(f"no player has player_id {given}: pass the player_id resolve_player returns")
     canonical = tools.resolver.canonical[given]
     return canonical, tools.resolver.names.get(canonical), given
+
+
+def merged(given, player, name):
+    """The note for a player given by another of their records' IDs (person), or None."""
+    if given == player:
+        return None
+    return f"player_id {given} is another record of {name} (player_id {player}): these are the person's."
 
 
 def one_mode(value):
@@ -371,7 +379,7 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
     every = dict(query.rows(f"SELECT r.mode, COUNT(*) FROM v_results r WHERE r.player_id = {player} GROUP BY r.mode"))
     notes = found.notes + status_notes(query, found.events) if found else []
     if given != player:
-        notes.append(f"player_id {given} is another record of {name} (player_id {player}): these are the person's.")
+        notes.append(merged(given, player, name))
     modes = [mode] if mode else ["1v1", "2v2"]  # a mode has its row even with nothing in it: a 0 to read, not a gap
     summary = [[name, m, *(counted[m][:6] if m in counted else [0, 0, 0, 0, 0, None])] for m in modes]
     if not mode:
@@ -396,6 +404,43 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
         if ends else None,
         table("each of them, oldest first", ["date", "event", "mode", "placement"], each, optional=True)
         if each else None], query.ran, player={"player_id": player, "name": name}, event=found and found.about)
+
+
+# head_to_head
+
+def head_to_head(query, tools, player_id, opponent_id):
+    player, name, given = person(tools, player_id)
+    opponent, other, given_other = person(tools, opponent_id, "opponent_id")
+    if player == opponent:
+        raise Refused(f"player_id and opponent_id are both {name}: pass the two players' player_ids")
+    (wins, losses, sets, games_won, games_lost, unscored), = query.rows(
+        "SELECT wins, losses, matches, games_won, games_lost, unscored_matches FROM v_head_to_head_1v1"
+        f" WHERE player_id = {player} AND opponent_id = {opponent}") or [(0, 0, 0, None, None, 0)]
+    side = ("SELECT start_date, start_time, event_id, match_id, tournament_name, event_name, winner_name, winner_id,"
+            " winner_games, loser_games FROM v_sets_1v1 WHERE winner_id = {} AND loser_id = {}")
+    listed = query.rows(f"{side.format(player, opponent)} UNION ALL {side.format(opponent, player)}"
+                        " ORDER BY start_date, start_time, event_id, match_id")  # each side alone: an OR reads every set
+    (met, won), = query.rows(
+        "SELECT COUNT(*), COALESCE(SUM(a.won), 0) FROM v_match_results a JOIN v_match_results b ON b.match_id = a.match_id"
+        f" AND b.side <> a.side WHERE a.player_id = {player} AND b.player_id = {opponent} AND a.mode = '2v2'")
+    notes = [n for n in (merged(given, player, name), merged(given_other, opponent, other)) if n]
+    if not sets:
+        notes.append(f"{name} and {other} have no counted 1v1 sets against each other at official events (DQs, forfeits"
+                     " and ties aren't counted).")
+    if unscored:
+        notes.append(f"{unscored} of the {sets} sets {'has' if unscored == 1 else 'have'} no recorded score, so the games"
+                     f" leave {'it' if unscored == 1 else 'them'} out: say the record includes sets with no recorded score.")
+    notes.append(f"In 2v2, {name} and {other} never met on opposite teams." if not met else
+                 f"In 2v2, {name}'s teams and {other}'s teams met in {met} set{'' if met == 1 else 's'}: {name}'s side won"
+                 f" {won} and lost {met - won}. Those aren't in the 1v1 record.")
+    record = table(f"{name}'s 1v1 record against {other}, in sets",
+                   ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets", "games_won", "games_lost",
+                    "unscored_sets"], [[name, player, other, opponent, wins, losses, sets, games_won, games_lost, unscored]])
+    each = table("each 1v1 set between them, oldest first", ["date", "event", "winner", "winner_id", "winner_games",
+                                                              "loser_games"],
+                 [[r[0], event_name(r[4], r[5]), *r[6:]] for r in listed], optional=True) if listed else None
+    return observation("head_to_head", SETS_SCOPE, notes, [record, each], query.ran,
+                       player={"player_id": player, "name": name}, opponent={"player_id": opponent, "name": other})
 
 
 TEMPLATES = {t.name: t for t in (
@@ -423,4 +468,14 @@ TEMPLATES = {t.name: t for t in (
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), player_results),
+    Template(
+        "head_to_head",
+        "Two players against each other at official events: the first player's 1v1 record against the other in sets"
+        " (wins, losses, games), each 1v1 set between them with its winner and score, and whether they met in 2v2. Use"
+        " it for a head-to-head, a rivalry, or one player's record or history against another, with the player the"
+        " question asks about first.",
+        {"player_id": {"type": "integer", "description": "the first player's player_id, from resolve_player: the record"
+                                                         " is theirs"},
+         "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"}},
+        ("player_id", "opponent_id"), head_to_head),
 )}
