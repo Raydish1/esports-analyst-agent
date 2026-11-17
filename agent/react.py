@@ -293,10 +293,15 @@ class Tools:
             if isinstance(value, str) and value.strip():
                 return self.resolver.resolve(value)
             return {"error": "resolve_player takes one argument, name: the player's name as the question writes it"}
-        if name == "resolve_event":
-            value = arguments.get("name")
-            if isinstance(value, str) and value.strip():
+        if name == "resolve_event":  # event too, the templates' key: a pilot passed it 7 times, never changing it (2026-11-17)
+            value = next((v for v in (arguments.get("name"), arguments.get("event")) if isinstance(v, str) and v.strip()),
+                         None)
+            if value:
                 return self.events.resolve(value)
+            wrong = sorted(set(arguments) - {"name", "event"})
+            if wrong:
+                return {"error": f"resolve_event has no argument {wrong[0]!r}: resolve_event takes name, the event's name"
+                                 " as the question writes it"}
             return {"error": "resolve_event takes one argument, name: the event's name as the question writes it"}
         if name == "run_sql":
             value = arguments.get("query")

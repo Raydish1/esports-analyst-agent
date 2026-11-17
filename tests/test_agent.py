@@ -237,6 +237,14 @@ class EventResolverTest(Fixture):
         loop = react.Tools(self.path)
         self.assertEqual(loop.call("resolve_event", {"name": "bcx 2022"})["status"], "confident")
         self.assertIn("takes one argument, name", loop.call("resolve_event", {})["error"])
+
+    def test_an_event_given_as_the_templates_give_it_resolves_and_a_wrong_key_is_named(self):
+        loop = react.Tools(self.path)
+        self.assertEqual(loop.call("resolve_event", {"event": "bcx 2022"})["status"], "confident")  # the templates' key
+        self.assertEqual(loop.call("resolve_event", {"name": "bcx 2022", "mode": "1v1"})["status"], "confident")
+        self.assertEqual(loop.call("resolve_event", {"event_name": "bcx 2022"})["error"],
+                         "resolve_event has no argument 'event_name': resolve_event takes name, the event's name as the"
+                         " question writes it")
         self.assertIn("resolve_event", [t["function"]["name"] for t in react.TOOLS])
         self.assertIn("Don't search event names with LIKE", " ".join(react.SYSTEM.split()))
 
