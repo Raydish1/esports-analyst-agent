@@ -363,6 +363,74 @@ class FailuresPageTest(unittest.TestCase):
         self.assertIn("SELECT placement FROM v_results\n-- 1 row", page)
 
 
+def template(name, arguments, observation, ran):
+    """A template call as the trace keeps it: with the SQL it executed."""
+    return {**call(name, arguments, observation), "ran": ran}
+
+
+class TemplateCallsTest(unittest.TestCase):
+    """A template call (agent/templates.py) is read as a query is: stage 1 from the SQL it ran, stage 2 from its
+    tables, and both on the failures page."""
+    QUESTION = {"id": "x01", "set": "existing", "players": {"godly": 147982}, "events": {"eu summers 2026": ["e1", "e2"]}}
+    RESULT = {"template": "player_results", "notes": [], "tables": [
+        {"what": "Zivai's wins", "columns": ["player", "mode", "results"], "rows": [["Zivai", "1v1", 23]], "row_count": 1},
+        {"what": "each of them", "columns": ["date", "event", "players", "player_ids"],
+         "rows": [["2026-07-25", "Summer Championship - Europe 2026 - 2v2", "Zivai / bamya", [147982, 160011]]],
+         "row_count": 1}]}
+    RAN = ["SELECT r.mode, COUNT(*) FROM v_results r WHERE r.player_id = 147982 AND r.event_id IN ('e1', 'e2')"
+           " GROUP BY r.mode"]
+
+    def called(self):
+        return template("player_results", {"player_id": 147982, "event": "eu summers 2026"}, self.RESULT, self.RAN)
+
+    def test_stage_1_reads_the_ids_in_the_sql_a_template_ran(self):
+        t = trace(self.called())
+        self.assertEqual(harness.queries(t), self.RAN)
+        self.assertEqual(harness.stage1(self.QUESTION, t, None),
+                         {"result": "pass", "detail": "godly: queried with it; eu summers 2026: IDs in a query"})
+
+    def test_stage_2_reads_each_of_a_templates_tables_with_a_teams_ids_apart(self):
+        for check in (checks.row("Zivai", 23), checks.row(160011, "2026-07-25")):
+            with mock.patch.dict(harness.CHECKS, {"x01": check}):
+                self.assertEqual(harness.stage2(self.QUESTION, trace(self.called())),
+                                 {"result": "pass", "detail": "2 query results"})
+        refused = trace(call("player_results", {"player_id": "godly"}, {"error": "player_id is the number resolve_player"
+                                                                                 " returns, not a name"}))
+        with mock.patch.dict(harness.CHECKS, {"x01": checks.row("Zivai", 23)}):
+            self.assertEqual(harness.stage2(self.QUESTION, refused), {"result": "fail", "detail": "0 query results"})
+
+    def test_totals_two_calls_return_apart_pass_a_check_that_takes_both(self):
+        both = checks.all_of(checks.row("Boomie", 80), checks.row("gdsandstorm", 69))
+        apart = [[["Boomie", "1v1 and 2v2", 80]], [["gdsandstorm", "1v1 and 2v2", 69]]]
+        self.assertTrue(both(apart))
+        self.assertFalse(checks.rows(("Boomie", 80), ("gdsandstorm", 69))(apart))  # one result must have both
+        self.assertTrue(harness.CHECKS["q39"](apart))
+        self.assertFalse(both([[["Boomie", "1v1 and 2v2", 80]]]))
+
+    def test_an_answer_after_a_template_with_no_rows_in_any_table_comes_after_an_empty_result(self):
+        empty = {**self.RESULT, "tables": [{"what": "each event's winners", "columns": ["event"], "rows": [], "row_count": 0}]}
+        self.assertTrue(harness.ended_empty(trace(template("event_results", {"event": "zzz"}, empty, []))))
+        self.assertFalse(harness.ended_empty(trace(sql("SELECT ...", []), self.called())))  # the template came last
+        self.assertTrue(harness.ended_empty(trace(self.called(), sql("SELECT ...", []))))
+
+    def test_the_failures_page_shows_a_template_call_with_the_sql_it_ran_and_each_tables_rows(self):
+        (query, observation), = harness.executed_queries(trace(self.called()))
+        self.assertEqual(query, f"-- player_results(player_id=147982, event='eu summers 2026')\n{self.RAN[0]};")
+        self.assertEqual(harness.outcome(observation), "Zivai's wins: 1 row; each of them: 1 row")
+        listed = {**self.RESULT, "tables": [{"what": "each of them", "columns": [], "row_count": 140, "complete": False}]}
+        self.assertEqual(harness.outcome(listed), "each of them: 140 rows, too large to show")
+
+    def test_the_tool_use_table_counts_each_tools_runs_and_calls_and_the_steps_and_seconds_per_run(self):
+        self.assertEqual(harness.tool_calls(trace(self.called(), sql("SELECT 1", [[1]]), sql("SELECT 2", [[2]]))),
+                         {"player_results": 1, "run_sql": 2})
+        records = [{"tools": {"run_sql": 3, "resolve_player": 1}, "steps": 5, "model_seconds": 50.0},
+                   {"tools": {"player_results": 2}, "steps": 3, "model_seconds": 30.0}]
+        lines = harness.tool_use("Tool use, retrieval on", records)
+        self.assertEqual(lines[4:7], ["| resolve_player | 1/2 (50%) | 1 | 0.50 |", "| player_results | 1/2 (50%) | 2 | 1.00 |",
+                                      "| run_sql | 1/2 (50%) | 3 | 1.50 |"])  # lookups, templates, then run_sql
+        self.assertEqual(lines[-2], "Per run: 4.0 steps and 40.0 s of model time, over 2 runs.")
+
+
 class HeldOutLeakTest(unittest.TestCase):
     """The held-out set must never reach the example bank (decided 2026-11-08), and names players the agent wasn't
     tuned on."""

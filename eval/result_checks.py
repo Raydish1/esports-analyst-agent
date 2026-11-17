@@ -86,6 +86,11 @@ def any_of(*checks):
     return lambda results: any(check(results) for check in checks)
 
 
+def all_of(*checks):
+    """Every check holds, each in any result: facts that two calls return apart, such as two players' totals."""
+    return lambda results: all(check(results) for check in checks)
+
+
 def winners(*names):
     """A 2v2 or crew result's winners: each name on a placement-1 row, separately or grouped in one cell. A query on
     v_official_wins may have no placement column: the checks add row(*names) for a grouped cell then."""
@@ -135,8 +140,9 @@ CHECKS = {
     "q37": any_of(row("gdsandstorm", 48), row(74433, 48), row("Boomie", 42), row(146606, 42)),
     "q38": any_of(rows(("gdsandstorm", 30), ("TigerBrawlhalla", 26), ("Zivai", 23), ("Kylar Alice", 19)),
                   rows(("gdsandstorm", 28), ("TigerBrawlhalla", 26), ("Zivai", 22), ("Kylar Alice", 19))),
-    "q39": any_of(rows(("Boomie", 80), ("gdsandstorm", 69)), rows(("Boomie", "1v1", 34), ("gdsandstorm", "1v1", 42)),
-                  rows((146606, 80), (74433, 69)), rows((146606, "1v1", 34), (74433, "1v1", 42))),
+    "q39": any_of(all_of(row("Boomie", 80), row("gdsandstorm", 69)),  # in one result, or one player_results call each
+                  all_of(row("Boomie", "1v1", 34), row("gdsandstorm", "1v1", 42)),
+                  all_of(row(146606, 80), row(74433, 69)), all_of(row(146606, "1v1", 34), row(74433, "1v1", 42))),
     "q40": any_of(row("gdsandstorm", 10), row(74433, 10)),  # the losses, with or without the 3 wins
     "q41": any_of(row("gdsandstorm", 3), row(74433, 3), rows(("gdsandstorm", 2), ("yüz", 2))),
     "q42": any_of(row("North America - SteelSeries Championship", 7240), row("Low Tier City Midseason Online (NA)", 10451),

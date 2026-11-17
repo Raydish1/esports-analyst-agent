@@ -14,8 +14,8 @@ interrupted run resumes where it stopped. Scoring reads the traces only, so a co
 Each run's verdict (right, partly, wrong) comes with the first stage that failed, in the pipeline's order:
 1. name resolution: every player and event the question names resolved to the IDs its file gives, and those were
    the IDs the agent used (scored here);
-2. SQL logic: the queries it ran, with the events resolve_event listed, returned the facts the answer needs
-   (eval/result_checks.py; scored here);
+2. SQL logic: the queries it ran and the templates it called (agent/templates.py), with the events resolve_event
+   listed, returned the facts the answer needs (eval/result_checks.py; scored here);
 3. empty or insufficient data: a "none", a "not held" or missing data told apart from a lookup mistake, said, and not
    filled in;
 4. answer writing: the answer states what the results show, with what the question requires (the name, the minimum,
@@ -36,6 +36,7 @@ import sqlite3
 import sys
 import time
 import tomllib
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -45,7 +46,8 @@ sys.path.insert(0, str(ROOT / "ingest"))
 sys.path.insert(0, str(ROOT / "eval"))
 from result_checks import NA, all_checks, load_questions  # noqa: E402
 from names import normalize, normalize_full  # noqa: E402
-from tools import add_views  # noqa: E402
+from templates import TEMPLATES  # noqa: E402
+from tools import add_views, tables  # noqa: E402
 
 CHECKS = all_checks()  # stage 2's check per question, of both sets
 RAW = ROOT / "data" / "experiments"
@@ -56,7 +58,8 @@ SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
 # counts a question as tuned from that day on, so an earlier run keeps its groups when it's reported again.
 TUNED = {"q04": "20261018", "q06": "20261018", "q08": "20261018", "q21": "20261023", "q22": "20261023",
          "q05": "20261109", "q09": "20261109", "q33": "20261109", "q35": "20261109", "q36": "20261109",
-         "q45": "20261109", "q15": "20261109", "q20": "20261109", "q44": "20261109"}
+         "q45": "20261109", "q15": "20261109", "q20": "20261109", "q44": "20261109",
+         "q30": "20261117", "q31": "20261117", "q41": "20261117"}
 # The existing questions retrieval gave no helpful example in its measurement (2026-10-26), less those tuned on since
 # (q05, q09, q33, q35, q36 and q45, in step 1): the near-clean half of the retrieval-off arm, with the held-out set
 NEAR_CLEAN = ["q14", "q15", "q23", "q32", "q34", "q39", "q42"]
@@ -78,41 +81,84 @@ def calls(trace, name):
     return out
 
 
+def query_calls(trace):
+    """(tool, arguments, observation, statements) of every call that queried the results, in order: a run_sql query,
+    whose statement is its query, and a template call (agent/templates.py), whose statements are the SQL it executed,
+    kept in the trace."""
+    out = []
+    for step in trace["steps"]:
+        for c in step["tool_calls"]:
+            if c["observation"] and (c["name"] == "run_sql" or c["name"] in TEMPLATES):
+                args = c["arguments"] if isinstance(c["arguments"], dict) else {}
+                statements = [args.get("query", "")] if c["name"] == "run_sql" else c.get("ran") or []
+                out.append((c["name"], args, json.loads(c["observation"]), statements))
+    return out
+
+
 def queries(trace):
-    return [args.get("query", "") for args, _ in calls(trace, "run_sql")]
+    """Every SQL statement the run executed: its run_sql queries and its templates' statements, which hold the player
+    and event IDs a template was given or found."""
+    return [sql for _, _, _, statements in query_calls(trace) for sql in statements]
 
 
 ID_COLUMN = re.compile(r"(player|partner|opponent|winner)\d?_?id$", re.I)
 
 
+def spread(row):
+    """A row with a list cell's values in its place: a template gives a team's player_ids as one cell."""
+    return [x for v in row for x in (v if isinstance(v, list) else [v])]
+
+
 def results(trace, names=None):
-    """The rows each query showed the agent (none for a result too large to show), then the events each
-    resolve_event call listed, as rows of their values: an event's status (cancelled) can come from there. With
-    names ({player_id: name}), a player ID in an ID column also counts as the player's name, since an agent often
-    fetches IDs first and names in a second query, but only if some tool result in the run holds that name: an
-    answer of bare IDs didn't get the names (q14, seed 1, retrieval off, 2026-11-08)."""
-    ran = [obs for _, obs in calls(trace, "run_sql") if "error" not in obs]
-    returned = {cell.casefold() for obs in ran for row in obs.get("rows", []) for cell in row if isinstance(cell, str)}
+    """The rows each query showed the agent (none for a result too large to show), a template's each table's rows,
+    then the events each resolve_event call listed, as rows of their values: an event's status (cancelled) can come
+    from there. With names ({player_id: name}), a player ID in an ID column also counts as the player's name, since
+    an agent often fetches IDs first and names in a second query, but only if some tool result in the run holds that
+    name: an answer of bare IDs didn't get the names (q14, seed 1, retrieval off, 2026-11-08)."""
+    shown = [result for _, _, obs, _ in query_calls(trace) if "error" not in obs for result in tables(obs)]
+    returned = {cell.casefold() for _, rows in shown for row in rows for cell in spread(row) if isinstance(cell, str)}
     returned |= {c["name"].casefold() for _, obs in calls(trace, "resolve_player") for c in obs.get("candidates", [])
                  if c.get("name")}
-    shown = []
-    for obs in ran:
-        rows, ids = obs.get("rows", []), [i for i, c in enumerate(obs.get("columns", [])) if ID_COLUMN.search(c)]
+    out = []
+    for columns, rows in shown:
+        ids = [i for i, c in enumerate(columns) if ID_COLUMN.search(c)]
         if names and ids:
-            rows = [list(r) + [names[r[i]] for i in ids if r[i] in names and (names[r[i]] or "").casefold() in returned]
-                    for r in rows]
-        shown.append(rows)
-    return shown + [[list(e.values()) for e in obs["events"]] for _, obs in calls(trace, "resolve_event") if obs.get("events")]
+            rows = [list(r) + [names[r[i]] for i in ids if isinstance(r[i], int) and r[i] in names
+                               and (names[r[i]] or "").casefold() in returned] for r in rows]
+        out.append([spread(r) for r in rows])
+    return out + [[list(e.values()) for e in obs["events"]] for _, obs in calls(trace, "resolve_event") if obs.get("events")]
 
 
 def ended_empty(trace):
     """Whether the last query that ran found nothing, so the answer came after an empty result: no rows, or one row
-    of nulls and zeros (an aggregate over no rows, such as COUNT(*) with SUMs)."""
-    ran = [obs for _, obs in calls(trace, "run_sql") if "error" not in obs]
-    if not ran:
+    of nulls and zeros (an aggregate over no rows, such as COUNT(*) with SUMs); for a template, no rows in any of its
+    tables."""
+    done = [obs for _, _, obs, _ in query_calls(trace) if "error" not in obs]
+    if not done:
         return False
-    rows = ran[-1].get("rows")
-    return ran[-1].get("row_count") == 0 or (rows is not None and len(rows) == 1 and all(c in (None, 0) for c in rows[0]))
+    last = done[-1]
+    if "tables" in last:
+        return not any(rows for _, rows in tables(last))
+    rows = last.get("rows")
+    return last.get("row_count") == 0 or (rows is not None and len(rows) == 1 and all(c in (None, 0) for c in rows[0]))
+
+
+def executed_queries(trace):
+    """(SQL, observation) of every query the run executed, for the failures page: a run_sql query as written, and a
+    template call as the call, in a comment, then each statement it executed."""
+    out = []
+    for name, args, obs, statements in query_calls(trace):
+        if name == "run_sql":
+            out.append((args.get("query", ""), obs))
+        else:
+            call = f"-- {name}({', '.join(f'{k}={v!r}' for k, v in args.items())})"
+            out.append(("\n".join([call] + [f"{sql};" for sql in statements]), obs))
+    return out
+
+
+def tool_calls(trace):
+    """How many times the run called each tool."""
+    return dict(Counter(c["name"] for step in trace["steps"] for c in step["tool_calls"]))
 
 
 def flat(text):
@@ -349,7 +395,7 @@ def score(run_ids, db, labels):
                 "checks": sorted({k for s in t["steps"] for k in ("size_check", "lookup_check", "no_tool_check",
                                                                    "answer_check") if s.get(k)}),
                 "steps": t["steps_used"], "model_seconds": t["model_seconds"], "output_tokens": t["output_tokens"],
-                "name_swaps": len(t.get("name_swaps") or [])})
+                "name_swaps": len(t.get("name_swaps") or []), "tools": tool_calls(t)})
         out[run_id] = records
     return out
 
@@ -430,6 +476,22 @@ def stages(title, columns, judged):
     return out + [""]
 
 
+def tool_use(title, records):
+    """How the runs used the tools: each tool's runs calling it and its calls, in all and per run, then steps and
+    model seconds per run. run_sql's calls per run count the SQL the model wrote itself."""
+    calls_made, runs = Counter(), Counter()
+    for r in records:
+        calls_made.update(r.get("tools") or {})
+        runs.update(set(r.get("tools") or {}))
+    order = ["resolve_player", "resolve_event", *TEMPLATES, "run_sql"]
+    n = len(records)
+    out = [f"**{title}**", "", "| Tool | Runs calling it | Calls | Calls per run |", "|---|---|---|---|"]
+    for name in [t for t in order if t in calls_made] + sorted(set(calls_made) - set(order)):
+        out.append(f"| {name} | {counted(runs[name], n)} | {calls_made[name]} | {calls_made[name] / n:.2f} |")
+    return out + ["", f"Per run: {sum(r['steps'] for r in records) / n:.1f} steps and"
+                      f" {sum(r['model_seconds'] for r in records) / n:.1f} s of model time, over {n} runs.", ""]
+
+
 def report(records, judged):
     """The summary tables, as markdown lines: retrieval on by group, the held-out set by shape, by the query's shape,
     by category and by failing stage; then the retrieval-off arm against the same questions and seeds with it on."""
@@ -463,6 +525,9 @@ def report(records, judged):
                      (f"{name}, on", tally([r for r in same if r["set"] == chosen], judged))]
         out += table("The near-clean and held-out questions, retrieval off and on",
                      rows + [("all, off", tally(off, judged)), ("all, on", tally(same, judged))], "Questions, retrieval")
+    for title, rs in (("Tool use, retrieval on", on), ("Tool use, retrieval off", off)):
+        if rs and all("tools" in r for r in rs):  # records scored before the tools were counted have none
+            out += tool_use(title, rs)
     review = sum(j.get("review") == "needs review" for j in judged.values())
     out.append(f"Judgments needing review: {review} of {len(judged)}.")
     return out
@@ -478,6 +543,10 @@ def quoted_text(text):
 def outcome(observation):
     if "error" in observation:
         return f"error: {observation['error']}"
+    if "tables" in observation:  # a template: each table's rows
+        return "; ".join(f"{t['what']}: {t['row_count']} row{'' if t['row_count'] == 1 else 's'}"
+                         + (", too large to show" if t.get("complete") is False else "")
+                         for t in observation["tables"]) or "no tables"
     if observation.get("complete") is False:
         return f"too large to show: {observation['row_count']} rows"
     n = observation.get("row_count", 0)
@@ -567,8 +636,7 @@ def main():
     if args.command == "failures":  # reads the run's scores, judgments and traces; changes none of them
         records = json.loads((RESULTS / f"{args.run}-scores.json").read_text(encoding="utf-8"))
         judged = read_judgments(RESULTS / f"{args.run}-judgments.toml")
-        executed = {(t["id"], t["seed"]): [(a.get("query", ""), o) for a, o in calls(t, "run_sql")]
-                    for t in load_traces(args.run)[1]}
+        executed = {(t["id"], t["seed"]): executed_queries(t) for t in load_traces(args.run)[1]}
         path = Path(args.out) if args.out else RAW / args.run / "failures.md"
         lines = failures(args.run, records, judged, {q["id"]: q for q in questions}, executed)
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
