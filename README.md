@@ -11,7 +11,7 @@ Capstone project for a CMU agentic AI course.
 | `ingest/` | Data collection from APIs |
 | `agent/` | LangGraph agent code |
 | `eval/` | Evaluation questions and scoring |
-| `app/` | Demo UI (Streamlit) |
+| `app/` | Demo web app: a FastAPI backend and a plain-JavaScript page ([`docs/web-app-proposal.md`](docs/web-app-proposal.md)) |
 | `data/raw/`, `data/db/` | Local data only, never committed |
 
 ## Status
