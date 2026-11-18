@@ -371,6 +371,10 @@ class AnswerCheckTest(Fixture):
         self.assertEqual(shown.unreturned("**tike36** has the best record."), {})  # a name a tool showed counts
 
 
+HEADER = {"run": "R", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "x",
+          "snapshot": {"file": "f", "build_id": "b"}}
+
+
 def reply(content="", calls=(), thinking="", done="stop"):
     return {"message": {"role": "assistant", "content": content, "thinking": thinking,
                         "tool_calls": [{"function": {"name": n, "arguments": a}} for n, a in calls]},
@@ -450,7 +454,7 @@ class LoopTest(Fixture):
         self.assertEqual((trace["answer"], trace["name_swaps"]), ("RAYDISH has 6 official results.", []))
 
     def test_a_wrong_name_next_to_a_player_id_becomes_the_datas_name_for_that_id(self):
-        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 19 AS player_id"})]),
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 19 AS player_id, 3 AS winner_games, 0 AS loser_games"})]),
                        reply("The grand final was won by **Lucky** (player_id 19), 3-0."))
         trace = react.run("who won the grand final?", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual(trace["answer"], "The grand final was won by **Zivai** (player_id 19), 3-0.")
@@ -467,8 +471,8 @@ class LoopTest(Fixture):
                          ("**Raydish** and **tike36** won 6.", "kept the answer it replied about"))
 
     def test_a_reply_that_gives_new_figures_after_a_check_is_a_new_answer(self):
-        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
-                       reply("The previous answer missed one: **Raydish** won 7."))
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"}), ("run_sql", {"query": "SELECT 7 AS wins"})]),
+                       reply("**Raydish** and **tike36** won 6."), reply("The previous answer missed one: **Raydish** won 7."))
         trace = react.run("who won with raydish?", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual(trace["answer"], "The previous answer missed one: **Raydish** won 7.")
         self.assertNotIn("meta_reply", trace["steps"][2])
@@ -494,16 +498,59 @@ class LoopTest(Fixture):
 
     def test_a_reply_without_facts_needs_no_tool_and_a_repeated_one_is_kept(self):
         self.assertEqual(react.run("thanks", self.tools, ask=Scripted(reply("Glad to help.")), log=lambda *_: None)["steps_used"], 1)
-        ask = Scripted(reply("**Raydish** won 6."), reply("**Raydish** won 6."))
+        ask = Scripted(reply("**Raydish** won it."), reply("**Raydish** won it."))
         trace = react.run("has raydish won worlds", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual([s["no_tool_check"]["action"] for s in trace["steps"]], ["sent back", "kept: sent back once already"])
         self.assertEqual((trace["steps"][0]["no_tool_check"]["facts"], trace["answered_without_tools"]),
-                         ({"players": ["Raydish"], "numbers": ["6"]}, True))
+                         ({"players": ["Raydish"]}, True))
         self.assertEqual(react.summary(trace)["no_tool_checks"][1],
-                         {"step": 2, "facts": {"players": ["Raydish"], "numbers": ["6"]}, "action": "kept: sent back once already"})
-        page = react.markdown([trace], {"run": "R", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8,
-                                        "ollama": "x", "snapshot": {"file": "f", "build_id": "b"}})
-        self.assertIn("**No-tool check:** no tool was called, yet it states players: Raydish; numbers: 6. Sent back with:", page)
+                         {"step": 2, "facts": {"players": ["Raydish"]}, "action": "kept: sent back once already"})
+        page = react.markdown([trace], HEADER)
+        self.assertIn("**No-tool check:** no tool was called, yet it states players: Raydish. Sent back with:", page)
+
+    def test_an_answer_stating_a_number_no_tool_returned_goes_back_once_then_its_claim_is_replaced(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),
+                       reply("megD has 5 official results. The first was in 2020."))
+        trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
+        sent, replaced = trace["steps"][1]["number_check"], trace["steps"][2]["number_check"]
+        self.assertEqual((sent["numbers"], sent["action"], replaced["action"]),
+                         (["5"], "sent back", "replaced: sent back once already"))
+        flagged, message = ask.sent[2][-2:]
+        self.assertEqual((flagged["content"], message["role"]), ("megD has 5 official results.", "user"))
+        self.assertTrue(message["content"].startswith("Before this answer is final: it states '5', which no tool result"
+                                                      " in this conversation holds."))
+        self.assertEqual(trace["answer"], "I couldn't confirm the number of official results from the data. The first"
+                                          " was in 2020.")  # megD's first result is from 2020
+        self.assertEqual(trace["unconfirmed"], [{"claim": "megD has 5 official results.", "numbers": ["5"],
+                                                 "replacement": "I couldn't confirm the number of official results from"
+                                                                " the data."}])
+        self.assertEqual(react.summary(trace)["number_checks"], [
+            {"step": 2, "numbers": ["5"], "action": "sent back"},
+            {"step": 3, "numbers": ["5"], "action": "replaced: sent back once already"}])
+        page = react.markdown([trace], HEADER)
+        self.assertIn("**Number check:** it states 5, which no tool result holds. Sent back with:", page)
+        self.assertIn("- 'megD has 5 official results.' became \"I couldn't confirm the number of official results from"
+                      " the data.\"", page)
+
+    def test_a_number_no_tool_returned_is_replaced_at_once_on_the_last_step_or_after_a_reply_about_the_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."))
+        trace = react.run("q", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
+        self.assertEqual((trace["steps"][1]["number_check"]["action"], trace["answer"]),
+                         ("replaced: no steps left", "I couldn't confirm the number of official results from the data."))
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),
+                       reply("The answer is correct."))
+        trace = react.run("q", self.tools, ask=ask, max_steps=3, log=lambda *_: None)
+        self.assertIn(react.LAST_STEP, trace["steps"][1]["number_check"]["message"])
+        self.assertEqual((trace["steps"][2]["meta_reply"]["action"], trace["steps"][2]["number_check"]["action"]),
+                         ("kept the answer it replied about", "replaced: sent back once already"))
+        self.assertEqual(trace["answer"], "I couldn't confirm the number of official results from the data.")
+
+    def test_a_follow_up_may_cite_a_number_an_earlier_question_returned(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+                       reply(calls=[("run_sql", {"query": "SELECT 1"})]), reply("Still 2, as before."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("How many results has megd?")
+        self.assertEqual(conversation.ask("and now?")["unconfirmed"], [])
 
     def test_a_flagged_answer_is_kept_on_the_last_step_and_a_send_back_before_it_says_so(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]), reply("**tike36**."))

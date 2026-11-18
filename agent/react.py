@@ -18,7 +18,10 @@ An answer that names a player or cites a player ID no tool returned goes back to
 it found, before it counts (Shown.unreturned, unreturned_ids), and so does one that states facts in a question that
 called no tool (Shown.facts). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET),
 until the model queries again, and, once, one right after an empty result whose diagnosis finds no row with a text
-value the query filters on, a likely lookup mistake (diagnose.missing_text). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
+value the query filters on, a likely lookup mistake (diagnose.missing_text). Last, an answer stating a number that no
+tool result holds goes back once, naming it; whatever answer is final then has each claim holding such a number
+replaced by a sentence saying it couldn't be confirmed (number_check.py), so no answer states a number no tool
+returned (decided 2026-11-17). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
 with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
 comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
 a section on the views that hold each pairing more than once, which tool fits which question, and how to use the tools
@@ -49,6 +52,7 @@ from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
 import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
+from number_check import Evidence, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, player_ids, run_sql,  # noqa: E402
                    tables)
@@ -241,6 +245,11 @@ LOOKUP_MISS = ("Your last query returned no rows, and its diagnosis says no row 
                " (resolve_player for a player, resolve_event for an event, or one of the values the diagnosis lists)"
                " and query again before answering. If the empty result is right after all, reply with the same answer"
                " again.")
+NUMBERS = ("Before this answer is final: it states {numbers}, which no tool result in this conversation holds. Take every"
+           " number from the tool results, as they give it or as a placement (2 is 2nd), a record of two numbers in one"
+           " row (5-4), a date or a UTC time of a result, or a percentage of two numbers in one row. Don't add, subtract"
+           " or count rows yourself: get the number from a template or run_sql, or leave it out. A number no tool"
+           " returned is removed from the final answer.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
@@ -390,11 +399,13 @@ def listed(items):
 class Shown:
     """What a question's conversation has shown the model: every word of the prompt, the question and the
     observations, every number in them, and the players the tools returned (resolve_player's candidates, and any
-    player ID in a query result)."""
+    player ID in a query result); and, for the number check, what the tools returned and the user asked, apart from
+    the prompt (number_check.Evidence)."""
 
     def __init__(self, resolver, *texts):
         self.resolver, self.words, self.numbers, self.players = resolver, set(), set(), set()
         self.given = set()  # the numbers in the user's questions
+        self.evidence = Evidence()
         for text in texts:
             self.read(text)
 
@@ -403,6 +414,7 @@ class Shown:
         writes isn't one the model invented."""
         self.read(question)
         self.given |= {int(n) for n in re.findall(r"-?\d+", question)}
+        self.evidence.ask(question)
 
     def knows(self, pid):
         """Whether a tool call may use a player_id: a tool returned the person, or the user's question gives it."""
@@ -416,8 +428,12 @@ class Shown:
                 self.words |= {normalize(span), normalize_full(span)} - {""}
         self.numbers |= {int(n) for n in re.findall(r"\d+", str(text))}
 
-    def observe(self, name, observation):
+    def observe(self, name, observation, arguments=None):
+        """A tool call's observation, and the arguments of a call that ran: its conditions, for the number check."""
         self.read(json.dumps(observation, ensure_ascii=False))
+        self.evidence.observe(observation)
+        if arguments is not None and "error" not in observation:
+            self.evidence.call(arguments)
         if name == "resolve_player":
             self.players |= {c["player_id"] for c in observation.get("candidates", ())}
         canonical = self.resolver.canonical
@@ -611,8 +627,8 @@ class Conversation:
         """One question's steps. The trace: the examples retrieved for it (retrieval.Retriever.retrieve, or None
         without retrieval), each step's thinking, reply and tool calls with their observations, and
         any checks; then the answer, the outcome ('answered', 'step limit', ...), the names and player IDs in the answer
-        that no tool returned, and whether it came right after a result too large to show or a lookup miss, or without
-        a tool call. Four checks can send an answer back:
+        that no tool returned, whether it came right after a result too large to show or a lookup miss, or without a
+        tool call, and the claims the number check replaced (unconfirmed). Five checks can send an answer back:
         - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
           new query since, goes back as long as two steps are left, to query and to answer;
         - the lookup check: an answer right after an empty result whose diagnosis finds no row with a text value the
@@ -621,16 +637,20 @@ class Conversation:
         - the no-tool check: an answer stating facts (Shown.facts: players, player IDs, numbers) in a question that
           called no tool goes back once, if a step is left;
         - the answer check: an answer naming players, or citing player IDs, that no tool returned goes back once, if a
+          step is left;
+        - the number check: an answer stating a number no tool result holds (number_check.py) goes back once, if a
           step is left.
-        The answer that comes back counts either way. A name from the question that resolve_player matches only below
-        CONFIDENT ends the turn instead: the user gets its top three candidates as suggestions (outcome
-        'suggestions')."""
+        The answer that comes back counts either way, but whatever text is final has each claim holding a number no
+        tool result holds replaced by a sentence saying it couldn't be confirmed. A name from the question that
+        resolve_player matches only below CONFIDENT ends the turn instead: the user gets its top three candidates as
+        suggestions (outcome 'suggestions')."""
         trace = {"question": question, "examples": examples, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
                  "unreturned_ids": [], "answered_after_too_big": False, "answered_after_lookup_miss": False,
-                 "answered_without_tools": False, "name_swaps": []}
+                 "answered_without_tools": False, "name_swaps": [], "unconfirmed": []}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
         missing, missed = [], False  # the last empty result's text filters no row has, and whether that was sent back
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
+        numbered = False  # whether the number check sent an answer back
         resolved, sent_back = [], None  # the question's players resolve_player decided; the last answer sent back
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
@@ -717,8 +737,27 @@ class Conversation:
                 if names or ids:
                     step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
+                flagged = self.shown.evidence.unsupported(content)  # in every final text, an answer or not
+                stated = [c.text for c in flagged]
+                if flagged and outcome == "answered" and not numbered and number < max_steps:
+                    numbered, message = True, NUMBERS.format(numbers=listed([repr(n) for n in stated]))
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["number_check"] = {"numbers": stated, "action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log(f"  number check: it states {listed(stated)}, which no tool result holds; sent back")
+                    sent_back = (content, swaps)
+                    self.finished(step)
+                    continue
+                unconfirmed = []
+                if flagged:
+                    content, unconfirmed = without(content, flagged)
+                    why = "sent back once already" if numbered else "no steps left" if outcome == "answered" else "not an answer"
+                    step["number_check"] = {"numbers": stated, "action": f"replaced: {why}", "replaced": unconfirmed}
+                    log(f"  number check: {listed(stated)} replaced, since no tool result holds them")
                 trace["answer"], trace["outcome"], trace["name_swaps"] = content.strip() or None, outcome, swaps
-                trace["unreturned_names"], trace["unreturned_ids"] = names, ids
+                trace["unreturned_names"], trace["unreturned_ids"], trace["unconfirmed"] = names, ids, unconfirmed
                 log(f"  {trace['outcome']}: {short(content, 300)}")
                 self.finished(step)
                 break
@@ -740,7 +779,7 @@ class Conversation:
                 observation = {"error": unreturned_players(unknown)} if unknown else self.tools.call(name, arguments)
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
-                self.shown.observe(name, observation)
+                self.shown.observe(name, observation, arguments)
                 if name in QUERIES:  # only a new query clears a result too large to show, or a lookup miss
                     too_big = observation.get("complete") is False
                     missing, missed = missing_text(observation.get("diagnosis")), False
@@ -885,6 +924,15 @@ def markdown(traces, header):
                             " returned. Sent back with:", "", f"> {check['message']}", ""]
                 else:
                     out += [f"**Answer check:** it {what}, which no tool returned ({check['action']}).", ""]
+            numbers = s.get("number_check")
+            if numbers:
+                stated = ", ".join(numbers["numbers"])
+                if numbers["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**Number check:** it states {stated}, which no"
+                            " tool result holds. Sent back with:", "", f"> {numbers['message']}", ""]
+                else:
+                    out += [f"**Number check:** it states {stated}, which no tool result holds ({numbers['action']}).", ""]
+                    out += [f"- {r['claim']!r} became {r['replacement']!r}" for r in numbers["replaced"]] + [""]
             if s.get("meta_reply"):
                 out += ["**Reply**", "", s["meta_reply"]["reply"].strip(), "",
                         "**A reply about the answer, not an answer:** the answer it replied about is kept.", ""]
@@ -931,8 +979,8 @@ def preview(observation, width=200):
 
 def summary(trace):
     keep = ("number", "seed", "question", "outcome", "answer", "unreturned_names", "unreturned_ids",
-            "answered_after_too_big", "answered_after_lookup_miss", "answered_without_tools", "name_swaps", "steps_used",
-            "model_seconds", "tool_seconds", "output_tokens", "largest_context")
+            "answered_after_too_big", "answered_after_lookup_miss", "answered_without_tools", "name_swaps", "unconfirmed",
+            "steps_used", "model_seconds", "tool_seconds", "output_tokens", "largest_context")
     calls = [{"step": s["step"], "name": c["name"], "arguments": c["arguments"], "result": preview(c["observation"])}
              for s in trace["steps"] for c in s["tool_calls"]]
     checks = [{"step": s["step"], "names": s["answer_check"]["names"], "action": s["answer_check"]["action"],
@@ -947,8 +995,11 @@ def summary(trace):
     examples = found and {"threshold": found["threshold"], "candidates": found["candidates"],
                           "examples": [{k: e[k] for k in ("id", "shape", "similarity", "mmr")} for e in found["examples"]]}
     metas = [{"step": s["step"], "action": s["meta_reply"]["action"]} for s in trace["steps"] if s.get("meta_reply")]
+    numbers = [{"step": s["step"], "numbers": s["number_check"]["numbers"], "action": s["number_check"]["action"]}
+               for s in trace["steps"] if s.get("number_check")]
     return {**{k: trace.get(k) for k in keep}, "examples": examples, "tool_calls": calls, "answer_checks": checks,
-            "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told, "meta_replies": metas}
+            "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told, "number_checks": numbers,
+            "meta_replies": metas}
 
 
 def main():
