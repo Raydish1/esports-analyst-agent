@@ -202,6 +202,9 @@ th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .missing { color: var(--muted); font-style: italic; font-weight: 400; font-size: 0.85em; }
 .stat-card .value { font-variant-numeric: tabular-nums; }
 
+.stat-card.broadcast { padding: 10px; }
+.bc-holder { width: 100%; }
+
 .earnings { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 0 12px; }
 .earnings .label { font-weight: 600; }
 .earnings .value { font-size: 28px; font-weight: 700; }

@@ -1,0 +1,72 @@
+/* Broadcast-style stat cards: a fixed 1920x1080 frame, scaled to fit the page (broadcast.js).
+   Matched to the reference screenshots (docs/graphics-reference/, git-ignored): colors sampled from their pixels,
+   Montserrat as the free match for the broadcast's geometric sans, and edges traced into SVG. The producer's own fonts,
+   colors, backgrounds and edge assets replace these when they arrive (DATA.md, "Broadcast graphics"). */
+
+.bc-scale { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; }
+.bc-scale > .bc-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+
+.bc-frame {
+  --bc-cream: #faf2eb;
+  --bc-orange: #c85a41;
+  --bc-orange-text: #c55d46;
+  --bc-dark: #160c08;
+  --bc-ink: #050000;
+  --bc-white: #fffdf8;
+  --bc-numeral: #fff0d9;
+  /* The background art is the event's; until the producer sends it, a plain gradient of its sampled tones. */
+  --bc-background: linear-gradient(180deg, #c28058 0%, #7c4435 14%, #754532 45%, #6e4638 70%, #5b534a 85%, #586e62 100%);
+  position: relative;
+  width: 1920px; height: 1080px; overflow: hidden;
+  background: var(--bc-background);
+  font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  color: var(--bc-ink);
+  line-height: 1;
+  font-variant-numeric: lining-nums;
+}
+
+.bc-frame svg.bc-shapes { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+.bc-frame .bc-t { position: absolute; margin: 0; white-space: nowrap; }
+
+/* The legend's art: its slot is reserved; empty until a player's main has a file (figures.Legends). */
+.bc-legend { position: absolute; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; }
+.bc-legend img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Lifetime stats (reference: the Mounir card). Positions come from the reference's cap heights and cap tops, scaled
+   by 1920/1206: Gabarito Black and Montserrat both put the cap top 0.16 em below a line box of line-height 1. */
+
+.bc-frame .bc-heavy { font-family: "Gabarito", "Montserrat", system-ui, sans-serif; font-weight: 900; }
+.bc-lifetime .bc-legend { left: 400px; top: 560px; width: 560px; height: 520px; }
+.bc-lifetime .bc-eyebrow { left: 45px; top: 199px; font-size: 22.7px; font-weight: 600; }
+.bc-lifetime .bc-name { left: 44px; top: 223px; font-size: 68px; max-width: 560px; overflow: hidden; text-overflow: ellipsis; }
+.bc-lifetime .bc-bar-text { left: 46px; top: 310px; font-size: 22.7px; font-weight: 500; color: var(--bc-white); }
+.bc-lifetime .bc-heading { font-size: 54px; left: 41px; }
+.bc-lifetime .bc-h-earnings { top: 399px; }
+.bc-lifetime .bc-h-medals { top: 582px; }
+.bc-lifetime .bc-h-placement { top: 857px; font-size: 56px; letter-spacing: -1.1px; }
+.bc-lifetime .bc-earnings { left: 44px; top: 469px; font-size: 65.6px; font-weight: 800; color: var(--bc-orange-text); }
+.bc-lifetime .bc-earnings.bc-missing { font-size: 40px; top: 480px; font-style: italic; }
+
+.bc-lifetime .bc-row { position: absolute; left: 40px; height: 48px; width: 320px; }
+.bc-lifetime .bc-row > * { white-space: nowrap; }
+.bc-lifetime .bc-row .bc-box { position: absolute; left: 0; top: 0; height: 48px; background: var(--bc-dark); }
+.bc-lifetime .bc-row .bc-label { position: absolute; left: 20px; top: 11px; font-size: 22.7px; font-weight: 500; color: #fff; line-height: 1; }
+.bc-lifetime .bc-medal .bc-box { width: 194px; border-radius: 0 24px 24px 0; }
+.bc-lifetime .bc-medal .bc-circle {
+  position: absolute; left: 171px; top: 1px; width: 46px; height: 46px; border-radius: 50%;
+  background: var(--bc-orange); color: var(--bc-numeral); font-size: 21px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center;
+}
+.bc-lifetime .bc-medal .bc-count { position: absolute; left: 258px; transform: translateX(-50%); top: 1px; font-size: 49.5px; line-height: 1; }
+.bc-lifetime .bc-place { height: 49px; }
+.bc-lifetime .bc-place .bc-box { width: 167px; height: 49px; }
+.bc-lifetime .bc-place .bc-label { top: 12px; left: 24px; }
+.bc-lifetime .bc-place .bc-value {
+  position: absolute; left: 173px; top: 0; width: 132px; height: 49px; background: var(--bc-orange);
+  color: #fff; font-size: 49px; line-height: 1; text-align: right; padding: 0 27px 0 0; box-sizing: border-box;
+}
+.bc-lifetime .bc-row .bc-missing { font-family: "Montserrat", system-ui, sans-serif; font-size: 20px; font-weight: 600; font-style: italic; }
+.bc-lifetime .bc-scope {
+  left: 41px; top: 1018px; width: 600px; white-space: normal; font-size: 17px; line-height: 1.3; font-weight: 500;
+  color: #5d514c;
+}

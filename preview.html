@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920">
+  <title>Card Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@800;900&family=Montserrat:wght@500;600;700&display=block">
+  <link rel="stylesheet" href="broadcast.css">
+  <style>html, body { margin: 0; background: #000; } #out { width: 1920px; height: 1080px; }</style>
+</head>
+<body>
+  <!-- One card's frame at 1920x1080, unscaled, for app/dev/compare_card.py. Needs the server's --preview.
+       ?player=ID&mode=1v1 (or 2v2, or nothing for both) -->
+  <div id="out"></div>
+  <script type="module">
+    import { lifetimeFrame } from "./broadcast.js";
+    const q = new URLSearchParams(location.search);
+    const card = await (await fetch(`/api/preview/lifetime/${encodeURIComponent(q.get("player"))}`)).json();
+    await document.fonts.ready;
+    document.getElementById("out").append(lifetimeFrame(card, q.get("mode") || "1v1 and 2v2"));
+    await document.fonts.ready;
+    document.body.dataset.ready = "true";
+  </script>
+</body>
+</html>
