@@ -15,7 +15,7 @@
        ?player=ID&mode=1v1 (or 2v2, or nothing for both); &opponent=ID for a head-to-head -->
   <div id="out"></div>
   <script type="module">
-    import { headToHeadFrame, lifetimeFrame, setsFrame } from "./broadcast.js";
+    import { fontsReady, headToHeadFrame, lifetimeFrame, setsFrame } from "./broadcast.js";
     const q = new URLSearchParams(location.search);
     const mode = q.get("mode") || "1v1 and 2v2";
     const id = (name) => encodeURIComponent(q.get(name));
@@ -31,6 +31,7 @@
       document.getElementById("out").append(lifetimeFrame(card, mode));
     }
     await document.fonts.ready;
+    await fontsReady;
     document.body.dataset.ready = "true";
   </script>
 </body>
