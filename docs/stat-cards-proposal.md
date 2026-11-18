@@ -382,3 +382,7 @@ counters and solid strokes look like the broadcast's, and Extrabold looked too t
 Extrabold and Bold as fallbacks. Black is about 3.5% wider, so the width factor is 89%, and it applies to the figures
 too: Black's digits ran 8–18% wide unscaled, and at 89% they match within 4%. Every measured element is within 3 px of
 its reference; the left earnings figure ($214,458 against $211,958, the same number of digits) lands within 1 px.
+
+**87% width (2026-11-18).** The broadcast reads as Proxima Nova Black squeezed horizontally. Rendered at 89%, 88% and 87%,
+the measured width-to-height ratios averaged 1.00, 0.99 and 0.98 of the reference's (the reference's blurred edges
+widen its boxes); side by side, 87% looked closest, so the cards use 87%.

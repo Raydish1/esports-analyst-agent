@@ -59,7 +59,7 @@
 }
 
 .bc-frame { --bc-squeeze: 1; }
-.bc-proxima .bc-frame { --bc-squeeze: 0.89; }
+.bc-proxima .bc-frame { --bc-squeeze: 0.87; }
 .bc-frame .bc-sq { display: inline-block; transform: scaleX(var(--bc-squeeze)); transform-origin: left center; }
 .bc-frame .bc-center .bc-sq, .bc-frame .bc-pname .bc-sq, .bc-frame .bc-vs .bc-sq, .bc-frame .bc-count .bc-sq,
 .bc-frame .bc-sets-heading .bc-sq, .bc-frame .bc-sets-title .bc-sq, .bc-frame .bc-entry-score .bc-sq { transform-origin: center; }

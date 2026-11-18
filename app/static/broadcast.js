@@ -37,9 +37,9 @@ function shapes(parts) {
   return svg;
 }
 
-// Proxima Nova Black, when it loads (broadcast.css), is set at 89% width: the broadcast's heavy words measure that much
-// narrower at the same height, letter by letter, with the same gaps between letters (a narrower cut, or a horizontal
-// scale in their graphics tool). The fallback fonts were measured unscaled, so they stay
+// Proxima Nova Black, when it loads (broadcast.css), is set at 87% width: the broadcast squeezes it horizontally (same
+// height, strokes and gaps, narrower letters). Measured against the blurred references, 89% fits their boxes best; side
+// by side, 87% looks closer, and was chosen (2026-11-18). The fallback fonts were measured unscaled, so they stay
 // at 100%. fontsReady resolves once that's settled.
 export const fontsReady = document.fonts.load('900 100px "BC Heavy"')
   .then((faces) => { if (faces.length) document.documentElement.classList.add("bc-proxima"); })
