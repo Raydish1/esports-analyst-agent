@@ -207,6 +207,7 @@ def flat(text):
 
 
 def same_name(a, b):
+    a, b = str(a), str(b)  # a model can pass a player_id as a name: q40 seed 2 on 2026-11-17 passed 74433
     a, b = {normalize(a), normalize_full(a)} - {""}, {normalize(b), normalize_full(b)} - {""}
     return bool(a & b) or any(x in y or y in x for x in a for y in b if min(len(x), len(y)) >= 4)
 

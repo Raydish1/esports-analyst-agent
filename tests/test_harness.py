@@ -431,6 +431,14 @@ class TemplateCallsTest(unittest.TestCase):
         self.assertEqual(lines[-2], "Per run: 4.0 steps and 40.0 s of model time, over 2 runs.")
 
 
+class NumberForANameTest(unittest.TestCase):
+    def test_a_resolve_player_call_given_a_number_for_a_name_is_scored_like_any_other_call(self):
+        question = {"id": "x02", "set": "existing", "players": {"sandstorm": 74433}}
+        run = trace(call("resolve_player", {"name": 74433}, {"error": "resolve_player takes one argument, name"}),
+                    sql("SELECT COUNT(*) FROM v_results WHERE player_id = 74433", [[1]]))
+        self.assertEqual(harness.stage1(question, run, None), {"result": "pass", "detail": "sandstorm: queried with it"})
+
+
 class NewChecksTest(unittest.TestCase):
     """The number check and the name filter (agent/number_check.py, tools.name_filters): counted when a run is
     scored, shown in the report, and replayed offline on a run from before them."""
