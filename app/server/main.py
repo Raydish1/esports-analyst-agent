@@ -1,0 +1,147 @@
+"""The demo web app's server: the agent behind a queue, its progress streamed to the page as Server-Sent Events.
+
+    python app/server/main.py                        replay mode (the default): recorded model replies, no model server
+    python app/server/main.py --replay-runs A B      replay only these runs' recordings (directories of data/experiments)
+    py -3.14 app/server/main.py --mode live          live mode: the model server at OLLAMA_BASE_URL (.env)
+
+Then open http://127.0.0.1:8000. It binds 127.0.0.1 unless --host says otherwise. Nothing secret goes to the page:
+the model server's address is read here only, and redacted from every text sent (events.redact).
+
+Routes:
+    GET  /api/info                              the mode and the example questions
+    POST /api/conversations                     a new conversation: {"conversation_id"}
+    POST /api/conversations/{id}/questions      {"question"}: {"job_id", "position"}
+    GET  /api/jobs/{id}/events                  the job's events (text/event-stream), from Last-Event-ID on
+"""
+
+import argparse
+import asyncio
+import json
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent.parent
+sys.path.insert(0, str(ROOT / "agent"))
+sys.path.insert(0, str(HERE))
+
+from fastapi import FastAPI, HTTPException, Request  # noqa: E402
+from fastapi.responses import StreamingResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+from pydantic import BaseModel, Field  # noqa: E402
+
+import react  # noqa: E402
+import replay  # noqa: E402
+import runner  # noqa: E402
+import worker as workers  # noqa: E402
+
+STATIC = HERE.parent / "static"
+KEEPALIVE = 15  # seconds between comments on a quiet stream, so proxies keep it open
+# The example questions, one of each kind the page shows: a template's answer, a query's, suggestions, a follow-up,
+# an event that wasn't held. In replay mode only those with a recording are offered.
+EXAMPLES = [
+    "Who won the 2016 Brawlhalla World Championship?",
+    "whats bbballoonboy's 1v1 record vs impala",
+    "rank the top 5 players by official 1v1 wins",
+    "Who has megd played with in 2v2 tournaments, and how did they place?",
+    "did markiemoo ever win worlds",
+    "How many medals does Balloonboy have?",
+    "who won ceo dreamland 2020",
+    "What is Raydish's most dominant tournament win?",
+]
+
+
+class Question(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+
+
+def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC):
+    """The app around one source of models (runner.Replay or runner.Live) and one shared runner.ProgressTools."""
+    worker = worker or workers.Worker(lambda: runner.Agent(tools, source)).start()
+    offered = [q for q in examples if source.mode != "replay" or source.index.has(q)]
+    app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.worker = worker
+
+    @app.get("/api/info")
+    def info():
+        return {"mode": source.mode, "examples": offered}
+
+    @app.post("/api/conversations")
+    def conversation():
+        try:
+            return {"conversation_id": worker.open().id}
+        except workers.Full as e:
+            raise HTTPException(503, str(e))
+
+    @app.post("/api/conversations/{conversation_id}/questions")
+    def ask(conversation_id: str, body: Question):
+        question = " ".join(body.question.split())
+        if not question:
+            raise HTTPException(422, "The question is empty.")
+        try:
+            job = worker.submit(conversation_id, question)
+        except KeyError:
+            raise HTTPException(404, "This conversation has ended. Start a new one.")
+        except workers.Busy as e:
+            raise HTTPException(409, str(e))
+        except workers.Full as e:
+            raise HTTPException(503, str(e))
+        return {"job_id": job.id, "position": job.position}
+
+    @app.get("/api/jobs/{job_id}/events")
+    async def stream(job_id: str, request: Request):
+        job = worker.job(job_id)
+        if job is None:
+            raise HTTPException(404, "No such question.")
+        try:
+            after = int(request.headers.get("last-event-id", "-1")) + 1
+        except ValueError:
+            after = 0
+
+        async def lines():
+            nonlocal after
+            while True:
+                found, finished = await asyncio.to_thread(job.wait, after, KEEPALIVE)
+                for number, event in found:
+                    yield f"id: {number}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    after = number + 1
+                if finished and after >= len(job.events):
+                    return
+                if not found:
+                    if await request.is_disconnected():
+                        return
+                    yield ": waiting\n\n"
+
+        return StreamingResponse(lines(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    if static.exists():
+        app.mount("/", StaticFiles(directory=static, html=True), name="static")
+    return app
+
+
+def replay_source(runs=None, speed=0.1):
+    index = replay.Index(replay.recordings(react.RAW, runs=set(runs) if runs else None))
+    if not index.recordings:
+        sys.exit("No recordings to replay" + (f" in the runs {', '.join(runs)}." if runs else "."))
+    return runner.Replay(index, speed=speed)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="The demo web app: the agent behind a queue, streamed to the page.")
+    parser.add_argument("--mode", choices=["replay"], default="replay",
+                        help="replay: recorded model replies through the real loop and tools (the default)")
+    parser.add_argument("--replay-runs", nargs="*", help="replay only these runs (directory names in data/experiments)")
+    parser.add_argument("--speed", type=float, default=0.1, help="replay: the share of each step's recorded time to wait")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args(argv)
+    source = replay_source(args.replay_runs, args.speed)
+    print(f"Replay mode: {len(source.index.recordings)} recordings. Loading the players' names...")
+    tools = runner.ProgressTools()
+    import uvicorn
+    uvicorn.run(create_app(source, tools), host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()

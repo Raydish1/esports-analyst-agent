@@ -8,3 +8,7 @@ python-dotenv
 # Retrieval of worked examples (agent/retrieval.py). It has no build for Windows ARM64's Python (its index library,
 # chroma-hnswlib), so on an ARM64 Windows machine the agent runs with an x64 Python (py -3.14) under emulation.
 chromadb
+# The demo web app (app/): its server, and the test client its tests use
+fastapi
+uvicorn
+httpx
