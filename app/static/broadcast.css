@@ -1,7 +1,38 @@
 /* Broadcast-style stat cards: a fixed 1920x1080 frame, scaled to fit the page (broadcast.js).
-   Matched to the reference screenshots (docs/graphics-reference/, git-ignored): colors sampled from their pixels,
-   Montserrat as the free match for the broadcast's geometric sans, and edges traced into SVG. The producer's own fonts,
-   colors, backgrounds and edge assets replace these when they arrive (DATA.md, "Broadcast graphics"). */
+   Matched to the reference screenshots (docs/graphics-reference/, git-ignored): colors sampled from their pixels and
+   edges traced into SVG. The producer's own colors, backgrounds and edge assets replace these when they arrive (DATA.md,
+   "Broadcast graphics").
+
+   Fonts: the broadcast uses Proxima Nova (the producer, 2026-11-18): Bold for the heavy text, and lighter weights for
+   the labels. It's a licensed font, so it's used when it's installed on the viewer's machine or its files are in
+   app/static/fonts/ (git-ignored). Without it, "BC Heavy" falls back to Gabarito Black and "BC Text" to Montserrat,
+   the free matches measured against the references. */
+
+@font-face {
+  font-family: "BC Heavy"; font-weight: 900; font-display: block;
+  src: local("Proxima Nova Bold"), local("ProximaNova-Bold"),
+       url("fonts/proxima-nova-bold.woff2") format("woff2"), url("fonts/proxima-nova-bold.otf") format("opentype");
+}
+@font-face {
+  font-family: "BC Heavy"; font-weight: 800; font-display: block;
+  src: local("Proxima Nova Bold"), local("ProximaNova-Bold"),
+       url("fonts/proxima-nova-bold.woff2") format("woff2"), url("fonts/proxima-nova-bold.otf") format("opentype");
+}
+@font-face {
+  font-family: "BC Text"; font-weight: 500; font-display: block;
+  src: local("Proxima Nova Medium"), local("ProximaNova-Medium"),
+       url("fonts/proxima-nova-medium.woff2") format("woff2"), url("fonts/proxima-nova-medium.otf") format("opentype");
+}
+@font-face {
+  font-family: "BC Text"; font-weight: 600; font-display: block;
+  src: local("Proxima Nova Semibold"), local("ProximaNova-Semibold"),
+       url("fonts/proxima-nova-semibold.woff2") format("woff2"), url("fonts/proxima-nova-semibold.otf") format("opentype");
+}
+@font-face {
+  font-family: "BC Text"; font-weight: 700; font-display: block;
+  src: local("Proxima Nova Bold"), local("ProximaNova-Bold"),
+       url("fonts/proxima-nova-bold.woff2") format("woff2"), url("fonts/proxima-nova-bold.otf") format("opentype");
+}
 
 .bc-scale { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; }
 .bc-scale > .bc-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
@@ -19,7 +50,7 @@
   position: relative;
   width: 1920px; height: 1080px; overflow: hidden;
   background: var(--bc-background);
-  font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
+  font-family: "BC Text", "Montserrat", "Segoe UI", system-ui, sans-serif;
   color: var(--bc-ink);
   line-height: 1;
   font-variant-numeric: lining-nums;
@@ -35,7 +66,7 @@
 /* Lifetime stats (reference: the Mounir card). Positions come from the reference's cap heights and cap tops, scaled
    by 1920/1206: Gabarito Black and Montserrat both put the cap top 0.16 em below a line box of line-height 1. */
 
-.bc-frame .bc-heavy { font-family: "Gabarito", "Montserrat", system-ui, sans-serif; font-weight: 900; }
+.bc-frame .bc-heavy { font-family: "BC Heavy", "Gabarito", "Montserrat", system-ui, sans-serif; font-weight: 900; }
 .bc-lifetime .bc-legend { left: 400px; top: 560px; width: 560px; height: 520px; }
 .bc-lifetime .bc-eyebrow { left: 45px; top: 199px; font-size: 22.7px; font-weight: 600; }
 .bc-lifetime .bc-name { left: 44px; top: 223px; font-size: 68px; max-width: 560px; overflow: hidden; text-overflow: ellipsis; }
@@ -65,7 +96,7 @@
   position: absolute; left: 173px; top: 0; width: 132px; height: 49px; background: var(--bc-orange);
   color: #fff; font-size: 49px; line-height: 1; text-align: right; padding: 0 27px 0 0; box-sizing: border-box;
 }
-.bc-lifetime .bc-row .bc-missing { font-family: "Montserrat", system-ui, sans-serif; font-size: 20px; font-weight: 600; font-style: italic; }
+.bc-lifetime .bc-row .bc-missing { font-family: "BC Text", "Montserrat", system-ui, sans-serif; font-size: 20px; font-weight: 600; font-style: italic; }
 .bc-lifetime .bc-scope {
   left: 41px; top: 1018px; width: 600px; white-space: normal; font-size: 17px; line-height: 1.3; font-weight: 500;
   color: #5d514c;
@@ -120,7 +151,7 @@
 .bc-h2h .bc-pname { bottom: 6px; font-size: 88px; line-height: 1; color: var(--bc-ink); }
 .bc-h2h .bc-pname.bc-l { left: 400px; transform: translateX(-50%); }
 .bc-h2h .bc-pname.bc-r { left: 1532px; transform: translateX(-50%); }
-.bc-h2h .bc-score { top: 966px; font-family: "Montserrat", system-ui, sans-serif; font-weight: 900; font-size: 106px; color: var(--bc-ink); }
+.bc-h2h .bc-score { top: 966px; font-family: "BC Heavy", "Montserrat", system-ui, sans-serif; font-weight: 900; font-size: 106px; color: var(--bc-ink); }
 .bc-h2h .bc-score.bc-l { right: 1091px; }
 .bc-h2h .bc-score.bc-r { left: 1084px; }
 .bc-h2h .bc-vs { left: 954px; transform: translateX(-50%); top: 946px; font-size: 137px; color: var(--bc-orange); text-shadow: 9px 0 0 var(--bc-teal); letter-spacing: -4px; }

@@ -23,5 +23,7 @@ images (2026-11-18).
 - The screenshots stay out of git (`.gitignore`).
 - Until the producer sends the source fonts, colors, backgrounds and edge assets, the cards use colors sampled from the
   screenshots, free fonts that match, and edges traced into SVG. The producer's assets replace them when they arrive.
+- The broadcast's font is Proxima Nova (the producer, 2026-11-18). It's licensed, so its files go in `app/static/fonts/`,
+  which git ignores, and the cards fall back to free fonts without them.
 - The legends' character art (`app/static/art/legends/*.webp`) stays out of git until it's confirmed the files may be
   redistributed.
