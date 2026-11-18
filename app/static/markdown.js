@@ -89,10 +89,13 @@ export function render(text) {
       const list = document.createElement(ordered ? "ol" : "ul");
       while (i < lines.length && (LIST.test(lines[i]) || (lines[i].trim() && /^\s{2,}/.test(lines[i])))) {
         const m = lines[i].match(LIST);
-        if (m) {
-          const item = document.createElement("li");
-          if (m[1].length >= 2) item.className = "nested";
-          list.append(inline(item, m[3]));
+        if (m && m[1].length >= 2 && list.lastChild) {  // indented: a list inside the last item
+          const tag = /\d/.test(m[2]) ? "OL" : "UL";
+          let sub = list.lastChild.lastElementChild;
+          if (!sub || sub.tagName !== tag) sub = list.lastChild.appendChild(document.createElement(tag));
+          sub.append(inline(document.createElement("li"), m[3]));
+        } else if (m) {
+          list.append(inline(document.createElement("li"), m[3]));
         } else if (list.lastChild) {
           list.lastChild.append(document.createElement("br"));
           inline(list.lastChild, lines[i].trim());

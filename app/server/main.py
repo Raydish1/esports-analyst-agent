@@ -40,7 +40,7 @@ KEEPALIVE = 15  # seconds between comments on a quiet stream, so proxies keep it
 # The example questions, one of each kind the page shows: a template's answer, a query's, suggestions, a follow-up,
 # an event that wasn't held. In replay mode only those with a recording are offered.
 EXAMPLES = [
-    "Who won the 2016 Brawlhalla World Championship?",
+    "who won worlds 2019 1v1",
     "whats bbballoonboy's 1v1 record vs impala",
     "rank the top 5 players by official 1v1 wins",
     "Who has megd played with in 2v2 tournaments, and how did they place?",
