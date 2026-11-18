@@ -13,7 +13,8 @@ answer. A question ends at the answer, or after MAX_STEPS replies; the observati
 the last. A tool call on a player_id that no tool returned and the question doesn't give (a run_sql query filtering on
 it, or a template's player argument) doesn't run: its observation is an error pointing to resolve_player (Shown.knows).
 In the template tools' after run, one run passed head_to_head two invented IDs that were real players, and no check
-caught it (docs/experiments.md, 2026-11-17).
+caught it (docs/experiments.md, 2026-11-17). Nor does a run_sql query that looks a player up by name
+(tools.name_filters), which gets an error naming the name to give resolve_player.
 An answer that names a player or cites a player ID no tool returned goes back to the model once, with what
 it found, before it counts (Shown.unreturned, unreturned_ids), and so does one that states facts in a question that
 called no tool (Shown.facts). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET),
@@ -54,8 +55,8 @@ import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
 from number_check import Evidence, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
-from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, player_ids, run_sql,  # noqa: E402
-                   tables)
+from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, name_filters,  # noqa: E402
+                   player_ids, run_sql, tables)
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -320,6 +321,19 @@ def unreturned_players(ids):
             f" tool in this conversation, and the question doesn't give {'it' if one else 'them'}, so"
             f" {'it' if one else 'they'} may not be the player{'' if one else 's'} meant. Call resolve_player with"
             f" {'the' if one else 'each'} player's name, and use the player_id it returns.")
+
+
+def looked_up_by_name(filters):
+    """The error for a run_sql query that looks a player up by name (tools.name_filters), with the names to give
+    resolve_player: the filters' text values, without LIKE's wildcards."""
+    names = [n for n in dict.fromkeys(v.replace("''", "'").strip("%_ ") for f in filters
+                                      for v in re.findall(r"'((?:[^']|'')*)'", f)) if n]
+    call = (f"Call resolve_player with {names[0]!r}" if len(names) == 1 else
+            f"Call resolve_player for each of {listed([repr(n) for n in names])}" if names else
+            "Call resolve_player with the player's name")
+    return (f"This query looks a player up by name ({'; '.join(filters)}), which can find another player of that name,"
+            " or no one: people write nicknames, former names and other spellings, which only resolve_player knows."
+            f" {call}, and filter on the player_id it returns.")
 
 
 class Tools:
@@ -776,7 +790,10 @@ class Conversation:
                 name, arguments = call["function"].get("name"), call["function"].get("arguments")
                 begun = time.monotonic()
                 unknown = [pid for pid in dict.fromkeys(players_used(name, arguments)) if not self.shown.knows(pid)]
-                observation = {"error": unreturned_players(unknown)} if unknown else self.tools.call(name, arguments)
+                query = parsed(arguments).get("query")
+                named = name_filters(query) if name == "run_sql" and isinstance(query, str) else []
+                observation = ({"error": unreturned_players(unknown)} if unknown else
+                               {"error": looked_up_by_name(named)} if named else self.tools.call(name, arguments))
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
                 self.shown.observe(name, observation, arguments)
@@ -794,7 +811,8 @@ class Conversation:
                 text = json.dumps(observation, ensure_ascii=False)
                 step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
                                            "seconds": round(seconds, 3), **({} if ran is None else {"ran": ran}),
-                                           **({"unreturned_players": unknown} if unknown else {})})
+                                           **({"unreturned_players": unknown} if unknown else {}),
+                                           **({"name_filters": named} if named and not unknown else {})})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:

@@ -114,6 +114,16 @@ TOO_BIG = ("Too large to show: {total} rows, over the budget of about {budget} t
 MARKS = re.compile(r'[\d\[\]{},:"]')
 PLAYER_FILTER = re.compile(r"\b(?:player_id|partner_id|opponent_id|opponent1_id|opponent2_id|winner_id|loser_id)\s*"
                            r"(?:=\s*(-?\d+)|IN\s*\(([-\d,\s]+)\))", re.I)  # the views' player columns
+# A player looked up by name: a column of players' names compared with a text value (=, LIKE, GLOB or IN, negated or
+# not, in any case or collation, on either side, or in instr). players.name and v_career_earnings.name are the only
+# bare name columns, so a bare name is a player's; alias counts only on player_aliases, since event_aliases has one too
+NAME_COLUMNS = r"(?:name|winner_name|loser_name|entrant_name|shown_as|alias)\b"
+NAME_COLUMN = rf"(?<![\w.])(?:[A-Za-z_]\w*\.)?{NAME_COLUMNS}"
+FOLDED = rf"(?:(?:lower|upper|trim|ltrim|rtrim)\s*\(\s*{NAME_COLUMN}\s*\)|{NAME_COLUMN})(?:\s+collate\s+\w+)?"
+TEXT = r"(?:(?:lower|upper|trim)\s*\(\s*)?'(?:[^']|'')*'"
+NAME_FILTER = re.compile(rf"{FOLDED}\s*(?:==?|!=|<>|\b(?:not\s+)?(?:like|glob)\b|\b(?:not\s+)?in\s*\()\s*{TEXT}"
+                         rf"(?:\s*,\s*{TEXT})*|{TEXT}\s*\)?\s*==?\s*{FOLDED}|\binstr\s*\(\s*{FOLDED}\s*,\s*{TEXT}", re.I)
+CLAUSE_WORDS = r"(?!(?:join|where|on|using|left|right|inner|outer|cross|natural|group|order|limit|union|having)\b)"
 
 EVENT_SCORES = {"alias": 1.0, "series": 0.95, "words": 0.9, "some words": 0.85}  # rankings too, as SCORES
 MODE_WORDS = {"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}
@@ -443,6 +453,23 @@ def player_ids(sql):
     found = []
     for one, many in PLAYER_FILTER.findall(sql):
         found += [int(one)] if one else [int(n) for n in many.split(",") if n.strip()]
+    return found
+
+
+def name_filters(sql):
+    """The filters a query looks a player up by name with, as written: in the player check's smoke test, q01 filtered
+    on players.name = 'Boomie', which seven players share, and answered for another of them (docs/experiments.md,
+    2026-11-17)."""
+    read = {t.lower() for t in re.findall(r"\b(player_aliases|event_aliases)\b", sql, re.I)}
+    bound = {"player_aliases"} | {a.lower() for a in re.findall(rf"\bplayer_aliases\s+(?:as\s+)?{CLAUSE_WORDS}(\w+)", sql, re.I)}
+    found = []
+    for m in NAME_FILTER.finditer(sql):
+        table, column = re.search(rf"(?<![\w.])(?:([A-Za-z_]\w*)\.)?({NAME_COLUMNS})",
+                                  re.sub(r"'(?:[^']|'')*'", "''", m[0]), re.I).group(1, 2)
+        if column.lower() == "alias" and not (
+                table.lower() in bound if table else "player_aliases" in read and "event_aliases" not in read):
+            continue
+        found.append(" ".join(m[0].split()))
     return found
 
 

@@ -317,6 +317,29 @@ class RunSqlTest(Fixture):
         self.assertIn("readonly", tools.run_sql("CREATE TEMP VIEW mine AS SELECT 1", self.path)["error"])
 
 
+class NameFilterTest(unittest.TestCase):
+    def test_a_player_looked_up_by_name_in_sql_is_found_in_any_form(self):
+        for sql in ("SELECT * FROM v_entries WHERE player_id = (SELECT player_id FROM players WHERE name = 'Boomie')",
+                    "SELECT * FROM players p WHERE lower(p.name) LIKE '%boomie%'",
+                    "SELECT * FROM players WHERE name IN ('Boomie', 'Zivai')",
+                    "SELECT * FROM players WHERE 'Boomie' = name COLLATE NOCASE",
+                    "SELECT * FROM v_sets_1v1 WHERE winner_name = 'Zivai'",
+                    "SELECT player_id FROM player_aliases WHERE alias = 'boomie'",
+                    "SELECT * FROM player_aliases a JOIN players p USING (player_id) WHERE a.alias GLOB 'boo*'",
+                    "SELECT * FROM players WHERE instr(name, 'oomie') > 0",
+                    "SELECT * FROM v_career_earnings WHERE name NOT LIKE 'B%'"):
+            self.assertEqual(len(tools.name_filters(sql)), 1, sql)
+
+    def test_a_name_shown_or_compared_with_a_column_and_event_names_and_aliases_arent_lookups(self):
+        for sql in ("SELECT p.name FROM players p WHERE p.player_id = 146606 ORDER BY name",
+                    "SELECT * FROM players WHERE name IS NOT NULL",
+                    "SELECT * FROM v_events WHERE tournament_name LIKE '%Worlds%' OR event_name = '1v1'",
+                    "SELECT event_id FROM event_aliases WHERE alias = 'bcx 2022'",
+                    "SELECT * FROM player_aliases a JOIN event_aliases e ON e.alias = a.alias WHERE e.alias = 'worlds'",
+                    "SELECT * FROM players p JOIN players q ON p.name = q.name"):
+            self.assertEqual(tools.name_filters(sql), [], sql)
+
+
 class AnswerCheckTest(Fixture):
     def shown(self):
         """A conversation that has returned Marckiem00 (4) by the resolver and BBBalloonBoy (3) by ID only."""
@@ -605,11 +628,27 @@ class LoopTest(Fixture):
                        reply("6."))
         trace = react.run("How many results has player 11?", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual(json.loads(trace["steps"][0]["tool_calls"][0]["observation"])["rows"], [[6]])
-        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT player_id FROM players WHERE name = 'tike36'"})]),
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT player_id FROM v_results GROUP BY player_id"
+                                                                   " HAVING COUNT(*) = 3 ORDER BY player_id DESC LIMIT 1"})]),
                        reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 14"})]),
                        reply("3."))
         trace = react.run("How many results has tike36?", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual(json.loads(trace["steps"][1]["tool_calls"][0]["observation"])["rows"], [[3]])
+
+    def test_a_query_looking_a_player_up_by_name_is_refused_with_the_name_to_resolve(self):
+        lookup = ("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id ="
+                                       " (SELECT player_id FROM players WHERE name = 'Boomie')"})  # q01 in the smoke test
+        ask = Scripted(reply(calls=[lookup]), reply(calls=[("resolve_player", {"name": "Boomie"})]), reply("Boomie: 2 results."))
+        trace = react.run("How many results has Boomie?", self.tools, ask=ask, log=lambda *_: None)
+        refused = trace["steps"][0]["tool_calls"][0]
+        self.assertEqual(refused["name_filters"], ["name = 'Boomie'"])
+        self.assertEqual(json.loads(refused["observation"])["error"],
+                         "This query looks a player up by name (name = 'Boomie'), which can find another player of that"
+                         " name, or no one: people write nicknames, former names and other spellings, which only"
+                         " resolve_player knows. Call resolve_player with 'Boomie', and filter on the player_id it returns.")
+        self.assertEqual(trace["answer"], "Boomie: 2 results.")
+        self.assertIn("for each of 'boomie' and 'Zivai'", react.looked_up_by_name(["lower(name) LIKE '%boomie%'",
+                                                                                  "winner_name = 'Zivai'"]))
 
     def test_the_player_ids_a_call_uses_are_its_player_columns_and_player_arguments(self):
         self.assertEqual(react.players_used("run_sql", {"query": "SELECT * FROM v_sets_1v1 WHERE s.winner_id = 3 AND"
