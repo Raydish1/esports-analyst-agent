@@ -99,6 +99,16 @@ class AppTest(Fixture):
         self.assertEqual(self.client.get("/api/jobs/nope/events").status_code, 404)
 
 
+class EarningsSettingTest(unittest.TestCase):
+    def test_on_by_default_the_flag_wins_over_the_environment(self):
+        self.assertTrue(main.card_earnings(None, None))
+        self.assertFalse(main.card_earnings(None, "off"))
+        self.assertTrue(main.card_earnings("on", "off"))
+        self.assertFalse(main.card_earnings("off", None))
+        with self.assertRaises(SystemExit):
+            main.card_earnings(None, "maybe")
+
+
 HEADER = {"run": "20261117T000000Z", "title": "Web app session", "model": "m", "variant": "v", "think": True,
           "seeds": [0], "max_steps": 8, "ollama": "x", "snapshot": {"file": "f", "build_id": "b"}}
 

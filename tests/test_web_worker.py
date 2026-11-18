@@ -21,6 +21,17 @@ class FakeAgent:
         return {"type": "answer", "text": f"answer to {question}"}
 
 
+class CardAgent(FakeAgent):
+    def __init__(self, cards):
+        super().__init__()
+        self.cards = cards
+
+    def figures(self):
+        if isinstance(self.cards, Exception):
+            raise self.cards
+        return self.cards
+
+
 class Clock:
     def __init__(self):
         self.now = 0.0
@@ -111,6 +122,18 @@ class WorkerTest(unittest.TestCase):
         job = self.worker.submit(a.id, "two")
         self.worker.run_next()
         self.assertEqual(job.events[-2]["message"], "There's no recording of this question.")
+
+    def test_the_cards_follow_the_answer_and_a_failing_card_is_left_out(self):
+        worker = workers.Worker(lambda: CardAgent([{"kind": "lifetime"}]))
+        job = worker.submit(worker.open().id, "one")
+        worker.run_next()
+        self.assertEqual(types(job)[-3:], ["answer", "figures", "done"])
+        self.assertEqual(job.events[-2]["figures"], [{"kind": "lifetime"}])
+        for cards in ([], RuntimeError("a card failed")):
+            worker = workers.Worker(lambda: CardAgent(cards))
+            job = worker.submit(worker.open().id, "one")
+            worker.run_next()
+            self.assertEqual(types(job)[-2:], ["answer", "done"])
 
     def test_wait_gives_the_events_after_a_number(self):
         a = self.worker.open()

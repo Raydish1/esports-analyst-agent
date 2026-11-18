@@ -152,11 +152,12 @@ class SuggestionsTest(unittest.TestCase):
 
 
 class AnswerTest(unittest.TestCase):
-    def test_an_answer_carries_its_notes_and_an_empty_figures_list(self):
+    def test_an_answer_carries_its_notes(self):
         trace = {"answer": "Boomie has 12.", "outcome": "answered", "unreturned_names": {}, "unreturned_ids": [],
                  "answered_without_tools": True, "steps": [], "steps_used": 2, "model_seconds": 9.5, "name_swaps": []}
         out = events.answer(trace)
-        self.assertEqual((out["text"], out["problem"], out["figures"], out["steps"]), ("Boomie has 12.", None, [], 2))
+        self.assertEqual((out["text"], out["problem"], out["steps"]), ("Boomie has 12.", None, 2))
+        self.assertNotIn("figures", out)  # the cards follow in their own event
         self.assertEqual(len(out["notes"]), 1)
 
     def test_no_answer_says_why(self):

@@ -37,6 +37,7 @@ from fastapi.responses import StreamingResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
+import figures  # noqa: E402
 import react  # noqa: E402
 from platform_clients import load_env  # noqa: E402  in ingest/, which react puts on the path
 import replay  # noqa: E402
@@ -63,9 +64,11 @@ class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
 
 
-def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC):
-    """The app around one source of models (runner.Replay or runner.Live) and one shared runner.ProgressTools."""
-    worker = worker or workers.Worker(lambda: runner.Agent(tools, source)).start()
+def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, earnings=True):
+    """The app around one source of models (runner.Replay or runner.Live) and one shared runner.ProgressTools.
+    earnings: whether stat cards show career earnings."""
+    cards = figures.Cards(tools, earnings=earnings)
+    worker = worker or workers.Worker(lambda: runner.Agent(tools, source, cards)).start()
     offered = [q for q in examples if source.mode != "replay" or source.index.has(q)]
     app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.worker = worker
@@ -150,6 +153,14 @@ def live_source(examples, fail):
     return runner.Live(retriever, header, react.RAW / "web")
 
 
+def card_earnings(flag, env):
+    """Whether stat cards show earnings: the flag, else CARD_EARNINGS, else on."""
+    value = (flag or env or "on").strip().lower()
+    if value not in ("on", "off", "1", "0", "true", "false", "yes", "no"):
+        sys.exit(f"CARD_EARNINGS is {value!r}: use on or off.")
+    return value in ("on", "1", "true", "yes")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="The demo web app: the agent behind a queue, streamed to the page.")
     parser.add_argument("--mode", choices=["replay", "live"], default="replay",
@@ -159,6 +170,9 @@ def main(argv=None):
                         help="live: retrieve worked examples for each question (default: on; needs chromadb)")
     parser.add_argument("--replay-runs", nargs="*", help="replay only these runs (directory names in data/experiments)")
     parser.add_argument("--speed", type=float, default=0.1, help="replay: the share of each step's recorded time to wait")
+    parser.add_argument("--card-earnings", choices=["on", "off"], default=None,
+                        help="show career earnings on stat cards (default: on, or the CARD_EARNINGS environment"
+                             " variable; the flag wins)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
@@ -168,9 +182,11 @@ def main(argv=None):
     else:
         source = replay_source(args.replay_runs, args.speed)
         print(f"Replay mode: {len(source.index.recordings)} recordings. Loading the players' names...")
+    earnings = card_earnings(args.card_earnings, os.environ.get("CARD_EARNINGS"))
+    print(f"Earnings on stat cards: {'on' if earnings else 'off'}.")
     tools = runner.ProgressTools()
     import uvicorn
-    uvicorn.run(create_app(source, tools), host=args.host, port=args.port)
+    uvicorn.run(create_app(source, tools, earnings=earnings), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

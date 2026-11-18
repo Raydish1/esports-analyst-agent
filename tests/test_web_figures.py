@@ -1,0 +1,186 @@
+import json
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "agent"))
+sys.path.insert(0, str(ROOT / "app" / "server"))
+import figures  # noqa: E402
+import tools  # noqa: E402
+
+SUMMARY = ["player", "mode", "results", "first", "second", "third", "top8", "best"]
+
+
+def summary(name, rows, columns=SUMMARY, notes=()):
+    return {"template": "player_results", "player": {"player_id": rows[0], "name": name}, "notes": list(notes),
+            "tables": [{"what": "counted by mode", "columns": columns, "rows": rows[1]},
+                       {"what": "first and latest", "columns": ["which", "mode", "date", "event", "placement"],
+                        "rows": [["first", "1v1", "2020-04-25", "e", 9], ["latest", "2v2", "2026-09-27", "f", 2]]}]}
+
+
+PLAYERS = {
+    1: summary("Alpha", (1, [["Alpha", "1v1", 10, 2, 1, 0, 5, 1], ["Alpha", "2v2", 4, 0, 0, 1, 2, 3],
+                             ["Alpha", "1v1 and 2v2", 14, 2, 1, 1, 7, 1]]), notes=["1 of the 1v1 results is a crew battle"]),
+    2: summary("Beta", (2, [["Beta", "1v1", 3, 0, 0, 0, 0, 9], ["Beta", "2v2", 0, 0, 0, 0, 0, None],
+                            ["Beta", "1v1 and 2v2", 3, 0, 0, 0, 0, 9]])),
+}
+EARNED = {1: [(1200.0, "Stats API", "2026-10-02")], 2: []}
+
+
+class Stub(figures.Cards):
+    """Cards with canned template results and earnings, recording what it was asked."""
+
+    def __init__(self, earnings=True, players=PLAYERS, h2h=None, sets=()):
+        super().__init__(tools=None, earnings=earnings)
+        self.players, self.h2h, self.sets, self.asked, self.queried = players, h2h, list(sets), [], []
+
+    def call(self, name, args):
+        self.asked.append((name, args))
+        if name == "player_results":
+            return self.players.get(args["player_id"])
+        return self.h2h
+
+    def query(self, sql, params):
+        self.queried.append(sql)
+        return EARNED.get(params[0], []) if sql == figures.EARNINGS else self.sets
+
+
+def call(name, arguments, observation):
+    return {"name": name, "arguments": arguments, "observation": json.dumps(observation)}
+
+
+def turn(*calls, outcome="answered"):
+    return {"outcome": outcome, "steps": [{"tool_calls": list(calls)}]}
+
+
+def results(pid, **args):
+    return call("player_results", {"player_id": pid, **args}, {"player": {"player_id": pid}, "tables": []})
+
+
+EVENTS = ["event", "event_id", "date", "mode", "status"]
+
+
+def event(*rows):
+    return call("event_results", {"event": "x"}, {"tables": [{"columns": EVENTS, "rows": list(rows)}]})
+
+
+class ChoosingTest(unittest.TestCase):
+    def test_one_player_gets_a_lifetime_card_from_a_call_without_top(self):
+        stub = Stub()
+        (card,) = stub.build(turn(results(1, top=1)))
+        self.assertEqual(card["kind"], "lifetime")
+        self.assertEqual(stub.asked, [("player_results", {"player_id": 1})])  # the model's top=1 isn't passed on
+        lifetime = card["player"]
+        self.assertEqual(lifetime["modes"]["1v1 and 2v2"], {"results": 14, "first": 2, "second": 1, "third": 1, "top8": 7,
+                                                            "top32": None})
+        self.assertEqual((lifetime["first"], lifetime["latest"], lifetime["top32"]), ("2020-04-25", "2026-09-27", False))
+        self.assertEqual(lifetime["earnings"], {"amount": 1200.0, "source": "Stats API", "as_of": "2026-10-02"})
+        self.assertIn("All official events, regional championships included", card["scope"])
+        self.assertIn("Crew battles count as 1v1", card["scope"])
+
+    def test_a_missing_earnings_figure_is_none_not_zero(self):
+        (card,) = Stub().build(turn(results(2)))
+        self.assertEqual(card["player"]["earnings"]["amount"], None)
+        self.assertNotIn("Crew battles", card["scope"])
+
+    def test_earnings_off_leaves_them_out_and_runs_no_query(self):
+        stub = Stub(earnings=False)
+        (card,) = stub.build(turn(results(1)))
+        self.assertNotIn("earnings", card["player"])
+        self.assertEqual(stub.queried, [])
+
+    def test_a_call_for_a_year_or_an_event_gets_no_lifetime_card(self):
+        self.assertEqual(Stub().build(turn(results(1, top=1, year=2025))), [])
+        self.assertEqual(Stub().build(turn(results(1, event="worlds"))), [])
+
+    def test_two_players_are_compared(self):
+        (card,) = Stub().build(turn(results(1, top=3), results(2, top=3), results(1, top=3)))
+        self.assertEqual((card["kind"], [p["name"] for p in card["players"]]), ("comparison", ["Alpha", "Beta"]))
+
+    def test_top_32_shows_once_the_summary_has_it(self):
+        columns = SUMMARY[:7] + ["top32", "best"]
+        players = {1: summary("Alpha", (1, [["Alpha", "1v1 and 2v2", 14, 2, 1, 1, 7, 12, 1]]), columns)}
+        (card,) = Stub(players=players).build(turn(results(1)))
+        self.assertEqual((card["player"]["top32"], card["player"]["modes"]["1v1 and 2v2"]["top32"]), (True, 12))
+
+    def test_a_head_to_head_gets_its_card_and_its_sets(self):
+        h2h = {"player": {"player_id": 1}, "opponent": {"player_id": 2}, "scope": "1v1 sets",
+               "tables": [{"columns": ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets",
+                                       "games_won", "games_lost", "unscored_sets"], "rows": [["Alpha", 1, "Beta", 2, 2, 1, 3, 7, 5, 1]]},
+                          {"columns": ["date", "event", "winner", "winner_id", "winner_games", "loser_games"],
+                           "rows": [["2024-01-01", "E", "Alpha", 1, 3, 0], ["2024-02-01", "F", "Beta", 2, None, None]],
+                           "row_count": 2}]}
+        record, sets = Stub(h2h=h2h).build(turn(call("head_to_head", {"player_id": 1, "opponent_id": 2}, h2h),
+                                                results(1)))
+        self.assertEqual(record["kind"], "head_to_head")
+        self.assertEqual(record["record"], {"wins": 2, "losses": 1, "sets": 3, "games_won": 7, "games_lost": 5, "unscored": 1})
+        self.assertEqual([s["winner"] for s in sets["sets"]], ["Alpha", "Beta"])
+        self.assertEqual(sets["sets"][1], {"date": "2024-02-01", "event": "F", "winner": "Beta", "loser": "Alpha",
+                                           "winner_games": None, "loser_games": None})
+
+    def test_a_set_list_too_long_for_the_template_keeps_its_count(self):
+        h2h = {"player": {"player_id": 1}, "opponent": {"player_id": 2},
+               "tables": [{"columns": ["wins", "losses", "games_won"], "rows": [[90, 80, 300]]},
+                          {"columns": ["date", "event", "winner", "winner_id", "winner_games", "loser_games"],
+                           "row_count": 170, "complete": False}]}
+        _, sets = Stub(h2h=h2h).build(turn(call("head_to_head", {}, h2h)))
+        self.assertEqual((sets["sets"], sets["total"]), (None, 170))
+
+    def test_one_held_1v1_event_gets_its_top_8_sets(self):
+        stub = Stub(sets=[("2019-11-15", "A", 1, 1, "B", 2, 2, 3, 1, 1), ("2019-11-15", "C", 3, 3, "D", 4, 5, 2, 0, 0)])
+        (card,) = stub.build(turn(event(["Worlds 2019 / 1v1", "ev1", "2019-11-15", "1v1", None])))
+        self.assertEqual((card["kind"], card["title"], card["event"]), ("sets", "Sets between top 8 players", "Worlds 2019 / 1v1"))
+        self.assertEqual([(s["winner_games"], s["loser_games"]) for s in card["sets"]], [(3, 1), (None, None)])
+        self.assertIn("Not bracket order", card["scope"])
+
+    def test_no_event_card_for_a_cancelled_or_2v2_event_or_several(self):
+        for rows in ([["CEO 2020", "e", "2020-03-01", "1v1", "cancelled"]], [["BCX / 2v2", "e", "2022-11-04", "2v2", None]],
+                     [["a", "e1", "d", "1v1", None], ["b", "e2", "d", "1v1", None]]):
+            self.assertEqual(Stub().build(turn(event(*rows))), [])
+
+    def test_no_cards_without_an_answer_and_at_most_two(self):
+        self.assertEqual(Stub().build(turn(results(1), outcome="suggestions")), [])
+        two = Stub(sets=[]).build(turn(results(1), event(["a", "e1", "d", "1v1", None]), results(2)))
+        self.assertEqual([c["kind"] for c in two], ["comparison", "sets"])
+
+    def test_a_failed_call_is_ignored(self):
+        failed = {"name": "player_results", "arguments": {"player_id": 1}, "observation": json.dumps({"error": "x"})}
+        self.assertEqual(Stub().build(turn(failed)), [])
+
+
+@unittest.skipUnless(tools.SNAPSHOT.exists(), "needs eval-v1")
+class RealTest(unittest.TestCase):
+    """On eval-v1, through the real templates and views."""
+
+    @classmethod
+    def setUpClass(cls):
+        import react
+        cls.cards = figures.Cards(react.Tools())
+
+    def test_lifetime_figures(self):
+        raydish = self.cards.lifetime(160000)
+        self.assertEqual(raydish["modes"]["1v1 and 2v2"], {"results": 98, "first": 6, "second": 7, "third": 9, "top8": 43,
+                                                           "top32": None})
+        self.assertEqual(raydish["earnings"], {"amount": 83825.0, "source": "Stats API", "as_of": "2026-10-02"})
+        self.assertTrue(raydish["crew"])
+        self.assertIsNone(self.cards.lifetime(168635)["earnings"]["amount"])  # Impala: unranked, no figure
+
+    def test_head_to_head(self):
+        record, sets = self.cards.head_to_head(168635, 149305)
+        self.assertEqual({k: record["record"][k] for k in ("wins", "losses", "games_won", "games_lost")},
+                         {"wins": 2, "losses": 1, "games_won": 8, "games_lost": 4})
+        self.assertEqual([(s["winner"], s["loser"]) for s in sets["sets"]],
+                         [("Impala", "BBBalloonBoy"), ("Impala", "BBBalloonBoy"), ("BBBalloonBoy", "Impala")])
+
+    def test_an_events_top_8_sets(self):
+        card = self.cards.event_sets({"event_id": "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1", "name": "x",
+                                      "date": "2019-11-15"})
+        self.assertGreater(len(card["sets"]), 0)
+        rows = self.cards.query("SELECT COUNT(*) FROM v_sets_1v1 WHERE event_id = ? AND (winner_placement > 8 OR"
+                                " loser_placement > 8)", ("tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1",))
+        self.assertGreater(rows[0][0], 0)  # the event has other sets, which the card leaves out
+
+
+if __name__ == "__main__":
+    unittest.main()

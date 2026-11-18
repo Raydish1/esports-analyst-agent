@@ -34,9 +34,9 @@ class Agent:
     """One conversation. ask(question, emit) answers a question, sending the page its events through emit, and returns
     the answer event."""
 
-    def __init__(self, tools, source):
-        self.tools, self.source = tools, source
-        self.emit, self.number, self.model = None, 0, None
+    def __init__(self, tools, source, cards=None):
+        self.tools, self.source, self.cards = tools, source, cards
+        self.emit, self.number, self.model, self.trace = None, 0, None, None
         self.start()
 
     def start(self):
@@ -61,11 +61,11 @@ class Agent:
         self.emit(events.tool_started(self.number, name, arguments))
 
     def ask(self, question, emit):
-        self.emit, self.number = emit, 0
+        self.emit, self.number, self.trace = emit, 0, None
         self.tools.listener = self.started
         try:
             self.model, about = self.source.begin(self.state, question)
-            trace = self.state.ask(self.conversation, question)
+            trace = self.trace = self.state.ask(self.conversation, question)
             out = events.answer(trace)
             extra = self.source.end(self.state, self.model)
             if about or extra:
@@ -76,6 +76,11 @@ class Agent:
             raise
         finally:
             self.tools.listener = None
+
+
+    def figures(self):
+        """The stat cards for the last answer, built from the app's own template calls (figures.Cards), or []."""
+        return self.cards.build(self.trace) if self.cards and self.trace else []
 
 
 class ReplayState:

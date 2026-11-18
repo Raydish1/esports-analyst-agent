@@ -10,8 +10,6 @@ import os
 import re
 from urllib.parse import urlsplit
 
-import figures
-
 ORDINALS = ["first", "second", "third", "fourth", "fifth"]
 TOOL_LABELS = {
     "resolve_player": "Looking up the player {name}",
@@ -255,8 +253,13 @@ def answer(trace):
         problem = NO_ANSWER.get(outcome) or (f"No answer: {outcome}." if outcome else "No answer.")
     return redact({"type": "answer", "text": text, "outcome": outcome, "problem": problem, "notes": notes(trace),
                    "suggestions": suggestions(trace), "name_swaps": trace.get("name_swaps", []),
-                   "figures": figures.figures(trace), "steps": trace.get("steps_used"),
+                   "steps": trace.get("steps_used"),
                    "model_seconds": trace.get("model_seconds")})
+
+
+def figures(cards):
+    """The stat cards for an answer (figures.Cards), sent after it."""
+    return redact({"type": "figures", "figures": cards})
 
 
 def error(message):

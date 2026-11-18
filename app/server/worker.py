@@ -118,6 +118,19 @@ class Worker:
                 job.position = i
                 job.emit({"type": "queued", "position": i, "ahead": i - 1 + (self.running is not None)})
 
+    def figures(self, job):
+        """The answer's stat cards, after the answer, so they never delay it. A card that fails is left out."""
+        build = getattr(job.session.agent, "figures", None)
+        if build is None:
+            return
+        try:
+            cards = build()
+        except Exception:
+            traceback.print_exc()
+            return
+        if cards:
+            job.emit(events.figures(cards))
+
     def job(self, job_id):
         with self.lock:
             return self.jobs.get(job_id)
@@ -144,6 +157,7 @@ class Worker:
         try:
             job.emit({"type": "started"})
             job.emit(job.session.agent.ask(job.question, job.emit))
+            self.figures(job)
         except LookupError as e:  # no recording, in replay mode
             job.emit(events.error(e.args[0] if e.args else "Not found."))
         except replay.Mismatch as e:
