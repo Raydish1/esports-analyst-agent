@@ -368,4 +368,9 @@ measured against the references again:
   3 px, except "VS" (its box in the reference includes part of a legend, so it can't be measured cleanly).
 - **Where it loads from:** the viewer's installed fonts, or `app/static/fonts/proxima-nova-extrabold.woff2` (git-ignored).
   A public deployment needs a web license for it (an installed desktop font isn't one), or falls back to the free fonts.
-- The labels (LIFETIME STATS, GOLD, TOP 8, the bar) are still Montserrat: only Extrabold is installed.
+- **Labels** (LIFETIME STATS, GOLD, TOP 8, the bar, the sidebar's names): Proxima Nova Regular. Rendered in Regular and
+  in Semibold and measured, Regular's ink share on the cream labels matches the reference's (0.25–0.29 against
+  0.28–0.29); Semibold's is clearly heavier (0.34–0.42). Re-sized for its shorter capitals, the labels match the
+  reference's height exactly and sit within 1 px; the white labels in the lifetime card's boxes take 0.05 em of
+  letter-spacing, after which "GOLD" lands on the reference's exact box. Semibold is kept for emphasis ("not recorded").
+- ProximaSansMedium, also installed, is a different typeface, so the cards don't use it.

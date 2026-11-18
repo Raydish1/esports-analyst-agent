@@ -4,7 +4,7 @@
    "Broadcast graphics").
 
    Fonts: the broadcast uses Proxima Nova (the producer, 2026-11-18): Extrabold for the heavy text (Bold if that's all
-   there is), and lighter weights for the labels. It's a licensed font, so it's used when it's installed on the viewer's machine or its files are in
+   there is), and Regular for the labels, which measured closest in stroke weight (Semibold for emphasis). It's a licensed font, so it's used when it's installed on the viewer's machine or its files are in
    app/static/fonts/ (git-ignored). Without it, "BC Heavy" falls back to Gabarito Black and "BC Text" to Montserrat,
    the free matches measured against the references. */
 
@@ -22,8 +22,8 @@
 }
 @font-face {
   font-family: "BC Text"; font-weight: 500; font-display: block;
-  src: local("Proxima Nova Medium"), local("ProximaNova-Medium"),
-       url("fonts/proxima-nova-medium.woff2") format("woff2"), url("fonts/proxima-nova-medium.otf") format("opentype");
+  src: local("Proxima Nova Regular"), local("ProximaNova-Regular"),
+       url("fonts/proxima-nova-regular.woff2") format("woff2"), url("fonts/proxima-nova-regular.otf") format("opentype");
 }
 @font-face {
   font-family: "BC Text"; font-weight: 600; font-display: block;
@@ -32,8 +32,8 @@
 }
 @font-face {
   font-family: "BC Text"; font-weight: 700; font-display: block;
-  src: local("Proxima Nova Bold"), local("ProximaNova-Bold"),
-       url("fonts/proxima-nova-bold.woff2") format("woff2"), url("fonts/proxima-nova-bold.otf") format("opentype");
+  src: local("Proxima Nova Semibold"), local("ProximaNova-Semibold"),
+       url("fonts/proxima-nova-semibold.woff2") format("woff2"), url("fonts/proxima-nova-semibold.otf") format("opentype");
 }
 
 .bc-scale { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; }
@@ -76,9 +76,9 @@
 
 .bc-frame .bc-heavy { font-family: "BC Heavy", "Gabarito", "Montserrat", system-ui, sans-serif; font-weight: 900; }
 .bc-lifetime .bc-legend { left: 400px; top: 560px; width: 560px; height: 520px; }
-.bc-lifetime .bc-eyebrow { left: 45px; top: 199px; font-size: 22.7px; font-weight: 600; }
+.bc-lifetime .bc-eyebrow { left: 45px; top: 198px; font-size: 25.6px; font-weight: 500; }
 .bc-lifetime .bc-name { left: 44px; top: 223px; font-size: 68px; max-width: 560px; overflow: hidden; text-overflow: ellipsis; }
-.bc-lifetime .bc-bar-text { left: 46px; top: 310px; font-size: 22.7px; font-weight: 500; color: var(--bc-white); }
+.bc-lifetime .bc-bar-text { left: 46px; top: 310px; font-size: 24.1px; font-weight: 500; color: var(--bc-white); }
 .bc-lifetime .bc-heading { font-size: 54px; left: 41px; }
 .bc-lifetime .bc-h-earnings { top: 399px; }
 .bc-lifetime .bc-h-medals { top: 582px; }
@@ -89,7 +89,7 @@
 .bc-lifetime .bc-row { position: absolute; left: 40px; height: 48px; width: 320px; }
 .bc-lifetime .bc-row > * { white-space: nowrap; }
 .bc-lifetime .bc-row .bc-box { position: absolute; left: 0; top: 0; height: 48px; background: var(--bc-dark); }
-.bc-lifetime .bc-row .bc-label { position: absolute; left: 20px; top: 11px; font-size: 22.7px; font-weight: 500; color: #fff; line-height: 1; }
+.bc-lifetime .bc-row .bc-label { position: absolute; left: 20px; top: 11.5px; font-size: 24.1px; letter-spacing: 0.05em; font-weight: 500; color: #fff; line-height: 1; }
 .bc-lifetime .bc-medal .bc-box { width: 194px; border-radius: 0 24px 24px 0; }
 .bc-lifetime .bc-medal .bc-circle {
   position: absolute; left: 171px; top: 1px; width: 46px; height: 46px; border-radius: 50%;
@@ -99,7 +99,7 @@
 .bc-lifetime .bc-medal .bc-count { position: absolute; left: 258px; transform: translateX(-50%); top: 1px; font-size: 49.5px; line-height: 1; }
 .bc-lifetime .bc-place { height: 49px; }
 .bc-lifetime .bc-place .bc-box { width: 167px; height: 49px; }
-.bc-lifetime .bc-place .bc-label { top: 12px; left: 24px; }
+.bc-lifetime .bc-place .bc-label { top: 12.5px; left: 24px; }
 .bc-lifetime .bc-place .bc-value {
   position: absolute; left: 173px; top: 0; width: 132px; height: 49px; background: var(--bc-orange);
   color: #fff; font-size: 49px; line-height: 1; text-align: right; padding: 0 27px 0 0; box-sizing: border-box;
@@ -114,7 +114,7 @@
    Bars grow out from the center labels, at one scale for all four (the largest value spans 332 px). */
 
 .bc-h2h { --bc-teal: #6cbc99; }
-.bc-h2h .bc-strip-text { left: 0; width: 1920px; top: 10px; text-align: center; font-size: 19px; font-weight: 500; color: var(--bc-ink); }
+.bc-h2h .bc-strip-text { left: 0; width: 1920px; top: 10px; text-align: center; font-size: 20px; font-weight: 500; color: var(--bc-ink); }
 .bc-h2h .bc-center { left: 0; width: 1932px; text-align: center; color: #fff; }
 .bc-h2h .bc-heading { font-size: 56px; }
 .bc-h2h .bc-h-earnings { top: 122px; }
@@ -129,7 +129,7 @@
 .bc-h2h .bc-mrow { position: absolute; left: 0; width: 1920px; height: 48px; }
 .bc-h2h .bc-mlabel {
   position: absolute; left: 864px; top: 0; width: 198px; height: 47px; background: var(--bc-cream);
-  display: flex; align-items: center; justify-content: center; font-size: 23px; font-weight: 500; color: var(--bc-ink);
+  display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 500; color: var(--bc-ink);
 }
 .bc-h2h .bc-circle {
   position: absolute; top: 0; width: 49px; height: 49px; border-radius: 50%; color: #fff4ec;
@@ -178,9 +178,9 @@
   content: ""; position: absolute; left: 0; top: -15px; width: 232px; height: 2px; background: #a07a72;
 }
 .bc-sets .bc-entry > span { position: absolute; left: 0; width: 220px; text-align: center; white-space: nowrap; line-height: 1; }
-.bc-sets .bc-entry-name { font-size: 21.4px; font-weight: 500; color: var(--bc-ink); overflow: hidden; text-overflow: ellipsis; }
+.bc-sets .bc-entry-name { font-size: 22.7px; font-weight: 500; color: var(--bc-ink); overflow: hidden; text-overflow: ellipsis; }
 .bc-sets .bc-entry-name:first-child { top: 1px; }
-.bc-sets .bc-entry-name:last-child { top: 52px; }
+.bc-sets .bc-entry-name:last-child { top: 51.5px; }
 .bc-sets .bc-entry-score { top: 21px; left: 4px; font-size: 30.5px; color: var(--bc-orange); }
 .bc-sets .bc-entry-score.bc-missing { top: 27px; font-size: 15px; font-weight: 700; font-style: italic; }
 .bc-sets .bc-more .bc-entry-name { top: 36px; }
