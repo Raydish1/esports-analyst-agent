@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Esports Analyst</title>
+  <meta name="description" content="Ask about official Brawlhalla esports results in plain English.">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>Esports Analyst</h1>
+        <p class="sub">Official Brawlhalla results, in plain English</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="mode" class="mode" hidden></span>
+      <button id="restart" class="ghost" type="button">New conversation</button>
+    </div>
+  </header>
+
+  <main id="thread" class="thread" aria-live="polite">
+    <section id="welcome" class="welcome">
+      <h2>Ask about players, events and head-to-heads</h2>
+      <p>The agent looks players and events up, queries the results database, checks its answer, and shows how it got
+        there. It counts official events only.</p>
+      <div id="examples" class="examples"></div>
+    </section>
+  </main>
+
+  <form id="composer" class="composer">
+    <label for="question" class="visually-hidden">Your question</label>
+    <textarea id="question" rows="1" maxlength="500" placeholder="Who won Worlds 2019 1v1?" autocomplete="off"></textarea>
+    <button id="send" type="submit">Ask</button>
+  </form>
+</body>
+</html>
