@@ -37,15 +37,16 @@ function shapes(parts) {
   return svg;
 }
 
-// Proxima Nova Black, when it loads (broadcast.css), is set at 87% width: the broadcast squeezes it horizontally (same
-// height, strokes and gaps, narrower letters). Measured against the blurred references, 89% fits their boxes best; side
-// by side, 87% looks closer, and was chosen (2026-11-18). The fallback fonts were measured unscaled, so they stay
-// at 100%. fontsReady resolves once that's settled.
-export const fontsReady = document.fonts.load('900 100px "BC Heavy"')
-  .then((faces) => { if (faces.length) document.documentElement.classList.add("bc-proxima"); })
-  .catch(() => {});
+// The heavy face: Proxima Nova Condensed Black when it loads (broadcast.css), at full width, as the broadcast sets it;
+// else Proxima Nova Black squeezed to 87%, which measured closest to the condensed cut; else the fallback fonts, which
+// were measured unscaled. fontsReady resolves once that's settled.
+async function heavyFace() {
+  const loads = async (family) => (await document.fonts.load(`900 100px "${family}"`).catch(() => [])).length > 0;
+  if (await loads("BC Heavy")) document.documentElement.classList.add("bc-proxima-cond");
+  else if (await loads("BC Heavy Wide")) document.documentElement.classList.add("bc-proxima");
+}
+export const fontsReady = heavyFace().catch(() => {});
 
-// Everything set in the heavy face: the words and the figures. A "not recorded" stays in the text face, unscaled.
 const HEAVY = [".bc-name", ".bc-heading", ".bc-pname", ".bc-vs", ".bc-sets-heading", ".bc-sets-title", ".bc-earnings",
   ".bc-count", ".bc-value", ".bc-money", ".bc-num", ".bc-pnum", ".bc-score", ".bc-entry-score"]
   .map((c) => `${c}:not(.bc-missing)`).join(", ");

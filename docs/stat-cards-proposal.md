@@ -402,3 +402,18 @@ redistribution is confirmed.
   the official art), so the card shows the idle pose in the reference figure's place: x 400–960, feet at y 1056.
 - **Which legend:** a player's main comes from `data/curated/player_legends.csv` only; no main, no art.
 - The heads aren't on any card yet; they're for smaller slots later (the 2v2 layout, a sidebar).
+
+### The producer's fonts (2026-11-18)
+
+The producer gave the fonts: **Proxima Nova Condensed Black** for the heavy text and **Author Medium** for the small text.
+- **Condensed Black** replaces the squeezed Black: its "H" is 85% of Black's width, near the 87% the squeeze had
+  measured. Its line metrics are overridden to Black's, so its capitals sit on the measured positions to the pixel. Against
+  the references its letters match (within the 1–2 px blur of the upscaled screenshots), but the gaps between them are
+  1–3 px wider at heading size, and the font's kerning closes D and A in MEDALS, where the broadcast leaves a gap. So the
+  words take 0.03 em of letter-spacing: the words' proportions then measure 0.955–1.03 of the reference's, and their
+  stroke weight 1.03 (Black squeezed was 1.07). Without Condensed, the cards still fall back to Black at 87%.
+- **Author Medium** is scaled 112.29% so its capitals match Proxima Nova's at the same size, with its line metrics
+  overridden, so the measured positions hold. Its tall "|" matches the reference's region/PR line ("NL | FREE AGENT |
+  PR #5"), which Proxima Nova's short one doesn't; that line runs about 8% wider, so the bar and strip lines take
+  0.04 em. On the labels Author measures a little heavier than the reference (ink 0.30–0.39 against 0.20–0.29) and
+  Proxima Regular a little lighter; the cards follow the producer.

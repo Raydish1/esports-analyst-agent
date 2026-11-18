@@ -3,22 +3,47 @@
    edges traced into SVG. The producer's own colors, backgrounds and edge assets replace these when they arrive (DATA.md,
    "Broadcast graphics").
 
-   Fonts: the broadcast uses Proxima Nova (the producer, 2026-11-18): Black for the heavy text (Extrabold or Bold if
-   that's all there is), and Regular for the labels, which measured closest in stroke weight (Semibold for emphasis). It's a licensed font, so it's used when it's installed on the viewer's machine or its files are in
-   app/static/fonts/ (git-ignored). Without it, "BC Heavy" falls back to Gabarito Black and "BC Text" to Montserrat,
-   the free matches measured against the references. */
+   Fonts, as the producer gave them (2026-11-18):
+   - "BC Heavy": Proxima Nova Condensed Black, for the names, headings and figures. Its line metrics are overridden
+     to Proxima Nova Black's, so its capitals sit exactly where the measured positions put them.
+   - "BC Heavy Wide": Proxima Nova Black (or Extrabold, or Bold), when Condensed isn't there: drawn at 87% width
+     (broadcast.js), which measured closest to the condensed cut.
+   - "BC Small": Author Medium, for the small text (region, PR and the like). Scaled 112.29% so its capitals match
+     Proxima Nova's at the same font size, with its line metrics overridden to match too.
+   - "BC Text": Proxima Nova Regular (Semibold for emphasis), when Author isn't there, and for "not recorded".
+   They're licensed fonts, used when they're installed on the viewer's machine or their files are in app/static/fonts/
+   (git-ignored). Without them, the heavy text falls back to Gabarito Black and the rest to Montserrat, the free
+   matches measured against the references. */
 
 @font-face {
   font-family: "BC Heavy"; font-weight: 900; font-display: block;
+  src: local("Proxima Nova Condensed Black"), local("ProximaNovaCond-Black"),
+       url("fonts/proxima-nova-condensed-black.woff2") format("woff2"), url("fonts/proxima-nova-condensed-black.otf") format("opentype");
+  ascent-override: 92%; descent-override: 29.8%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: "BC Heavy"; font-weight: 800; font-display: block;
+  src: local("Proxima Nova Condensed Black"), local("ProximaNovaCond-Black"),
+       url("fonts/proxima-nova-condensed-black.woff2") format("woff2"), url("fonts/proxima-nova-condensed-black.otf") format("opentype");
+  ascent-override: 92%; descent-override: 29.8%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: "BC Heavy Wide"; font-weight: 900; font-display: block;
   src: local("Proxima Nova Black"), local("ProximaNova-Black"),
        url("fonts/proxima-nova-black.woff2") format("woff2"), url("fonts/proxima-nova-black.otf") format("opentype"),
        local("Proxima Nova Extrabold"), local("ProximaNova-Extrabld"), local("Proxima Nova Bold"), local("ProximaNova-Bold");
 }
 @font-face {
-  font-family: "BC Heavy"; font-weight: 800; font-display: block;
+  font-family: "BC Heavy Wide"; font-weight: 800; font-display: block;
   src: local("Proxima Nova Black"), local("ProximaNova-Black"),
        url("fonts/proxima-nova-black.woff2") format("woff2"), url("fonts/proxima-nova-black.otf") format("opentype"),
        local("Proxima Nova Extrabold"), local("ProximaNova-Extrabld"), local("Proxima Nova Bold"), local("ProximaNova-Bold");
+}
+@font-face {
+  font-family: "BC Small"; font-weight: 500; font-display: block;
+  src: local("Author Medium"), local("Author-Medium"),
+       url("fonts/author-medium.woff2") format("woff2"), url("fonts/author-medium.otf") format("opentype");
+  size-adjust: 112.29%; ascent-override: 81.9%; descent-override: 26.5%; line-gap-override: 0%;
 }
 @font-face {
   font-family: "BC Text"; font-weight: 500; font-display: block;
@@ -60,6 +85,7 @@
 
 .bc-frame { --bc-squeeze: 1; }
 .bc-proxima .bc-frame { --bc-squeeze: 0.87; }
+.bc-proxima-cond .bc-frame { --bc-squeeze: 1; }  /* the condensed cut needs no squeeze */
 .bc-frame .bc-sq { display: inline-block; transform: scaleX(var(--bc-squeeze)); transform-origin: left center; }
 .bc-frame .bc-center .bc-sq, .bc-frame .bc-pname .bc-sq, .bc-frame .bc-vs .bc-sq, .bc-frame .bc-count .bc-sq,
 .bc-frame .bc-sets-heading .bc-sq, .bc-frame .bc-sets-title .bc-sq, .bc-frame .bc-entry-score .bc-sq { transform-origin: center; }
@@ -81,7 +107,7 @@
 /* Lifetime stats (reference: the Mounir card). Positions come from the reference's cap heights and cap tops, scaled
    by 1920/1206: Gabarito Black and Montserrat both put the cap top 0.16 em below a line box of line-height 1. */
 
-.bc-frame .bc-heavy { font-family: "BC Heavy", "Gabarito", "Montserrat", system-ui, sans-serif; font-weight: 900; }
+.bc-frame .bc-heavy { font-family: "BC Heavy", "BC Heavy Wide", "Gabarito", "Montserrat", system-ui, sans-serif; font-weight: 900; }
 /* The reference's figure (Tezca, in a stance the wiki doesn't have) spans x 400-960 with its feet at y 1056. */
 .bc-lifetime .bc-legend { left: 400px; top: 560px; width: 560px; height: 496px; }
 .bc-lifetime .bc-eyebrow { left: 45px; top: 198px; font-size: 25.6px; font-weight: 500; }
@@ -170,7 +196,7 @@
 .bc-h2h .bc-pname { bottom: 6px; font-size: 88px; line-height: 1; color: var(--bc-ink); }
 .bc-h2h .bc-pname.bc-l { left: 400px; transform: translateX(-50%); }
 .bc-h2h .bc-pname.bc-r { left: 1532px; transform: translateX(-50%); }
-.bc-h2h .bc-score { top: 966px; font-family: "BC Heavy", "Montserrat", system-ui, sans-serif; font-weight: 900; font-size: 120px; color: var(--bc-ink); }
+.bc-h2h .bc-score { top: 966px; font-family: "BC Heavy", "BC Heavy Wide", "Montserrat", system-ui, sans-serif; font-weight: 900; font-size: 120px; color: var(--bc-ink); }
 .bc-h2h .bc-score.bc-l { right: 1091px; }
 .bc-h2h .bc-score.bc-r { left: 1084px; }
 .bc-h2h .bc-vs { left: 954px; transform: translateX(-50%); top: 938px; font-size: 149px; color: var(--bc-orange); text-shadow: 9px 0 0 var(--bc-teal); letter-spacing: -4px; }
@@ -201,3 +227,14 @@
 .bc-sets .bc-sets-title { font-size: 28px; line-height: 1.05; }
 .bc-sets .bc-sets-scope { font-size: 14px; line-height: 1.3; font-weight: 500; color: #5d514c; }
 .bc-sets .bc-sets-rule { position: absolute; top: 0; width: 4px; height: 1080px; background: linear-gradient(90deg, #f1dc97, #e5cc77 60%, #aa914f); }
+
+/* The broadcast sets the condensed cut with slightly open spacing: its gaps measure 1-3 px wider at heading size, the
+   letters the same. Only the words take it; the figures matched as they are. */
+.bc-proxima-cond .bc-frame :is(.bc-name, .bc-heading, .bc-pname, .bc-vs, .bc-sets-heading, .bc-sets-title) { letter-spacing: 0.03em; }
+
+/* The small text in Author Medium (the producer): labels, the bar and strip lines, the sidebar's names, the scope
+   lines. Its tall "|" matches the reference's region/PR line, which Proxima Nova's short one doesn't. That line runs
+   about 8% wider than Author at the same cap height, about 1 px a gap, so the bar and strip lines take 0.04 em. */
+.bc-frame :is(.bc-eyebrow, .bc-bar-text, .bc-strip-text, .bc-label, .bc-mlabel, .bc-plabel, .bc-circle, .bc-entry-name,
+  .bc-sets-subject, .bc-scope, .bc-sets-scope) { font-family: "BC Small", "BC Text", "Montserrat", system-ui, sans-serif; font-weight: 500; }
+.bc-frame :is(.bc-bar-text, .bc-strip-text) { letter-spacing: 0.04em; }
