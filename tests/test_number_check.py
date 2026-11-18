@@ -36,8 +36,8 @@ class ClaimsTest(unittest.TestCase):
         found = number_check.claims("On March 10, 2024, Boomie placed 2nd of 32 in 2v2 (5-4 in sets, 64% of games) for"
                                     " $1,200, a top 8 and three wins.\n1. Zivai at 19:27 UTC")
         self.assertEqual([(c.kind, c.text) for c in found], [
-            ("date", "March 10, 2024"), ("medal", "2nd"), ("number", "32"), ("format", "2v2"), ("record", "5-4"),
-            ("percent", "64%"), ("money", "$1,200"), ("scope", "top 8"), ("word", "three"), ("list", "1."),
+            ("date", "March 10, 2024"), ("category", "2nd"), ("number", "32"), ("format", "2v2"), ("record", "5-4"),
+            ("percent", "64%"), ("money", "$1,200"), ("category", "top 8"), ("word", "three"), ("list", "1."),
             ("time", "19:27 UTC")])
 
     def test_digits_inside_names_and_fractions_arent_claims(self):
@@ -85,8 +85,24 @@ class EvidenceTest(unittest.TestCase):
                           "row_count": 1})
         self.assertEqual(flagged(found, "They met 5 times."), ["5"])  # 3 + 2
 
-    def test_medal_places_formats_and_list_numbers_are_always_supported(self):
+    def test_the_prompts_categories_formats_and_list_numbers_are_always_supported(self):
         self.assertEqual(flagged(evidence(), "These count 1st, 2nd or 3rd places, in 1v1 and 2v2:\n1. Boomie\n2. Zivai"), [])
+        # q35 seed 0 in 20261117-grounding-before, with no tool called: the sentence held the answer's main claim
+        self.assertEqual(flagged(evidence(), "Tools give a player's wins, medals, top 8 placements and Top-3s, but no"
+                                             " recorded data links players to legends."), [])
+        self.assertEqual(flagged(evidence(), "Raydish's top 5."), ["top 5"])  # a cutoff the prompt doesn't define
+
+    def test_a_number_word_after_the_refers_back_to_what_was_named(self):
+        found = evidence(question="who has earned more money, raydish or impala?")
+        self.assertEqual(flagged(found, "Therefore, Raydish has earned more money between the two."), [])  # q45 seed 1
+        self.assertEqual(flagged(found, "These two players, and those three: Raydish won two events."), ["two"])
+
+    def test_a_placement_or_rank_may_restate_the_querys_own_condition(self):
+        found = evidence({"complete": True, "columns": ["winner_name", "loser_name"], "rows": [["Zivai", "Impala"]],
+                          "row_count": 1}, calls=[{"query": "SELECT ... WHERE winner_placement = 1 AND loser_placement = 2"}])
+        self.assertEqual(flagged(found, "Zivai (placement 1) faced Impala (placement 2), as confirmed by the placement"
+                                        " (winner_placement = 1, loser_placement = 2)."), [])  # q20 seeds 0 and 2
+        self.assertEqual(flagged(found, "Impala was ranked 4 there."), ["ranked 4"])
 
     def test_what_the_question_writes_is_supported_its_place_words_included(self):
         found = evidence(question="How many times did Ahmet finish second to Godly in 2026? Did he win 3-0?")

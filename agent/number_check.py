@@ -22,13 +22,16 @@ numbers):
     time       a timestamp's UTC time, to the minute: 19:27 UTC, 7:27 PM. A time in another zone isn't
     money      the value at the precision shown, with k or M, keeping two significant digits: $258,984, $259K
     percent    a value as shown (0.64 or 64), or a/b or a/(a+b) of two numbers in one row: 60% from a 3-2 record
-    medal      always: the medal places 1st, 2nd and 3rd, which the prompt defines
-    scope      N in a result or a call's arguments: top 8, at least 5, 8th or better, in 2024
+    category   always: categories the prompt defines, the medal places 1st, 2nd and 3rd, and top 3 and top 8
+    scope      N in a result or a call's arguments: top 5, at least 5, 8th or better, in 2024, placement 2
     record     both numbers in one row, in either order: 5-4; for a range of years, each year: 2019-2021
     ordinal    the number: 49th
     number     the number; a decimal at the precision shown, or a rate as for percent: 48, 1,350, 0.98
-    word       the number, for two to twenty and twice
+    word       the number, for two to twenty and twice; after 'the', 'these' or 'those' a word refers back to
+               what was named ('between the two'), and isn't read
 Anything the user's question writes is supported as written, and its numbers, dates and place words are evidence.
+The replay on 20261117-grounding-before added top 3 and top 8, placement N and the words referring back: as numbers
+to check, they made the sentences holding an answer's main claim go (q35 seed 0, q45 seed 1).
 Arithmetic isn't a derivation: a sum, a difference or a count of rows the model made itself goes back, since the
 prompt asks for the data reduced in SQL (decided 2026-11-17).
 
@@ -117,26 +120,28 @@ KINDS = [(kind, re.compile(pattern, flags), parse) for kind, pattern, flags, par
     ("money", rf"\b({NUM})[ \t]?(?:USD|dollars)\b", 0, money),
     ("money", rf"\bUSD[ \t]?({NUM})", 0, money),
     ("percent", r"\b(\d+(?:\.\d+)?)[ \t]?(?:%|percent\b)", 0, lambda m: amount(m[1])),
-    ("medal", r"\b(?:1st|2nd|3rd)\b", 0, None),
+    ("category", r"\b(?:1st|2nd|3rd)\b|\btop[ \t-]?[38]s?\b", re.I, None),
     ("scope", r"\btop[ \t-]?(\d+)s?\b", re.I, number),
     ("scope", r"\bat[ \t]+least[ \t]+(\d+)\b", re.I, number),
     ("scope", r"\b(\d+)(?:st|nd|rd|th)?[ \t]+or[ \t]+(?:more|better|higher)\b", re.I, number),
     ("scope", r"\b(?:in|during|since|from|before|after|until|through|for)[ \t]+(\d{4})\b", re.I, number),
+    ("scope", r"(?<![A-Za-z])(?:placement|placed|place|rank|ranked)[ \t]*(?:=|:|of|at)?[ \t]*(\d+)\b", re.I, number),
     ("record", rf"(?<![\w.,:/$-])(\d+)[ \t]*[-–—][ \t]*(\d+){END}", 0, lambda m: (int(m[1]), int(m[2]))),
     ("ordinal", r"(?<![\w.,])(\d+)(?:st|nd|rd|th)\b", 0, number),
     ("number", rf"(?<![\w.,$/])-?({NUM}){END}", 0, lambda m: amount(m[1])),
-    ("word", rf"\b({'|'.join(WORDS)})\b", re.I, lambda m: (WORDS[m[1].lower()],)),
+    ("word", rf"(?<!\bthe )(?<!\bthese )(?<!\bthose )\b({'|'.join(WORDS)})\b", re.I, lambda m: (WORDS[m[1].lower()],)),
 ]]
 
 
 def claims(text):
     """Every number-like claim in a text, in the order it's written. Each kind is read with the claims before it
-    blanked out, so a date's day isn't also a number."""
+    blanked out, so a date's day isn't also a number: blanked with a character no pattern skips, as a space would
+    let 'placed 2nd of 32' read as a placement of 32."""
     found, rest = [], text
     for kind, pattern, parse in KINDS:
         for m in pattern.finditer(rest):
             found.append(Claim(kind, text[m.start():m.end()], m.start(), m.end(), parse(m) if parse else ()))
-        rest = pattern.sub(lambda m: " " * len(m[0]), rest)
+        rest = pattern.sub(lambda m: "\0" * len(m[0]), rest)
     return sorted(found, key=lambda c: c.start)
 
 
@@ -280,7 +285,7 @@ def record(value, evidence):
 RULES = {
     "format": lambda value, evidence: True,
     "list": lambda value, evidence: True,
-    "medal": lambda value, evidence: True,
+    "category": lambda value, evidence: True,
     "datetime": lambda value, evidence: value[:3] in evidence.dates and value[3:] in evidence.times,
     "date": lambda value, evidence: value in evidence.dates,
     "month": lambda value, evidence: value in evidence.months,
