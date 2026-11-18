@@ -16,3 +16,6 @@ __pycache__/
 venv/
 env/
 ENV/
+
+# Broadcast screenshots used for layout ideas only (docs/stat-cards-proposal.md): never commit
+docs/graphics-reference/

@@ -213,6 +213,12 @@ Agent (`agent/`, a prototype):
   - `rank_players(by, top, mode, year, event)`: players ranked by wins, medals or top 8s with `RANK()`, every tie included, with a column for a series' regional championships;
   - every template takes players as player_ids from `resolve_player` (a name is refused) and events by name, resolved inside as `resolve_event` does. A list over the token budget is left out with its count, and the SQL a template ran goes to the trace, not to the model.
 
+Web app (`app/`, branch `claude/web-app`, 2026-11-17; design in [`docs/web-app-proposal.md`](docs/web-app-proposal.md)):
+- `python app/server/main.py` serves the demo at http://127.0.0.1:8000 in replay mode: recorded model replies from `data/experiments/` go through the real loop and tools, so it needs no model server. `--replay-runs A B` limits it to those runs; switch to the guardrail session's after-run once it finishes. A replay mismatches where the agent has changed since the recording.
+- `--mode live` (with `py -3.14`, or `--examples off`) asks the model server: never while an eval run is going. Its transcripts go to `data/experiments/web/`.
+- The server (`app/server/`): `main.py` (routes, Server-Sent Events), `worker.py` (one worker, a queue), `runner.py` (the agent's hooks), `events.py` (what the page gets, check notes, suggestion buttons sending "the first one"), `replay.py` (never the held-out set's traces), `figures.py` (stat cards: none yet). The page (`app/static/`) is plain JavaScript, no build step. Tests: `tests/test_web_*.py`.
+- Stat cards are proposed in [`docs/stat-cards-proposal.md`](docs/stat-cards-proposal.md); they need top 32 and a `card` payload in `agent/` first.
+
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
 - `player_merges.csv`: 3 merges decided by hand (Remmy, hardymj and karuzzi) and 670 accepted automatically (tier 1).
