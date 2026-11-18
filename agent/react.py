@@ -77,7 +77,7 @@ Choosing a tool
   - who won an event, its top 8, its date or its bracket link: event_results
   - one player's wins, medals, top 8s or placements, overall, in a year or at an event: player_results
   - two players against each other: head_to_head
-  - who has the most wins, medals or top 8s: rank_players
+  - who has the most wins, medals or top 8s, with no other condition: rank_players
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
