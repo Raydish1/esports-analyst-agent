@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -167,6 +168,11 @@ class BankTest(unittest.TestCase):
             self.assertNotIn("\n", e.get("call_note", "").strip(), e["id"])
             self.assertIn(e.get("expect", "rows"), ("rows", "empty"), e["id"])
             self.assertTrue(e["sql"].lstrip().upper().startswith(("SELECT", "WITH")), e["id"])
+
+    def test_no_example_selects_start_time_whose_raw_seconds_answers_misread_as_a_clock_time(self):
+        for e in retrieval.load():  # ordering by it is fine; in the after run, q20 gave three different wrong times
+            selected = re.split(r"\bFROM\b", e["sql"], maxsplit=1, flags=re.I)[0]
+            self.assertNotIn("start_time", selected, e["id"])
 
     def test_every_call_names_a_template_with_arguments_it_takes(self):
         called = [(e["id"], name, arguments) for e in retrieval.load() for name, arguments in retrieval.calls(e)]
