@@ -27,7 +27,6 @@ import hashlib
 import json
 import math
 import os
-import re
 import sys
 import time
 import tomllib
@@ -37,7 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import fold  # noqa: E402
-from tools import SNAPSHOT, connect, run_sql, tables  # noqa: E402
+from tools import SNAPSHOT, connect, player_ids, run_sql, tables  # noqa: E402
 
 EMBED_MODEL = "nomic-embed-text"
 # nomic-embed-text's task prefix for comparing texts of one kind, here a question with questions. On the evaluation
@@ -56,7 +55,6 @@ NOTE = ("Worked examples, retrieved for questions shaped like this one. They sho
 EXAMPLES = ROOT / "agent" / "examples" / "examples.toml"
 EVALUATION = [ROOT / "eval" / "questions" / "questions.toml", ROOT / "ingest" / "target_questions.py"]
 FIELDS = {"id", "shape", "question", "note", "sql"}
-PLAYER_IDS = re.compile(r"\b(?:player_id|partner_id|opponent_id|opponent1_id|opponent2_id)\s*(?:=\s*(-?\d+)|IN\s*\(([-\d,\s]+)\))", re.I)
 
 
 def load(path=EXAMPLES):
@@ -101,14 +99,6 @@ def cells(row):
     for v in row:
         out += v if isinstance(v, list) else v.split(" / ") if isinstance(v, str) and " / " in v else [v]
     return out
-
-
-def player_ids(sql):
-    """The player IDs a query filters on."""
-    found = []
-    for one, many in PLAYER_IDS.findall(sql):
-        found += [int(one)] if one else [int(n) for n in many.split(",") if n.strip()]
-    return found
 
 
 def check(examples, path=SNAPSHOT):

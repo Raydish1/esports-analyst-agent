@@ -540,6 +540,38 @@ class LoopTest(Fixture):
         trace = react.run("q", self.tools, ask=Scripted(reply(done="length")), log=lambda *_: None)
         self.assertEqual((trace["outcome"], trace["answer"]), ("cut off at the output cap", None))
 
+    def test_a_query_on_a_player_id_no_tool_returned_is_refused_until_a_tool_returns_it(self):
+        query = ("run_sql", {"query": "SELECT COUNT(*) AS n FROM v_results WHERE player_id = 11"})
+        ask = Scripted(reply(calls=[query]), reply(calls=[("resolve_player", {"name": "Raydish"})]), reply(calls=[query]),
+                       reply("Raydish has 6 official results."))
+        trace = react.run("How many results has Raydish?", self.tools, ask=ask, log=lambda *_: None)
+        refused, _, ran = (s["tool_calls"][0] for s in trace["steps"][:3])
+        self.assertEqual(json.loads(refused["observation"])["error"],
+                         "player_id 11 wasn't returned by any tool in this conversation, and the question doesn't give it,"
+                         " so it may not be the player meant. Call resolve_player with the player's name, and use the"
+                         " player_id it returns.")
+        self.assertEqual(refused["unreturned_players"], [11])
+        self.assertEqual(json.loads(ran["observation"])["rows"], [[6]])  # resolve_player returned 11
+
+    def test_a_player_id_the_question_gives_or_a_result_returned_may_be_queried(self):
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 11"})]),
+                       reply("6."))
+        trace = react.run("How many results has player 11?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(json.loads(trace["steps"][0]["tool_calls"][0]["observation"])["rows"], [[6]])
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT player_id FROM players WHERE name = 'tike36'"})]),
+                       reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 14"})]),
+                       reply("3."))
+        trace = react.run("How many results has tike36?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(json.loads(trace["steps"][1]["tool_calls"][0]["observation"])["rows"], [[3]])
+
+    def test_the_player_ids_a_call_uses_are_its_player_columns_and_player_arguments(self):
+        self.assertEqual(react.players_used("run_sql", {"query": "SELECT * FROM v_sets_1v1 WHERE s.winner_id = 3 AND"
+                                                                 " loser_id IN (1, -2) AND placement <= 8 LIMIT 5"}),
+                         [3, 1, -2])  # not the placement or LIMIT's numbers
+        self.assertEqual(react.players_used("head_to_head", '{"player_id": "3", "opponent_id": 4.0}'), [3, 4])
+        self.assertEqual(react.players_used("player_results", {"player_id": "Raydish", "top": 1}), [])  # its own error
+        self.assertEqual(react.players_used("resolve_player", {"name": "71736"}), [])
+
     def test_bad_tool_calls_get_errors_the_model_can_act_on(self):
         self.assertIn("takes one argument, name", self.tools.call("resolve_player", {})["error"])
         self.assertIn("takes one argument, query", self.tools.call("run_sql", {"sql": "SELECT 1"})["error"])
@@ -607,7 +639,7 @@ class LoopTest(Fixture):
     def test_an_answer_right_after_an_empty_result_a_missing_text_value_explains_goes_back_once(self):
         empty = ("run_sql", {"query": "SELECT * FROM games WHERE player_id = 7 AND format = '2v2'"})
         ask = Scripted(reply(calls=[empty]), reply("Never in 2v2."), reply("Never in 2v2."))
-        trace = react.run("Has megd played 2v2?", self.tools, ask=ask, log=lambda *_: None)
+        trace = react.run("Has player 7 played 2v2?", self.tools, ask=ask, log=lambda *_: None)
         first, second = trace["steps"][1]["lookup_check"], trace["steps"][2]["lookup_check"]
         self.assertEqual((first["conditions"], first["action"], second["action"]),
                          (["format = '2v2'"], "sent back", "kept: sent back once already"))
@@ -621,13 +653,13 @@ class LoopTest(Fixture):
         empty = ("run_sql", {"query": "SELECT * FROM games WHERE player_id = 7 AND format = '2v2'"})
         fixed = ("run_sql", {"query": "SELECT COUNT(*) FROM games WHERE player_id = 7 AND mode = '2v2'"})
         ask = Scripted(reply(calls=[empty]), reply("None."), reply(calls=[fixed]), reply("3 games in 2v2."))
-        trace = react.run("q", self.tools, ask=ask, log=lambda *_: None)
+        trace = react.run("Has player 7 played 2v2?", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual([s.get("lookup_check", {}).get("action") for s in trace["steps"]], [None, "sent back", None, None])
         self.assertEqual((trace["answer"], trace["answered_after_lookup_miss"]), ("3 games in 2v2.", False))
         for query in ("SELECT * FROM games WHERE player_id = 9 AND format = 'standard'",  # both values exist, not together
                       "SELECT * FROM games WHERE player_id = 999"):  # a number no row has
-            trace = react.run("q", self.tools, ask=Scripted(reply(calls=[("run_sql", {"query": query})]), reply("None.")),
-                              log=lambda *_: None)
+            trace = react.run("Have players 9 and 999 played standard?", self.tools,
+                              ask=Scripted(reply(calls=[("run_sql", {"query": query})]), reply("None.")), log=lambda *_: None)
             self.assertEqual((trace["answer"], trace["steps_used"]), ("None.", 2))
             self.assertNotIn("lookup_check", trace["steps"][1])
 

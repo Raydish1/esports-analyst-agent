@@ -47,6 +47,7 @@ BY = {"wins": 1, "medals": 3, "top8s": 8}  # what rank_players counts, and the p
 BY_WORDS = {"wins": {"wins", "win", "titles", "title"}, "medals": {"medals", "medal", "podiums", "podium"},
             "top8s": {"top8s", "top8", "top8finishes"}}  # as a model may write them, without spaces or punctuation
 RANKED_AT_MOST = 30  # rows of a ranking listed; a tie group past them is counted instead
+PLAYER_ARGUMENTS = ("player_id", "opponent_id")  # the arguments that take a player, which person() reads
 
 
 class Refused(ValueError):

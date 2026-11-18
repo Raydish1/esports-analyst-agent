@@ -10,7 +10,11 @@ To ask your own questions, one after another, use agent/ask.py.
 
 Each step is one model reply: its thinking, then either tool calls, whose results go back as observations, or the
 answer. A question ends at the answer, or after MAX_STEPS replies; the observation before the last step says it's
-the last. An answer that names a player or cites a player ID no tool returned goes back to the model once, with what
+the last. A tool call on a player_id that no tool returned and the question doesn't give (a run_sql query filtering on
+it, or a template's player argument) doesn't run: its observation is an error pointing to resolve_player (Shown.knows).
+In the template tools' after run, one run passed head_to_head two invented IDs that were real players, and no check
+caught it (docs/experiments.md, 2026-11-17).
+An answer that names a player or cites a player ID no tool returned goes back to the model once, with what
 it found, before it counts (Shown.unreturned, unreturned_ids), and so does one that states facts in a question that
 called no tool (Shown.facts). So does one that comes right after a result too large to show (tools.TOKEN_BUDGET),
 until the model queries again, and, once, one right after an empty result whose diagnosis finds no row with a text
@@ -45,8 +49,9 @@ from names import normalize, normalize_full  # noqa: E402
 from platform_clients import load_env  # noqa: E402
 import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
-from templates import TEMPLATES  # noqa: E402
-from tools import CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, run_sql, tables  # noqa: E402
+from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
+from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, player_ids, run_sql,  # noqa: E402
+                   tables)
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -269,6 +274,45 @@ def chat(messages, model=MODEL, think=True, seed=0):
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
 
 
+def parsed(arguments):
+    """A tool call's arguments as a dict: JSON text parsed, and anything else that isn't a dict as none."""
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except ValueError:
+            pass
+    return arguments if isinstance(arguments, dict) else {}
+
+
+def whole_number(value):
+    """A value as an int if it's a whole number, written as text too ('160000'); else None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, float) and value.is_integer() or isinstance(value, str) and re.fullmatch(r"\s*-?\d+\s*", value):
+        return int(value)
+    return value if isinstance(value, int) else None
+
+
+def players_used(name, arguments):
+    """The player IDs a tool call uses: those a run_sql query filters on, and a template's player arguments given as
+    numbers (a name gets the template's own error)."""
+    arguments = parsed(arguments)
+    if name == "run_sql":
+        return player_ids(arguments["query"]) if isinstance(arguments.get("query"), str) else []
+    if name not in TEMPLATES:
+        return []
+    return [n for n in (whole_number(arguments[k]) for k in PLAYER_ARGUMENTS if k in arguments) if n is not None]
+
+
+def unreturned_players(ids):
+    """The error for a call on player IDs that no tool returned and the question doesn't give."""
+    one = len(ids) == 1
+    return (f"player_id{'' if one else 's'} {listed([str(i) for i in ids])} {'was' if one else 'were'}n't returned by any"
+            f" tool in this conversation, and the question doesn't give {'it' if one else 'them'}, so"
+            f" {'it' if one else 'they'} may not be the player{'' if one else 's'} meant. Call resolve_player with"
+            f" {'the' if one else 'each'} player's name, and use the player_id it returns.")
+
+
 class Tools:
     """The tools the model can call, by name, on one snapshot."""
 
@@ -282,12 +326,7 @@ class Tools:
 
     def call(self, name, arguments):
         """One tool call's observation, as a dict: its result, or an error the model can act on."""
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except ValueError:
-                pass
-        arguments = arguments if isinstance(arguments, dict) else {}
+        arguments = parsed(arguments)
         if name == "resolve_player":
             value = arguments.get("name")
             if isinstance(value, str) and value.strip():
@@ -355,8 +394,19 @@ class Shown:
 
     def __init__(self, resolver, *texts):
         self.resolver, self.words, self.numbers, self.players = resolver, set(), set(), set()
+        self.given = set()  # the numbers in the user's questions
         for text in texts:
             self.read(text)
+
+    def ask(self, question):
+        """A question from the user: read as any text is, and its numbers kept as given, since a player_id the user
+        writes isn't one the model invented."""
+        self.read(question)
+        self.given |= {int(n) for n in re.findall(r"-?\d+", question)}
+
+    def knows(self, pid):
+        """Whether a tool call may use a player_id: a tool returned the person, or the user's question gives it."""
+        return self.resolver.canonical.get(pid, pid) in self.players or pid in self.given
 
     def read(self, text):
         tokens = str(text).split()
@@ -550,7 +600,7 @@ class Conversation:
             if self.on_examples:
                 self.on_examples(found)
         self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(question, found)}]
-        self.shown.read(question)
+        self.shown.ask(question)
         trace = self.turn(question, found)
         self.current[0] = {"role": "user", "content": question}
         content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
@@ -686,7 +736,8 @@ class Conversation:
             for i, call in enumerate(calls):
                 name, arguments = call["function"].get("name"), call["function"].get("arguments")
                 begun = time.monotonic()
-                observation = self.tools.call(name, arguments)
+                unknown = [pid for pid in dict.fromkeys(players_used(name, arguments)) if not self.shown.knows(pid)]
+                observation = {"error": unreturned_players(unknown)} if unknown else self.tools.call(name, arguments)
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
                 self.shown.observe(name, observation)
@@ -703,7 +754,8 @@ class Conversation:
                     observation = {**observation, "last_step": LAST_STEP}
                 text = json.dumps(observation, ensure_ascii=False)
                 step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
-                                           "seconds": round(seconds, 3), **({} if ran is None else {"ran": ran})})
+                                           "seconds": round(seconds, 3), **({} if ran is None else {"ran": ran}),
+                                           **({"unreturned_players": unknown} if unknown else {})})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:

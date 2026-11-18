@@ -96,6 +96,17 @@ class RegistryTest(Fixture):
         shown.observe("event_results", out)
         self.assertEqual(shown.players, {A, B})
 
+    def test_player_ids_no_tool_returned_are_refused_until_a_template_returns_them(self):
+        h2h = ("head_to_head", {"player_id": A, "opponent_id": B})
+        ask = Scripted(reply(calls=[h2h]), reply(calls=[("event_results", {"event": "cup 2020"})]), reply(calls=[h2h]),
+                       reply("A leads B 3-0."))
+        trace = react.run("How has A done against B?", self.tools, ask=ask, log=lambda *_: None)
+        refused, _, ran = (s["tool_calls"][0] for s in trace["steps"][:3])
+        self.assertTrue(json.loads(refused["observation"])["error"].startswith(
+            f"player_ids {A} and {B} weren't returned by any tool in this conversation"))
+        self.assertNotIn("ran", refused)  # nothing was queried
+        self.assertEqual(json.loads(ran["observation"])["template"], "head_to_head")  # the Cup's winners were A and B
+
     def test_a_template_call_is_a_new_query_after_a_result_too_large_to_show(self):
         many = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 3000) SELECT x, 'a name' FROM c"
         ask = Scripted(reply(calls=[("run_sql", {"query": many})]), reply(calls=[("event_results", {"event": "cup 2020"})]),

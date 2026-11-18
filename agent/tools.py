@@ -112,6 +112,8 @@ TOO_BIG = ("Too large to show: {total} rows, over the budget of about {budget} t
            " result in SQL to what the answer needs (GROUP BY with COUNT, SUM, MIN or MAX; WHERE; ORDER BY ... LIMIT) and"
            " query again.")
 MARKS = re.compile(r'[\d\[\]{},:"]')
+PLAYER_FILTER = re.compile(r"\b(?:player_id|partner_id|opponent_id|opponent1_id|opponent2_id|winner_id|loser_id)\s*"
+                           r"(?:=\s*(-?\d+)|IN\s*\(([-\d,\s]+)\))", re.I)  # the views' player columns
 
 EVENT_SCORES = {"alias": 1.0, "series": 0.95, "words": 0.9, "some words": 0.85}  # rankings too, as SCORES
 MODE_WORDS = {"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}
@@ -434,6 +436,14 @@ def cell(value):
     if isinstance(value, str) and len(value) > CELL_CHARS:
         return value[:CELL_CHARS] + f"... ({len(value)} characters)"
     return value
+
+
+def player_ids(sql):
+    """The player IDs a query filters on, written as numbers: player_id = 5, w.winner_id = 5, opponent_id IN (1, 2)."""
+    found = []
+    for one, many in PLAYER_FILTER.findall(sql):
+        found += [int(one)] if one else [int(n) for n in many.split(",") if n.strip()]
+    return found
 
 
 def tables(observation):
