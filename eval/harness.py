@@ -7,6 +7,7 @@ score each run by the stage that failed first, and report by group, shape, categ
     python eval/harness.py score RUN [RUN ...]                          stages 1 and 2, and a judgments draft
     python eval/harness.py report RUN [RUN ...]                         the tables, with raw counts
     python eval/harness.py failures RUN                                 every run not right, as a page to read
+    python eval/harness.py replay RUN                                   the number check and the name filter, offline
 
 A run's traces go to data/experiments/<run>/traces.jsonl, one line per question and seed as each finishes, so an
 interrupted run resumes where it stopped. Scoring reads the traces only, so a corrected check never needs a rerun.
@@ -46,8 +47,9 @@ sys.path.insert(0, str(ROOT / "ingest"))
 sys.path.insert(0, str(ROOT / "eval"))
 from result_checks import NA, all_checks, load_questions  # noqa: E402
 from names import normalize, normalize_full  # noqa: E402
+from number_check import Evidence, without  # noqa: E402
 from templates import TEMPLATES  # noqa: E402
-from tools import add_views, tables  # noqa: E402
+from tools import add_views, name_filters, tables  # noqa: E402
 
 CHECKS = all_checks()  # stage 2's check per question, of both sets
 RAW = ROOT / "data" / "experiments"
@@ -159,6 +161,45 @@ def executed_queries(trace):
 def tool_calls(trace):
     """How many times the run called each tool."""
     return dict(Counter(c["name"] for step in trace["steps"] for c in step["tool_calls"]))
+
+
+CHECKS_FIRED = {"size_check": "result-size check", "lookup_check": "lookup check", "no_tool_check": "no-tool check",
+                "answer_check": "answer check"}
+NEW_CHECKS = ["number check, sent back", "number check, claims replaced", "name filter, queries refused"]
+
+
+def fired(trace):
+    """How many times each check fired in a run: the steps it acted on; for the number check its send-backs and the
+    claims it replaced apart, and for the name filter the queries it refused."""
+    out = Counter()
+    for step in trace["steps"]:
+        out.update(label for key, label in CHECKS_FIRED.items() if step.get(key))
+        number = step.get("number_check") or {}
+        out["number check, sent back"] += number.get("action") == "sent back"
+        out["number check, claims replaced"] += len(number.get("replaced") or [])
+        out["name filter, queries refused"] += sum(bool(c.get("name_filters")) for c in step["tool_calls"])
+    return {label: n for label, n in out.items() if n}
+
+
+def replay(trace):
+    """The number check and the name filter on a recorded run, offline: the claims of its final answer that nothing
+    the run's tools returned or its question wrote supports, each with what replaces it, and the name filters of its
+    run_sql queries. On a run from before them, what they would have done; on one after, nothing should be left."""
+    evidence, named = Evidence(), []
+    evidence.ask(trace["question"])
+    for step in trace["steps"]:
+        for c in step["tool_calls"]:
+            arguments = c["arguments"] if isinstance(c["arguments"], dict) else {}
+            if c["name"] == "run_sql" and isinstance(arguments.get("query"), str):
+                named += name_filters(arguments["query"])
+            if c["observation"] is not None:
+                observation = json.loads(c["observation"])
+                evidence.observe(observation)
+                if "error" not in observation:
+                    evidence.call(c["arguments"])
+    answer = trace.get("answer") or ""
+    flagged = evidence.unsupported(answer) if trace.get("outcome") != "suggestions" else []
+    return (without(answer, flagged)[1] if flagged else []), named
 
 
 def flat(text):
@@ -393,7 +434,8 @@ def score(run_ids, db, labels):
                 "ended_empty": ended_empty(t),
                 "examples": [(e["id"], e["shape"], e["similarity"]) for e in found["examples"]] if found else None,
                 "checks": sorted({k for s in t["steps"] for k in ("size_check", "lookup_check", "no_tool_check",
-                                                                   "answer_check") if s.get(k)}),
+                                                                   "answer_check", "number_check") if s.get(k)}),
+                "fired": fired(t),
                 "steps": t["steps_used"], "model_seconds": t["model_seconds"], "output_tokens": t["output_tokens"],
                 "name_swaps": len(t.get("name_swaps") or []), "tools": tool_calls(t)})
         out[run_id] = records
@@ -492,6 +534,15 @@ def tool_use(title, records):
                       f" {sum(r['model_seconds'] for r in records) / n:.1f} s of model time, over {n} runs.", ""]
 
 
+def check_use(title, records):
+    """How often each check fired (fired): the runs it fired in, and the times in all."""
+    out = [f"**{title}**", "", "| Check | Runs it fired in | Times |", "|---|---|---|"]
+    for label in [*CHECKS_FIRED.values(), *NEW_CHECKS]:
+        times = [r["fired"].get(label, 0) for r in records]
+        out.append(f"| {label} | {counted(sum(n > 0 for n in times), len(records))} | {sum(times)} |")
+    return out + [""]
+
+
 def report(records, judged):
     """The summary tables, as markdown lines: retrieval on by group, the held-out set by shape, by the query's shape,
     by category and by failing stage; then the retrieval-off arm against the same questions and seeds with it on."""
@@ -528,6 +579,9 @@ def report(records, judged):
     for title, rs in (("Tool use, retrieval on", on), ("Tool use, retrieval off", off)):
         if rs and all("tools" in r for r in rs):  # records scored before the tools were counted have none
             out += tool_use(title, rs)
+    for title, rs in (("Checks, retrieval on", on), ("Checks, retrieval off", off)):
+        if rs and all("fired" in r for r in rs):  # nor, before 2026-11-17, the checks
+            out += check_use(title, rs)
     review = sum(j.get("review") == "needs review" for j in judged.values())
     out.append(f"Judgments needing review: {review} of {len(judged)}.")
     return out
@@ -613,6 +667,27 @@ def failures(run_id, records, judged, questions, executed):
     return out
 
 
+def replayed(run_id, traces):
+    """A run's replay page (replay), as markdown lines: each run whose final answer has a claim nothing supports, with
+    what replaces each, then each run_sql query that looks a player up by name."""
+    flagged, named = [], []
+    for t in traces:
+        claims, filters = replay(t)
+        if claims:
+            flagged.append((t, claims))
+        named += [(t, f) for f in filters]
+    out = [f"# Replay: run {run_id}", "", f"Of {len(traces)} runs, the number check flags {len(flagged)} final answers"
+           f" and the name filter {len(named)} run_sql queries.", ""]
+    for t, claims in flagged:
+        out += [f"## {t['id']} seed {t['seed']}: {t['question']}", ""]
+        for c in claims:
+            out += [f"- {', '.join(c['numbers'])} in {c['claim']!r}", f"  becomes {c['replacement']!r}"]
+        out.append("")
+    if named:
+        out += ["## Name filters", ""] + [f"- {t['id']} seed {t['seed']}: {f}" for t, f in named] + [""]
+    return out
+
+
 def main():
     sys.stdout.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(description="Evaluate the agent on the evaluation and held-out sets.")
@@ -631,7 +706,14 @@ def main():
     page = commands.add_parser("failures", help="every run not right, with its answer and SQL, as a page to read")
     page.add_argument("run")
     page.add_argument("--out", help="where to write it (default: data/experiments/<run>/failures.md, by its traces)")
+    again = commands.add_parser("replay", help="the number check and the name filter on a run's traces, offline")
+    again.add_argument("run")
     args = parser.parse_args()
+    if args.command == "replay":  # reads the run's traces and writes data/experiments/<run>/replay.md by them
+        lines = replayed(args.run, load_traces(args.run)[1])
+        (RAW / args.run / "replay.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"{lines[2]}\n{RAW / args.run / 'replay.md'}")
+        return
     questions = load_questions()
     if args.command == "failures":  # reads the run's scores, judgments and traces; changes none of them
         records = json.loads((RESULTS / f"{args.run}-scores.json").read_text(encoding="utf-8"))
