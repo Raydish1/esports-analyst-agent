@@ -374,3 +374,11 @@ measured against the references again:
   reference's height exactly and sit within 1 px; the white labels in the lifetime card's boxes take 0.05 em of
   letter-spacing, after which "GOLD" lands on the reference's exact box. Semibold is kept for emphasis ("not recorded").
 - ProximaSansMedium, also installed, is a different typeface, so the cards don't use it.
+
+**Black, not Extrabold (2026-11-18).** With Proxima Nova Black installed too, the heavy words' ink share was measured
+for both: Extrabold averaged 0.95 of the reference's, and 0.85–0.92 on MOUNIR, PLACEMENTS, BAMYA and MATCHES; Black
+averaged 1.07. The reference is a compressed video frame, so single words vary by about ±7%. Side by side, Black's small
+counters and solid strokes look like the broadcast's, and Extrabold looked too thin, so the heavy text is Black, with
+Extrabold and Bold as fallbacks. Black is about 3.5% wider, so the width factor is 89%, and it applies to the figures
+too: Black's digits ran 8–18% wide unscaled, and at 89% they match within 4%. Every measured element is within 3 px of
+its reference; the left earnings figure ($214,458 against $211,958, the same number of digits) lands within 1 px.

@@ -3,22 +3,22 @@
    edges traced into SVG. The producer's own colors, backgrounds and edge assets replace these when they arrive (DATA.md,
    "Broadcast graphics").
 
-   Fonts: the broadcast uses Proxima Nova (the producer, 2026-11-18): Extrabold for the heavy text (Bold if that's all
-   there is), and Regular for the labels, which measured closest in stroke weight (Semibold for emphasis). It's a licensed font, so it's used when it's installed on the viewer's machine or its files are in
+   Fonts: the broadcast uses Proxima Nova (the producer, 2026-11-18): Black for the heavy text (Extrabold or Bold if
+   that's all there is), and Regular for the labels, which measured closest in stroke weight (Semibold for emphasis). It's a licensed font, so it's used when it's installed on the viewer's machine or its files are in
    app/static/fonts/ (git-ignored). Without it, "BC Heavy" falls back to Gabarito Black and "BC Text" to Montserrat,
    the free matches measured against the references. */
 
 @font-face {
   font-family: "BC Heavy"; font-weight: 900; font-display: block;
-  src: local("Proxima Nova Extrabold"), local("ProximaNova-Extrabld"),
-       url("fonts/proxima-nova-extrabold.woff2") format("woff2"), url("fonts/proxima-nova-extrabold.otf") format("opentype"),
-       local("Proxima Nova Bold"), local("ProximaNova-Bold");
+  src: local("Proxima Nova Black"), local("ProximaNova-Black"),
+       url("fonts/proxima-nova-black.woff2") format("woff2"), url("fonts/proxima-nova-black.otf") format("opentype"),
+       local("Proxima Nova Extrabold"), local("ProximaNova-Extrabld"), local("Proxima Nova Bold"), local("ProximaNova-Bold");
 }
 @font-face {
   font-family: "BC Heavy"; font-weight: 800; font-display: block;
-  src: local("Proxima Nova Extrabold"), local("ProximaNova-Extrabld"),
-       url("fonts/proxima-nova-extrabold.woff2") format("woff2"), url("fonts/proxima-nova-extrabold.otf") format("opentype"),
-       local("Proxima Nova Bold"), local("ProximaNova-Bold");
+  src: local("Proxima Nova Black"), local("ProximaNova-Black"),
+       url("fonts/proxima-nova-black.woff2") format("woff2"), url("fonts/proxima-nova-black.otf") format("opentype"),
+       local("Proxima Nova Extrabold"), local("ProximaNova-Extrabld"), local("Proxima Nova Bold"), local("ProximaNova-Bold");
 }
 @font-face {
   font-family: "BC Text"; font-weight: 500; font-display: block;
@@ -59,10 +59,11 @@
 }
 
 .bc-frame { --bc-squeeze: 1; }
-.bc-proxima .bc-frame { --bc-squeeze: 0.92; }
+.bc-proxima .bc-frame { --bc-squeeze: 0.89; }
 .bc-frame .bc-sq { display: inline-block; transform: scaleX(var(--bc-squeeze)); transform-origin: left center; }
-.bc-frame .bc-center .bc-sq, .bc-frame .bc-pname .bc-sq, .bc-frame .bc-vs .bc-sq,
-.bc-frame .bc-sets-heading .bc-sq, .bc-frame .bc-sets-title .bc-sq { transform-origin: center; }
+.bc-frame .bc-center .bc-sq, .bc-frame .bc-pname .bc-sq, .bc-frame .bc-vs .bc-sq, .bc-frame .bc-count .bc-sq,
+.bc-frame .bc-sets-heading .bc-sq, .bc-frame .bc-sets-title .bc-sq, .bc-frame .bc-entry-score .bc-sq { transform-origin: center; }
+.bc-frame .bc-l .bc-sq, .bc-frame .bc-value .bc-sq { transform-origin: right center; }  /* right-aligned figures */
 
 .bc-frame svg.bc-shapes { position: absolute; inset: 0; width: 1920px; height: 1080px; }
 .bc-frame .bc-t { position: absolute; margin: 0; white-space: nowrap; }
