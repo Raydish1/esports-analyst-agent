@@ -566,9 +566,10 @@ TEMPLATES = {t.name: t for t in (
     Template(
         "head_to_head",
         "Two players against each other at official events: the first player's 1v1 record against the other in sets"
-        " (wins, losses, games), each 1v1 set between them with its winner and score, and whether they met in 2v2. Use"
-        " it for a head-to-head, a rivalry, or one player's record or history against another, with the player the"
-        " question asks about first.",
+        " (wins, losses, games), each 1v1 set between them with its winner and score, and whether they met in 2v2. It"
+        " counts sets, not placements: for where they placed at the same events, such as how often one finished behind"
+        " the other, use run_sql on v_results. Use it for a head-to-head, a rivalry, or one player's record or history"
+        " against another, with the player the question asks about first.",
         {"player_id": {"type": "integer", "description": "the first player's player_id, from resolve_player: the record"
                                                          " is theirs"},
          "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"}},

@@ -258,6 +258,12 @@ class HeadToHeadTest(Fixture):
         self.assertEqual(self.rows(self.call("head_to_head", player_id=B, opponent_id=A), "B's 1v1 record against A"),
                          [["B", B, "A", A, 0, 3, 3, 1, 8, 0]])
 
+    def test_the_model_reads_that_it_counts_sets_and_where_placements_are(self):
+        description = " ".join(next(t["function"]["description"] for t in react.TOOLS
+                                    if t["function"]["name"] == "head_to_head").split())
+        self.assertIn("It counts sets, not placements: for where they placed at the same events, such as how often one"
+                      " finished behind the other, use run_sql on v_results.", description)  # q44 seed 2 counted sets
+
     def test_each_side_of_the_sets_is_its_own_filter_since_an_or_reads_every_set(self):
         ran = " ".join(self.call("head_to_head", player_id=A, opponent_id=B)["ran"])
         self.assertIn(f"WHERE winner_id = {A} AND loser_id = {B} UNION ALL", ran)
