@@ -135,6 +135,15 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
                 raise HTTPException(404, "No such player.")
             return {"kind": "lifetime", "player": one, "scope": cards.scope([one])}
 
+    @app.middleware("http")
+    async def revalidate(request, call_next):
+        """The page's files are checked with the server on every load (an unchanged file costs a 304), so a page
+        never keeps running scripts older than the server's."""
+        response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     if static.exists():
         app.mount("/", StaticFiles(directory=static, html=True), name="static")
     return app

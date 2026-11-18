@@ -89,6 +89,10 @@ class AppTest(Fixture):
         _, job = self.ask("now only 2v2", conversation)
         self.assertIn("follow-up", read(self.client, job)[-2]["message"])
 
+    def test_the_page_is_always_revalidated(self):
+        self.assertEqual(self.client.get("/missing.js").headers.get("cache-control"), "no-cache")
+        self.assertNotEqual(self.client.get("/api/info").headers.get("cache-control"), "no-cache")
+
     def test_bad_requests(self):
         self.assertEqual(self.client.post("/api/conversations/nope/questions", json={"question": "q"}).status_code, 404)
         conversation = self.client.post("/api/conversations").json()["conversation_id"]
