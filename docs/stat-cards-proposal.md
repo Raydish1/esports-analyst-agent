@@ -354,3 +354,18 @@ many more there are.
 and names (5%); Montserrat Black fits the record's digits (2%). Bebas Neue, suggested as a closer match, comes out
 about 40% narrower than every heavy text in the references at the same cap height (0.59–0.67 of their widths), and
 Google Fonts has only its regular weight, so the cards don't use it.
+
+### Proxima Nova (2026-11-18)
+
+The producer confirmed the broadcast uses Proxima Nova. With Proxima Nova Extrabold installed, the heavy text was
+measured against the references again:
+- **Weight:** Extrabold. The "I" in MOUNIR has the same stem width in both (12 px in the frame).
+- **Width:** at the same height, Proxima Nova Extrabold's letters are 6–13% wider than the broadcast's, with the same
+  gaps between them. So the broadcast sets them about 92% wide: a narrower cut, or a horizontal scale in their graphics
+  tool. The cards draw the heavy words (names, headings, "VS", "MATCHES") at 92% when Proxima Nova loads, and at 100%
+  with the fallback fonts, which were measured unscaled. Digits match unscaled.
+- **Result:** the words' width-to-height ratios are within 0–5% of the references, and every measured element within
+  3 px, except "VS" (its box in the reference includes part of a legend, so it can't be measured cleanly).
+- **Where it loads from:** the viewer's installed fonts, or `app/static/fonts/proxima-nova-extrabold.woff2` (git-ignored).
+  A public deployment needs a web license for it (an installed desktop font isn't one), or falls back to the free fonts.
+- The labels (LIFETIME STATS, GOLD, TOP 8, the bar) are still Montserrat: only Extrabold is installed.
