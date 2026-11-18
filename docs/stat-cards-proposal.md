@@ -289,3 +289,41 @@ What settles each part of the definition:
 Earnings are career figures across modes. The broadcast's are lower by $150 to $2,500 per player. That fits the
 Stats API's figure (as of 2026-10-02) including the Autumn 2026 prize money, but eval-v1 has no per-event payouts to
 check it against.
+
+## Broadcast-style cards (2026-11-18)
+
+The cards now copy the broadcast graphics as closely as possible, at the producer's suggestion (`DATA.md`, "Broadcast
+graphics"). Each card is a fixed 1920x1080 frame (`app/static/broadcast.css`, `broadcast.js`), scaled to the page. The
+lifetime card is done; the head-to-head (the Godly vs Bamya image), the set list (the "Matches" sidebar) and the 2v2
+elimination final follow.
+
+**Colors**, the median of each region's pixels in the reference: panel cream `#faf2eb`, orange `#c85a41` (the bar,
+borders, circles and placement boxes; `#c55d46` for the earnings figure), label boxes `#160c08`, ink `#050000`, and
+the background's tones in a gradient standing in for the event art.
+
+**Fonts.** The broadcast's own fonts aren't known. My guesses, and the free matches used:
+
+| Text | Likely | Free match | How it was chosen |
+|---|---|---|---|
+| Name, headings (EARNINGS, MEDALS, PLACEMENT), the figures | a heavy geometric sans, such as Gilroy Black. Not Gotham: Montserrat, built on Gotham's shapes, runs about 10% wider than the reference | Gabarito Black (800 for the earnings figure) | Of 26 free families, measured on the four headings' width per cap height: rms error 4% (Montserrat 900 wasn't in the top 10) |
+| LIFETIME STATS, the bar, the row labels, the numerals | a geometric sans, regular to medium, such as Gotham | Montserrat Medium and SemiBold | Shapes and widths by eye; boxes within 5 px |
+
+**Shapes.** The panel's torn edge was traced by scanning each row of the reference for where the cream ends. Its
+orange border is the same outline shifted 11 px (in the reference's scale), and four cream shards sit along it. The
+legend covers the edge below the bar, so the edge there is interpolated.
+
+**Matching.** `app/dev/compare_card.py` renders a card with Playwright (driving the installed Chrome) and writes the
+render, the reference, side by side, a 50% overlay and a difference image, to a folder outside the repo. The
+reference (1206x665) is scaled to 1920 wide and top-aligned; it lacks about 21 px at the bottom. On Mounir's card, every
+heading, row and box is within 5 px of the reference in the 1920 frame, and the cream, bar orange and box colors match
+to the hex digit.
+
+**What differs on purpose:**
+- No event logo, and the subtitle bar shows the official results' first and latest years instead of country, team and
+  PR rank, which the data doesn't have.
+- No Top 32 row until `player_results`' summary has the column.
+- The figures are the cards' scope (all official events, both modes, crew battles as 1v1), so Mounir shows 1 / 3 / 6
+  and 20 top 8s in 1v1, against the broadcast's 19. A line at the panel's foot states the scope and the earnings'
+  source and date, and the page repeats it in the "What this counts" box below the frame, with the mode switch.
+- The legend slot (x 400–960, y 560–1080) stays empty until the player's main is in `data/curated/player_legends.csv`
+  and its WebP and manifest entry are in `app/static/art/legends/`.

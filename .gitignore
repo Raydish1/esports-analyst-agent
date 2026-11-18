@@ -19,3 +19,6 @@ ENV/
 
 # Broadcast screenshots used for layout ideas only (docs/stat-cards-proposal.md): never commit
 docs/graphics-reference/
+
+# Legend art for the stat cards: not committed until redistribution is confirmed (DATA.md)
+app/static/art/legends/*.webp

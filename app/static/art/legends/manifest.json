@@ -1,0 +1,4 @@
+{
+  "_about": "Legend art for the stat cards: slug -> file (a transparent WebP in this folder), display name, and optional offset_x, offset_y (px in the 1920x1080 frame) and scale. The WebP files are git-ignored until their redistribution is confirmed. A legend listed here without its file falls back to the silhouette.",
+  "legends": {}
+}

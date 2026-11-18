@@ -1,3 +1,5 @@
+import { lifetimeFrame, scaled } from "./broadcast.js";
+
 // Stat cards (app/server/figures.py): lifetime figures, a head-to-head or comparison, and set lists. Every number
 // comes from the figures event; a missing one reads "not recorded", never 0. Built with textContent only.
 
@@ -62,36 +64,14 @@ function head(eyebrow, title, sub) {
   return header;
 }
 
-// a. Lifetime
+// a. Lifetime: the broadcast frame (broadcast.js), with the scope and the mode switch below it, outside the graphic
 
 function lifetime(card) {
-  const p = card.player;
-  const node = el("section", "stat-card lifetime");
-  node.append(head("Lifetime stats", p.name, years(p)), scopeBox(card.scope));
-  if ("earnings" in p) {
-    const earn = el("div", "earnings");
-    earn.append(el("span", "label", "Earnings"), figure(p.earnings.amount, (v) => money.format(v)),
-      el("span", "note", earningsNote(p.earnings)));
-    node.append(earn);
-  }
-  const medals = el("div", "cells medals");
-  const places = el("div", "cells places");
-  const fill = (mode) => {
-    const m = p.modes[mode] || {};
-    medals.replaceChildren(...MEDALS.map(([key, label, tint]) => {
-      const cell = el("div", `cell ${tint}`);
-      cell.append(el("span", "label", label), figure(m[key]));
-      return cell;
-    }));
-    const rows = [["top8", "Top 8"], ...(p.top32 ? [["top32", "Top 32"]] : [])];
-    places.replaceChildren(...rows.map(([key, label]) => {
-      const cell = el("div", "cell");
-      cell.append(el("span", "label", label), figure(m[key]));
-      return cell;
-    }));
-  };
-  fill(MODES[0][0]);
-  node.append(modeSwitch(fill), el("h4", "group", "Medals"), medals, el("h4", "group", "Placements"), places);
+  const node = el("section", "stat-card broadcast");
+  const holder = el("div", "bc-holder");
+  const draw = (mode) => holder.replaceChildren(scaled(lifetimeFrame(card, mode)));
+  draw(MODES[0][0]);
+  node.append(holder, scopeBox(card.scope + (("earnings" in card.player) ? ` ${earningsNote(card.player.earnings)}.` : "")), modeSwitch(draw));
   return node;
 }
 

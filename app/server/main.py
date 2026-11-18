@@ -64,10 +64,11 @@ class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
 
 
-def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, earnings=True):
+def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, earnings=True, preview=False, cards=None):
     """The app around one source of models (runner.Replay or runner.Live) and one shared runner.ProgressTools.
-    earnings: whether stat cards show career earnings."""
-    cards = figures.Cards(tools, earnings=earnings)
+    earnings: whether stat cards show career earnings. preview: serve GET /api/preview/lifetime/{player_id}, a card
+    without a question, for rendering and comparing cards (app/dev/compare_card.py); off unless asked for."""
+    cards = cards or figures.Cards(tools, earnings=earnings)
     worker = worker or workers.Worker(lambda: runner.Agent(tools, source, cards)).start()
     offered = [q for q in examples if source.mode != "replay" or source.index.has(q)]
     app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None)
@@ -126,6 +127,14 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
         return StreamingResponse(lines(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    if preview:
+        @app.get("/api/preview/lifetime/{player_id}")
+        def preview_lifetime(player_id: int):
+            one = cards.lifetime(player_id)
+            if one is None:
+                raise HTTPException(404, "No such player.")
+            return {"kind": "lifetime", "player": one, "scope": cards.scope([one])}
+
     if static.exists():
         app.mount("/", StaticFiles(directory=static, html=True), name="static")
     return app
@@ -173,6 +182,8 @@ def main(argv=None):
     parser.add_argument("--card-earnings", choices=["on", "off"], default=None,
                         help="show career earnings on stat cards (default: on, or the CARD_EARNINGS environment"
                              " variable; the flag wins)")
+    parser.add_argument("--preview", action="store_true",
+                        help="serve /api/preview/lifetime/{player_id}, for app/dev/compare_card.py (development only)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
@@ -186,7 +197,7 @@ def main(argv=None):
     print(f"Earnings on stat cards: {'on' if earnings else 'off'}.")
     tools = runner.ProgressTools()
     import uvicorn
-    uvicorn.run(create_app(source, tools, earnings=earnings), host=args.host, port=args.port)
+    uvicorn.run(create_app(source, tools, earnings=earnings, preview=args.preview), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

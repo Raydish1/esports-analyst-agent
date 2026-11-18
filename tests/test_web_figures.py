@@ -1,5 +1,6 @@
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -28,11 +29,16 @@ PLAYERS = {
 EARNED = {1: [(1200.0, "Stats API", "2026-10-02")], 2: []}
 
 
+class NoLegends:
+    def of(self, player_id):
+        return None
+
+
 class Stub(figures.Cards):
     """Cards with canned template results and earnings, recording what it was asked."""
 
     def __init__(self, earnings=True, players=PLAYERS, h2h=None, sets=()):
-        super().__init__(tools=None, earnings=earnings)
+        super().__init__(tools=None, earnings=earnings, legends=NoLegends())
         self.players, self.h2h, self.sets, self.asked, self.queried = players, h2h, list(sets), [], []
 
     def call(self, name, args):
@@ -147,6 +153,35 @@ class ChoosingTest(unittest.TestCase):
     def test_a_failed_call_is_ignored(self):
         failed = {"name": "player_results", "arguments": {"player_id": 1}, "observation": json.dumps({"error": "x"})}
         self.assertEqual(Stub().build(turn(failed)), [])
+
+
+class LegendsTest(unittest.TestCase):
+    """A card's legend: the player's main, if the manifest lists it and its file exists; never a guess."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.mains, self.art = root / "player_legends.csv", root / "legends"
+        self.art.mkdir()
+        self.mains.write_text("player_id,legend" + chr(10) + "79853,Bodvar" + chr(10) + "5,ghost" + chr(10) + "6,orion" + chr(10), encoding="utf-8")
+        (self.art / "manifest.json").write_text(json.dumps({"legends": {
+            "bodvar": {"file": "bodvar.webp", "name": "Bödvar", "offset_y": -20, "scale": 1.1},
+            "orion": {"file": "orion.webp", "name": "Orion"}}}), encoding="utf-8")
+        (self.art / "bodvar.webp").write_bytes(b"RIFF")
+        self.legends = figures.Legends(self.mains, self.art)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_a_main_with_art(self):
+        self.assertEqual(self.legends.of(79853), {"slug": "bodvar", "url": "art/legends/bodvar.webp", "name": "Bödvar",
+                                                  "offset_x": 0, "offset_y": -20, "scale": 1.1})
+
+    def test_the_fallback_whenever_anything_is_missing(self):
+        self.assertIsNone(self.legends.of(1))  # no main
+        self.assertIsNone(self.legends.of(5))  # a main the manifest doesn't list
+        self.assertIsNone(self.legends.of(6))  # listed, without its file
+        self.assertIsNone(figures.Legends(Path(self.tmp.name) / "none.csv", self.art).of(79853))  # no mains file
 
 
 @unittest.skipUnless(tools.SNAPSHOT.exists(), "needs eval-v1")

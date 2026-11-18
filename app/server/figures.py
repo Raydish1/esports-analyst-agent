@@ -15,7 +15,9 @@ A missing value is None ("not recorded" on the page), never 0. With earnings off
 earnings query isn't run.
 """
 
+import csv
 import json
+from pathlib import Path
 
 from templates import TEMPLATES
 from tools import connect
@@ -29,6 +31,33 @@ EVENT_SETS = ("SELECT start_date, winner_name, winner_id, winner_placement, lose
               " winner_games, loser_games, is_scored FROM v_sets_1v1 WHERE event_id = ? AND winner_placement <= 8"
               " AND loser_placement <= 8 ORDER BY start_date, start_time, match_id")
 MOST = 2
+ROOT = Path(__file__).resolve().parent.parent.parent
+LEGENDS = ROOT / "data" / "curated" / "player_legends.csv"  # player_id,legend: mains, for cards only
+ART = ROOT / "app" / "static" / "art" / "legends"  # manifest.json and one transparent WebP per legend
+
+
+class Legends:
+    """Which legend's art a card shows for a player: their main from player_legends.csv, if manifest.json lists it and
+    its file exists. Anything else is None, and the card shows its fallback: a legend is never guessed. Read on each
+    lookup, so edits to the files show without a restart. The agent never reads these files."""
+
+    def __init__(self, mains=LEGENDS, art=ART):
+        self.mains, self.art = Path(mains), Path(art)
+
+    def of(self, player_id):
+        try:
+            with open(self.mains, encoding="utf-8", newline="") as f:
+                legend = next((r["legend"].strip().lower() for r in csv.DictReader(f)
+                               if r.get("player_id", "").strip() == str(player_id) and r.get("legend")), None)
+            if not legend:
+                return None
+            entry = json.loads((self.art / "manifest.json").read_text(encoding="utf-8")).get("legends", {}).get(legend)
+        except (OSError, ValueError, KeyError):
+            return None
+        if not entry or not entry.get("file") or not (self.art / entry["file"]).is_file():
+            return None
+        return {"slug": legend, "url": f"art/legends/{entry['file']}", "name": entry.get("name") or legend,
+                "offset_x": entry.get("offset_x", 0), "offset_y": entry.get("offset_y", 0), "scale": entry.get("scale", 1)}
 
 
 def observed(call):
@@ -70,8 +99,8 @@ class Cards:
     """Builds the cards for a trace. tools: react.Tools (the snapshot's path and resolvers); earnings: whether cards show
     career earnings."""
 
-    def __init__(self, tools, earnings=True):
-        self.tools, self.earnings = tools, earnings
+    def __init__(self, tools, earnings=True, legends=None):
+        self.tools, self.earnings, self.legends = tools, earnings, legends or Legends()
 
     def call(self, name, args):
         out = TEMPLATES[name].call(self.tools, args)
@@ -104,7 +133,8 @@ class Cards:
         player = out.get("player") or {}
         card = {"player_id": player.get("player_id", player_id), "name": player.get("name"), "modes": modes,
                 "top32": "top32" in columns, "crew": any("crew battle" in n for n in out.get("notes", [])),
-                "first": dates[0] if dates else None, "latest": dates[-1] if dates else None}
+                "first": dates[0] if dates else None, "latest": dates[-1] if dates else None,
+                "legend": self.legends.of(player.get("player_id", player_id))}
         if self.earnings:
             found = self.query(EARNINGS, (card["player_id"],))
             card["earnings"] = ({"amount": found[0][0], "source": found[0][1], "as_of": found[0][2]} if found
