@@ -2,6 +2,93 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-17: two views and four template tools, so the model writes less SQL
+
+**Change** (commits c0224ec to abb5109), the plan "two views and four template tools", approved 2026-11-09:
+- Two views, created on eval-v1 as temporary views from `ingest/views.sql` (19d2dfd). `v_sets_1v1` has one row per 1v1 set with both players, the score and where each finished, and `v_event_series` the events of a yearly series. `resolve_event`'s condition for a whole series is a subquery on `v_event_series`. A worked example, ex29, finds a final's score.
+- Four template tools in `agent/templates.py`, each a tested query the model calls with a few arguments: `event_results` (85f74c3), `player_results` (8d43de2), `head_to_head` (d2a3a99) and `rank_players` (b5bc36a). Each takes players as player_ids from `resolve_player` and events by name, keeps ties and teams whole, counts in SQL, says what an empty count is empty of, and leads with an event's status.
+- The prompt's "Choosing a tool" section names the question each template answers. 18 worked examples, and a new one ranking players inside a series (ex30), show a template call instead of SQL. `retrieval.py check` requires each call's result to hold its reference query's rows (7c5fb42).
+- The harness scores template calls: stage 1 from the SQL each ran, stage 2 from its tables (7178eb0). q39's check accepts its two totals from two calls.
+- The held-out checks moved to `eval/heldout_checks.py` (c0224ec). The session that wrote the plan saw their expected values while reading stage 2 in `eval/result_checks.py`, before the move. Nothing in this step uses them.
+- Two fixes from the pilots, below: `event_results` lists each event's `event_id` when the name means 12 events or fewer (3cbc853), and `resolve_event` takes the name as `event` too, with an error that names a wrong key (abb5109).
+
+**Runs:** both on the 45 existing questions, retrieval on, seeds 0–2, 135 runs each. No run failed or was retried.
+- Before: `20261110-templates-before`, at 3b2c552 with a clean tree, 28 worked examples, Ollama 0.40.15.
+- After: `20261117-templates`, at abb5109, 30 worked examples, Ollama 0.40.16.
+
+The server's patch version changed between the runs, so some differences at the same seed may come from it alone (a guess). As the plan says, a change of one run is treated as noise.
+
+**Pilots** (q13, q20, q30 and q41, seed 0). q13, q30 and q41 passed all three.
+- `20261117-templates-pilot`: q20 failed stage 2. It planned to take the event_id from `event_results`, which gave none, and filtered `tournament_name` on the template's label, "DreamHack Valencia 2023 / Brawlhalla (1v1)". Fixed in 3cbc853. A whole series still gets no IDs, and a note to use `resolve_event`'s condition: Worlds' 34 IDs took its result to 4,888 tokens, over the 4,000 budget, which left its winners out.
+- `20261117-templates-pilot2`: q20 called `resolve_event` with `{"event": ...}` seven times, read the error as a rule about the value, and ran out of steps. Fixed in abb5109.
+- `20261117-templates-pilot3`: q20 passed stages 1 and 2.
+
+**Automatic stages** (a run passes when neither stage 1 nor stage 2 fails):
+
+| Group | Before | After |
+|---|---|---|
+| Targets: q20, q30, q31, q41 | 7/12 | 12/12 |
+| Regression checks: the 26 other questions a template takes over | 74/78 | 77/78 |
+| Controls: the 15 no template fits | 43/45 | 41/45 |
+| **All** | **124/135 (92%)** | **130/135 (96%)** |
+
+- 9 runs gained: q20 seeds 0–2, q41 seeds 1 and 2, q03 and q07 seed 2, q16 and q18 seed 1.
+- 3 runs lost, each the only seed its question lost, so none is a regression by the plan's rule: q27 seed 2, a regression check, and q42 and q44 seed 2, controls. Read below.
+- By template, the questions each takes over: `event_results` +2 runs, `player_results` +2, `rank_players` +2, `head_to_head` −1 (q27 seed 2).
+
+**Tool use**, calls per run:
+
+| Tool | Before | After |
+|---|---|---|
+| resolve_player | 0.66 | 0.64 |
+| resolve_event | 0.40 | 0.09 |
+| event_results | | 0.33 |
+| player_results | | 0.22 |
+| head_to_head | | 0.07 |
+| rank_players | | 0.07 |
+| run_sql | 0.95 | 0.28 |
+
+- `run_sql` calls per run, the direct count of SQL the model wrote: targets 1.25 → 0.25, regression checks 0.97 → 0.00, controls 0.82 → 0.78. Every regression check called its template in every seed, except q22, which asked the user in all six runs, as accepted.
+- Steps per run 2.87 → 2.54, and model time per run 25.0 s → 14.3 s (56 minutes in all → 32).
+- No template or resolver call returned an error. `run_sql` errors went from 9 to 4, all in SQL the model wrote.
+
+**Hand verdicts**, all drafts needing the user's review: the 24 target runs, the 3 runs lost at the automatic stages, and seed 0 of the 26 regression checks, before and after. The other runs have only their automatic results.
+
+| Target | Before, seeds 0 / 1 / 2 | After | Runs right |
+|---|---|---|---|
+| q20 DreamHack Valencia 2023 final score | wrong / wrong / partly | partly / partly / partly | 0 → 0 |
+| q30 who won ceo dreamland 2020 | partly / wrong / partly | right / right / right | 0 → 3 |
+| q31 who won SEA League Week 1/4 | partly / partly / partly | right / right / right | 0 → 3 |
+| q41 most 1v1 world championships | right / wrong / wrong | right / right / right | 1 → 3 |
+| **Targets, 4 questions** | | | **1/12 (8%) → 9/12 (75%)** |
+
+- q20, after: Zivai 3-0 Impala from `v_sets_1v1` in all three, but each answer adds a time for the set (11:47 AM, 16:47 or 1:47 PM UTC, on July 7) that `start_time` doesn't say. The set began on 2023-07-09 at 19:27 UTC. The query selects `start_time`, as ex29's does, and the model converts it wrongly.
+- q30, after: every run says the event was cancelled and not held, then gives the ONLINE event's winners. Before, all three gave those winners as CEO Dreamland 2020's.
+- q31, after: no reliable winner, and TigerBrawlhalla the only undefeated player (6-0), from the event's data note, which `event_results` passes on. Before, all three stopped at "no winner".
+- q41, after: gdsandstorm 3 and yüz 2, saying the regional championships are counted. Before, seeds 1 and 2 copied part of `resolve_event`'s IDs (2021 on) and answered yüz.
+
+Seed 0 of the 26 regression checks: 19 right and 7 partly before, 24 right and 2 partly after, none wrong.
+- Better, partly → right: q02, q07, q25, q26 and q38 now mention the crew battle among the counts, as the templates' notes ask. q04 lists the three sets, and q12 says which reading it took.
+- Worse, right → partly: q24 adds that other midseason events "aren't officially documented here", though the Midseason Championship 2026 is. q39 says Boomie's 46 2v2 medals surpass gdsandstorm's 69 in all.
+- The other 17 were right both times.
+
+The 3 runs lost at the automatic stages, all wrong:
+- q27 seed 2: the model skipped `resolve_player` and called `head_to_head` with invented player_ids, 12345 and 67890. Both are real players (Hippo and mely), so the template answered for them, and no check fired, since a tool had returned those names.
+- q44 seed 2, a control: `head_to_head` for "how many times did Ahmet finish second to Godly". It counted Zivai's set wins over Ahmet_ in 2026 by reading the list (4), not the events where Ahmet_ placed 2nd behind Zivai (3).
+- q42 seed 2, a control: an answer with no tool, sent back, then events ranked by their count of top-8 placements, a proxy, with a claim that the data has no entrant counts. No template took part, and q42 seed 0 fails both before and after.
+
+**What it decided, and what's open:**
+- By the plan's noise rule, no question regressed. By its template rule, `head_to_head` would come out, since its questions lost one run overall. That run's cause isn't `head_to_head`'s query: the model invented the IDs, which any template taking a player_id allows. For the user to decide. Proposed: keep `head_to_head` and close the cause.
+- Proposed next steps, for the user to decide:
+  1. A template refuses a player_id that no tool returned in the conversation, pointing to `resolve_player` (q27 seed 2).
+  2. ex29 orders by `start_time` without selecting it, so a final's answer has no raw timestamp to misread (q20, all three after).
+  3. `head_to_head`'s description says it counts sets between two players, not where they placed at the same events (q44 seed 2).
+  4. Then the held-out set: the templates were designed from the existing set's shapes, and it's the real test.
+
+**Tuned on:** q30, q31 and q41 count as tuned from 2026-11-17, q20 from 2026-11-09. The regression checks' gains are in-sample too.
+
+**Caveats:** the existing set only, 3 seeds, judged by Claude. The hand verdicts cover the targets, the lost runs and seed 0 of the regression checks, so the rest have no "runs right" count. The two runs differ in the prompt, the tools, the bank (28 → 30 examples) and the server's patch version. The held-out set wasn't run.
+
 ## 2026-11-09: step 2, clear-cut names, the display, and names corrected in code
 
 **Change** (commits 9d88685, c1d4036, 34c324e and 8b6b9e8), from the 2026-11-08 entry's second proposal, with the user's changes:

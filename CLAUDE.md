@@ -12,7 +12,7 @@ The Stats API is for personal use only, so API responses and the built database 
 ## Planned stack
 Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as the primary model, Streamlit for the demo. The fetcher is Python too: a small HTTP client, not the Node SDK (`@bmg-esports/sdk`), which hides status codes, has a fixed 5-second timeout and never retries. `ingest/survey_api.mjs` stays only as an exploration tool.
 
-## Project status (2026-11-09)
+## Project status (2026-11-17)
 **Phase 1 of the schema proposal's implementation plan (§9) is done and merged into `main`** (2026-10-07).
 - The builder makes the database from the fetched cache and `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes.
 - The frozen snapshot `eval-v1` (build `20261007T230135Z`, commit 51e98be) is the evaluation's database.
@@ -76,6 +76,11 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - On its 4 targets, seeds 0–2: 3 of 12 runs right before, 8 of 12 after (q15 and q21 right in every seed). The 8 regression checks went from 23 of 24 to 24 of 24, and the 3 controls from 9 of 9 to 8 of 9 (q17 seed 0 misspelled BBBalloonBoy).
   - The code corrected 10 names in 4 of 45 runs; on the same questions in 2026-11-08, 23 of 45 answers had used the question's spelling.
   - Left: q20 (no opponent column), and q44 seed 2 (`format = '1v1'` in a COUNT, which no diagnosis catches). q15, q20 and q44 now count as tuned.
+- The template tools (2026-11-17, in the log; commits c0224ec to abb5109), so the model writes less SQL: two views (`v_sets_1v1`, `v_event_series`) and four templates (`event_results`, `player_results`, `head_to_head`, `rank_players`), with a prompt section on choosing a tool and the worked examples showing calls.
+  - On the 45 existing questions, seeds 0–2, 135 runs each: the automatic stages passed in 124 runs before and 130 after (the 4 targets, q20, q30, q31 and q41, 7 → 12 of 12). `run_sql` calls per run went from 0.95 to 0.28, and to 0 on the 26 questions a template takes over. Model time per run went from 25.0 s to 14.3 s.
+  - Hand drafts: the targets 1 → 9 of 12 runs right (q20's 3 partly, for a set time the answers invent); seed 0 of the 26 regression checks 19 → 24 right.
+  - No question lost 2 or more runs. Three lost one each: q27 seed 2 (`head_to_head` called with invented player IDs), q44 seed 2 (`head_to_head` for a placements question) and q42 seed 2. By the plan's template rule `head_to_head` would come out; the log proposes keeping it and closing the cause.
+  - The before run used Ollama 0.40.15 and the after run 0.40.16. q30, q31 and q41 now count as tuned.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -128,7 +133,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
   - `build_matches.py` fills matches and match players from start.gg sets and Challengermode matches;
   - `build_aliases.py` fills player aliases (curated nicknames, display names, names without tags, former names) and merges;
   - `build_rankings.py` fills PR snapshots and Stats API career earnings;
-  - `views.sql` holds the 14 views the agent queries, `v_event_coverage` included:
+  - `views.sql` holds the 16 views the agent queries, `v_event_coverage` included. eval-v1 was frozen before `v_sets_1v1` and `v_event_series` (2026-11-10), and gets them as temporary views in each of the agent's connections (`tools.connect`):
     - each documents its counting rules inside its definition, which SQLite keeps in `sqlite_master`;
     - the build compiles every view, then runs `ANALYZE`, without which some views take minutes;
     - the head-to-head views are fast only with a literal player ID: 0.1 s, against about 50 s when the ID comes from a lookup inside the same query (2026-10-10), so look up IDs first;
@@ -153,7 +158,8 @@ Evaluation (`eval/`):
 - `harness.py` runs the agent on both sets and scores it (2026-11-08):
   - `py -3.14 eval/harness.py run --all --seeds 0 1 2` (or `--ids`, `--near-clean`, `--examples off`) appends each trace to `data/experiments/<run>/`, so a run resumes;
   - `score RUN [RUN ...]` scores stages 1 and 2 offline and writes `eval/results/<run>-scores.json` and `<run>-judgments.toml`, where stages 3 and 4 are drafted by hand ("needs review") and kept across rescoring;
-  - `report RUN [RUN ...]` prints the tables by group, held-out shape, query shape, category and failing stage, with raw counts next to every rate;
+  - a template call is scored as a query (2026-11-17): stage 1 reads the IDs in the SQL it ran, which the trace keeps, and stage 2 reads its tables;
+  - `report RUN [RUN ...]` prints the tables by group, held-out shape, query shape, category and failing stage, with raw counts next to every rate, then a tool-use table (each tool's runs and calls, steps and model seconds per run);
   - `failures RUN` writes a page to review from, `data/experiments/<run>/failures.md` (git-ignored, next to the traces it reads): every run not right, grouped by question, with its judgment, full answer and the SQL it executed. It reads the run's files and changes none of them;
   - `result_checks.py` holds stage 2's check per question of the evaluation set; `python eval/result_checks.py` verifies each on its question's reference queries. The held-out set's checks are in `heldout_checks.py` (moved 2026-11-10), which holds that set's answers: don't open it, `heldout.toml` or a held-out trace in a session that must leave the held-out set unread.
 
@@ -172,8 +178,9 @@ Agent (`agent/`, a prototype):
     - a name just before a player ID that isn't that ID's name becomes the data's name for it ("**Lucky** (player_id 147982)" becomes Zivai);
     - every swap is in the trace (`name_swaps`), and the harness counts them per run, to measure how often the model gets names wrong.
   - A reply to a check that talks about the answer instead of giving one ("The answer is correct"), stating no new number, keeps the answer sent back as final (2026-11-09).
-- `retrieval.py` retrieves worked examples by meaning (Checkpoint 3, 2026-10-25): `agent/examples/examples.toml` holds 28 questions of common shapes, each with the query that answers it and why it's shaped that way.
-  - None names a player or uses an event from the evaluation set or the target questions. `python agent/retrieval.py check` runs every query on eval-v1.
+- `retrieval.py` retrieves worked examples by meaning (Checkpoint 3, 2026-10-25): `agent/examples/examples.toml` holds 30 questions of common shapes, each with the query that answers it and why it's shaped that way.
+  - The 19 that a template answers also have the call (`call`, with `call_note`), which the model is shown instead of the SQL (2026-11-17). The SQL stays as the reference the call is checked against.
+  - None names a player or uses an event from the evaluation set or the target questions. `python agent/retrieval.py check` runs every query and call on eval-v1, and requires each call's result to hold its query's rows.
   - Only the questions are embedded, with nomic-embed-text through Ollama (prefix `clustering: `), in a Chroma collection in `data/rag/chroma` (git-ignored), rebuilt when the bank or the embedding changes.
   - For each user question: the 10 most similar examples, those at 0.70 or more, then MMR (weight 0.7) keeps 3. They go before the question with a note that they show query patterns, not facts about players. The history keeps the bare question, and the answer check doesn't count what examples show.
   - Chroma's index library has no build for Windows ARM64's Python, so the agent runs with the x64 Python 3.14 under emulation (`py -3.14 agent/react.py ...`). `--examples off` (react.py, ask.py) runs without it, on any Python.
@@ -187,12 +194,19 @@ Agent (`agent/`, a prototype):
   - `resolve_event` (decided 2026-10-23) finds the official events an event name means, so the model doesn't search event names with LIKE.
     - A mode word narrows the events. The rest matches, in tiers: a curated alias ('bcx 2022', score 1.0), a series of yearly aliases ('worlds', 0.95), every word with years and curated terms ('winters 2023 na', 0.9; qualifiers only when asked for), or some of the words (0.85 times the share).
     - The statuses are as for players. It's ambiguous when several tournaments match, or only some words. Words that find exactly a series' events count as that series ('world championships' is 'worlds').
-    - The result has a sql condition on `event_id`: the IDs, or a subquery on the aliases for a big alias set.
+    - The result has a sql condition on `event_id`: the IDs, a subquery on `v_event_series` for a whole series, or one on the aliases for another big alias set.
+    - It takes the name as `name`, or as `event`, the templates' key (2026-11-17).
     - On eval-v1, 14 of the evaluation set's 15 event phrases resolve to exactly their events. 'ceo dreamland 2020' is ambiguous, with the cancelled event first;
   - `run_sql` runs one read-only query on eval-v1, stopped after 30 s. It returns every row if the result fits in about 4,000 tokens (estimated: digits and JSON punctuation a token each, other text four characters a token).
     - A bigger result comes back with its row count and columns but no rows.
     - `react.py` sends back an answer that comes right after one, until the model queries again.
     - A result with no rows comes back with a diagnosis (`diagnose.py`): which top-level condition emptied it (each is removed in turn and the rows counted), and whether the value it filters on occurs in that column (in the column's own table when the query names it). The prompt says to fix a condition that was the model's own mistake, and to say so only when relaxing a condition the question set (decided 2026-10-23).
+- `templates.py` holds the four template tools (2026-11-17), each a tested query the model calls with a few arguments. Its registry (`TEMPLATES`) is what `react.py` offers the model and dispatches to, and the prompt's "Choosing a tool" says which question each answers:
+  - `event_results(event, top)`: an event's winners or top N, a team on one row and ties whole, with each event's date, mode, status (a cancelled event is not held), bracket link, and `event_id` when the name means 12 events or fewer;
+  - `player_results(player_id, top, mode, year, event)`: one player's results counted by mode (top 1 for wins, 3 for medals, 8 for top 8s), the first and the latest, and the list;
+  - `head_to_head(player_id, opponent_id)`: the first player's 1v1 record in sets, each set from `v_sets_1v1`, and their 2v2 meetings;
+  - `rank_players(by, top, mode, year, event)`: players ranked by wins, medals or top 8s with `RANK()`, every tie included, with a column for a series' regional championships;
+  - every template takes players as player_ids from `resolve_player` (a name is refused) and events by name, resolved inside as `resolve_event` does. A list over the token budget is left out with its count, and the SQL a template ran goes to the trace, not to the model.
 
 Curation (`curation/`, committed):
 - `player_aliases.csv`: nicknames, among them "bunny", "vem" and "halloween!" from the known events (2026-10-07).
@@ -279,7 +293,8 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **step 3 of the fixes, after the user's go-ahead**: `resolve_event` leading with a cancelled or unreliable status and listing no partial sets (q30, q41). Then step 4, a worked example for a set's two players and the answer check's wording (q20, q03); step 5, an answer verifier replayed on the recorded runs first. Open from step 2: a `format` filter holding a mode in a COUNT, which no diagnosis catches (q44 seed 2; h09 and h11 with retrieval off). The user's review of the drafted verdicts (`eval/results/2026110*-judgments.toml`) is still pending.
+Next step: **the user's decisions on the template tools' entry (2026-11-17)**: whether `head_to_head` stays, and its three proposed fixes (a template refuses a player_id no tool returned; ex29 orders by `start_time` without selecting it; `head_to_head`'s description says it counts sets, not placements). Then the held-out set, the templates' real test. The user's review of the drafted verdicts (`eval/results/202611*-judgments.toml`) is still pending.
+- Still open from before the templates: step 3 of the fixes, `resolve_event` leading with a cancelled or unreliable status, for `run_sql` questions; step 4's answer-check wording (q03), its worked example for a set's two players being ex29 now; step 5, an answer verifier replayed on the recorded runs first; and a `format` filter holding a mode in a COUNT, which no diagnosis catches (q44 seed 2 in step 2; h09 and h11 with retrieval off).
 - For the harness: draft the retrieval-off arm's 16 runs left (q14 seed 1 is automatic since the name fix) and read its 11 unread machine verdicts.
 - Still open from the 2026-10-19 to 2026-10-25 entries: the retrieval threshold; the prompt lines on `v_team_results` (only 2v2) and integer division; current names, and the minimum number of matches; how to get question 6 aggregated (with retrieval on, all 3 runs did). Then the agent's design, explained before it's built. Before eval-v2 is frozen, the high-impact merges are decided, Boomie's proposal among them.
 - Explain designs before implementing them, and keep the work in small steps: one per commit, pushed after each, with a report after each for review.
