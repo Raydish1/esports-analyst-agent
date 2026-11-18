@@ -1,4 +1,425 @@
 {
-  "_about": "Legend art for the stat cards: slug -> file (a transparent WebP in this folder), display name, and optional offset_x, offset_y (px in the 1920x1080 frame) and scale. The WebP files are git-ignored until their redistribution is confirmed. A legend listed here without its file falls back to the silhouette.",
-  "legends": {}
+  "_about": "Legend art for the stat cards, from the Brawlhalla wiki (brawlhalla.wiki.gg) by app/dev/fetch_legend_art.py: slug -> name, source page, file (the idle pose, a transparent WebP trimmed to the figure), head (heads/<slug>.webp, the classic skin icon), and optional offset_x, offset_y (px in the 1920x1080 frame) and scale. The art is Blue Mammoth Games'; the WebP files are git-ignored until their redistribution is confirmed (DATA.md). A legend without a file leaves the card's art slot empty.",
+  "legends": {
+    "ada": {
+      "name": "Ada",
+      "source": "https://brawlhalla.wiki.gg/wiki/Ada",
+      "file": "ada.webp",
+      "head": "heads/ada.webp"
+    },
+    "arcadia": {
+      "name": "Arcadia",
+      "source": "https://brawlhalla.wiki.gg/wiki/Arcadia",
+      "file": "arcadia.webp",
+      "head": "heads/arcadia.webp"
+    },
+    "artemis": {
+      "name": "Artemis",
+      "source": "https://brawlhalla.wiki.gg/wiki/Artemis",
+      "file": "artemis.webp",
+      "head": "heads/artemis.webp"
+    },
+    "asuri": {
+      "name": "Asuri",
+      "source": "https://brawlhalla.wiki.gg/wiki/Asuri",
+      "file": "asuri.webp",
+      "head": "heads/asuri.webp"
+    },
+    "aurus": {
+      "name": "Aurus",
+      "source": "https://brawlhalla.wiki.gg/wiki/Aurus",
+      "file": "aurus.webp",
+      "head": "heads/aurus.webp"
+    },
+    "azoth": {
+      "name": "Azoth",
+      "source": "https://brawlhalla.wiki.gg/wiki/Azoth",
+      "file": "azoth.webp",
+      "head": "heads/azoth.webp"
+    },
+    "barraza": {
+      "name": "Barraza",
+      "source": "https://brawlhalla.wiki.gg/wiki/Barraza",
+      "file": "barraza.webp",
+      "head": "heads/barraza.webp"
+    },
+    "brynn": {
+      "name": "Brynn",
+      "source": "https://brawlhalla.wiki.gg/wiki/Brynn",
+      "file": "brynn.webp",
+      "head": "heads/brynn.webp"
+    },
+    "bodvar": {
+      "name": "Bödvar",
+      "source": "https://brawlhalla.wiki.gg/wiki/B%C3%B6dvar",
+      "file": "bodvar.webp",
+      "head": "heads/bodvar.webp"
+    },
+    "caspian": {
+      "name": "Caspian",
+      "source": "https://brawlhalla.wiki.gg/wiki/Caspian",
+      "file": "caspian.webp",
+      "head": "heads/caspian.webp"
+    },
+    "cassidy": {
+      "name": "Cassidy",
+      "source": "https://brawlhalla.wiki.gg/wiki/Cassidy",
+      "file": "cassidy.webp",
+      "head": "heads/cassidy.webp"
+    },
+    "cross": {
+      "name": "Cross",
+      "source": "https://brawlhalla.wiki.gg/wiki/Cross",
+      "file": "cross.webp",
+      "head": "heads/cross.webp"
+    },
+    "diana": {
+      "name": "Diana",
+      "source": "https://brawlhalla.wiki.gg/wiki/Diana",
+      "file": "diana.webp",
+      "head": "heads/diana.webp"
+    },
+    "dusk": {
+      "name": "Dusk",
+      "source": "https://brawlhalla.wiki.gg/wiki/Dusk",
+      "file": "dusk.webp",
+      "head": "heads/dusk.webp"
+    },
+    "ember": {
+      "name": "Ember",
+      "source": "https://brawlhalla.wiki.gg/wiki/Ember",
+      "file": "ember.webp",
+      "head": "heads/ember.webp"
+    },
+    "ezio": {
+      "name": "Ezio",
+      "source": "https://brawlhalla.wiki.gg/wiki/Ezio",
+      "file": "ezio.webp",
+      "head": "heads/ezio.webp"
+    },
+    "fait": {
+      "name": "Fait",
+      "source": "https://brawlhalla.wiki.gg/wiki/Fait",
+      "file": "fait.webp",
+      "head": "heads/fait.webp"
+    },
+    "gnash": {
+      "name": "Gnash",
+      "source": "https://brawlhalla.wiki.gg/wiki/Gnash",
+      "file": "gnash.webp",
+      "head": "heads/gnash.webp"
+    },
+    "hattori": {
+      "name": "Hattori",
+      "source": "https://brawlhalla.wiki.gg/wiki/Hattori",
+      "file": "hattori.webp",
+      "head": "heads/hattori.webp"
+    },
+    "imugi": {
+      "name": "Imugi",
+      "source": "https://brawlhalla.wiki.gg/wiki/Imugi",
+      "file": "imugi.webp",
+      "head": "heads/imugi.webp"
+    },
+    "isaiah": {
+      "name": "Isaiah",
+      "source": "https://brawlhalla.wiki.gg/wiki/Isaiah",
+      "file": "isaiah.webp",
+      "head": "heads/isaiah.webp"
+    },
+    "jaeyun": {
+      "name": "Jaeyun",
+      "source": "https://brawlhalla.wiki.gg/wiki/Jaeyun",
+      "file": "jaeyun.webp",
+      "head": "heads/jaeyun.webp"
+    },
+    "jhala": {
+      "name": "Jhala",
+      "source": "https://brawlhalla.wiki.gg/wiki/Jhala",
+      "file": "jhala.webp",
+      "head": "heads/jhala.webp"
+    },
+    "jiro": {
+      "name": "Jiro",
+      "source": "https://brawlhalla.wiki.gg/wiki/Jiro",
+      "file": "jiro.webp",
+      "head": "heads/jiro.webp"
+    },
+    "kaya": {
+      "name": "Kaya",
+      "source": "https://brawlhalla.wiki.gg/wiki/Kaya",
+      "file": "kaya.webp",
+      "head": "heads/kaya.webp"
+    },
+    "kingzuva": {
+      "name": "King Zuva",
+      "source": "https://brawlhalla.wiki.gg/wiki/King_Zuva",
+      "file": "kingzuva.webp",
+      "head": "heads/kingzuva.webp"
+    },
+    "koji": {
+      "name": "Koji",
+      "source": "https://brawlhalla.wiki.gg/wiki/Koji",
+      "file": "koji.webp",
+      "head": "heads/koji.webp"
+    },
+    "kor": {
+      "name": "Kor",
+      "source": "https://brawlhalla.wiki.gg/wiki/Kor",
+      "file": "kor.webp",
+      "head": "heads/kor.webp"
+    },
+    "ladyvera": {
+      "name": "Lady Vera",
+      "source": "https://brawlhalla.wiki.gg/wiki/Lady_Vera",
+      "file": "ladyvera.webp",
+      "head": "heads/ladyvera.webp"
+    },
+    "linfei": {
+      "name": "Lin Fei",
+      "source": "https://brawlhalla.wiki.gg/wiki/Lin_Fei",
+      "file": "linfei.webp",
+      "head": "heads/linfei.webp"
+    },
+    "loki": {
+      "name": "Loki",
+      "source": "https://brawlhalla.wiki.gg/wiki/Loki",
+      "file": "loki.webp",
+      "head": "heads/loki.webp"
+    },
+    "lordvraxx": {
+      "name": "Lord Vraxx",
+      "source": "https://brawlhalla.wiki.gg/wiki/Lord_Vraxx",
+      "file": "lordvraxx.webp",
+      "head": "heads/lordvraxx.webp"
+    },
+    "lucien": {
+      "name": "Lucien",
+      "source": "https://brawlhalla.wiki.gg/wiki/Lucien",
+      "file": "lucien.webp",
+      "head": "heads/lucien.webp"
+    },
+    "magyar": {
+      "name": "Magyar",
+      "source": "https://brawlhalla.wiki.gg/wiki/Magyar",
+      "file": "magyar.webp",
+      "head": "heads/magyar.webp"
+    },
+    "mako": {
+      "name": "Mako",
+      "source": "https://brawlhalla.wiki.gg/wiki/Mako",
+      "file": "mako.webp",
+      "head": "heads/mako.webp"
+    },
+    "mirage": {
+      "name": "Mirage",
+      "source": "https://brawlhalla.wiki.gg/wiki/Mirage",
+      "file": "mirage.webp",
+      "head": "heads/mirage.webp"
+    },
+    "mordex": {
+      "name": "Mordex",
+      "source": "https://brawlhalla.wiki.gg/wiki/Mordex",
+      "file": "mordex.webp",
+      "head": "heads/mordex.webp"
+    },
+    "munin": {
+      "name": "Munin",
+      "source": "https://brawlhalla.wiki.gg/wiki/Munin",
+      "file": "munin.webp",
+      "head": "heads/munin.webp"
+    },
+    "nix": {
+      "name": "Nix",
+      "source": "https://brawlhalla.wiki.gg/wiki/Nix",
+      "file": "nix.webp",
+      "head": "heads/nix.webp"
+    },
+    "onyx": {
+      "name": "Onyx",
+      "source": "https://brawlhalla.wiki.gg/wiki/Onyx",
+      "file": "onyx.webp",
+      "head": "heads/onyx.webp"
+    },
+    "orion": {
+      "name": "Orion",
+      "source": "https://brawlhalla.wiki.gg/wiki/Orion",
+      "file": "orion.webp",
+      "head": "heads/orion.webp"
+    },
+    "petra": {
+      "name": "Petra",
+      "source": "https://brawlhalla.wiki.gg/wiki/Petra",
+      "file": "petra.webp",
+      "head": "heads/petra.webp"
+    },
+    "priya": {
+      "name": "Priya",
+      "source": "https://brawlhalla.wiki.gg/wiki/Priya",
+      "file": "priya.webp",
+      "head": "heads/priya.webp"
+    },
+    "qinghuabaobao": {
+      "name": "Qinghua & Baobao",
+      "source": "https://brawlhalla.wiki.gg/wiki/Qinghua_%26_Baobao",
+      "file": "qinghuabaobao.webp",
+      "head": "heads/qinghuabaobao.webp"
+    },
+    "queennai": {
+      "name": "Queen Nai",
+      "source": "https://brawlhalla.wiki.gg/wiki/Queen_Nai",
+      "file": "queennai.webp",
+      "head": "heads/queennai.webp"
+    },
+    "ragnir": {
+      "name": "Ragnir",
+      "source": "https://brawlhalla.wiki.gg/wiki/Ragnir",
+      "file": "ragnir.webp",
+      "head": "heads/ragnir.webp"
+    },
+    "ransom": {
+      "name": "Ransom",
+      "source": "https://brawlhalla.wiki.gg/wiki/Ransom",
+      "file": "ransom.webp",
+      "head": "heads/ransom.webp"
+    },
+    "rayman": {
+      "name": "Rayman",
+      "source": "https://brawlhalla.wiki.gg/wiki/Rayman",
+      "file": "rayman.webp",
+      "head": "heads/rayman.webp"
+    },
+    "redraptor": {
+      "name": "Red Raptor",
+      "source": "https://brawlhalla.wiki.gg/wiki/Red_Raptor",
+      "file": "redraptor.webp",
+      "head": "heads/redraptor.webp"
+    },
+    "reno": {
+      "name": "Reno",
+      "source": "https://brawlhalla.wiki.gg/wiki/Reno",
+      "file": "reno.webp",
+      "head": "heads/reno.webp"
+    },
+    "rupture": {
+      "name": "Rupture",
+      "source": "https://brawlhalla.wiki.gg/wiki/Rupture",
+      "file": "rupture.webp",
+      "head": "heads/rupture.webp"
+    },
+    "scarlet": {
+      "name": "Scarlet",
+      "source": "https://brawlhalla.wiki.gg/wiki/Scarlet",
+      "file": "scarlet.webp",
+      "head": "heads/scarlet.webp"
+    },
+    "sentinel": {
+      "name": "Sentinel",
+      "source": "https://brawlhalla.wiki.gg/wiki/Sentinel",
+      "file": "sentinel.webp",
+      "head": "heads/sentinel.webp"
+    },
+    "seven": {
+      "name": "Seven",
+      "source": "https://brawlhalla.wiki.gg/wiki/Seven",
+      "file": "seven.webp",
+      "head": "heads/seven.webp"
+    },
+    "sidra": {
+      "name": "Sidra",
+      "source": "https://brawlhalla.wiki.gg/wiki/Sidra",
+      "file": "sidra.webp",
+      "head": "heads/sidra.webp"
+    },
+    "sirroland": {
+      "name": "Sir Roland",
+      "source": "https://brawlhalla.wiki.gg/wiki/Sir_Roland",
+      "file": "sirroland.webp",
+      "head": "heads/sirroland.webp"
+    },
+    "teros": {
+      "name": "Teros",
+      "source": "https://brawlhalla.wiki.gg/wiki/Teros",
+      "file": "teros.webp",
+      "head": "heads/teros.webp"
+    },
+    "tezca": {
+      "name": "Tezca",
+      "source": "https://brawlhalla.wiki.gg/wiki/Tezca",
+      "file": "tezca.webp",
+      "head": "heads/tezca.webp"
+    },
+    "thatch": {
+      "name": "Thatch",
+      "source": "https://brawlhalla.wiki.gg/wiki/Thatch",
+      "file": "thatch.webp",
+      "head": "heads/thatch.webp"
+    },
+    "thea": {
+      "name": "Thea",
+      "source": "https://brawlhalla.wiki.gg/wiki/Thea",
+      "file": "thea.webp",
+      "head": "heads/thea.webp"
+    },
+    "thor": {
+      "name": "Thor",
+      "source": "https://brawlhalla.wiki.gg/wiki/Thor",
+      "file": "thor.webp",
+      "head": "heads/thor.webp"
+    },
+    "ulgrim": {
+      "name": "Ulgrim",
+      "source": "https://brawlhalla.wiki.gg/wiki/Ulgrim",
+      "file": "ulgrim.webp",
+      "head": "heads/ulgrim.webp"
+    },
+    "val": {
+      "name": "Val",
+      "source": "https://brawlhalla.wiki.gg/wiki/Val",
+      "file": "val.webp",
+      "head": "heads/val.webp"
+    },
+    "vector": {
+      "name": "Vector",
+      "source": "https://brawlhalla.wiki.gg/wiki/Vector",
+      "file": "vector.webp",
+      "head": "heads/vector.webp"
+    },
+    "vivi": {
+      "name": "Vivi",
+      "source": "https://brawlhalla.wiki.gg/wiki/Vivi",
+      "file": "vivi.webp",
+      "head": "heads/vivi.webp"
+    },
+    "volkov": {
+      "name": "Volkov",
+      "source": "https://brawlhalla.wiki.gg/wiki/Volkov",
+      "file": "volkov.webp",
+      "head": "heads/volkov.webp"
+    },
+    "wushang": {
+      "name": "Wu Shang",
+      "source": "https://brawlhalla.wiki.gg/wiki/Wu_Shang",
+      "file": "wushang.webp",
+      "head": "heads/wushang.webp"
+    },
+    "xull": {
+      "name": "Xull",
+      "source": "https://brawlhalla.wiki.gg/wiki/Xull",
+      "file": "xull.webp",
+      "head": "heads/xull.webp"
+    },
+    "yumiko": {
+      "name": "Yumiko",
+      "source": "https://brawlhalla.wiki.gg/wiki/Yumiko",
+      "file": "yumiko.webp",
+      "head": "heads/yumiko.webp"
+    },
+    "zariel": {
+      "name": "Zariel",
+      "source": "https://brawlhalla.wiki.gg/wiki/Zariel",
+      "file": "zariel.webp",
+      "head": "heads/zariel.webp"
+    }
+  }
 }

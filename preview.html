@@ -19,19 +19,30 @@
     const q = new URLSearchParams(location.search);
     const mode = q.get("mode") || "1v1 and 2v2";
     const id = (name) => encodeURIComponent(q.get(name));
+    // Development only: &legend=SLUG (and &opponent_legend=SLUG) draws that legend, to check the art's placement
+    // without recording anyone's main. The cards themselves read mains from data/curated/player_legends.csv only.
+    const manifest = await (await fetch("art/legends/manifest.json")).json();
+    const art = (slug) => {
+      const e = slug && manifest.legends[slug];
+      return e?.file ? { url: `art/legends/${e.file}`, name: e.name, offset_x: e.offset_x, offset_y: e.offset_y, scale: e.scale } : null;
+    };
     await document.fonts.ready;
     if (q.get("sets")) {  // the set list of a head-to-head: &sets=1 with player and opponent
       const card = await (await fetch(`/api/preview/sets/${id("player")}/${id("opponent")}`)).json();
       document.getElementById("out").append(setsFrame(card).frame);
     } else if (q.get("opponent")) {
       const card = await (await fetch(`/api/preview/head_to_head/${id("player")}/${id("opponent")}`)).json();
+      if (q.get("legend")) card.players[0].legend = art(q.get("legend"));
+      if (q.get("opponent_legend")) card.players[1].legend = art(q.get("opponent_legend"));
       document.getElementById("out").append(headToHeadFrame(card, mode));
     } else {
       const card = await (await fetch(`/api/preview/lifetime/${id("player")}`)).json();
+      if (q.get("legend")) card.player.legend = art(q.get("legend"));
       document.getElementById("out").append(lifetimeFrame(card, mode));
     }
     await document.fonts.ready;
     await fontsReady;
+    await Promise.all([...document.images].map((im) => im.complete ? null : new Promise((r) => { im.onload = im.onerror = r; })));
     document.body.dataset.ready = "true";
   </script>
 </body>

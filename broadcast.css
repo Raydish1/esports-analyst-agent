@@ -70,7 +70,13 @@
 
 /* The legend's art: its slot is reserved; empty until a player's main has a file (figures.Legends). */
 .bc-legend { position: absolute; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; }
-.bc-legend img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.bc-legend img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+  /* the player-colored outline, offset down and away like the reference's (mirrored with the right-hand legend) */
+  filter: drop-shadow(5px 0 0 var(--bc-art-outline, var(--bc-orange))) drop-shadow(-5px 0 0 var(--bc-art-outline, var(--bc-orange)))
+    drop-shadow(0 5px 0 var(--bc-art-outline, var(--bc-orange))) drop-shadow(0 -5px 0 var(--bc-art-outline, var(--bc-orange)))
+    drop-shadow(-9px 9px 0 var(--bc-art-outline, var(--bc-orange)));
+}
 
 /* Lifetime stats (reference: the Mounir card). Positions come from the reference's cap heights and cap tops, scaled
    by 1920/1206: Gabarito Black and Montserrat both put the cap top 0.16 em below a line box of line-height 1. */
@@ -155,8 +161,11 @@
 .bc-h2h .bc-pnum.bc-r { left: 1056px; }
 .bc-h2h .bc-pnum.bc-missing, .bc-h2h .bc-num.bc-missing { font-size: 22px; top: 14px; font-style: italic; font-weight: 600; }
 
-.bc-h2h .bc-legend.bc-l { left: 0; top: 190px; width: 640px; height: 830px; }
-.bc-h2h .bc-legend.bc-r { left: 1280px; top: 190px; width: 640px; height: 830px; }
+/* The legends: matched to the reference's Val and Mordex (the same wiki images; correlation 0.97 and 0.93). Each fits a
+   box 800 wide and 746 tall, standing on y 962, centered on x 296 and 1616. */
+.bc-h2h .bc-legend { top: 216px; width: 800px; height: 746px; }
+.bc-h2h .bc-legend.bc-l { left: -104px; --bc-art-outline: var(--bc-orange); }
+.bc-h2h .bc-legend.bc-r { left: 1216px; --bc-art-outline: var(--bc-teal); }
 .bc-h2h .bc-pname { bottom: 6px; font-size: 88px; line-height: 1; color: var(--bc-ink); }
 .bc-h2h .bc-pname.bc-l { left: 400px; transform: translateX(-50%); }
 .bc-h2h .bc-pname.bc-r { left: 1532px; transform: translateX(-50%); }
