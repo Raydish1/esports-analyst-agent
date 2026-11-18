@@ -2,6 +2,83 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-18: the number check, the name filter and the template outputs, on the 45 existing questions
+
+**Change** (commits 43f3028 to fdd2496), the proposal approved 2026-11-17, so that the agent never states a fact no tool returned:
+- **The number check** (`agent/number_check.py`, 43f3028; in the loop, 3e6de0d). Every number in an answer must come from a tool result in the conversation, or from the user's question, as it stands or by an allowed derivation: a placement from its word, a record of two numbers in one row, a date in any form or a timestamp's UTC date, a clock time only as a timestamp's UTC time, an amount or a rate at the precision shown, a scope phrase (top 5, at least 5, in 2024) from a call's arguments, and the medal places, top 3 and top 8 always. No arithmetic, and the prompt isn't evidence. An answer that fails goes back once, naming the numbers. Whatever text is final then has each sentence, list item or table cell holding one replaced by "I couldn't confirm <x> from the data".
+- **The name filter** (9138179). A `run_sql` query that looks a player up by name doesn't run, and its error names the name to give `resolve_player`. This was the q01 gap: in `20261117-playercheck-smoke`, q01 seed 0 filtered on `players.name = 'Boomie'`, which seven players share, took 18411 instead of 146606, and named a 2017 event.
+- **Template output** (79bb511). `player_results` leaves out each count its `top` fixes: under `top=1` only the wins are left, since the 1st places and top 8s equalled them and the 2nd and 3rd places were 0. Labels echoing an argument (the player, the mode) and each listed row's own placement stay, as decided, since stage 2 reads them. `player_results`' description adds "With top, it counts only those results, not the player's whole record.", `rank_players`' adds "It can't leave players out or take another condition, such as never having won: use run_sql.", and the prompt's line for `rank_players` adds "with no other condition". `event_results` gets no sentence, since no run has misrouted it, and `head_to_head` keeps the one from f05ae4a.
+- **The prompt line on tool results as data** was already there (adf4cf0), pinned by a test: nothing to build.
+- **The harness** (41abd64): `score` counts each check's firings, `report` shows them, and `replay RUN` runs the number check and the name filter on a run's traces without the model. a901a17 fixes scoring a `resolve_player` call given a number for a name (q40 seed 2 in the before run passed 74433).
+
+**Tuned on the held-out set:** the prompt's "with no other condition" for `rank_players`, and its description's sentence, come from h15's finding in the held-out set's final measurement (the entry below). `player_results`' columns and its sentence come from h03's and h16's. So h03, h15 and h16 count as tuned from 2026-11-17, and the 45 existing questions measure only whether these changes break something.
+
+**The replay gate**, before the after run (`harness.py replay`):
+- On the before run, the number check flagged 7 of 135 final answers. Four were false alarms, and two of those would have replaced the sentence holding the answer's main claim:
+  - q35 seed 0, with no tool called: "top 8 placements" as a category, in "...there is no recorded data linking players to their preferred legends";
+  - q45 seed 1: "Therefore, Raydish has earned more money between the two.";
+  - q20 seeds 0 and 2: "Impala (placement 2)" and "loser_placement = 2", restating the query's own condition.
+- Fixed in fdd2496: top 3 and top 8 are categories the prompt defines, always allowed; a number word after "the", "these" or "those" refers back to what was named; placement N and rank N are scope phrases; and claims are blanked with a character no pattern skips, since a space had let "placed 2nd of 32" read as a placement of 32.
+- After the fixes it flags 3 of the before run's answers, none of them right: q41 seed 0's "12 players" tied for second, counted from the rows (the list names 13, and only yüz has 2 wins; partly); q14 seed 2's STING RAY "6th", a place no one has (5th and 7th are tied; partly); and q44 seed 0's "(2026, 2, 1, 3)" in an answer that called no tool (wrong).
+- On the two earlier runs of the 45 questions, the 9 flags stayed as they were: 6 numbers no tool returned (q20's three clock times, q04 seed 1's games won, q34 seed 1's "Worlds 2023" and "Worlds 2022", q32 seed 2's career earnings) and 3 totals the model added up (q21 seeds 1 and 2, q39 seed 0).
+- The name filter flags one query in the before run: q01 seed 0 repeated the smoke test's `players.name = 'Boomie'`, and answered with 18411's 2017 event.
+
+**Runs:** both on the 45 existing questions, retrieval on, seeds 0–2, 135 runs each, Ollama 0.40.16, 30 worked examples. No run failed or was retried.
+- Before: `20261117-grounding-before`, at 049c647 (the tree clean but for an untracked document the agent doesn't read).
+- After: `20261118-grounding`, at fdd2496.
+
+**Automatic stages** (a run passes when neither stage 1 nor stage 2 fails):
+
+| Group | Before | After |
+|---|---|---|
+| tuned | 47/51 | 50/51 |
+| existing, known shape | 65/66 | 66/66 |
+| existing, new shape | 15/18 | 15/18 |
+| **all** | **127/135 (94%)** | **131/135 (97%)** |
+
+- 5 runs gained: q01 seed 0, q15 seeds 0 and 1, q44 seeds 0 and 1. One was lost: q45 seed 0. No question lost 2 or more runs.
+- No new check fired in any of the six. q01 seed 0's before run was the name lookup above, which the filter would have refused; after, it called `resolve_player` first. q15 and q44 took other paths after: before, q15 seed 0 took Godly to be Phazon without resolving the name, q44 seed 0 called no tool, and q44 seed 1's join asked one row to be both players. So the gain isn't the checks' doing. The tool descriptions and the prompt line differ between the runs, so the trajectories part from the first step. By the 2026-11-17 rule a change of one run is noise, and q15's and q44's two runs each aren't explained by this run.
+- q45 seed 0's loss is scoring. Its answer is right ($83,825 for Raydish, and Impala's not recorded), but its query filtered on Raydish's player_id without selecting it, so stage 2 can't tie the 83,825 to Raydish.
+
+**Tool use**, per run, before and after: `resolve_player` 0.64 → 0.67, `resolve_event` 0.09 → 0.16, `event_results` 0.34 → 0.33, `player_results` 0.22 and `head_to_head` and `rank_players` 0.07 unchanged, `run_sql` 0.28 → 0.27. Steps 2.59 → 2.63, and model time 12.6 s → 12.1 s.
+
+**The new checks in the after run:**
+
+| Check | Runs it fired in | Times |
+|---|---|---|
+| number check, sent back | 2/135 (1%) | 2 |
+| number check, claims replaced | 2/135 (1%) | 2 |
+| name filter, queries refused | 0/135 (0%) | 0 |
+
+- Both firings were on q36, "How many community tournaments has raydish won?", seeds 0 and 1, in answers that called no tool, and both were false alarms. Seed 0 cited the prompt's "official events from 2017 onward", and seed 1 wrote `top=1` as tool syntax. Each answer went back, came back with the number, and had that sentence replaced.
+- Neither broke a right answer: all four answers, as first written and final, say the data has no community tournaments, as q36's verified answer needs. But each final answer gained a sentence that reads as noise.
+- The check caught nothing in the after run, since no other answer stated an unsupported number. Its catches show only in the replays above.
+- Replayed, the after run flags nothing: no final answer states a number no tool returned.
+
+**Replaced answers, verbatim** (the after run's two, then the replays', which replace without the send-back the loop would make first):
+- After, q36 seed 0, final: "The data does not track community tournaments. I couldn't confirm the cutoff from the data. Raydish’s wins, if any, would only be counted in official events. To answer this question accurately, you’d need access to community tournament records outside the tracked data." The replaced sentence was "The tools and database only include **official events** from 2017 onward, and there is no record of "community" tournaments in the results."
+- After, q36 seed 1, final: "The data does not track community tournaments. Official events are the only ones included in the results database. There is no record of Raydish's participation or wins in community tournaments. I couldn't confirm the number from the data." The replaced sentence was "To find their official event wins, use `player_results(player_id=...)` with `top=1`, but community tournament statistics are not available."
+- 2026-11-17's templates run, q20 seed 2: "The 1v1 grand final at **DreamHack Valencia 2023** was won by **Zivai** with a score of **3-0** against **Impala**. I couldn't confirm the time from the data." The replaced sentence was "The match started at **July 7, 2023, 1:47:45 PM UTC**."
+- The same run, q04 seed 1: the line "- **BBBalloonBoy's record**: 1 win, 2 losses, 3 sets, 5 games won, 8 games lost." became "- I couldn't confirm the number of games won from the data."
+- The before run, q14 seed 2: the line "6. **STING RAY** (6th)" became "6. I couldn't confirm the placement from the data."
+- 2026-11-10's run, q39 seed 0, judged right: "I couldn't confirm the number of total medals from the data. Boomie holds the lead in total official medals across both modes." The replaced sentence held the right totals the model had added up, 80 and 69, and with them the per-mode figures a tool had returned (34 and 46, 42 and 27).
+
+**The check's limit:** it checks where a number came from, not what it means. In 2026-11-17's templates run, q20's three answers dated the final July 7, 2023, which passes because a result holds that date as the event's start, though the set was played on July 9: only their clock times were caught. In the after run, no q20 answer gives a date or a time.
+
+**Hand verdicts**, all drafts needing the user's review, only for runs whose verdict changes:
+- The six runs whose automatic stages changed, where they pass them: after, q01 seed 0 right, q15 seed 0 right, q15 seed 1 partly (only the 2v2 win, saying the question asked about the 2v2), q44 seeds 0 and 1 right; before, q45 seed 0 right.
+- The two runs with a firing, before and after: q36 seeds 0 and 1, right both times.
+- For whether the replay's flags hit right answers, the two flagged before-run answers that pass the automatic stages: q41 seed 0 and q14 seed 2, both partly.
+- The third rule found no run. A before answer using a column the template change removes would have needed a draft, but under `top=1` no answer stated a 2nd- or 3rd-place count or a best, and under `top=3` or `top=8` only the top-8 count goes, which no answer cited.
+
+**What's open, for the user to decide:**
+1. Numbers in inline code (tool syntax such as `top=1`) and the prompt's own facts (official events from 2017 on) are read as claims, and made q36's two false alarms. Exempt them?
+2. The replacement's wording: "the cutoff" and "the number" don't say what was dropped, and a replaced sentence takes its supported figures with it (q39 seed 0).
+3. Stage 2 for a query that filters on a player_id without selecting it (q45 seed 0).
+4. Whether q15's and q44's gains hold in another run.
+
+**Caveats:** the existing set only, 3 seeds, judged by Claude. Before and after differ in the tool descriptions and the prompt line, so the same seed isn't a paired sample; within one trace, though, an answer before and after a check is. The replays apply the replacement without the send-back. The held-out set wasn't run, and is spent.
+
 ## 2026-11-17: the held-out set's final measurement, after the template tools
 
 **The held-out set is now spent for tuning.** Its questions, checks and traces were read to score this run, so a change made for anything below would be tuned on it. Measuring such a change needs new held-out questions. Nothing in the agent changed because of this run.
