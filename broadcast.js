@@ -37,20 +37,23 @@ function shapes(parts) {
   return svg;
 }
 
-// Proxima Nova, when it loads (broadcast.css), is set at 92% width: the broadcast's heavy words measure that much
-// narrower than Proxima Nova Extrabold at the same height and stroke weight, letter by letter, with the same gaps (a
-// narrower cut, or a horizontal scale in their graphics tool). The fallback fonts were measured unscaled, so they stay
+// Proxima Nova Black, when it loads (broadcast.css), is set at 89% width: the broadcast's heavy words measure that much
+// narrower at the same height, letter by letter, with the same gaps between letters (a narrower cut, or a horizontal
+// scale in their graphics tool). The fallback fonts were measured unscaled, so they stay
 // at 100%. fontsReady resolves once that's settled.
 export const fontsReady = document.fonts.load('900 100px "BC Heavy"')
   .then((faces) => { if (faces.length) document.documentElement.classList.add("bc-proxima"); })
   .catch(() => {});
 
-const WORDS = ".bc-name, .bc-heading, .bc-pname, .bc-vs, .bc-sets-heading, .bc-sets-title";
+// Everything set in the heavy face: the words and the figures. A "not recorded" stays in the text face, unscaled.
+const HEAVY = [".bc-name", ".bc-heading", ".bc-pname", ".bc-vs", ".bc-sets-heading", ".bc-sets-title", ".bc-earnings",
+  ".bc-count", ".bc-value", ".bc-money", ".bc-num", ".bc-pnum", ".bc-score", ".bc-entry-score"]
+  .map((c) => `${c}:not(.bc-missing)`).join(", ");
 
 function squeezeWords(frame) {
-  for (const node of frame.querySelectorAll(WORDS)) {
-    const inner = el("span", "bc-sq", node.textContent);
-    node.replaceChildren(inner);
+  for (const node of frame.querySelectorAll(HEAVY)) {
+    if (node.querySelector(".bc-missing") || !node.textContent) continue;
+    node.replaceChildren(el("span", "bc-sq", node.textContent));
   }
   return frame;
 }
