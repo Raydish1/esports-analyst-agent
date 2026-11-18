@@ -1,6 +1,7 @@
 // The page: asks the backend, follows each question's event stream, and shows progress, then the answer.
 // Every value from the server goes into the page through textContent (or markdown.js, which uses it too).
 
+import { renderCards } from "./cards.js";
 import { how } from "./how.js";
 import { render } from "./markdown.js";
 
@@ -184,7 +185,7 @@ function answerCard(event, turn) {
   if (event.problem) card.append(el("p", "problem", event.problem));
   if (event.text) card.append(render(event.text));
   if (event.suggestions.length) card.append(suggestionsBlock(event.suggestions, card));
-  const figures = el("div", "figures");  // stat graphics go here, built from the templates' output (figures.py)
+  const figures = el("div", "figures");  // stat cards arrive in their own event, after the answer (figures.py)
   card.append(figures);
   card.append(metaLine(event));
   if (turn.steps.length) card.append(how(turn.steps, turn.examples));
@@ -217,6 +218,7 @@ function follow(jobId, turn) {
         case "step": progress.step(event); turn.steps.push(event); break;
         case "examples": turn.examples = event.examples; break;
         case "answer": progress.finish(); turn.node.append(answerCard(event, turn)); break;
+        case "figures": turn.answer?.querySelector(".figures")?.append(renderCards(event.figures)); break;
         case "error": progress.finish(); turn.node.append(errorCard(event.message, turn)); break;
         case "done": ended = true; source.close(); resolve(); break;
       }

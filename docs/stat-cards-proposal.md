@@ -1,7 +1,13 @@
 # Stat cards for the web app: proposal (2026-11-17, revised 2026-11-18)
 
-Cards shown with an answer, in the figures area the page already keeps (`app/server/figures.py`). Nothing here is
-built, and nothing here changes `agent/`.
+Cards shown with an answer, in the figures area the page already keeps (`app/server/figures.py`). Nothing here
+changes `agent/`.
+
+**Built 2026-11-18** (design B, with the app's own earnings and event-sets queries): `app/server/figures.py`,
+`app/static/cards.js`, tests in `tests/test_web_figures.py`. Earnings are on by default everywhere
+(`--card-earnings off` or `CARD_EARNINGS=off` turns them off). Each card's scope box starts "What this counts:" and
+says all official events, regional championships included, so it isn't mistaken for a broadcast's mode-only counts
+(see the comparison at the end).
 
 The layout ideas come from broadcast screenshots in `docs/graphics-reference/` (git-ignored, never committed). The
 cards take only their arrangement: a lifetime panel; two players mirrored around a column of labels, with bars growing
@@ -98,7 +104,7 @@ What that means on a card:
 - When a later build adds Esports Earnings figures, the card shows their source ("Esports Earnings snapshot") and
   as-of date. Whether those may be shown publicly is open (`DATA.md`).
 
-**The setting.** `--card-earnings on|off` on `app/server/main.py`, on by default for local use, and the
+**The setting.** `--card-earnings on|off` on `app/server/main.py`, on by default everywhere (decided 2026-11-18), and the
 `CARD_EARNINGS` environment variable for a deployment (the flag wins).
 - Off: the server doesn't run the earnings query, and the cards have no earnings row, bar or source line at all.
   They don't show "not recorded", which would claim the data lacks a figure.
@@ -223,12 +229,63 @@ None of it waits for `agent/`: Top 32 joins the cards when the summary gains the
 ## Decided (2026-11-18)
 
 - The event set list is labeled "Sets between top 8 players", with no bracket order.
-- Earnings on cards are switchable by a server setting, on for local use.
+- Earnings on cards are switchable by a server setting, on by default everywhere: they're the Stats API's, which the
+  permission covers.
+- Design B, with the app's own earnings and event-sets queries while `agent/` is frozen.
 - Top 32 in `player_results` waits until the guardrail session's step is finished and scored; that session makes it.
 - Nothing here changes `agent/`, and live mode isn't tested until the eval runs are done.
 
 ## Open decisions
 
-1. Design B, the app calling the templates itself (recommended), or A, the hidden `card` field.
-2. The two queries of the app's own (earnings, an event's sets), or a template for each in `agent/`.
-3. Esports Earnings figures, once a build has any: whether cards show them publicly (`DATA.md`).
+1. Esports Earnings figures, once a build has any: whether cards show them publicly (`DATA.md`).
+2. Once `agent/` is unfrozen: a template for earnings and an event's sets, in place of the app's two queries.
+
+## Compared with the broadcast's figures (2026-11-18)
+
+The reference screenshots show figures for seven players, taken during the Autumn Championships 2026: the Europe 1v1
+semi-final (Godly vs Bamya, and Mounir's lifetime card) and the North America 2v2 elimination final (Moni and
+AnimeFan1266 vs Raydish and megD). eval-v1 (through 2026-09-27) holds both events' results.
+
+The broadcast's figures match eval-v1 exactly, for all seven players and all five counts, under one definition:
+- official results in the broadcast match's mode only: 1v1 for the singles match, 2v2 for the doubles;
+- crew battles left out;
+- every official event, regional championships included: no tier filter;
+- results before the event being broadcast (so that event isn't counted yet).
+
+The cards count all official events, 1v1 and 2v2 combined, with crew battles as 1v1 and the Autumn events included.
+
+| Player (shown in) | | Earnings | Gold | Silver | Bronze | Top 8 | Top 32 |
+|---|---|---|---|---|---|---|---|
+| Godly / Zivai (EU 1v1) | broadcast | $211,958 | 21 | 5 | 3 | 35 | 41 |
+| | cards (1v1 and 2v2, crew as 1v1) | $214,458 | 31 | 12 | 9 | 66 | 74 |
+| | broadcast's definition on eval-v1 | — | 21 | 5 | 3 | 35 | 41 |
+| Bamya (EU 1v1) | broadcast | $9,450 | 2 | 0 | 1 | 11 | 16 |
+| | cards | $10,200 | 3 | 0 | 3 | 19 | 28 |
+| | broadcast's definition | — | 2 | 0 | 1 | 11 | 16 |
+| Mounir (EU 1v1) | broadcast | $47,975 | 1 | 3 | 6 | 19 | 32 |
+| | cards | $48,125 | 4 | 7 | 6 | 38 | 62 |
+| | broadcast's definition | — | 1 | 3 | 6 | 19 | 32 |
+| Raydish (NA 2v2) | broadcast | $82,775 | 0 | 2 | 4 | 15 | 36 |
+| | cards | $83,825 | 6 | 7 | 9 | 43 | 82 |
+| | broadcast's definition | — | 0 | 2 | 4 | 15 | 36 |
+| megD (NA 2v2) | broadcast | $63,250 | 0 | 1 | 1 | 14 | 43 |
+| | cards | $65,000 | 2 | 4 | 8 | 37 | 97 |
+| | broadcast's definition | — | 0 | 1 | 1 | 14 | 43 |
+| Moni (NA 2v2) | broadcast | $10,810 | 1 | 1 | 1 | 7 | 17 |
+| | cards | $11,410 | 1 | 1 | 2 | 14 | 38 |
+| | broadcast's definition | — | 1 | 1 | 1 | 7 | 17 |
+| AnimeFan1266 (NA 2v2) | broadcast | $14,008 | 0 | 1 | 1 | 7 | 25 |
+| | cards | $14,508 | 0 | 1 | 2 | 18 | 49 |
+| | broadcast's definition | — | 0 | 1 | 1 | 7 | 25 |
+
+What settles each part of the definition:
+- **The mode:** Raydish's 0 golds are his 2v2 golds; his 6 are all in 1v1.
+- **No crew battles:** Godly has 23 1v1 golds with crew battles, 22 without; with the Autumn win left out, 21. Mounir's
+  top 8s match only without his crew battle 5th (Eternal Sports Crew Battle Championship 2026 - Europe).
+- **Before the event:** each player is off by exactly their Autumn 2026 placement in that mode (Godly 1st, Bamya 5th,
+  Mounir 9th in EU 1v1; Raydish and megD 2nd, Moni and AnimeFan1266 3rd in NA 2v2).
+- **No tier filter:** the counts match with every official event, regionals included.
+
+Earnings are career figures across modes. The broadcast's are lower by $150 to $2,500 per player. That fits the
+Stats API's figure (as of 2026-10-02) including the Autumn 2026 prize money, but eval-v1 has no per-event payouts to
+check it against.
