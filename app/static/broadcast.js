@@ -62,13 +62,16 @@ function text(className, value) {
   return el("p", `bc-t ${className}`, value);
 }
 
-function legendSlot(legend) {
+// A legend's idle pose, fitted into its slot and standing on the slot's floor, outlined in its player's color
+// (broadcast.css). mirror: face left, as the broadcast turns the right-hand player's legend toward the opponent.
+function legendSlot(legend, mirror = false) {
   const slot = el("div", "bc-legend");
   if (legend?.url) {  // no entry, no file: the slot stays empty, never a guessed legend
     const img = el("img");
     img.src = legend.url;
     img.alt = legend.name;
-    img.style.transform = `translate(${legend.offset_x || 0}px, ${legend.offset_y || 0}px) scale(${legend.scale || 1})`;
+    img.style.transform = `translate(${legend.offset_x || 0}px, ${legend.offset_y || 0}px) scale(${legend.scale || 1})` +
+      (mirror ? " scaleX(-1)" : "");
     img.addEventListener("error", () => img.remove());
     slot.append(img);
   }
@@ -179,15 +182,14 @@ export function headToHeadFrame(card, mode = "1v1 and 2v2") {
   const frame = el("div", "bc-frame bc-h2h");
   frame.setAttribute("role", "img");
   frame.setAttribute("aria-label", `${a.name} against ${b.name}`);
-  frame.append(shapes([
-    ["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"],
-    [H2H.borderL, "var(--bc-orange)"], [H2H.borderR, "var(--bc-teal)"], [H2H.strip, "var(--bc-cream)"],
-  ]));
+  frame.append(shapes([["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"]]));
   const legendL = legendSlot(a.legend);
   legendL.classList.add("bc-l");
-  const legendR = legendSlot(b.legend);
+  const legendR = legendSlot(b.legend, true);
   legendR.classList.add("bc-r");
   frame.append(legendL, legendR);
+  // The bottom strip goes over the legends' feet, as in the reference.
+  frame.append(shapes([[H2H.borderL, "var(--bc-orange)"], [H2H.borderR, "var(--bc-teal)"], [H2H.strip, "var(--bc-cream)"]]));
   // The top strip's fields (PR, country, team, the round) aren't in the data: it states the card's scope instead.
   const strip = [scopeLine(mode, a.crew || b.crew)];
   if (card.record) strip.push(`record: official 1v1 sets${card.record.unscored ? `, ${card.record.unscored} with no recorded score` : ""}`);

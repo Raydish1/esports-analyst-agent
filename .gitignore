@@ -21,7 +21,7 @@ ENV/
 docs/graphics-reference/
 
 # Legend art for the stat cards: not committed until redistribution is confirmed (DATA.md)
-app/static/art/legends/*.webp
+app/static/art/legends/**/*.webp
 
 # Proxima Nova, the broadcast font: licensed, so its files are never committed (DATA.md)
 app/static/fonts/

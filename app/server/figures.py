@@ -56,7 +56,9 @@ class Legends:
             return None
         if not entry or not entry.get("file") or not (self.art / entry["file"]).is_file():
             return None
+        head = entry.get("head")
         return {"slug": legend, "url": f"art/legends/{entry['file']}", "name": entry.get("name") or legend,
+                "head": f"art/legends/{head}" if head and (self.art / head).is_file() else None,
                 "offset_x": entry.get("offset_x", 0), "offset_y": entry.get("offset_y", 0), "scale": entry.get("scale", 1)}
 
 

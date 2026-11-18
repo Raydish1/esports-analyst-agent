@@ -175,7 +175,13 @@ class LegendsTest(unittest.TestCase):
 
     def test_a_main_with_art(self):
         self.assertEqual(self.legends.of(79853), {"slug": "bodvar", "url": "art/legends/bodvar.webp", "name": "Bödvar",
-                                                  "offset_x": 0, "offset_y": -20, "scale": 1.1})
+                                                  "head": None, "offset_x": 0, "offset_y": -20, "scale": 1.1})
+        (self.art / "heads").mkdir()
+        (self.art / "heads" / "bodvar.webp").write_bytes(b"RIFF")
+        manifest = json.loads((self.art / "manifest.json").read_text(encoding="utf-8"))
+        manifest["legends"]["bodvar"]["head"] = "heads/bodvar.webp"
+        (self.art / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        self.assertEqual(self.legends.of(79853)["head"], "art/legends/heads/bodvar.webp")
 
     def test_the_fallback_whenever_anything_is_missing(self):
         self.assertIsNone(self.legends.of(1))  # no main
