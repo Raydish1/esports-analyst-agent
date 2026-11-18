@@ -294,8 +294,8 @@ check it against.
 
 The cards now copy the broadcast graphics as closely as possible, at the producer's suggestion (`DATA.md`, "Broadcast
 graphics"). Each card is a fixed 1920x1080 frame (`app/static/broadcast.css`, `broadcast.js`), scaled to the page. The
-lifetime card is done; the head-to-head (the Godly vs Bamya image), the set list (the "Matches" sidebar) and the 2v2
-elimination final follow.
+lifetime, head-to-head (the Godly vs Bamya image) and set list (the "Matches" sidebar) cards are done; the 2v2
+elimination final waits for team data (§d).
 
 **Colors**, the median of each region's pixels in the reference: panel cream `#faf2eb`, orange `#c85a41` (the bar,
 borders, circles and placement boxes; `#c55d46` for the earnings figure), label boxes `#160c08`, ink `#050000`, and
@@ -327,3 +327,30 @@ to the hex digit.
   source and date, and the page repeats it in the "What this counts" box below the frame, with the mode switch.
 - The legend slot (x 400–960, y 560–1080) stays empty until the player's main is in `data/curated/player_legends.csv`
   and its WebP and manifest entry are in `app/static/art/legends/`.
+
+### Head-to-head and set list (2026-11-18)
+
+**Head-to-head** (`headToHeadFrame`, reference IMG_2448): earnings, then gold/silver/bronze with the circles, then the
+placement bars growing out from the center labels, then the names and the set record in the bottom strip ("9 VS 0").
+- The bars use one scale for all four values, the largest spanning 332 px, as the reference's do (35 → 283 px, 11 → 88).
+- Teal `#6cbc99` is the right player's, sampled from the circles. The bottom strip's torn edge, with its orange and teal
+  borders, was traced from the reference; the legends cover parts of it, which are smoothed.
+- Against the reference at 1920 wide, every heading, row, circle and label is within 5 px, and the record within 6.
+- The top strip's fields (PR, country, team, the round) aren't in the data. The strip states the card's scope, the
+  record's scope (official 1v1 sets) and the earnings' source and date instead.
+- Names longer than 9 characters are set smaller, so they stay clear of the record. A comparison (two players without
+  a head-to-head) shows "VS" with no record.
+
+**Set list** (`setsFrame`, reference: the sidebar of IMG_2447): "MATCHES", then five sets per 236 px column, an entry
+every 103 px with a 2 px rule between them; more sets add columns, up to eight (40 sets), and the last slot then says how
+many more there are.
+- Entries, rules and the heading sit on the reference's pixels (the heading within 1 px, the rules exactly).
+- The dark plate at the top (the logo area; the logo is left out) holds what the list is: the event and its date, or
+  the two players. The bottom (the countdown's area) holds the title and what it counts.
+- A head-to-head keeps its first player on top with the score from their side; an event's list puts the winner on top.
+- Below the frame, the same sets as a plain list, for reading and for screen readers.
+
+**Fonts per card.** Measured the same way as the lifetime card: Gabarito fits the head-to-head's headings (within 1%)
+and names (5%); Montserrat Black fits the record's digits (2%). Bebas Neue, suggested as a closer match, comes out
+about 40% narrower than every heavy text in the references at the same cap height (0.59–0.67 of their widths), and
+Google Fonts has only its regular weight, so the cards don't use it.

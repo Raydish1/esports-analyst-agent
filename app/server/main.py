@@ -135,6 +135,20 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
                 raise HTTPException(404, "No such player.")
             return {"kind": "lifetime", "player": one, "scope": cards.scope([one])}
 
+        @app.get("/api/preview/head_to_head/{player_id}/{opponent_id}")
+        def preview_head_to_head(player_id: int, opponent_id: int):
+            found = cards.head_to_head(player_id, opponent_id)
+            if not found:
+                raise HTTPException(404, "No such players.")
+            return found[0]
+
+        @app.get("/api/preview/sets/{player_id}/{opponent_id}")
+        def preview_sets(player_id: int, opponent_id: int):
+            found = cards.head_to_head(player_id, opponent_id)
+            if len(found) < 2:
+                raise HTTPException(404, "No sets between these players.")
+            return found[1]
+
     @app.middleware("http")
     async def revalidate(request, call_next):
         """The page's files are checked with the server on every load (an unchanged file costs a 304), so a page

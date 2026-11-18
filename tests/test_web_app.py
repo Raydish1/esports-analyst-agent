@@ -103,6 +103,37 @@ class AppTest(Fixture):
         self.assertEqual(self.client.get("/api/jobs/nope/events").status_code, 404)
 
 
+class StubCards:
+    def lifetime(self, player_id):
+        return {"player_id": player_id, "name": "A", "crew": False} if player_id == 1 else None
+
+    def scope(self, players):
+        return "scope"
+
+    def head_to_head(self, player_id, opponent_id):
+        return [{"kind": "head_to_head"}, {"kind": "sets"}] if (player_id, opponent_id) == (1, 2) else []
+
+
+class PreviewTest(Fixture):
+    """The card previews for app/dev/compare_card.py: served only with preview on."""
+
+    def client(self, preview):
+        source = runner.Replay(replay.Index([]), speed=0)
+        return TestClient(main.create_app(source, runner.ProgressTools(self.path), static=Path(self.tmp.name) / "none",
+                                          preview=preview, cards=StubCards()))
+
+    def test_off_by_default(self):
+        self.assertEqual(self.client(False).get("/api/preview/lifetime/1").status_code, 404)
+
+    def test_each_preview(self):
+        client = self.client(True)
+        self.assertEqual(client.get("/api/preview/lifetime/1").json()["kind"], "lifetime")
+        self.assertEqual(client.get("/api/preview/lifetime/9").status_code, 404)
+        self.assertEqual(client.get("/api/preview/head_to_head/1/2").json(), {"kind": "head_to_head"})
+        self.assertEqual(client.get("/api/preview/sets/1/2").json(), {"kind": "sets"})
+        self.assertEqual(client.get("/api/preview/sets/1/3").status_code, 404)
+
+
 class EarningsSettingTest(unittest.TestCase):
     def test_on_by_default_the_flag_wins_over_the_environment(self):
         self.assertTrue(main.card_earnings(None, None))

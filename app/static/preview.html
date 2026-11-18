@@ -12,14 +12,24 @@
 </head>
 <body>
   <!-- One card's frame at 1920x1080, unscaled, for app/dev/compare_card.py. Needs the server's --preview.
-       ?player=ID&mode=1v1 (or 2v2, or nothing for both) -->
+       ?player=ID&mode=1v1 (or 2v2, or nothing for both); &opponent=ID for a head-to-head -->
   <div id="out"></div>
   <script type="module">
-    import { lifetimeFrame } from "./broadcast.js";
+    import { headToHeadFrame, lifetimeFrame, setsFrame } from "./broadcast.js";
     const q = new URLSearchParams(location.search);
-    const card = await (await fetch(`/api/preview/lifetime/${encodeURIComponent(q.get("player"))}`)).json();
+    const mode = q.get("mode") || "1v1 and 2v2";
+    const id = (name) => encodeURIComponent(q.get(name));
     await document.fonts.ready;
-    document.getElementById("out").append(lifetimeFrame(card, q.get("mode") || "1v1 and 2v2"));
+    if (q.get("sets")) {  // the set list of a head-to-head: &sets=1 with player and opponent
+      const card = await (await fetch(`/api/preview/sets/${id("player")}/${id("opponent")}`)).json();
+      document.getElementById("out").append(setsFrame(card).frame);
+    } else if (q.get("opponent")) {
+      const card = await (await fetch(`/api/preview/head_to_head/${id("player")}/${id("opponent")}`)).json();
+      document.getElementById("out").append(headToHeadFrame(card, mode));
+    } else {
+      const card = await (await fetch(`/api/preview/lifetime/${id("player")}`)).json();
+      document.getElementById("out").append(lifetimeFrame(card, mode));
+    }
     await document.fonts.ready;
     document.body.dataset.ready = "true";
   </script>

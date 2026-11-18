@@ -70,3 +70,84 @@
   left: 41px; top: 1018px; width: 600px; white-space: normal; font-size: 17px; line-height: 1.3; font-weight: 500;
   color: #5d514c;
 }
+
+/* Head-to-head (reference: Godly vs Bamya, IMG_2448, scaled to 1920 wide). The left player is orange, the right teal.
+   Bars grow out from the center labels, at one scale for all four (the largest value spans 332 px). */
+
+.bc-h2h { --bc-teal: #6cbc99; }
+.bc-h2h .bc-strip-text { left: 0; width: 1920px; top: 10px; text-align: center; font-size: 19px; font-weight: 500; color: var(--bc-ink); }
+.bc-h2h .bc-center { left: 0; width: 1932px; text-align: center; color: #fff; }
+.bc-h2h .bc-heading { font-size: 56px; }
+.bc-h2h .bc-h-earnings { top: 122px; }
+.bc-h2h .bc-h-medals { top: 305px; font-size: 57.5px; }
+.bc-h2h .bc-h-placements { top: 586px; letter-spacing: -2.3px; }
+.bc-h2h .bc-money { top: 179px; font-size: 87px; font-weight: 900; }
+.bc-h2h .bc-money.bc-l { right: 1005px; color: var(--bc-orange); }
+.bc-h2h .bc-money.bc-r { left: 1017px; color: var(--bc-teal); }
+.bc-h2h .bc-money.bc-missing { top: 200px; font-size: 40px; font-style: italic; font-weight: 700; color: #fff; }
+.bc-h2h svg.bc-tri { position: absolute; left: 949px; top: 206px; width: 33px; height: 32px; }
+
+.bc-h2h .bc-mrow { position: absolute; left: 0; width: 1920px; height: 48px; }
+.bc-h2h .bc-mlabel {
+  position: absolute; left: 864px; top: 0; width: 198px; height: 47px; background: var(--bc-cream);
+  display: flex; align-items: center; justify-content: center; font-size: 23px; font-weight: 500; color: var(--bc-ink);
+}
+.bc-h2h .bc-circle {
+  position: absolute; top: 0; width: 49px; height: 49px; border-radius: 50%; color: #fff4ec;
+  display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 500;
+}
+.bc-h2h .bc-circle.bc-l { left: 835px; background: var(--bc-orange); }
+.bc-h2h .bc-circle.bc-r { left: 1047px; background: var(--bc-teal); }
+.bc-h2h .bc-num { position: absolute; top: 2px; font-size: 45.5px; color: #fff; line-height: 1; }
+.bc-h2h .bc-num.bc-l { right: 1095px; }
+.bc-h2h .bc-num.bc-r { left: 1105px; }
+
+.bc-h2h .bc-prow { position: absolute; left: 0; width: 1920px; height: 50px; }
+.bc-h2h .bc-plabel {
+  position: absolute; left: 888px; top: 0; width: 156px; height: 50px; background: var(--bc-cream);
+  display: flex; align-items: center; justify-content: center; font-size: 27px; font-weight: 500; color: var(--bc-ink);
+}
+.bc-h2h .bc-pbar { position: absolute; top: 0; height: 50px; }
+.bc-h2h .bc-pbar.bc-l { right: 1036px; background: var(--bc-orange); }
+.bc-h2h .bc-pbar.bc-r { left: 1045px; background: var(--bc-teal); }
+.bc-h2h .bc-pnum { position: absolute; top: 3px; font-size: 52px; color: #fff; line-height: 1; }
+.bc-h2h .bc-pnum.bc-l { right: 1050px; }
+.bc-h2h .bc-pnum.bc-r { left: 1056px; }
+.bc-h2h .bc-pnum.bc-missing, .bc-h2h .bc-num.bc-missing { font-size: 22px; top: 14px; font-style: italic; font-weight: 600; }
+
+.bc-h2h .bc-legend.bc-l { left: 0; top: 190px; width: 640px; height: 830px; }
+.bc-h2h .bc-legend.bc-r { left: 1280px; top: 190px; width: 640px; height: 830px; }
+.bc-h2h .bc-pname { bottom: 6px; font-size: 88px; line-height: 1; color: var(--bc-ink); }
+.bc-h2h .bc-pname.bc-l { left: 400px; transform: translateX(-50%); }
+.bc-h2h .bc-pname.bc-r { left: 1532px; transform: translateX(-50%); }
+.bc-h2h .bc-score { top: 966px; font-family: "Montserrat", system-ui, sans-serif; font-weight: 900; font-size: 106px; color: var(--bc-ink); }
+.bc-h2h .bc-score.bc-l { right: 1091px; }
+.bc-h2h .bc-score.bc-r { left: 1084px; }
+.bc-h2h .bc-vs { left: 954px; transform: translateX(-50%); top: 946px; font-size: 137px; color: var(--bc-orange); text-shadow: 9px 0 0 var(--bc-teal); letter-spacing: -4px; }
+
+/* Set list (reference: the "Matches" sidebar). A column is 236 px wide with a gold rule on its right; entries every
+   103 px, separated by a 2 px rule. The frame is as wide as its columns. */
+
+.bc-sets { background: #faefed; }
+.bc-sets .bc-sets-heading { left: 0; width: 225px; text-align: center; top: 298px; font-size: 28px; }
+.bc-sets .bc-sets-subject {
+  left: 14px; width: 190px; top: 34px; white-space: normal; text-align: left; font-size: 18px; font-weight: 700;
+  line-height: 1.25; color: #fff4ec;
+}
+.bc-sets .bc-entry { position: absolute; width: 220px; height: 88px; }
+.bc-sets .bc-entry.bc-ruled::before {
+  content: ""; position: absolute; left: 0; top: -15px; width: 232px; height: 2px; background: #a07a72;
+}
+.bc-sets .bc-entry > span { position: absolute; left: 0; width: 220px; text-align: center; white-space: nowrap; line-height: 1; }
+.bc-sets .bc-entry-name { font-size: 21.4px; font-weight: 500; color: var(--bc-ink); overflow: hidden; text-overflow: ellipsis; }
+.bc-sets .bc-entry-name:first-child { top: 1px; }
+.bc-sets .bc-entry-name:last-child { top: 52px; }
+.bc-sets .bc-entry-score { top: 22px; left: 4px; font-size: 29px; color: var(--bc-orange); }
+.bc-sets .bc-entry-score.bc-missing { top: 27px; font-size: 15px; font-weight: 700; font-style: italic; }
+.bc-sets .bc-more .bc-entry-name { top: 36px; }
+.bc-sets .bc-sets-empty { left: 0; width: 225px; text-align: center; top: 380px; white-space: normal; font-size: 20px; font-weight: 700; }
+.bc-sets .bc-sets-foot { position: absolute; left: 8px; width: 212px; top: 870px; display: flex; flex-direction: column; gap: 10px; }
+.bc-sets .bc-sets-foot p { margin: 0; text-align: center; }
+.bc-sets .bc-sets-title { font-size: 28px; line-height: 1.05; }
+.bc-sets .bc-sets-scope { font-size: 14px; line-height: 1.3; font-weight: 500; color: #5d514c; }
+.bc-sets .bc-sets-rule { position: absolute; top: 0; width: 4px; height: 1080px; background: linear-gradient(90deg, #f1dc97, #e5cc77 60%, #aa914f); }
