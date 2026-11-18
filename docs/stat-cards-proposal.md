@@ -386,3 +386,19 @@ its reference; the left earnings figure ($214,458 against $211,958, the same num
 **87% width (2026-11-18).** The broadcast reads as Proxima Nova Black squeezed horizontally. Rendered at 89%, 88% and 87%,
 the measured width-to-height ratios averaged 1.00, 0.99 and 0.98 of the reference's (the reference's blurred edges
 widen its boxes); side by side, 87% looked closest, so the cards use 87%.
+
+### Legend art (2026-11-18)
+
+`app/dev/fetch_legend_art.py` takes each legend's idle pose (the first image on their wiki page, the infobox's "Idle
+Pose" tab) and head (their classic skin icon on the Legends page) from brawlhalla.wiki.gg through its API: 70 of the
+71 legends (Morgwyn's page has no idle pose yet, and only the generic icon), scaled by the wiki to 1080 px tall and
+256 px for heads, trimmed and saved as transparent WebP with `manifest.json`. The files stay git-ignored until their
+redistribution is confirmed.
+- **Head-to-head:** the reference's legends are Val and Mordex in these same idle poses (matched by correlation, 0.97
+  and 0.93). Each fits a box 800 wide and 746 tall, standing on y 962, centered on x 296 and 1616; the right-hand one is
+  mirrored to face the opponent; each has an outline in its player's color, offset like a shadow; and the bottom strip
+  is drawn over their feet.
+- **Lifetime:** the reference's legend is Tezca in a fighting stance the wiki doesn't have (neither the idle pose nor
+  the official art), so the card shows the idle pose in the reference figure's place: x 400–960, feet at y 1056.
+- **Which legend:** a player's main comes from `data/curated/player_legends.csv` only; no main, no art.
+- The heads aren't on any card yet; they're for smaller slots later (the 2v2 layout, a sidebar).
