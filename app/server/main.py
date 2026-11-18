@@ -3,6 +3,10 @@
     python app/server/main.py                        replay mode (the default): recorded model replies, no model server
     python app/server/main.py --replay-runs A B      replay only these runs' recordings (directories of data/experiments)
     py -3.14 app/server/main.py --mode live          live mode: the model server at OLLAMA_BASE_URL (.env)
+    python app/server/main.py --mode live --examples off    live mode without worked examples, on any Python
+
+Live mode uses the GPU the evaluation runs use: don't start it while an eval run is going. Its transcripts go to
+data/experiments/web/, which replay mode never reads.
 
 Then open http://127.0.0.1:8000. It binds 127.0.0.1 unless --host says otherwise. Nothing secret goes to the page:
 the model server's address is read here only, and redacted from every text sent (events.redact).
@@ -17,7 +21,10 @@ Routes:
 import argparse
 import asyncio
 import json
+import os
 import sys
+import urllib.error
+from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -31,6 +38,7 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 import react  # noqa: E402
+from platform_clients import load_env  # noqa: E402  in ingest/, which react puts on the path
 import replay  # noqa: E402
 import runner  # noqa: E402
 import worker as workers  # noqa: E402
@@ -127,17 +135,39 @@ def replay_source(runs=None, speed=0.1):
     return runner.Replay(index, speed=speed)
 
 
+def live_source(examples, fail):
+    """Live mode's source: the model server must be reachable, as ask.py requires."""
+    load_env()
+    start = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    try:
+        header = react.run_header(start, seeds=[0], title=f"Web app session {start}",
+                                  examples=react.examples_header(examples))
+    except KeyError:
+        fail("OLLAMA_BASE_URL isn't set: add it to .env (see .env.example).")
+    except (urllib.error.URLError, TimeoutError) as e:
+        fail(f"The model server at {os.environ['OLLAMA_BASE_URL']} isn't reachable: {e}")
+    retriever = react.retriever_or_exit(examples, fail)
+    return runner.Live(retriever, header, react.RAW / "web")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="The demo web app: the agent behind a queue, streamed to the page.")
-    parser.add_argument("--mode", choices=["replay"], default="replay",
-                        help="replay: recorded model replies through the real loop and tools (the default)")
+    parser.add_argument("--mode", choices=["replay", "live"], default="replay",
+                        help="replay: recorded model replies through the real loop and tools (the default); live: the"
+                             " model server at OLLAMA_BASE_URL. Never live while an eval run is going")
+    parser.add_argument("--examples", choices=["on", "off"], default="on",
+                        help="live: retrieve worked examples for each question (default: on; needs chromadb)")
     parser.add_argument("--replay-runs", nargs="*", help="replay only these runs (directory names in data/experiments)")
     parser.add_argument("--speed", type=float, default=0.1, help="replay: the share of each step's recorded time to wait")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
-    source = replay_source(args.replay_runs, args.speed)
-    print(f"Replay mode: {len(source.index.recordings)} recordings. Loading the players' names...")
+    if args.mode == "live":
+        source = live_source(args.examples == "on", parser.error)
+        print(f"Live mode: {source.header['model']}, examples {args.examples}. Loading the players' names...")
+    else:
+        source = replay_source(args.replay_runs, args.speed)
+        print(f"Replay mode: {len(source.index.recordings)} recordings. Loading the players' names...")
     tools = runner.ProgressTools()
     import uvicorn
     uvicorn.run(create_app(source, tools), host=args.host, port=args.port)

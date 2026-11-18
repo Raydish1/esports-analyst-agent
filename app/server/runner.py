@@ -8,6 +8,7 @@
 The worker runs one question at a time, so one shared ProgressTools serves every conversation.
 """
 
+import ask as asking
 import react
 
 import events
@@ -114,4 +115,38 @@ class Replay:
             used = len(model.steps) - model.left
             return {"mismatch": f"The current agent finished at step {used}; the recording went on to step"
                                 f" {len(model.steps)}: the agent has changed since it was recorded."}
+        return None
+
+
+class LiveState:
+    """A live conversation, whose transcript (ask.Session's format) is rewritten after each question."""
+
+    def __init__(self, retriever, path, header):
+        self.retriever, self.path, self.header, self.session = retriever, path, header, None
+
+    def ask(self, conversation, question):
+        if self.session is None or self.session.conversation is not conversation:
+            self.session = asking.Session(conversation, self.path, self.header)
+        return self.session.ask(question)
+
+
+class Live:
+    """Live mode: the model server at OLLAMA_BASE_URL (react.chat), with ask.py's settings, and the retriever of worked
+    examples (retrieval.Retriever, or None without examples). Transcripts go to folder/<start>-<n>.md and .jsonl."""
+
+    mode = "live"
+
+    def __init__(self, retriever, header, folder, chat=react.chat, seed=0):
+        self.retriever, self.header, self.folder, self.chat = retriever, header, folder, chat
+        self.model = {"model": react.MODEL, "think": True, "seed": seed}
+        self.count = 0
+
+    def state(self):
+        self.count += 1
+        return LiveState(self.retriever, self.folder / f"{self.header['run']}-{self.count:03d}", self.header)
+
+    def begin(self, state, question):
+        return self.chat, None
+
+    def end(self, state, model):
         return None

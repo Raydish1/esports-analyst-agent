@@ -1,8 +1,10 @@
 import json
+import os
 import sys
-import tempfile
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "agent"))
@@ -95,6 +97,49 @@ class AppTest(Fixture):
         self.assertEqual(self.client.post(url, json={"question": "x" * 501}).status_code, 422)
         self.assertEqual(self.client.post(url, json={"question": "   "}).status_code, 422)
         self.assertEqual(self.client.get("/api/jobs/nope/events").status_code, 404)
+
+
+HEADER = {"run": "20261117T000000Z", "title": "Web app session", "model": "m", "variant": "v", "think": True,
+          "seeds": [0], "max_steps": 8, "ollama": "x", "snapshot": {"file": "f", "build_id": "b"}}
+
+
+class LiveTest(Fixture):
+    """Live mode with a scripted model in place of the model server: the same events, and a transcript per conversation."""
+
+    def setUp(self):
+        super().setUp()
+        self.folder = Path(self.tmp.name) / "web"
+        self.tools = runner.ProgressTools(self.path)
+
+    def client(self, chat):
+        source = runner.Live(None, HEADER, self.folder, chat=chat)
+        return TestClient(main.create_app(source, self.tools, examples=["any question"], static=self.folder / "none"))
+
+    def ask(self, client, question):
+        conversation = client.post("/api/conversations").json()["conversation_id"]
+        job = client.post(f"/api/conversations/{conversation}/questions", json={"question": question}).json()["job_id"]
+        return read(client, job)
+
+    def test_live_mode_streams_and_saves_the_transcript(self):
+        chat = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."))
+        client = self.client(chat)
+        self.assertEqual(client.get("/api/info").json(), {"mode": "live", "examples": ["any question"]})
+        found = self.ask(client, QUESTION)
+        answer = next(e for e in found if e["type"] == "answer")
+        self.assertEqual((answer["text"], "replay" in answer), ("megD has 2 official results.", False))
+        (transcript,) = self.folder.glob("*.jsonl")
+        self.assertEqual(json.loads(transcript.read_text(encoding="utf-8"))["question"], QUESTION)
+        self.assertTrue(transcript.with_suffix(".md").exists())
+
+    def test_the_model_server_address_never_reaches_the_page(self):
+        def down(messages, **model):
+            raise urllib.error.URLError("http://10.1.2.3:11434 refused the connection")
+
+        with patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://10.1.2.3:11434"}):
+            found = self.ask(self.client(down), QUESTION)
+        answer = next(e for e in found if e["type"] == "answer")
+        self.assertIn("request error", answer["problem"])
+        self.assertNotIn("10.1.2.3", json.dumps(found))
 
 
 if __name__ == "__main__":
