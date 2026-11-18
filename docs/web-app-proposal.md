@@ -34,7 +34,7 @@ app/
     figures.py     returns [] for now: where stat graphics go later
   static/
     index.html, app.js, style.css
-    vendor/        a markdown renderer and a sanitizer, vendored (no CDN at run time)
+    markdown.js    the answers' markdown, built as DOM nodes (no innerHTML, so no sanitizer)
 tests/
   test_web_events.py, test_web_replay.py, test_web_worker.py, test_web_app.py
 ```
@@ -86,7 +86,7 @@ and a framework can come later if it grows.
 - **Question box** with example questions as chips. In replay mode, the chips are questions that have a recording.
 - **Progress list** while the agent works: one line per event ("Thinking, step 1", "Looking up the player *boomie*",
   "Query: 12 rows"), with the current one animated, and the queue position while waiting.
-- **Answer card.** The markdown is rendered and sanitized; every other value from the server goes in with
+- **Answer card.** The markdown is rendered by building DOM nodes; every value from the server goes in with
   `textContent`, never `innerHTML`.
   - Above the answer: a notes box (§3), when there are notes.
   - Below it: a reserved `figures` area, hidden while `figures` is empty.
@@ -171,8 +171,9 @@ if it isn't. Each live conversation's transcript goes to `data/experiments/web/`
 ## 6. Dependencies
 
 `fastapi`, `uvicorn` and `httpx` (for FastAPI's test client), added to `requirements.txt` and installed on both
-Pythons. The markdown renderer (`marked`) and the sanitizer (`DOMPurify`) are vendored into `app/static/vendor/` at a
-pinned version.
+Pythons. The page needs no library: instead of vendoring a markdown renderer and a sanitizer, `app/static/markdown.js`
+renders the answers' markdown (headings, lists, tables, bold, code, links) by building DOM nodes with `textContent`, so
+no answer text can become markup (changed while building, 2026-11-17).
 
 ## 7. Testing
 
