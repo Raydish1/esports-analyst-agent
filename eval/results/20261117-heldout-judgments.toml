@@ -1,0 +1,532 @@
+# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL
+# logic, empty or insufficient data, answer writing, or no answer. review is "auto" for a stage 1 or 2
+# failure the code found, and "needs review" for a verdict drafted by hand, until the user confirms it
+# ("confirmed"). Fill in or correct verdict, stage and note; scoring keeps what's here.
+
+# h01 (retrieval on): how many 2v2 titles does pugsyxd have?
+# Expected: Pugsy has won 4 official 2v2 events, all in North America in 2022: the Winter Championship (2022-01-30), the SteelSeries Invitational (2022-04-10), the Summer Championship (2022-07-24) and the Autumn Championship (2022-09-18). Pugsy also has 1 official 1v1 win.
+
+[[run]]
+arm = "on"
+question = "h01"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 2v2 titles, listed, naming Pugsy."
+answer = "Pugsy has **4 official 2v2 titles**:\n\n1. **2022-01-30**: North America - Winter Championship 2022 / Brawlhalla Championship 2v2  \n2. **2022-04-10**: North America - SteelSeries Invitational 2022 / Brawlhalla Championship 2v2  \n3. **2022-07-24**: North America - Summer Championship 2022 / Brawlhalla Championship 2v2  \n4. **2022-09-18**: North America - Autumn Championship 2022 / Brawlhalla Championship 2v2  \n\nThese are all 1st-place finishes in 2v2 events."
+
+[[run]]
+arm = "on"
+question = "h01"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 2v2 titles, listed, naming Pugsy."
+answer = "Pugsy has **4 official 2v2 titles**:\n\n1. **2022-01-30**: North America - Winter Championship 2022 / Brawlhalla Championship 2v2  \n2. **2022-04-10**: North America - SteelSeries Invitational 2022 / Brawlhalla Championship 2v2  \n3. **2022-07-24**: North America - Summer Championship 2022 / Brawlhalla Championship 2v2  \n4. **2022-09-18**: North America - Autumn Championship 2022 / Brawlhalla Championship 2v2  \n\nThese are all 1st-place finishes in 2v2 formats across official events."
+
+[[run]]
+arm = "on"
+question = "h01"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 2v2 titles, listed, naming Pugsy."
+answer = "Pugsy has **4 official 2v2 titles**:\n\n1. **2022-01-30** – North America - Winter Championship 2022 / Brawlhalla Championship 2v2  \n2. **2022-04-10** – North America - SteelSeries Invitational 2022 / Brawlhalla Championship 2v2  \n3. **2022-07-24** – North America - Summer Championship 2022 / Brawlhalla Championship 2v2  \n4. **2022-09-18** – North America - Autumn Championship 2022 / Brawlhalla Championship 2v2  \n\nThese are his 2v2 wins (1st places) at official events."
+
+# h02 (retrieval on): how many official top 8s does halloween! have?
+# Expected: Pink | Teehee has 4 top 8s at official events, all counted as 1v1: 7th at Trial of Heimdall - Europe (Brawl League, 2024-07-13), 7th at Trial of Freya - Europe (2024-09-14), 7th at the Summer Championship - Europe 2026 1v1 (2026-07-18), and 5th at the Eternal Sports Crew Battle Championship 2026 - Europe (2026-08-29), a crew battle, which counts as 1v1.
+
+[[run]]
+arm = "on"
+question = "h02"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 top 8s, all 1v1 with the crew battle counted as 1v1, naming Pink | Teehee."
+answer = "Pink | Teehee (formerly halloween!) has **4 official top 8 placements** across 1v1 and 2v2 modes at official events. These include:\n\n- **4 top 8s in 1v1** (one of which was a crew battle counted as 1v1), with their best result being 5th place at the *Eternal Sports Crew Battle Championship 2026 - Europe*.\n- **0 top 8s in 2v2**.\n\nThe earliest top 8 was 7th place at *Trial of Heimdall - Europe (Brawl League)* in July 2024, and their latest was 5th place at the 2026 crew battle event."
+
+[[run]]
+arm = "on"
+question = "h02"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 top 8s, all 1v1 with the crew battle counted as 1v1, naming Pink | Teehee."
+answer = "Pink | Teehee (formerly halloween!) has **4 official top 8s** across 1v1 and 2v2 modes at official events:\n\n- **1v1**: 4 top 8 placements (including 1 crew battle counted as 1v1)\n- **2v2**: 0 top 8s\n\nTheir best 1v1 top 8 was 5th place at the *Eternal Sports Crew Battle Championship 2026 - Europe* on 2026-08-29. Their earliest top 8 was 7th place at *Trial of Heimdall - Europe (Brawl League)* on 2024-07-13."
+
+[[run]]
+arm = "on"
+question = "h02"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 top 8s, all 1v1 with the crew battle counted as 1v1, naming Pink | Teehee."
+answer = "Pink | Teehee (formerly halloween!) has **4 official top 8 placements** across 1v1 and 2v2 modes at official events:\n\n- **1v1**: 4 top 8s (including 1 crew battle counted as 1v1)\n- **2v2**: 0 top 8s\n\nTheir best 1v1 top 8 was 5th place at the *Eternal Sports Crew Battle Championship 2026 - Europe* on 2026-08-29. The earliest top 8 was 7th place at the *Trial of Heimdall - Europe (Brawl League)* in 2024."
+
+# h03 (retrieval on): what's neze's best official 1v1 finish?
+# Expected: Neeze's best official 1v1 finish is 1st: Neeze won the 1v1 at the Brawlhalla Autumn Championship 2019 (EU), 2019-09-28, Neeze's only official 1v1 win.
+
+[[run]]
+arm = "on"
+question = "h03"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "Best 1v1 finish 1st, right, but it adds that Neeze has no other top-3 placements in 1v1: player_results with top=1 counts only wins, so its 2nd and 3rd columns are 0 by construction. Neeze has four 2nd and six 3rd places."
+answer = "Neeze's best official 1v1 finish is **1st place** at the *Brawlhalla Autumn Championship 2019 (EU)/Brawlhalla Championship 1v1* on **2019-09-28**. This was their only 1v1 win in the database, with no other top-3 placements recorded in 1v1 mode."
+
+[[run]]
+arm = "on"
+question = "h03"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "Best 1v1 finish 1st, right, but it adds that Neeze has no other top-3 placements in 1v1: player_results with top=1 counts only wins, so its 2nd and 3rd columns are 0 by construction. Neeze has four 2nd and six 3rd places."
+answer = "Neeze's best official 1v1 finish is **1st place** at the *Brawlhalla Autumn Championship 2019 (EU) / Brawlhalla Championship 1v1* on **2019-09-28**. This is their only 1v1 win in the database, with no other top-3 placements in 1v1 mode."
+
+[[run]]
+arm = "on"
+question = "h03"
+seed = 2
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "Best 1v1 finish 1st, right, but it adds that Neeze has no other top-3 placements in 1v1: player_results with top=1 counts only wins, so its 2nd and 3rd columns are 0 by construction. Neeze has four 2nd and six 3rd places."
+answer = "Neeze's best official 1v1 finish is **1st place** at the *Brawlhalla Autumn Championship 2019 (EU) / Brawlhalla Championship 1v1* on **2019-09-28**. This was their sole 1v1 win in the database, with no other top-3 placements in 1v1 format."
+
+# h04 (retrieval on): Legion | kaito vs sacwastaken in 1v1, who's ahead?
+# Expected: sacwastaken leads Legion | kaito 5-4 in 1v1 sets at official events (20-17 in games), with no unscored sets.
+
+[[run]]
+arm = "on"
+question = "h04"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "sacwastaken 5-4, right, but it lists 2024-09-14, a set sacwastaken won, among kaito's wins too, '(tie?)'."
+answer = "**Legion | kaito vs sacwastaken (1v1 head-to-head):**  \n- **sacwastaken** leads with **5 wins** to **4 wins** (55.5% win rate) in 9 total sets.  \n- **Legion | kaito** has 4 wins, including the most recent set (2026-02-21).  \n- **Key sets:**  \n  - sacwastaken won: 2023-07-29, 2024-04-06, 2024-07-13, 2024-09-14, 2025-09-13.  \n  - Legion | kaito won: 2023-09-23, 2024-09-14 (tie?), 2025-05-10, 2025-07-19, 2026-02-21.  \n\n**Conclusion:** sacwastaken holds the edge in the head-to-head, but Legion | kaito has shown recent competitiveness."
+
+[[run]]
+arm = "on"
+question = "h04"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "sacwastaken 5-4, right, but it gives sacwastaken a 44.4% win rate, which is kaito's."
+answer = "In **1v1 matches** between **Legion | kaito** (player_id 156785) and **sacwastaken** (player_id 113328), **sacwastaken has the edge** with **5 wins vs. 4 losses** (44.4% win rate). \n\n- **Key sets**:  \n  - Sacwastaken won **5 sets** (e.g., 2023-07-29, 2024-04-06, 2024-07-13, 2025-09-13).  \n  - Legion | kaito won **4 sets** (e.g., 2023-09-23, 2025-05-10, 2025-07-19, 2026-02-21).  \n\nThe most recent match (2026-02-21) was a **Legion | kaito victory**, but sacwastaken’s overall record remains stronger."
+
+[[run]]
+arm = "on"
+question = "h04"
+seed = 2
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "sacwastaken 5-4, right, but its account of the sets is wrong: a '2025 Winter Championship' set that isn't there, and sacwastaken winning the last two, though kaito won the 2026 one."
+answer = "In **1v1 matches** between **Legion | kaito** (player_id 156785) and **sacwastaken** (player_id 113328), **sacwastaken has the better record**:\n\n- **Legion | kaito**: 4 wins, 5 losses (44% win rate)  \n- **sacwastaken**: 5 wins, 4 losses (56% win rate)  \n\n### Key Matches:\n- **2023–2026**: sacwastaken dominated, winning 5 of 9 sets (e.g., 2023 South America Summer Championship, 2025 Winter Championship).  \n- **2025–2026**: Legion | kaito won 2 of 3 sets, but sacwastaken secured the final two matches (2025 Autumn, 2026 Winter).  \n\nsacwastaken holds the edge in head-to-head 1v1 results."
+
+# h05 (retrieval on): who won the eu springs in 2024?
+# Expected: Zivai and Blaze won the Spring Doubles Championship - Europe (2024-05-04). The 2024 seasonal championships were 2v2 only, so there was no 1v1 event.
+
+[[run]]
+arm = "on"
+question = "h05"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Blaze and Zivai at the Spring Doubles Championship - Europe 2024."
+answer = "The winner of the **Spring Doubles Championship - Europe / Brawlhalla Championship 2v2** in 2024 (mode: 2v2) was the team **Blaze / Zivai** (player IDs 149204 and 147982). This result comes from the official event's bracket data."
+
+[[run]]
+arm = "on"
+question = "h05"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Blaze and Zivai at the Spring Doubles Championship - Europe 2024."
+answer = "The **Spring Doubles Championship - Europe / Brawlhalla Championship 2v2** in **2024** (held on May 4, 2024) was won by the **2v2 team of Blaze and Zivai** (player IDs 149204 and 147982). This victory secured their top placement in the 2v2 mode of the event."
+
+[[run]]
+arm = "on"
+question = "h05"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Blaze and Zivai at the Spring Doubles Championship - Europe 2024."
+answer = "The **Spring Doubles Championship - Europe / Brawlhalla Championship 2v2** in 2024 (mode: 2v2) was won by the team **Blaze / Zivai** (player IDs 149204 and 147982). The event took place on May 4, 2024, and the bracket is available [here](https://www.start.gg/tournament/spring-doubles-championship-europe/event/brawlhalla-championship-2v2/brackets)."
+
+# h06 (retrieval on): who won the autumn royale?
+# Expected: There have been three official Autumn Royales, all 1v1: loreszz won in 2023 (2023-10-14), Marckiem00 in 2024 (2024-10-11) and Ahmet_ in 2025 (2025-10-12).
+
+[[run]]
+arm = "on"
+question = "h06"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "All three Autumn Royales with their winners."
+answer = "The name \"autumn royale\" matches three official events, each with different winners:\n\n1. **Brawlhalla - Autumn Royale 2025** (2025-10-12, 1v1)  \n   ✅ **Winner**: *Ahmet_*\n\n2. **Brawlhalla - Autumn Royale 2024 / Brawlhalla Championship 1v1** (2024-10-11, 1v1)  \n   ✅ **Winner**: *Marckiem00*\n\n3. **Brawlhalla - Autumn Royale 2023 / Brawlhalla Championship 1v1** (2023-10-14, 1v1)  \n   ✅ **Winner**: *loreszz*\n\nSpecify a year to get the winner for a particular edition."
+
+[[run]]
+arm = "on"
+question = "h06"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "All three Autumn Royales with their winners."
+answer = "The name \"Autumn Royale\" refers to three distinct tournaments in the data, each held in a different year. Here are the winners:\n\n1. **Autumn Royale 2025** (October 12, 2025, 1v1): **Ahmet_** (player_id 75405)  \n2. **Autumn Royale 2024** (October 11, 2024, 1v1): **Marckiem00** (player_id 146052)  \n3. **Autumn Royale 2023** (October 14, 2023, 1v1): **loreszz** (player_id 132)  \n\nThe term \"Autumn Royale\" is used for the 1v1 championship in each year, so the answer depends on which specific event the question refers to. If a year was intended, please clarify!"
+
+[[run]]
+arm = "on"
+question = "h06"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "All three Autumn Royales with their winners."
+answer = "The name \"autumn royale\" matches three official events. Here are the winners for each:\n\n1. **Brawlhalla - Autumn Royale 2025** (October 12, 2025)  \n   - **Winner**: Ahmet_ (Player ID 75405)  \n   - [Bracket Link](https://www.challengermode.com/s/Brawlhalla/tournaments/4094a2c5-f457-4328-06c3-08de04da3a3e)\n\n2. **Brawlhalla - Autumn Royale 2024 / Brawlhalla Championship 1v1** (October 11, 2024)  \n   - **Winner**: Marckiem00 (Player ID 146052)  \n   - [Bracket Link](https://www.start.gg/tournament/brawlhalla-autumn-royale-2024/event/brawlhalla-championship-1v1/brackets)\n\n3. **Brawlhalla - Autumn Royale 2023 / Brawlhalla Championship 1v1** (October 14, 2023)  \n   - **Winner**: loreszz (Player ID 132)  \n   - [Bracket Link](https://www.start.gg/tournament/brawlhalla-autumn-royale-2023/event/brawlhalla-championship-1v1/brackets)\n\nSpecify a year or additional details if you're referring to a particular event."
+
+# h07 (retrieval on): who won the north america crew battle invitational?
+# Expected: Boomie, capsar and antireplay's crew won the North America - Crew Battle Invitational (2022-03-20), ahead of Anon Alex, Phazon and Raydish. Crew battles count as 1v1.
+
+[[run]]
+arm = "on"
+question = "h07"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie, antireplay and capsar's crew, a crew battle counted as 1v1."
+answer = "The **North America - Crew Battle Invitational / Brawlhalla Crew Battle 3v3** (held on **2022-03-20** in a **1v1 (crew battle)** format) was won by the team **Boomie / antireplay / capsar**. This crew secured **1st place** in the event. \n\nThe winning team consists of the following players:  \n- **Boomie** (player_id 146606)  \n- **antireplay** (player_id 158406)  \n- **capsar** (player_id 147569)  \n\nThis result is part of the official Brawlhalla esports records for crew battle events."
+
+[[run]]
+arm = "on"
+question = "h07"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie, antireplay and capsar's crew, a crew battle counted as 1v1."
+answer = "The **North America - Crew Battle Invitational / Brawlhalla Crew Battle 3v3** (held on 2022-03-20 in 1v1 crew battle format) was won by the team **Boomie / antireplay / capsar** (player IDs: 146606, 158406, 147569). This crew battle victory counts as a 1v1 event result for the team. \n\nThe bracket is available [here](https://www.start.gg/tournament/north-america-crew-battle-invitational/event/brawlhalla-crew-battle-3v3/brackets)."
+
+[[run]]
+arm = "on"
+question = "h07"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Boomie, antireplay and capsar's crew, a crew battle counted as 1v1."
+answer = "The **North America Crew Battle Invitational** (held on March 20, 2022) was won by the crew **Boomie / antireplay / capsar** in the 1v1 (crew battle) mode. This team secured first place in the event."
+
+# h08 (retrieval on): in which year did powerbh win the most official events?
+# Expected: 2021, with 7 official wins. powerbh won 5 in 2022, 4 in 2020 and 1 in 2023: 17 in all (4 in 1v1, 13 in 2v2).
+
+[[run]]
+arm = "on"
+question = "h08"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2021, with 7 wins."
+answer = "powerbh won the most official events in **2021**, with **7 wins** across 1v1 and 2v2 formats. This is the highest count of victories recorded for them in any single calendar year."
+
+[[run]]
+arm = "on"
+question = "h08"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2021, with 7 wins."
+answer = "powerbh won the most official events in **2021**, with **7 wins**. This is based on their placement=1 results in the v_results table, grouped by the year from start_date."
+
+[[run]]
+arm = "on"
+question = "h08"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "2021, with 7 wins."
+answer = "powerbh won the most official events in **2021**, with **7 wins** that year. This is based on their official results in the database, filtered to count only placements of 1 (wins) and grouped by the year of the event."
+
+# h09 (retrieval on): how many different partners has powerbh won a 2v2 title with?
+# Expected: 4: SiB | Wess (7 titles together), lopesbrawlhalla (4), yüz (1) and DB (1), for 13 official 2v2 wins.
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 partners."
+answer = "powerbh has won 2v2 titles with 4 different partners."
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "4 partners."
+answer = "powerbh has won 2v2 titles with 4 different partners."
+
+[[run]]
+arm = "on"
+question = "h09"
+seed = 2
+verdict = "partly"
+stage = "SQL logic"
+review = "needs review"
+note = "4, but counted by reading four rows of bare partner IDs, which it lists without names, telling the user to look them up."
+answer = "Powerbh has won 2v2 titles with **4 different partners**. These partners have the following player IDs: 37977, 49216, 73254, and 113. To get their names, you'd need to resolve each ID individually, but the question specifically asks for the count of unique partners. \n\n**Answer:** 4 different partners."
+
+# h10 (retrieval on): who has keiththepoopoo beaten the most times in 1v1?
+# Expected: plumthegreat: keiththepoopoo has beaten plumthegreat 8 times in 1v1 sets at official events (8-1). Next come TigerBrawlhalla (6-1), hrzz (6-3) and SireXDD (6-6), with 6 wins each.
+
+[[run]]
+arm = "on"
+question = "h10"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "plumthegreat, 8 wins."
+answer = "keiththepoopoo has beaten **plumthegreat** the most times in 1v1 matches, with **8 wins** against them. This is based on head-to-head records in the data."
+
+[[run]]
+arm = "on"
+question = "h10"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "plumthegreat, 8 wins."
+answer = "keiththepoopoo has beaten **plumthegreat** the most times in 1v1 matches, with **8 wins** recorded in their head-to-head history."
+
+[[run]]
+arm = "on"
+question = "h10"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "plumthegreat, 8 wins."
+answer = "keiththepoopoo has beaten **plumthegreat** the most times in 1v1 matches, with a total of **8 wins** against them. \n\nThis result comes from aggregating keiththepoopoo's (player_id 111680) 1v1 head-to-head records, where plumthegreat (opponent_id 150037) had the highest number of losses to keiththepoopoo."
+
+# h11 (retrieval on): who won the most official 1v1 events in 2024?
+# Expected: Zivai and whoiskyna, tied with 7 official 1v1 wins each in 2024. yüz is next with 4.
+
+[[run]]
+arm = "on"
+question = "h11"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and whoiskyna, tied at 7."
+answer = "In 2024, **Zivai** and **whoiskyna** tied for the most official 1v1 event wins, each securing **7 victories** in 1v1 format across official events."
+
+[[run]]
+arm = "on"
+question = "h11"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and whoiskyna, tied at 7."
+answer = "In 2024, **Zivai** and **whoiskyna** tied for the most official 1v1 event wins, each securing **7 victories** in the 1v1 mode. They are ranked first, with no other players matching their total."
+
+[[run]]
+arm = "on"
+question = "h11"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "Zivai and whoiskyna, tied at 7."
+answer = "In 2024, **Zivai** and **whoiskyna** tied for the most official 1v1 event wins, each securing **7 victories** in the 1v1 mode. They are ranked 1st, with no other player matching their count. The full ranking includes all tied players, but these two stood at the top."
+
+# h12 (retrieval on): what was himwy's 1v1 set record in 2024?
+# Expected: 30-2 in 1v1 sets at official events in 2024, with no unscored sets.
+
+[[run]]
+arm = "on"
+question = "h12"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "30-2, no unscored sets."
+answer = "In 2024, **himwy** had a 1v1 set record of **30 wins**, **2 losses**, and **32 total sets** played, with **0 unscored matches**. This reflects their dominance in 1v1 competitions that year."
+
+[[run]]
+arm = "on"
+question = "h12"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "30-2, no unscored sets."
+answer = "In 2024, **himwy** had a dominant **1v1 set record** with **32 total sets** played, winning **30** and losing **2** (a 15-1 win rate). All sets were scored, with **0 unscored matches**. This reflects a highly consistent performance in 1v1 competitions that year."
+
+[[run]]
+arm = "on"
+question = "h12"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "30-2, no unscored sets."
+answer = "In 2024, **himwy** had a **30-2 record** in 1v1 sets, playing a total of **32 sets** with **0 unscored sets**. This reflects a dominant performance, winning all but 2 of their 1v1 matches that year."
+
+# h13 (retrieval on): what was Santy's set record at the 2021 Pro Series finals?
+# Expected: The data has no sets for the Pro Series finals, only placements, so Santy's set record there isn't available. Santy's crew won the Pro Series 2021 finals (1st), with gdsandstorm, DEZZ, Snowy!!, S!mba and Zinquer.
+
+[[run]]
+arm = "on"
+question = "h13"
+seed = 0
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "Says Santy didn't take part, from 0 sets, perhaps excluded by the crew format: never that the finals have no match data, nor that Santy's crew won."
+answer = "Santy did not participate in any 1v1 matches at the 2021 Pro Series finals. The query returned 0 sets, indicating no recorded sets played in this event for Santy. This could mean they were absent, did not qualify, or the event format (crew battle) excluded their participation."
+
+[[run]]
+arm = "on"
+question = "h13"
+seed = 1
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "Says the data records no sets for Santy, and that none may have been logged, beside non-participation. Nothing on the crew's win."
+answer = "The data does not record any 1v1 sets for Santy at the **2021 Pro Series finals** (event ID: `series/pro-series-2021-na`). This could mean he did not participate in the event, or no match results were logged for him in this competition."
+
+[[run]]
+arm = "on"
+question = "h13"
+seed = 2
+verdict = "partly"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "Opens with 'did not participate', but offers that the event data may not include Santy. Nothing on the crew's win."
+answer = "Santy did not participate in any sets during the **2021 Pro Series finals** (event ID: `series/pro-series-2021-na`). The query returned **0 total sets**, meaning no match results were recorded for Santy in this event. This could indicate they did not compete in any sets, or the event data does not include their participation. \n\nNo wins, losses, or sets are recorded for Santy in this specific tournament."
+
+# h14 (retrieval on): what country is Fozey from?
+# Expected: The data doesn't say: no player's country is recorded (the players table has a country column, but it's empty for every player).
+
+[[run]]
+arm = "on"
+question = "h14"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "The data records no player's country. No tool called."
+answer = "The data does not include information about players' countries of origin. The available tools and tables track player names, event results, head-to-head records, and other competitive statistics, but not geographic or personal details like country of residence."
+
+[[run]]
+arm = "on"
+question = "h14"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "The data records no player's country. No tool called."
+answer = "The data provided does not include information about players' countries of origin. The available tools and tables track esports results, rankings, and competitive statistics but do not record personal details like nationality or country. Fozey's country cannot be determined from this dataset."
+
+[[run]]
+arm = "on"
+question = "h14"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "The data records no player's country. No tool called."
+answer = "The data does not include information about players' countries of origin. The available tools can provide details about player results, event standings, head-to-head records, and rankings, but not geographic or demographic information like country of residence."
+
+# h15 (retrieval on): who has the most official top 8s without ever winning an official event?
+# Expected: sphynx., with 36 top 8s at official events across 1v1 and 2v2 and no official win. Next come Goddess (33) and hermisen (32).
+
+[[run]]
+arm = "on"
+question = "h15"
+seed = 0
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "Ranked everyone by top 8s with rank_players, which can't leave out winners, then called acno? winless (acno? has 36 wins)."
+answer = "The player with the most official top 8s without ever winning an official event is **acno?**. \n\n**Key details:**\n- **Top 8s:** 92 (ranked 4th in the provided data).\n- **Wins:** 0 (no 1st-place finishes in any official event).\n\nWhile the top players in the `rank_players` list (Boomie, gdsandstorm, SiB | Wess, and noeL) all have wins, **acno?** stands out as the only player in the top 5 with **zero wins**. This makes them the best candidate for the criteria. \n\n**Note:** The data may not include all players, but based on the provided results, acno? is the only one meeting the condition."
+
+[[run]]
+arm = "on"
+question = "h15"
+seed = 1
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "Gave rank_players' top 5 by top 8s (Boomie, gdsandstorm, SiB | Wess, acno?, noeL) as players who never won; each has dozens of wins."
+answer = "The players with the most official top 8s without ever winning an official event are:\n\n1. **Boomie** (146606) - 121 top 8s  \n2. **gdsandstorm** (74433) - 101 top 8s  \n3. **SiB | Wess** (37977) - 95 top 8s  \n4. **acno?** (144399) - 92 top 8s  \n5. **noeL** (115723) - 82 top 8s  \n\n**Note:** These players have no recorded official wins (placement=1) in the data, meaning they reached top 8s but never secured a victory in an official event. Their top 8s include both 1v1 and 2v2 formats, as the data aggregates placements across all modes."
+
+[[run]]
+arm = "on"
+question = "h15"
+seed = 2
+verdict = "wrong"
+stage = "SQL logic"
+review = "needs review"
+note = "Named Boomie (44 wins) as never having won, saying the ranking leaves out winners, which it doesn't."
+answer = "The player with the most official top 8s without ever winning an event is **Boomie** (player_id 146606), with **121 top 8 placements** across 1v1 and 2v2 formats. This ranking excludes players who have won any official event (placement = 1). \n\n**Key details**:\n- **Top 8s**: 121 (61 in 1v1, 60 in 2v2).\n- **Wins**: No recorded wins (verified by checking their official results).\n- **Crew battles**: 3 (counted as 1v1 in the data).\n\nThis result is derived from the `rank_players` tool, which prioritizes top 8s and includes ties. Further verification via `player_results` confirms Boomie has no wins."
+
+# h16 (retrieval on): has Piggers ever won a 1v1 event?
+# Expected: No: Piggers has no official 1v1 win. Piggers's best official 1v1 finish is 2nd (in 27 1v1 results). All 11 of Piggers's official wins are in 2v2.
+
+[[run]]
+arm = "on"
+question = "h16"
+seed = 0
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "Never won a 1v1 event, right, but '48 official 1v1 results' (48 in all, 27 in 1v1) 'all outside the top 8': player_results with top=1 counts only wins. Piggers's best 1v1 finish is 2nd."
+answer = "Piggers has never won a 1v1 event. In their 48 official 1v1 results (as of 2023-03-31), they never placed 1st. The data shows 0 wins in 1v1 mode, with all results falling outside the top 8."
+
+[[run]]
+arm = "on"
+question = "h16"
+seed = 1
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "Never won a 1v1 event, right, but it guesses the best 1v1 result as 'likely 4th or lower' (it's 2nd), with '48 official 1v1 results (27 entries)'."
+answer = "Piggers has never won a 1v1 event. According to the data, none of his 48 official 1v1 results (27 entries) achieved a 1st place finish. His best result in 1v1 is unlisted (likely 4th or lower), though he has participated in 2v2 events with 21 entries. The count of 0 wins confirms he has no official 1v1 event victories."
+
+[[run]]
+arm = "on"
+question = "h16"
+seed = 2
+verdict = "partly"
+stage = "answer writing"
+review = "needs review"
+note = "Never won a 1v1 event, right, but '48 official 1v1 results' with '0 medals and 0 top 8s': player_results with top=1 counts only wins. Piggers's best 1v1 finish is 2nd."
+answer = "Piggers has never won a 1v1 event. Their 48 official 1v1 results (as of 2023-03-31) show 0 wins, 0 medals (top 3), and 0 top 8 placements. The data indicates they participated in 1v1 competitions but never secured a first-place finish in any official event."

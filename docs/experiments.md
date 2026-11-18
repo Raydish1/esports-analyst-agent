@@ -2,6 +2,83 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-17: the held-out set's final measurement, after the template tools
+
+**The held-out set is now spent for tuning.** Its questions, checks and traces were read to score this run, so a change made for anything below would be tuned on it. Measuring such a change needs new held-out questions. Nothing in the agent changed because of this run.
+
+**Question:** how does the agent with the template tools do on the 16 questions it was never tuned on, against the same questions on 2026-11-08?
+
+**Setup:**
+- **The agent** at commit f05ae4a: the template tools and the two views (the entry below), then the three fixes decided after them. A tool call on a player_id that no tool returned and the question doesn't give is refused (0a32b79), ex29 orders by `start_time` without selecting it (e59f39d), and `head_to_head`'s description says it counts sets, not placements (f05ae4a). Ollama 0.40.16, 30 worked examples.
+- **The run:** `20261117-heldout`, the 16 held-out questions, retrieval on, seeds 0–2, 48 runs. No run failed or was retried. Before it, a smoke test of the player check on q01, q06 and q39 at seed 0 (`20261117-playercheck-smoke`) refused nothing and crashed nothing. In the run itself the check never fired.
+- **The baseline:** the same 48 runs in `20261108-eval-on`, at commit adf4cf0, Ollama 0.40.15, 28 examples. It predates the prompt's earnings and coverage lines (step 1) and the names work (step 2) as well as the templates, so this compares all three changes together, not the templates alone.
+- **Scoring** as on 2026-11-08: the automatic stages 1 and 2, and every run's verdict drafted by hand, all 48 marked "needs review". The 2026-11-08 verdicts are that session's drafts, compared as they stand, not re-judged.
+- **Reading the set:** until the run was done, this session opened no held-out file or trace. The held-out lines of `tests/test_harness.py` were masked, and the leak test's output filtered to test names. Then `heldout.toml`, `eval/heldout_checks.py` and both runs' held-out traces were read to score it.
+
+**Results** (each question kept its group in both runs: 11 known shape, 5 new):
+
+| Group | 2026-11-08: runs right | Runs partly | Questions right in every seed | 2026-11-17: runs right | Runs partly | Questions right in every seed |
+|---|---|---|---|---|---|---|
+| held-out, known shape | 26/33 (79%) | 5/33 (15%) | 6/11 (55%) | 24/33 (73%) | 5/33 (15%) | 8/11 (73%) |
+| held-out, new shape | 10/15 (67%) | 3/15 (20%) | 3/5 (60%) | 8/15 (53%) | 7/15 (47%) | 2/5 (40%) |
+| **all** | **36/48 (75%)** | 8/48 (17%) | 9/16 (56%) | **32/48 (67%)** | 12/48 (25%) | 10/16 (62%) |
+
+| First stage that failed | 2026-11-08: 12 of 48 runs not right | 2026-11-17: 16 of 48 |
+|---|---|---|
+| name resolution | 0 | 0 |
+| SQL logic | 5 | 4 |
+| empty or insufficient data | 3 | 3 |
+| answer writing | 4 | 9 |
+
+The automatic stages passed in 40 of 48 runs before and 41 after. Fewer runs are right, but more questions are right in every seed: the misses now fall on whole questions.
+
+| Question | 2026-11-08, seeds 0 / 1 / 2 | 2026-11-17 | Runs right |
+|---|---|---|---|
+| h01 pugsyxd's 2v2 titles | right / partly / right | right / right / right | 2 → 3 |
+| h02 halloween!'s top 8s | right / right / right | right / right / right | 3 → 3 |
+| h03 neze's best 1v1 finish | partly / partly / partly | partly / partly / partly | 0 → 0 |
+| h04 Legion \| kaito vs sacwastaken | right / wrong / wrong | partly / partly / partly | 1 → 0 |
+| h05 eu springs 2024 | right / partly / right | right / right / right | 2 → 3 |
+| h06 the autumn royale | right / right / right | right / right / right | 3 → 3 |
+| h07 NA crew battle invitational | right / right / partly | right / right / right | 2 → 3 |
+| h08 powerbh's best year | right / right / right | right / right / right | 3 → 3 |
+| h09 powerbh's title partners | right / right / right | right / right / partly | 3 → 2 |
+| h10 keiththepoopoo's most beaten | right / right / right | right / right / right | 3 → 3 |
+| h11 most 1v1 wins in 2024 | right / right / wrong | right / right / right | 2 → 3 |
+| h12 himwy's 2024 set record | right / right / right | right / right / right | 3 → 3 |
+| h13 Santy at the 2021 Pro Series finals | partly / wrong / partly | wrong / partly / partly | 0 → 0 |
+| h14 Fozey's country | right / right / right | right / right / right | 3 → 3 |
+| h15 most top 8s, never a win | right / right / right | wrong / wrong / wrong | 3 → 0 |
+| h16 Piggers, a 1v1 win? | right / right / right | partly / partly / partly | 3 → 0 |
+
+**Tool use**, per run: `run_sql` 1.10 → 0.40, and template calls 0.75 (`player_results` 0.38, `event_results` 0.19, `rank_players` 0.12, `head_to_head` 0.06). Steps per run 3.10 → 2.90, and model time per run 31.8 s → 15.9 s. `run_sql` errors went from 8 to 3.
+
+**What got better:**
+- h04: in 2026-11-08 every query of seeds 1 and 2 timed out, and both answers invented a record. `head_to_head` gives 5-4 to sacwastaken in every seed.
+- h05 seed 1 and h07 seed 2 had named one winner of a team or crew. `event_results` keeps a team whole.
+- h11 seed 2 had given Zivai the lead alone, with whoiskyna at 6 instead of tied at 7. `rank_players` keeps the tie.
+- h01 seed 1 echoed "pugsyxd". It names Pugsy now, as the names work of step 2 asks.
+
+**What got worse:**
+- **h15, 3 of 3 wrong.** "Who has the most official top 8s without ever winning an official event?" went to `rank_players(by="top8s")`, which ranks everyone and can't leave out winners. Every answer then said the ranked players never won: acno? in seed 0 (36 wins), after reading `player_results` that show them; the whole top 5 in seed 1; and Boomie in seed 2 (44 wins), "verified via player_results", a call it never made. On 2026-11-08 all three wrote an anti-join in SQL and were right. The prompt's line "who has the most wins, medals or top 8s: rank_players" matched the question's start, and nothing says the template can't take a condition.
+- **h16 and h03, 6 of 6 partly.** Both called `player_results` with `top=1`. Its summary's 2nd, 3rd and top-8 columns then count only within the wins, so they're 0 by construction, and the answers read them as the player's whole record. Piggers has "0 medals and 0 top 8s" in 1v1, though Piggers's best 1v1 finish is 2nd. Neeze has "no other top-3 placements", though Neeze has four 2nd and six 3rd places. h16's answers also turned the note's "48 official results (27 in 1v1, 21 in 2v2)" into "48 official 1v1 results". The main fact, no 1v1 win and a best of 1st, is right in all six.
+- **h04, 3 of 3 partly.** The record is right, but each answer misdescribes the 9 sets it lists: a set given to both players, sacwastaken given kaito's win rate, and a set that doesn't exist.
+- **h09 seed 2, partly.** It counted four rows of bare partner IDs by reading them, and told the user to look up the names.
+
+**Unchanged:** h13, 0 of 3 right both times. The Pro Series finals have placements but no matches, so every run finds 0 sets and says, or hedges, that Santy didn't take part, without the crew's win. 2026-11-08 proposed a prompt line for this. It wasn't built.
+
+**Findings, not acted on** (any change for them would be tuned on this set):
+- `player_results`' 2nd, 3rd and top-8 columns mislead under a `top` filter (h03, h16).
+- `rank_players` took a question with a condition it can't express, and the answers invented the condition's result (h15).
+- A long list of sets invites misreading (h04).
+- The Pro Series finals still read as "didn't take part" (h13).
+
+**Caveats:**
+- The judge is Claude in both runs, but in two sessions, and strictness may differ. This reading counts a false secondary claim as partly. The 2026-11-08 draft of h16 seed 0 passed an answer claiming the database had 11 1v1 entries, none of them Piggers's, though Piggers has 27.
+- Small groups: with 11 and 5 questions, one question moves a group's all-seed rate by 9 or 20 points.
+- The two runs differ in steps 1 and 2, the views and templates, the three fixes, the bank (28 → 30 examples) and the server's patch version (0.40.15 → 0.40.16).
+- The held-out set was written by Claude, and the templates were designed without it. Its 16 questions are now spent.
+
 ## 2026-11-17: two views and four template tools, so the model writes less SQL
 
 **Change** (commits c0224ec to abb5109), the plan "two views and four template tools", approved 2026-11-09:
