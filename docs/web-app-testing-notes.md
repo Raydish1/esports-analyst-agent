@@ -18,3 +18,11 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
   keep it: it runs the lookups itself on the question's names (`resolve_event`, `resolve_player`) and gives the model the
   results, or, failing that, replaces the answer with "I couldn't look this up", as the number check replaces claims.
   The model's own knowledge never settles that a player or event doesn't exist.
+
+### 2. A list of sets names each set by its date, not its event
+
+- **Seen:** Raydish's record against Kyna (`20261119T233544Z-002`). The answer's "Key Matches" read "2022-11-04:
+  whoiskyna won 3–2", and so on. `head_to_head`'s set table had each set's event ("Brawlhalla World Championship Expo
+  2022 / 1v1"), but the answer used only the date.
+- **Wanted (the user):** each set named by its tournament, written short (BCX 2022, Winter Royale 2023), rather than by
+  date. The prompt's answer guidance, and the worked example showing a `head_to_head` call, say so.
