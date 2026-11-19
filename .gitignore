@@ -20,11 +20,7 @@ ENV/
 # Broadcast screenshots used for layout ideas only (docs/stat-cards-proposal.md): never commit
 docs/graphics-reference/
 
-# Legend art for the stat cards: not committed until redistribution is confirmed (DATA.md)
-app/static/art/legends/**/*.webp
 
 # Proxima Nova, the broadcast font: licensed, so its files are never committed (DATA.md)
 app/static/fonts/
 
-# The hero's character art (official artwork): not committed until redistribution is confirmed (DATA.md)
-app/static/art/hero/*.webp

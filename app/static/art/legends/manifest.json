@@ -1,5 +1,5 @@
 {
-  "_about": "Legend art for the stat cards, from the Brawlhalla wiki (brawlhalla.wiki.gg) by app/dev/fetch_legend_art.py: slug -> name, source page, file (the idle pose, a transparent WebP trimmed to the figure), head (heads/<slug>.webp, the classic skin icon), and optional offset_x, offset_y (px in the 1920x1080 frame) and scale. The art is Blue Mammoth Games'; the WebP files are git-ignored until their redistribution is confirmed (DATA.md). A legend without a file leaves the card's art slot empty.",
+  "_about": "Legend art for the stat cards, from the Brawlhalla wiki (brawlhalla.wiki.gg) by app/dev/fetch_legend_art.py: slug -> name, source page, file (the idle pose, a transparent WebP trimmed to the figure), head (heads/<slug>.webp, the classic skin icon), and optional offset_x, offset_y (px in the 1920x1080 frame) and scale. The art is Blue Mammoth Games', cleared for redistribution (DATA.md). A legend without a file leaves the card's art slot empty.",
   "legends": {
     "ada": {
       "name": "Ada",
