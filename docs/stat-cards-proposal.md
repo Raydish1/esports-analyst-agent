@@ -325,8 +325,8 @@ to the hex digit.
 - The figures are the cards' scope (all official events, both modes, crew battles as 1v1), so Mounir shows 1 / 3 / 6
   and 20 top 8s in 1v1, against the broadcast's 19. A line at the panel's foot states the scope and the earnings'
   source and date, and the page repeats it in the "What this counts" box below the frame, with the mode switch.
-- The legend slot (x 400–960, y 560–1080) stays empty until the player's main is in `data/curated/player_legends.csv`
-  and its WebP and manifest entry are in `app/static/art/legends/`.
+- The legend slot (x 400–960, y 560–1080) shows the player's main from `data/curated/player_legends.csv`, or the
+  random-legend silhouette (`app/static/art/legends/random.webp`) when they have none (2026-11-19).
 
 ### Head-to-head and set list (2026-11-18)
 
@@ -400,7 +400,9 @@ redistribution is confirmed.
   is drawn over their feet.
 - **Lifetime:** the reference's legend is Tezca in a fighting stance the wiki doesn't have (neither the idle pose nor
   the official art), so the card shows the idle pose in the reference figure's place: x 400–960, feet at y 1056.
-- **Which legend:** a player's main comes from `data/curated/player_legends.csv` only; no main, no art.
+- **Which legend:** a player's main comes from `data/curated/player_legends.csv` only, which the legends crawl
+  (stage 5) fills for PR players: 2,055 of 4,981 (2026-11-19). No main: the random-legend silhouette the user gave,
+  made transparent at the idle poses' height, never a guessed legend.
 - The heads aren't on any card yet; they're for smaller slots later (the 2v2 layout, a sidebar).
 
 ### The producer's fonts (2026-11-18)
