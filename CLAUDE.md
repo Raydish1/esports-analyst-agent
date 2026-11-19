@@ -116,7 +116,8 @@ What's fetched, all complete. Responses are in `data/raw/cache/`, and the reques
   - a 200-player pilot of histories and 2v2 teams (3–4; full runs held, as decided);
   - Stats API records for 146,261 start.gg and Challengermode players (2b; 98 have none, of whom 43 placed or played);
   - the Pro Series finals' placements (3b, 84);
-  - a placement check for entrants missing from start.gg standings (3c; the Stats API had none).
+  - a placement check for entrants missing from start.gg standings (3c; the Stats API had none);
+  - legends, for the stat cards' art (5, a pilot, 2026-11-19): GetPlayerLegends for each region's top 50 in the 1v1 PR, all time, 2025 and 2026 (750 requests). `python ingest/legend_mains.py` picks a main (the latest year with 10 games or more, then all time) for 166 of the 250, into `data/curated/player_legends.csv`, which the web app's cards read. By region: NA 45, EU 44, SA 34, MENA 28, SEA 15 of 50. prostats.brawlhalla.com shows the same API's counts for the current year (BBBalloonBoy's 2026: Diana 100, Vivi 41, Lucien 9, Zariel 4).
 - start.gg:
   - the standings of all 529 official start.gg events (P1: 267,697 entrants, 138,696 players);
   - all 536,633 sets with pools, round best-ofs and last-phase games (P4);
@@ -128,6 +129,7 @@ Code (`ingest/`; tests: `python -m unittest discover -s tests`):
 - Clients: `statsapi.py`, `startgg.py` and `challengermode.py`, all writing every response to the cache in `cache.py` before parsing.
 - The crawl: `crawl.py` holds the stages and `status`. `tasks.py` holds the resumable task queue and per-API run locks.
 - `merge_candidates.py` builds the merge review list.
+- `legend_mains.py` writes each player's main legend from stage 5 to `data/curated/player_legends.csv`. Rows with a source other than `stats_api` were added by hand: they're kept and win.
 - The builder (`docs/build-plan.md`):
   - `build.py` runs a build: `python ingest/build.py`. Dev builds use `--dev` or `--event ID` and never go live. It also has these commands:
     - `status` and `rollback`;

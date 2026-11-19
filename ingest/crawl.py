@@ -9,6 +9,7 @@
     python ingest/crawl.py proseries               stage 3b: placements at the three Pro Series finals
     python ingest/crawl.py gaps                    stage 3c: Stats API placements of entrants missing from standings
     python ingest/crawl.py teams                   stage 4: official placements of each 2v2 pair (held after its pilot)
+    python ingest/crawl.py legends [--top N]       stage 5: each PR player's legends, for the stat cards' art
     python ingest/crawl.py standings               P1: start.gg standings of official start.gg events
     python ingest/crawl.py entrants                P1b: entrant lists of events whose standings miss entrants (after P4)
     python ingest/crawl.py brackets                P4: start.gg sets, pools and last-phase games
@@ -37,7 +38,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from cache import CACHE_DIR, ROOT
+from cache import CACHE_DIR, ROOT, ResponseCache
 from challengermode import Challengermode
 from startgg import StartGG
 from statsapi import ApiError, StatsApi
@@ -61,6 +62,8 @@ POOLS_PER_QUERY = 32  # an event with more pools than this gets them phase by ph
 POOLS_PER_PAGE = 32  # a pool costs about 2 + its rounds (measured: 353 for 16 pools with 320 rounds)
 GAMES_PER_PAGE = {1: 16, 2: 8}  # sets per page with their games; 2v2 games list twice the characters
 GAMES_MAX_SEEDS = 16  # games are fetched for the last phase only, and only when it's this small
+LEGEND_YEARS = (2025, 2026)  # stage 5: a player's recent legends, besides all time
+LEGENDS_PER_PLAYER = 10  # GetPlayerLegends' maximum per page; a main needs only the first
 ROSTER_LIMIT = 2000  # Challengermode lineups per roster query, which has no paging
 
 STANDINGS_TABLE = """
@@ -143,6 +146,13 @@ CREATE TABLE IF NOT EXISTS crawl_platform_players (  -- 2b: platform players and
   status              INTEGER NOT NULL DEFAULT 0,  -- 0 to look up, 1 planned, 2 found, 3 not in the Stats API
   player_id           INTEGER,                  -- the Stats API record, once found
   PRIMARY KEY (platform, platform_player_id)
+);
+CREATE TABLE IF NOT EXISTS crawl_legends (           -- 5: games on each legend, 1v1, any event (official or not)
+  player_id  INTEGER NOT NULL,
+  period     TEXT NOT NULL,                     -- 'all' or a year
+  legend     TEXT NOT NULL,                     -- the API's name, e.g. RED_RAPTOR
+  games      INTEGER NOT NULL,
+  PRIMARY KEY (player_id, period, legend)
 );
 CREATE TABLE IF NOT EXISTS crawl_series_placements ( -- 3b: placements found at the Pro Series finals
   event_id   TEXT NOT NULL,
@@ -695,6 +705,50 @@ def apply_team(db, p, rows):
     return []
 
 
+# Stage 5: legends, for the stat cards' art only (the builder and the agent don't read them).
+# GetPlayerLegends counts the games a player's matches report a legend for: 1v1 only, a
+# minority of matches, community events included (more data for a main). --top N takes each
+# region's first N in the 1v1 PR (the pilot); without it, every PR player.
+
+def pr_top(region, top, cache=None):
+    """The player IDs of a region's first `top` 1v1 PR places, from stage 1's cached pages."""
+    cache, rows, page = cache or ResponseCache(), [], 1
+    while len(rows) < top:
+        hit = cache.newest("/pr", {"gameMode": 1, "region": region, "page": page, "maxResults": PR_PAGE_SIZE})
+        if not hit or hit[0] != 200:
+            break
+        body = json.loads(hit[1])
+        rows += body.get("prPlayers") or []
+        if page >= (body.get("totalPages") or 1):
+            break
+        page += 1
+    rows.sort(key=lambda r: r.get("powerRanking") or float("inf"))
+    return [r["playerId"] for r in rows[:top]]
+
+
+def plan_legends(db, queue, args):
+    top = getattr(args, "top", None)
+    if top:
+        ids = sorted({pid for region in REGIONS for pid in pr_top(region, top)})
+    else:
+        ids = [r[0] for r in db.execute("SELECT player_id FROM crawl_players WHERE found_by = 'pr' ORDER BY player_id")]
+    for pid in ids:
+        for period in ("all", *LEGEND_YEARS):
+            queue.add("legends", "legends", f"legends:{pid}:{period}", {"player_id": pid, "period": period})
+
+
+def fetch_legends(api, p, log):
+    year = None if p["period"] == "all" else p["period"]
+    return api.get("/player/legend", {"playerIds": [p["player_id"]], "year": year, "maxResults": LEGENDS_PER_PLAYER})
+
+
+def apply_legends(db, p, body):
+    db.executemany("INSERT OR REPLACE INTO crawl_legends (player_id, period, legend, games) VALUES (?, ?, ?, ?)",
+                   [(p["player_id"], str(p["period"]), r["name"], r["count"])
+                    for r in body.get("legends") or [] if r.get("name")])
+    return []
+
+
 # P1: start.gg standings for official start.gg events (no Stats API requests, so it can
 # run alongside a Stats API stage). The 'series/...' events have no start.gg event.
 
@@ -1014,6 +1068,7 @@ STAGES = {  # name: (number, plan, check run once the stage has finished, API it
     "proseries": ("3b", plan_proseries, check_proseries, "statsapi"),
     "gaps": ("3c", plan_gaps, check_gaps, "statsapi"),
     "teams": ("4", plan_teams, None, "statsapi"),
+    "legends": ("5", plan_legends, None, "statsapi"),
     "standings": ("P1", plan_standings, check_standings, "startgg"),
     "entrants": ("P1b", plan_entrants, check_entrants, "startgg"),
     "brackets": ("P4", plan_brackets, check_brackets, "startgg"),
@@ -1031,6 +1086,7 @@ KINDS = {
     "series_check": (fetch_placement_check, apply_series_check),
     "gap_check": (fetch_placement_check, apply_gap_check),
     "team": (fetch_team, apply_team),
+    "legends": (fetch_legends, apply_legends),
     "standings_page": (fetch_standings_page, apply_standings_page),
     "sgg_entrants": (fetch_sgg_entrants, apply_sgg_entrants),
     "sgg_sets": (fetch_sgg_sets, apply_sgg_sets),
@@ -1216,6 +1272,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run one stage of the crawl, or show progress.")
     parser.add_argument("stage", choices=["status", *STAGES])
     parser.add_argument("--sample", type=int, help="histories only: plan just this many PR players (the pilot)")
+    parser.add_argument("--top", type=int, metavar="N",
+                        help="legends only: just each region's first N players in the 1v1 PR (the pilot)")
     parser.add_argument("--event", action="append", metavar="ID",
                         help="brackets, cm, lookups, proseries: only this event (repeat for more); for a pilot")
     parser.add_argument("--max-pools", type=int, metavar="N",
@@ -1230,6 +1288,8 @@ def main():
         return
     if args.event and args.stage not in EVENT_STAGES:
         parser.error(f"--event works with {', '.join(sorted(EVENT_STAGES))}")
+    if args.top is not None and args.stage != "legends":
+        parser.error("--top works with legends only")
     if args.max_pools is not None and args.stage != "brackets":
         parser.error("--max-pools works with brackets only")
     unknown = [e for e in args.event or [] if not db.execute("SELECT 1 FROM crawl_events WHERE event_id = ?", (e,)).fetchone()]
