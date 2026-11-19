@@ -8,7 +8,7 @@ app and the agent, and a model the server can reach without the user's GPU being
 | Piece | Now | Hosted |
 |---|---|---|
 | The model | qwen3:8b with thinking, through Ollama's `/api/chat` (`agent/react.py`, `chat`) | a hosted API (below) |
-| Question embeddings, for the worked examples | nomic-embed-text through Ollama's `/api/embed` (`agent/retrieval.py`) | the same model, hosted or run on the server's CPU |
+| Question embeddings, for the worked examples | nomic-embed-text through Ollama's `/api/embed` (`agent/retrieval.py`) | the same, with Ollama on the server's CPU (embeddings only) |
 | The database | `data/db/eval/eval-v1.sqlite`, 463 MB, read-only | on the server's persistent disk |
 | The examples' index | Chroma in `data/rag/`, 1 MB, rebuilt from `agent/examples/examples.toml` | rebuilt on the server at start |
 | The app | `app/server/main.py` (FastAPI, one worker, a queue) | the same, behind HTTPS |
@@ -23,6 +23,17 @@ app and the agent, and a model the server can reach without the user's GPU being
 
 With A, the switch is a provider setting, so B stays a one-line change to try later.
 
+**Decided (2026-11-19): A, the same qwen3:8b.** What a search found (2026-11-19):
+- Hosted Qwen3-8B is thinning out: one aggregator reports OpenRouter deprecated its listing on 2026-10-09, in favor of
+  newer Qwen models. Sources disagree on whether hosted versions support tool calling.
+- Still listed: **Alibaba Cloud Model Studio** (Qwen's own platform, OpenAI-compatible, thinking switched by a
+  parameter; about $0.18 per million input tokens and $0.70 output, thinking output higher, as of June 2026) and
+  **Fireworks** (about $0.20 per million either way).
+- So before building: one test request with the chosen provider's key, checking tool calls and thinking come back, and
+  that the model's name is still served. If none passes, the fallback is B with the closest newer small Qwen.
+- **Embeddings stay off the provider:** nomic-embed-text is small enough for the server's CPU. Ollama runs on the server
+  for embeddings only, so `retrieval.py` needs no change; only `chat` moves to the hosted API.
+
 ## Decision 2: where the app runs
 
 | Option | For | Against |
@@ -35,7 +46,7 @@ cross-site setup. The model API key lives only in the server's environment, neve
 
 ## Changes to the code
 
-1. **`agent/react.py`'s `chat` and `retrieval.py`'s `embed`** take a provider setting: Ollama as now, or an
+1. **`agent/react.py`'s `chat`** takes a provider setting (embeddings stay on Ollama, on the server): Ollama as now, or an
    OpenAI-compatible API (`MODEL_PROVIDER`, `MODEL_BASE_URL`, `MODEL_API_KEY`, `MODEL_NAME` in `.env`). The adapter
    converts between the two formats: tool calls with their IDs, tool results, and the thinking text, which the trace
    keeps. This is in `agent/`, which the other session works in (its branch, `claude/agent`, has commits from today),
