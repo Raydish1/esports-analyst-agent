@@ -26,5 +26,7 @@ images (2026-11-18).
 - The broadcast's fonts (the producer, 2026-11-18): Proxima Nova Condensed Black for the heavy text, and Author
   Medium for the small text. They're licensed, so their files go in `app/static/fonts/`, which git ignores, and the
   cards fall back to free fonts without them.
+- The particle hero's character art (`app/static/art/hero/`, official artwork from the design handoff) is git-ignored
+  too, until its redistribution is confirmed.
 - The legends' character art (`app/static/art/legends/*.webp`) stays out of git until it's confirmed the files may be
   redistributed.
