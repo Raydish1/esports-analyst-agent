@@ -24,7 +24,8 @@ images (2026-11-18).
 - Until the producer sends the source fonts, colors, backgrounds and edge assets, the cards use colors sampled from the
   screenshots, free fonts that match, and edges traced into SVG. The producer's assets replace them when they arrive.
 - The broadcast's fonts (the producer, 2026-11-18): Proxima Nova Condensed Black for the heavy text, and Author
-  Medium for the small text. They're licensed, so their files go in `app/static/fonts/`, which git ignores, and the
-  cards fall back to free fonts without them.
+  Medium for the small text. Author Medium loads from Fontshare, where it's free. Proxima Nova is a commercial font
+  (Mark Simonson Studio) whose license doesn't cover web embedding; the user chose to publish its three used cuts in
+  `app/static/fonts/` anyway (2026-11-19), after being told so.
 - The character art (the legends' idle poses and heads in `app/static/art/legends/`, from the Brawlhalla wiki, and the
   hero's official artwork in `app/static/art/hero/`) is cleared for redistribution (2026-11-19), so it's committed.

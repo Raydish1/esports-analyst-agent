@@ -11,8 +11,8 @@
    - "BC Small": Author Medium, for the small text (region, PR and the like). Scaled 112.29% so its capitals match
      Proxima Nova's at the same font size, with its line metrics overridden to match too.
    - "BC Text": Proxima Nova Regular (Semibold for emphasis), when Author isn't there, and for "not recorded".
-   Author Medium loads from Fontshare (free). Proxima Nova is a licensed font, used when it's installed on the viewer's
-   machine or its files are in app/static/fonts/ (git-ignored). Without them, the heavy text falls back to Gabarito Black and the rest to Montserrat, the free
+   Author Medium loads from Fontshare (free). Proxima Nova's three cuts the cards use (Condensed Black, Regular,
+   Semibold) are served from app/static/fonts/ as WOFF2, published at the user's decision (2026-11-19). Without them, the heavy text falls back to Gabarito Black and the rest to Montserrat, the free
    matches measured against the references. */
 
 @font-face {

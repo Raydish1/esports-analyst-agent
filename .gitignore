@@ -21,6 +21,4 @@ ENV/
 docs/graphics-reference/
 
 
-# Proxima Nova, the broadcast font: licensed, so its files are never committed (DATA.md)
-app/static/fonts/
 
