@@ -48,3 +48,26 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
   counted as new numbers.
 - **Proposed:** a reply that asks the user a question and states no result isn't checked; list numbering isn't a
   number; and a reply that talks about the check never goes to the user.
+
+### 5. "cb 2022" isn't found, and the model doesn't try "crew battle" itself
+
+- **Seen:** "do you know about the cb tournament in 2022" (`20261119T233544Z-002`, turn 8): `resolve_event("cb 2022")`
+  came back not found, and the model said so. After "i meant the crew battle tournament in 2022",
+  `resolve_event("crew battle tournament 2022")` found the three 2022 Crew Battle Invitationals (EU, NA, SA).
+- **Why:** `event_terms.csv` has "ltc" and the region abbreviations, but not "cb". And a not-found result's note says
+  only to say so.
+- **The user's direction (2026-11-19):** don't rely on hand-made aliases; the agent should work out what the user means.
+- **Proposed:** a not-found note that tells the model to retry once with abbreviations and slang spelled out as the
+  data names events (cb → crew battle, bcx → Brawlhalla World Championship Expo), and a prompt line saying the same. A
+  term in `event_terms.csv` stays possible for common ones, but the retry is what generalizes.
+
+### 6. Players named by their IDs ("Player 147569")
+
+- **Seen:** "tell me about the north america one" (turn 10). The model queried `v_results` with `run_sql`, selecting
+  `player_id` and `placement` but no names, instead of calling `event_results`, which gives names, a crew or team on one
+  row, and ties whole. The answer listed "**Player 147569** (team placement: 1st)" and two more.
+- **Why no check caught it:** the IDs came from a tool, so the answer check allows them; the names correction only
+  swaps a wrong name next to an ID, not an ID standing alone.
+- **Proposed:** the names correction also replaces a player named only by ID with their display name (in code, traced
+  as a swap); and the prompt's "Choosing a tool" says an event's winners or placings always come from `event_results`,
+  crew battles included.
