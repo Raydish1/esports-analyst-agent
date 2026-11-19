@@ -117,7 +117,7 @@ What's fetched, all complete. Responses are in `data/raw/cache/`, and the reques
   - Stats API records for 146,261 start.gg and Challengermode players (2b; 98 have none, of whom 43 placed or played);
   - the Pro Series finals' placements (3b, 84);
   - a placement check for entrants missing from start.gg standings (3c; the Stats API had none);
-  - legends, for the stat cards' art (5, a pilot, 2026-11-19): GetPlayerLegends for each region's top 50 in the 1v1 PR, all time, 2025 and 2026 (750 requests). `python ingest/legend_mains.py` picks a main (the latest year with 10 games or more, then all time) for 166 of the 250, into `data/curated/player_legends.csv`, which the web app's cards read. By region: NA 45, EU 44, SA 34, MENA 28, SEA 15 of 50. prostats.brawlhalla.com shows the same API's counts for the current year (BBBalloonBoy's 2026: Diana 100, Vivi 41, Lucien 9, Zariel 4).
+  - legends, for the stat cards' art (5, a pilot, 2026-11-19): GetPlayerLegends for each region's top 50 in the 1v1 PR, all time, 2025 and 2026 (750 requests). `python ingest/legend_mains.py` picks a main (the latest year with any games, then all time; no minimum, decided 2026-11-19: a legend seen once beats the fallback) for 234 of the 250, into `data/curated/player_legends.csv`, which the web app's cards read. The other 16 have no legend recorded. prostats.brawlhalla.com shows the same API's counts for the current year (BBBalloonBoy's 2026: Diana 100, Vivi 41, Lucien 9, Zariel 4).
 - start.gg:
   - the standings of all 529 official start.gg events (P1: 267,697 entrants, 138,696 players);
   - all 536,633 sets with pools, round best-ofs and last-phase games (P4);

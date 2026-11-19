@@ -2,9 +2,10 @@
 
     python ingest/legend_mains.py
 
-A main is the legend with the most games in the latest year of crawl.LEGEND_YEARS, when that
-year has at least MIN_GAMES games; otherwise the year before, then all time, with the same
-minimum; otherwise none, and the card shows its fallback. Ties go to more games all time.
+A main is the legend with the most games in the latest year of crawl.LEGEND_YEARS that has
+any; otherwise the all-time leader; otherwise none, and the card shows its fallback. There's no
+minimum: a legend seen in one game beats the fallback (decided 2026-11-19). Ties go to more
+games all time.
 The latest year first is what prostats.brawlhalla.com shows, from the same API.
 
 The file is data/curated/player_legends.csv (player_id, legend, source, games, period), which
@@ -21,7 +22,6 @@ from crawl import LEGEND_YEARS
 from tasks import connect
 
 MAINS = ROOT / "data" / "curated" / "player_legends.csv"
-MIN_GAMES = 10  # fewer reported games than this say too little about whom a player mains
 FIELDS = ["player_id", "legend", "source", "games", "period"]
 
 
@@ -41,7 +41,7 @@ def mains(rows):
         alltime = counts[pid]["all"]
         for period in periods:
             games = counts[pid][period]
-            if sum(games.values()) >= MIN_GAMES:
+            if games:
                 legend = max(games, key=lambda name: (games[name], alltime[name], name))
                 chosen[pid] = (slug(legend), games[legend], period)
                 break
@@ -74,7 +74,7 @@ def main():
     hand, api = write(chosen)
     periods = collections.Counter(period for _, _, period in chosen.values())
     print(f"{fetched} players fetched; {len(chosen)} with a main ({', '.join(f'{n} from {p}' for p, n in sorted(periods.items()))}),"
-          f" {len({r[0] for r in rows}) - len(chosen)} with fewer than {MIN_GAMES} games, the rest with none recorded.")
+          f" the rest with none recorded.")
     print(f"Wrote {MAINS.relative_to(ROOT)}: {hand} hand row(s) kept, {api} from the Stats API.")
     print("Mains:", ", ".join(f"{name} {n}" for name, n in collections.Counter(c[0] for c in chosen.values()).most_common()))
 

@@ -9,13 +9,13 @@ import legend_mains  # noqa: E402
 
 
 class MainsTest(unittest.TestCase):
-    def test_latest_year_first_then_the_year_before_then_all_time_then_none(self):
+    def test_latest_year_with_games_first_then_all_time_with_no_minimum(self):
         rows = [(1, "2025", "VIVI", 164), (1, "2026", "DIANA", 100), (1, "2026", "VIVI", 41), (1, "all", "ZARIEL", 249),
-                (2, "2025", "TEROS", 12), (2, "2026", "SIDRA", 5), (2, "all", "SIDRA", 40),
-                (3, "2026", "LIN_FEI", 3), (3, "all", "DIANA", 176),
-                (4, "all", "NIX", 4)]
+                (2, "2025", "TEROS", 12), (2, "all", "SIDRA", 40),
+                (3, "2026", "LIN_FEI", 1), (3, "all", "DIANA", 176),
+                (4, "all", "NIX", 1)]
         self.assertEqual(legend_mains.mains(rows), {1: ("diana", 100, "2026"), 2: ("teros", 12, "2025"),
-                                                    3: ("diana", 176, "all")})
+                                                    3: ("linfei", 1, "2026"), 4: ("nix", 1, "all")})
 
     def test_a_tie_goes_to_more_games_all_time(self):
         rows = [(1, "2026", "PETRA", 6), (1, "2026", "RED_RAPTOR", 6), (1, "all", "PETRA", 30), (1, "all", "RED_RAPTOR", 40)]
