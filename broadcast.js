@@ -65,17 +65,19 @@ function text(className, value) {
 
 // A legend's idle pose, fitted into its slot and standing on the slot's floor, outlined in its player's color
 // (broadcast.css). mirror: face left, as the broadcast turns the right-hand player's legend toward the opponent.
+// A player with no main on record gets the random-legend silhouette, never a guessed legend.
+const NO_MAIN = { url: "art/legends/random.webp", name: "No main on record" };
+
 function legendSlot(legend, mirror = false) {
   const slot = el("div", "bc-legend");
-  if (legend?.url) {  // no entry, no file: the slot stays empty, never a guessed legend
-    const img = el("img");
-    img.src = legend.url;
-    img.alt = legend.name;
-    img.style.transform = `translate(${legend.offset_x || 0}px, ${legend.offset_y || 0}px) scale(${legend.scale || 1})` +
-      (mirror ? " scaleX(-1)" : "");
-    img.addEventListener("error", () => img.remove());
-    slot.append(img);
-  }
+  legend = legend?.url ? legend : NO_MAIN;
+  const img = el("img");
+  img.src = legend.url;
+  img.alt = legend.name;
+  img.style.transform = `translate(${legend.offset_x || 0}px, ${legend.offset_y || 0}px) scale(${legend.scale || 1})` +
+    (mirror ? " scaleX(-1)" : "");
+  img.addEventListener("error", () => img.remove());
+  slot.append(img);
   return slot;
 }
 
