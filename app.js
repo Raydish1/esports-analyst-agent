@@ -16,7 +16,7 @@ const box = $("q");
 const send = form.querySelector(".send");
 const SUGGESTIONS = 4;
 
-const state = { conversation: null, busy: false, results: 0 };
+const state = { conversation: null, busy: false, results: 0, demo: null, demoAsked: [] };
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -175,26 +175,36 @@ function resultCard(question, turn) {
 
 // A question
 
+// One event of a question's stream, from the server or from the demo's recording.
+function apply(event, turn, bubble) {
+  switch (event.type) {
+    case "queued":
+      bubble.progress(event.ahead > 0 ? `Waiting: ${event.ahead} question${event.ahead === 1 ? "" : "s"} ahead` : "Next in line");
+      break;
+    case "started": bubble.progress("Starting"); break;
+    case "thinking": bubble.progress(event.label); break;
+    case "tool_started": bubble.progress(event.label); break;
+    case "step": turn.steps.push(event); break;
+    case "examples": turn.examples = event.examples; break;
+    case "answer": turn.answer = event; break;
+    case "figures": turn.figures = event.figures; break;
+    case "error": turn.error = event.message; break;
+  }
+}
+
 function follow(jobId, turn, bubble) {
   return new Promise((resolve) => {
     const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
     let ended = false;
     source.onmessage = (message) => {
       const event = JSON.parse(message.data);
-      switch (event.type) {
-        case "queued":
-          bubble.progress(event.ahead > 0 ? `Waiting: ${event.ahead} question${event.ahead === 1 ? "" : "s"} ahead` : "Next in line");
-          break;
-        case "started": bubble.progress("Starting"); break;
-        case "thinking": bubble.progress(event.label); break;
-        case "tool_started": bubble.progress(event.label); break;
-        case "step": turn.steps.push(event); break;
-        case "examples": turn.examples = event.examples; break;
-        case "answer": turn.answer = event; break;
-        case "figures": turn.figures = event.figures; break;
-        case "error": turn.error = event.message; break;
-        case "done": ended = true; source.close(); resolve(); break;
+      if (event.type === "done") {
+        ended = true;
+        source.close();
+        resolve();
+        return;
       }
+      apply(event, turn, bubble);
     };
     source.onerror = () => {
       if (!ended && source.readyState === EventSource.CLOSED) {
@@ -235,6 +245,15 @@ async function ask(question) {
   addMsg("user", document.createTextNode(question));
   const bubble = typingBubble();
   const turn = { steps: [], examples: [], figures: [], answer: null, error: null, table: null };
+  if (state.demo) {
+    await playDemo(question, turn, bubble);
+    bubble.remove();
+    if (turn.answer) reply(question, turn);
+    else addMsg("bot", el("p", null, "This preview only has recorded answers for the sample questions: pick one above the box."));
+    setBusy(false);
+    box.focus();
+    return;
+  }
   try {
     let job;
     try {
@@ -270,7 +289,8 @@ $("restart").addEventListener("click", async () => {
   messages.querySelectorAll(".msg").forEach((m, i) => { if (i > 0) m.remove(); });  // keep the greeting
   right.querySelectorAll(".shadow-dark").forEach((r) => r.remove());
   state.results = 0;
-  await newConversation();
+  state.demoAsked = [];
+  if (!state.demo) await newConversation();
   window.scrollTo({ top: 0, behavior: "smooth" });
   box.focus();
 });
@@ -299,18 +319,62 @@ async function init() {
     }
     await newConversation();
   } catch (error) {
-    offline();
+    await offline();
   }
 }
 
 // No backend answered: the page is on a static host (a preview, such as GitHub Pages) or the server is down. The page
 // and the hero still work; questions are switched off, and the chat says why.
-function offline() {
-  addMsg("bot", el("p", null, "This is a preview of the page: the agent isn't connected here yet, so questions are off."));
-  box.disabled = true;
-  box.placeholder = "Questions are off in this preview";
-  send.setAttribute("aria-disabled", "true");
-  state.busy = true;
+async function offline() {
+  let demo = null;
+  try { demo = await api("demo/demo.json"); } catch { /* no demo here either */ }
+  if (!demo) {
+    addMsg("bot", el("p", null, "This is a preview of the page: the agent isn't connected here yet, so questions are off."));
+    box.disabled = true;
+    box.placeholder = "Questions are off in this preview";
+    send.setAttribute("aria-disabled", "true");
+    state.busy = true;
+    return;
+  }
+  state.demo = demo;
+  const badge = $("mode");
+  badge.textContent = "Demo";
+  badge.title = "No agent is connected here: the sample questions play back recorded answers.";
+  badge.hidden = false;
+  addMsg("bot", el("p", null, "This preview has no agent connected, so it plays back recorded answers to the sample questions below."));
+  const suggest = $("suggest");
+  for (const conversation of demo.conversations) {
+    const q = conversation[0].question;
+    const b = el("button", null, q);
+    b.type = "button";
+    b.addEventListener("click", () => ask(q));
+    suggest.append(b);
+  }
+}
+
+// Demo playback: the recorded turn whose question matches, after the questions asked before it in its conversation
+// (so "the first one" plays only after its question), with a pause between progress steps.
+const normal = (q) => q.trim().replace(/\s+/g, " ").replace(/[?.!\s]+$/, "").toLowerCase();
+
+async function playDemo(question, turn, bubble) {
+  const asked = state.demoAsked || [];
+  let found = null;
+  for (const conversation of state.demo.conversations) {
+    const i = conversation.findIndex((t) => normal(t.question) === normal(question));
+    if (i < 0) continue;
+    const before = conversation.slice(0, i).map((t) => normal(t.question));
+    if (before.every((q, k) => normal(asked[asked.length - before.length + k] || "") === q)) {
+      found = conversation[i];
+      break;
+    }
+  }
+  if (!found) return;
+  state.demoAsked = [...asked, question];
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (const event of found.events) {
+    apply(event, turn, bubble);
+    if (event.type === "thinking" || event.type === "tool_started") await pause(550);
+  }
 }
 
 init();
