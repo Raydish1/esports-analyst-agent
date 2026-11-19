@@ -1,0 +1,130 @@
+/* Components inside the Cortex layout (cortex.css): answers, markdown, tables, the stat cards' frames and controls,
+   suggestion buttons, and "How I got this". Fixed colors from the Cortex palette: the page has no dark mode. */
+
+:root {
+  --text: #073747;
+  --muted: #5f7478;
+  --line: #e3ddd0;
+  --surface: #fffdf8;
+  --surface-2: #f6f2e9;
+  --accent: #c27400;          /* the orange, darkened for text and links on white */
+  --accent-ink: #073747;
+  --accent-soft: #fdf0d9;
+  --warn: #8a5a00;
+  --warn-soft: #fdf1d6;
+  --warn-line: #e9c97a;
+  --error: #a3262a;
+  --error-soft: #fbe3e2;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.notes {
+  margin: 0; padding: 10px 12px 10px 14px; list-style: none;
+  background: var(--warn-soft); border: 1px solid var(--warn-line); border-left-width: 4px; border-radius: 8px;
+  color: var(--warn); font-size: 14px;
+}
+.notes li + li { margin-top: 4px; }
+.notes strong { display: block; margin-bottom: 2px; }
+
+.problem { margin: 0; color: var(--error); font-weight: 600; }
+
+.md { overflow-wrap: anywhere; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol { margin: 0 0 10px; }
+.md ul, .md ol { padding-left: 22px; }
+.md li > ul, .md li > ol { margin: 2px 0 4px; }
+.md h3, .md h4, .md h5, .md h6 { margin: 14px 0 6px; font-size: 16px; }
+.md code { font-family: var(--mono); font-size: 0.9em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.md a { color: var(--accent); }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+
+.table-wrap { overflow-x: auto; max-width: 100%; margin: 0 0 10px; }
+table { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { border-bottom: 1px solid var(--line); padding: 5px 10px 5px 0; text-align: left; vertical-align: top; }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+.figures:empty { display: none; }
+.figures { display: flex; flex-direction: column; gap: 12px; }
+
+/* Stat cards */
+
+.stat-card {
+  border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  background: var(--surface-2); display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.card-sub { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.scope {
+  margin: 0; padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 1.45;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.missing { color: var(--muted); font-style: italic; font-weight: 400; font-size: 0.85em; }
+
+.stat-card.broadcast { padding: 10px; }
+.bc-holder { width: 100%; }
+.stat-card.broadcast > .bc-scale { margin: 0 auto; }
+.set-details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+
+
+.mode-switch { display: inline-flex; gap: 4px; align-self: flex-start; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.mode-switch button { border: 0; padding: 4px 12px; font-size: 13px; background: transparent; }
+.mode-switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+
+.set-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.set { display: flex; flex-direction: column; gap: 1px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.set:last-child { border-bottom: 0; }
+.set .when { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.set .line { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.set .score { font-variant-numeric: tabular-nums; font-weight: 700; }
+.set .score.missing { font-weight: 400; }
+
+.suggestions { display: flex; flex-direction: column; gap: 10px; }
+.suggestions h3 { font-size: 14px; margin: 0; color: var(--muted); font-weight: 600; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice { display: flex; flex-direction: column; align-items: flex-start; border-radius: 10px; padding: 8px 12px; text-align: left; }
+.choice .detail { font-size: 12px; color: var(--muted); }
+.choice[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+
+
+/* How I got this */
+
+.how { border-top: 1px solid var(--line); padding-top: 10px; }
+.how > summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent); width: fit-content; }
+.how-body { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.how-step h4 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.thought { margin: 0 0 8px; font-style: italic; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+.call { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface-2); min-width: 0; }
+.call-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; }
+.call-name { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+.call-time { font-size: 12px; color: var(--muted); }
+.badge { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; }
+.badge.bad { background: var(--error-soft); color: var(--error); }
+.status { margin: 6px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.status.bad { color: var(--error); }
+.status.note { color: var(--text); }
+pre.sql {
+  margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.result-table { margin-top: 8px; min-width: 0; }
+.table-title { font-size: 13px; font-weight: 600; }
+.table-note { margin: 2px 0 4px; font-size: 13px; color: var(--warn); }
+.result-table table { font-size: 12px; }
+.result-table th, .result-table td { padding: 3px 10px 3px 0; white-space: nowrap; }
+td.null { color: var(--muted); font-style: italic; }
+.more { margin-top: 6px; font-size: 12px; padding: 3px 10px; }
+.ran { margin-top: 8px; font-size: 13px; }
+.ran summary { cursor: pointer; color: var(--muted); }
+.check { border-left: 3px solid var(--warn-line); padding: 4px 10px; font-size: 13px; }
+.check p { margin: 2px 0 0; color: var(--muted); }
+.examples-used { margin: 0; font-size: 13px; color: var(--muted); }
+
+
+.mode-switch button[aria-pressed="true"] { background: #f49b0c; color: var(--accent-ink); }
+.choice { border: 1px solid var(--line); background: #fff; cursor: pointer; font: inherit; color: inherit; }
+.choice:hover { border-color: #f49b0c; }
+.more, .mode-switch button { cursor: pointer; font: inherit; color: inherit; }
+.more { border: 1px solid var(--line); background: #fff; border-radius: 999px; }

@@ -1,18 +1,22 @@
-// The page: asks the backend, follows each question's event stream, and shows progress, then the answer.
-// Every value from the server goes into the page through textContent (or markdown.js, which uses it too).
+// The Cortex page: the chat on the left asks the backend and follows each question's event stream; each answer's
+// result card goes on the right, under the particle hero. Every value from the server goes into the page through
+// textContent (or markdown.js and the card renderers, which use it too).
 
 import { renderCards } from "./cards.js";
-import { how } from "./how.js";
+import { startHero } from "./hero.js";
+import { how, tableBlock } from "./how.js";
+import { jagify } from "./jag.js";
 import { render } from "./markdown.js";
 
 const $ = (id) => document.getElementById(id);
-const thread = $("thread");
-const welcome = $("welcome");
+const messages = $("messages");
+const right = $("right");
 const form = $("composer");
-const box = $("question");
-const send = $("send");
+const box = $("q");
+const send = form.querySelector(".send");
+const SUGGESTIONS = 4;
 
-const state = { conversation: null, busy: false, mode: null };
+const state = { conversation: null, busy: false, results: 0 };
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -31,8 +35,8 @@ async function api(path, body) {
   try { data = await response.json(); } catch { /* an empty or non-JSON body */ }
   if (!response.ok) {
     const detail = data && data.detail;
-    const message = typeof detail === "string" ? detail : `The server answered ${response.status}.`;
-    throw Object.assign(new Error(message), { status: response.status });
+    throw Object.assign(new Error(typeof detail === "string" ? detail : `The server answered ${response.status}.`),
+      { status: response.status });
   }
   return data;
 }
@@ -43,90 +47,45 @@ async function newConversation() {
 
 function setBusy(busy) {
   state.busy = busy;
-  send.disabled = busy;
-  for (const b of document.querySelectorAll(".examples button")) b.disabled = busy;
+  for (const b of [send, ...document.querySelectorAll("#suggest button")]) b.setAttribute("aria-disabled", String(busy));
 }
 
-// Progress
+// Chat
 
-function summarize(call) {
-  const r = call.result;
-  if (call.refused) return "refused: a player ID no lookup returned";
-  if (r.kind === "error") return "error";
-  if (r.kind === "not run") return "not run";
-  if (r.kind === "player") {
-    const top = r.tables[0]?.rows?.[0];
-    return top ? `${r.status.split(":")[0]}: ${top[1]}` : r.status.split(":")[0];
-  }
-  if (r.kind === "event") return r.status;
-  const counts = r.tables.map((t) => (t.rows === null ? `${t.row_count} rows (too many to show the model)` : `${t.row_count} row${t.row_count === 1 ? "" : "s"}`));
-  return counts.join(", ") || "no rows";
+function addMsg(kind, ...content) {
+  const m = el("div", `msg ${kind} jag`);
+  m.dataset.jag = "bubble";
+  m.append(...content);
+  messages.append(m);
+  jagify(m);
+  messages.scrollTop = messages.scrollHeight;
+  return m;
 }
 
-class Progress {
-  constructor(parent) {
-    this.list = el("ol", "progress");
-    parent.append(this.list);
-    this.waiting = null;
-    this.stepTools = [];
-  }
-
-  item(text, cls = "active") {
-    this.settle();
-    const li = el("li", cls);
-    li.append(el("span", "label", text));
-    this.list.append(li);
-    return li;
-  }
-
-  settle() {
-    for (const li of this.list.querySelectorAll("li.active")) li.className = "done";
-  }
-
-  queued(event) {
-    const text = event.ahead > 0 ? `Waiting: ${event.ahead} question${event.ahead === 1 ? "" : "s"} ahead of yours` : "Next in line";
-    if (!this.waiting) this.waiting = this.item(text);
-    else this.waiting.querySelector(".label").textContent = text;
-  }
-
-  started() {
-    if (this.waiting) { this.waiting.remove(); this.waiting = null; }
-  }
-
-  thinking(event) { this.stepTools = []; this.item(event.label); }
-
-  tool(event) { this.stepTools.push(this.item(event.label)); }
-
-  step(event) {
-    event.calls.forEach((call, i) => {
-      const li = this.stepTools[i] || this.item(call.tool, "done");
-      li.className = call.refused || call.result.kind === "error" ? "bad" : "done";
-      li.querySelector(".result")?.remove();
-      li.append(el("span", "result", `· ${summarize(call)}`));
-    });
-    this.settle();
-    this.stepTools = [];
-  }
-
-  finish() {
-    this.settle();
-    this.list.classList.add("finished");
-  }
+function typingBubble() {
+  const row = el("div", "typing-row");
+  const dots = el("span", "typing");
+  dots.setAttribute("aria-label", "Working");
+  dots.append(el("i"), el("i"), el("i"));
+  const line = el("span", "progress-line");
+  row.append(dots, line);
+  const bubble = addMsg("bot", row);
+  bubble.progress = (text) => { line.textContent = text; };
+  return bubble;
 }
 
-// The answer
-
-function notesBox(notes) {
+function notesList(notes) {
   const list = el("ul", "notes");
   list.setAttribute("role", "note");
   for (const note of notes) list.append(el("li", null, note));
   return list;
 }
 
-function suggestionsBlock(groups, card) {
+// Buttons that answer "which player did you mean?": one sends its ordinal; with two names, Send sends both.
+function suggestionButtons(groups) {
   const block = el("div", "suggestions");
   const chosen = {};
-  const sendBoth = el("button", null, "Send");
+  const sendBoth = el("button", "choice", "Send");
   sendBoth.type = "button";
   sendBoth.disabled = true;
   const lock = () => block.querySelectorAll("button").forEach((b) => { b.disabled = true; });
@@ -163,87 +122,119 @@ function suggestionsBlock(groups, card) {
     });
     block.append(sendBoth);
   }
-  card.dataset.suggestions = "true";
   return block;
 }
 
-function metaLine(event) {
-  const meta = el("div", "meta");
-  if (event.steps) meta.append(el("span", null, `${event.steps} step${event.steps === 1 ? "" : "s"}`));
-  if (event.model_seconds) meta.append(el("span", null, `${event.model_seconds} s with the model`));
-  if (event.replay) {
-    const seed = event.replay.seed === null || event.replay.seed === undefined ? "" : `, seed ${event.replay.seed}`;
-    meta.append(el("span", null, `Replayed from ${event.replay.source}${seed}`));
-    if (event.replay.mismatch) meta.append(el("span", "mismatch", event.replay.mismatch));
+// Results
+
+// The table a card shows when the answer has no stat card: the main table of the turn's last data tool call.
+const MAIN_TABLE = { event_results: 1, player_results: 0, head_to_head: 0, rank_players: 0, run_sql: 0 };
+
+function mainTable(steps) {
+  for (const step of [...steps].reverse()) {
+    for (const call of [...step.calls].reverse()) {
+      if (!(call.tool in MAIN_TABLE) || call.result.kind === "error" || call.refused) continue;
+      const tables = call.result.tables || [];
+      const t = tables[MAIN_TABLE[call.tool]] || tables[0];
+      if (t && t.rows && t.rows.length) return t;
+    }
   }
-  return meta;
+  return null;
 }
 
-function answerCard(event, turn) {
-  const card = el("article", "card answer");
-  if (event.notes.length) card.append(notesBox(event.notes));
-  if (event.problem) card.append(el("p", "problem", event.problem));
-  if (event.text) card.append(render(event.text));
-  if (event.suggestions.length) card.append(suggestionsBlock(event.suggestions, card));
-  const figures = el("div", "figures");  // stat cards arrive in their own event, after the answer (figures.py)
-  card.append(figures);
-  card.append(metaLine(event));
-  if (turn.steps.length) card.append(how(turn.steps, turn.examples));
-  turn.answer = card;
-  return card;
+function scrollToResult(card) {
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.remove("flash");
+  void card.offsetWidth;
+  card.classList.add("flash");
 }
 
-function errorCard(message, turn) {
-  const card = el("article", "card error");
-  card.setAttribute("role", "alert");
-  card.append(el("p", null, message));
-  if (turn?.steps.length) card.append(how(turn.steps, turn.examples));  // the steps before it stopped
-  return card;
+function resultCard(question, turn) {
+  const n = ++state.results;
+  const card = el("article", "result jag enter");
+  card.dataset.jag = "card";
+  card.id = `result-${n}`;
+  const meta = el("div", "meta");
+  meta.append(el("span", "tag", `Result #${n}`),
+    el("span", "ts", new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })));
+  const body = el("div", "result-body");
+  if (turn.figures.length) {
+    body.append(renderCards(turn.figures));
+  } else {
+    body.append(tableBlock(turn.table));
+  }
+  if (turn.steps.length) body.append(how(turn.steps, turn.examples));
+  card.append(meta, el("h2", null, question), body);
+  const wrap = el("div", "shadow-dark");
+  wrap.append(card);
+  right.append(wrap);
+  jagify(wrap);
+  requestAnimationFrame(() => scrollToResult(card));
+  return { card, n };
 }
 
 // A question
 
-function follow(jobId, turn) {
+function follow(jobId, turn, bubble) {
   return new Promise((resolve) => {
     const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
-    const progress = turn.progress;
     let ended = false;
     source.onmessage = (message) => {
       const event = JSON.parse(message.data);
       switch (event.type) {
-        case "queued": progress.queued(event); break;
-        case "started": progress.started(); break;
-        case "thinking": progress.thinking(event); break;
-        case "tool_started": progress.tool(event); break;
-        case "step": progress.step(event); turn.steps.push(event); break;
+        case "queued":
+          bubble.progress(event.ahead > 0 ? `Waiting: ${event.ahead} question${event.ahead === 1 ? "" : "s"} ahead` : "Next in line");
+          break;
+        case "started": bubble.progress("Starting"); break;
+        case "thinking": bubble.progress(event.label); break;
+        case "tool_started": bubble.progress(event.label); break;
+        case "step": turn.steps.push(event); break;
         case "examples": turn.examples = event.examples; break;
-        case "answer": progress.finish(); turn.node.append(answerCard(event, turn)); break;
-        case "figures": turn.answer?.querySelector(".figures")?.append(renderCards(event.figures)); break;
-        case "error": progress.finish(); turn.node.append(errorCard(event.message, turn)); break;
+        case "answer": turn.answer = event; break;
+        case "figures": turn.figures = event.figures; break;
+        case "error": turn.error = event.message; break;
         case "done": ended = true; source.close(); resolve(); break;
       }
-      turn.node.scrollIntoView({ block: "end", behavior: "smooth" });
     };
     source.onerror = () => {
       if (!ended && source.readyState === EventSource.CLOSED) {
-        progress.finish();
-        turn.node.append(errorCard("The connection to the server was lost."));
+        turn.error = turn.error || "The connection to the server was lost.";
         resolve();
       }
     };
   });
 }
 
+function reply(question, turn) {
+  if (turn.error) {
+    const m = addMsg("bot error", el("p", null, turn.error));
+    if (turn.steps.length) m.append(how(turn.steps, turn.examples));  // the steps before it stopped
+    return;
+  }
+  const a = turn.answer;
+  const parts = [];
+  if (a.notes.length) parts.push(notesList(a.notes));
+  if (a.problem) parts.push(el("p", "problem", a.problem));
+  if (a.text) parts.push(render(a.text));
+  if (a.suggestions.length) parts.push(suggestionButtons(a.suggestions));
+  turn.table = a.outcome === "answered" && !turn.figures.length ? mainTable(turn.steps) : null;
+  if (a.outcome === "answered" && (turn.figures.length || turn.table)) {
+    const { card, n } = resultCard(question, turn);
+    const chip = el("button", "result-chip", `View result #${n} →`);
+    chip.type = "button";
+    chip.addEventListener("click", () => scrollToResult(card));
+    parts.push(chip);
+  }
+  addMsg("bot", ...parts);
+}
+
 async function ask(question) {
   question = question.trim();
   if (!question || state.busy) return;
   setBusy(true);
-  welcome.hidden = true;
-  const node = el("section", "turn");
-  node.append(el("div", "asked", question));
-  const turn = { node, steps: [], examples: [], answer: null };
-  thread.append(node);
-  turn.progress = new Progress(node);
+  addMsg("user", document.createTextNode(question));
+  const bubble = typingBubble();
+  const turn = { steps: [], examples: [], figures: [], answer: null, error: null, table: null };
   try {
     let job;
     try {
@@ -253,67 +244,62 @@ async function ask(question) {
       await newConversation();  // the conversation expired: start a new one
       job = await api(`/api/conversations/${state.conversation}/questions`, { question });
     }
-    await follow(job.job_id, turn);
+    await follow(job.job_id, turn, bubble);
   } catch (error) {
-    turn.progress.finish();
-    node.append(errorCard(error.message));
-  } finally {
-    setBusy(false);
-    box.focus();
+    turn.error = error.message;
   }
+  bubble.remove();
+  if (!turn.answer && !turn.error) turn.error = "No answer came back.";
+  reply(question, turn);
+  setBusy(false);
+  box.focus();
 }
 
 // Setup
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
+  if (!box.value.trim() || state.busy) return;
   const question = box.value;
-  if (!question.trim() || state.busy) return;
   box.value = "";
-  resize();
   ask(question);
 });
 
-box.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-    e.preventDefault();
-    form.requestSubmit();
-  }
-});
-
-function resize() {
-  box.style.height = "auto";
-  box.style.height = `${Math.min(box.scrollHeight, 160)}px`;
-}
-box.addEventListener("input", resize);
-
 $("restart").addEventListener("click", async () => {
   if (state.busy) return;
-  for (const node of thread.querySelectorAll(".turn")) node.remove();
-  welcome.hidden = false;
+  messages.querySelectorAll(".msg").forEach((m, i) => { if (i > 0) m.remove(); });  // keep the greeting
+  right.querySelectorAll(".shadow-dark").forEach((r) => r.remove());
+  state.results = 0;
   await newConversation();
+  window.scrollTo({ top: 0, behavior: "smooth" });
   box.focus();
 });
 
 async function init() {
+  const narrow = window.matchMedia("(max-width: 960px)");  // one column: the results come after the chat
+  const where = () => { $("where").textContent = narrow.matches ? "below" : "on the right"; };
+  where();
+  narrow.addEventListener("change", where);
+  jagify();
+  startHero($("particles"), $("heroName"), $("hero"));
   try {
     const info = await api("/api/info");
-    state.mode = info.mode;
     const badge = $("mode");
     badge.textContent = info.mode === "live" ? "Live" : "Replay";
-    badge.title = info.mode === "live" ? "Answers come from the model now." : "Answers are recorded model replies, run again through the agent and its tools.";
+    badge.title = info.mode === "live" ? "Answers come from the model now."
+      : "Answers are recorded model replies, run again through the agent and its tools.";
     badge.classList.toggle("live", info.mode === "live");
     badge.hidden = false;
-    const examples = $("examples");
-    for (const q of info.examples) {
+    const suggest = $("suggest");
+    for (const q of info.examples.slice(0, SUGGESTIONS)) {
       const b = el("button", null, q);
       b.type = "button";
       b.addEventListener("click", () => ask(q));
-      examples.append(b);
+      suggest.append(b);
     }
     await newConversation();
   } catch (error) {
-    thread.append(errorCard(`The server isn't reachable: ${error.message}`));
+    addMsg("bot error", el("p", null, `The server isn't reachable: ${error.message}`));
   }
 }
 

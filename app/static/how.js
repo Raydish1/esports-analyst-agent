@@ -26,7 +26,7 @@ function sqlBlock(sql) {
   return pre;
 }
 
-function tableBlock(t) {
+export function tableBlock(t) {
   const block = el("div", "result-table");
   const title = `${t.what} · ${t.row_count} row${t.row_count === 1 ? "" : "s"}`;
   block.append(el("div", "table-title", title));

@@ -1,0 +1,152 @@
+/* The Cortex layout (design: cortex-draft.html): a fixed header with a torn bottom edge, then two equal halves. The
+   left (beige) holds the title and the chat, sticky while the page scrolls; the right (navy) holds the particle hero
+   and the result cards. Panels are cut by jag.js. Page scroll; scrollbars hidden. */
+
+:root {
+  --bg: #f4efe4;          /* page beige */
+  --paper: #fffdf8;       /* card white */
+  --ink: #073747;
+  --ink-2: #0d5268;
+  --muted-2: #7d8a8c;
+  --orange: #f49b0c;
+  --cyan: #19b3c4;
+  --navy: #0b2a3c;        /* the right side; the hero canvas fades to exactly this at its edges */
+  --header-h: 76px;
+  --font: "Bespoke Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); scroll-behavior: smooth; scrollbar-width: none; }
+html::-webkit-scrollbar { display: none; }
+body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); min-height: 100vh; }
+button, input { font: inherit; }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+
+/* Shadows go on an unclipped parent: clip-path would clip them */
+.shadow { filter: drop-shadow(0 8px 18px rgba(7, 55, 71, .13)) drop-shadow(0 1px 2px rgba(7, 55, 71, .12)); }
+.shadow-dark { filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .35)) drop-shadow(0 2px 4px rgba(0, 0, 0, .25)); }
+
+/* ---------- header ---------- */
+
+.site-header {
+  position: fixed; z-index: 50; inset: 0 0 auto 0; height: calc(var(--header-h) + 14px); pointer-events: none;
+  filter: drop-shadow(0 6px 10px rgba(7, 55, 71, .16)) drop-shadow(0 1px 1px rgba(7, 55, 71, .10));
+}
+.site-header .bar {
+  pointer-events: auto; height: 100%; background: #fff; color: var(--ink);
+  display: flex; align-items: center; gap: 36px; padding: 0 28px 14px 22px;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: .02em; font-size: 15px; text-transform: uppercase; }
+.logo svg { width: 42px; height: 42px; }
+.site-nav { display: flex; gap: 28px; font-weight: 700; font-size: 15px; }
+.site-nav a { color: var(--ink); text-decoration: none; position: relative; padding: 4px 0; }
+.site-nav a.active::after {
+  content: ""; position: absolute; left: -2px; right: -2px; bottom: -6px; height: 4px; background: var(--orange);
+  clip-path: polygon(0 40%, 30% 0, 62% 35%, 100% 10%, 98% 90%, 55% 100%, 20% 70%, 2% 100%);
+}
+.mode-badge {
+  margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-2); background: #f1ece1; padding: 5px 9px;
+}
+.mode-badge.live { color: var(--ink); background: var(--orange); }
+
+/* ---------- the two halves ---------- */
+
+.layout { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+.left {
+  position: sticky; top: 0; height: 100vh; padding: calc(var(--header-h) + 34px) 40px 28px 44px;
+  display: flex; flex-direction: column; min-width: 0;
+}
+/* the torn edge is cut 0-14 px into the right column: pull it left by half so the ragged line straddles the centre */
+.right {
+  position: relative; min-height: 100vh; margin-left: -7px; background: var(--navy);
+  padding: var(--header-h) 40px 60vh 52px; display: flex; flex-direction: column; gap: 32px; min-width: 0;
+}
+
+h1.title { margin: 0; font-size: clamp(40px, 4.3vw, 66px); line-height: .95; font-weight: 900; letter-spacing: -.01em; text-transform: uppercase; }
+h1.title em { font-style: normal; color: var(--orange); }
+.tagline { margin: 12px 0 0; font-size: 18px; font-weight: 500; color: var(--ink-2); }
+.tagline b { font-weight: 800; color: var(--ink); background: linear-gradient(transparent 62%, rgba(244, 155, 12, .35) 62%); }
+
+/* ---------- chat ---------- */
+
+.chat-wrap { margin-top: 26px; flex: 1; min-height: 0; display: flex; }
+.chat { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--paper); padding: 22px 22px 18px; }
+.messages {
+  flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 4px 12px;
+  scrollbar-width: none;
+}
+.messages::-webkit-scrollbar { display: none; }
+.msg { max-width: 86%; padding: 11px 15px; font-size: 15.5px; line-height: 1.45; animation: pop .35s cubic-bezier(.2, .9, .3, 1.2) both; overflow-wrap: anywhere; }
+.msg.bot { align-self: flex-start; background: #e9f2f3; color: var(--ink); }
+.msg.user { align-self: flex-end; background: var(--ink); color: #fff; }
+.msg.error { background: #fbe3e2; color: #a3262a; }
+.msg > * + * { margin-top: 10px; }
+.msg .md p:last-child { margin-bottom: 0; }
+.msg .notes, .msg .problem { margin-top: 10px; }
+.result-chip {
+  all: unset; cursor: pointer; display: inline-block; font-weight: 800; font-size: 13px; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--ink); background: var(--orange); padding: 5px 10px;
+}
+.result-chip:hover { filter: brightness(1.06); }
+.typing-row { display: flex; align-items: center; gap: 10px; }
+.typing { display: inline-flex; gap: 4px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-2); opacity: .4; animation: blink 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+.progress-line { font-size: 13px; color: var(--ink-2); }
+@keyframes blink { 50% { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.97); } }
+
+.suggest { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+.suggest button { all: unset; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ink-2); background: #eef3f1; padding: 6px 10px; }
+.suggest button:hover { background: #e2ecea; color: var(--ink); }
+.suggest button[aria-disabled="true"] { opacity: .5; cursor: default; }
+
+.composer { display: flex; gap: 10px; align-items: stretch; }
+.input { flex: 1; display: flex; background: #f2f6f5; }
+.input input { all: unset; flex: 1; padding: 14px 16px; font-size: 16px; color: var(--ink); min-width: 0; }
+.input input::placeholder { color: #8fa0a3; }
+.send { all: unset; cursor: pointer; padding: 0 20px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: var(--ink); background: var(--orange); }
+.send:hover { filter: brightness(1.06); }
+.send[aria-disabled="true"] { opacity: .55; cursor: default; filter: none; }
+.chat-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+.chat-foot button { all: unset; cursor: pointer; font-size: 12.5px; font-weight: 800; color: #fff; background: var(--ink-2); padding: 7px 12px; letter-spacing: .03em; }
+
+/* ---------- hero ---------- */
+
+.hero { position: relative; height: calc(100vh - var(--header-h)); min-height: 460px; margin: 0 -40px 0 -52px; }
+.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.hero .caption {
+  position: absolute; left: 52px; bottom: 28px; font-weight: 800; font-size: 12px; letter-spacing: .2em;
+  text-transform: uppercase; color: rgba(255, 255, 255, .55); pointer-events: none;
+}
+
+/* ---------- result cards ---------- */
+
+.result { background: var(--paper); padding: 22px 24px 26px; transform-origin: top center; color: var(--ink); }
+.result.enter { animation: rise .6s cubic-bezier(.2, .9, .25, 1) both; }
+.result.flash { animation: flash 1.2s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(40px) scale(.98); } }
+@keyframes flash { 0% { background: #fff1d6; } 100% { background: var(--paper); } }
+.result .meta { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.result .tag { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
+.result h2 { font-size: 22px; font-weight: 900; margin: 4px 0 16px; overflow-wrap: anywhere; }
+.result .ts { font-size: 12px; color: var(--muted-2); white-space: nowrap; }
+.result-body { display: flex; flex-direction: column; gap: 14px; }
+.result .stat-card { border: 0; padding: 0; background: transparent; }
+
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; }
+  .left { position: relative; top: 0; height: auto; padding: calc(var(--header-h) + 24px) 18px 0; }
+  .chat-wrap { height: 70vh; }
+  .right { margin-left: 0; margin-top: 24px; padding: 22px 18px 40vh; }
+  .hero { margin: -22px -18px 0; height: 70vh; }
+  .hero .caption { left: 18px; }
+  .site-header .bar { gap: 18px; padding: 0 16px 14px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .msg, .result.enter, .result.flash, .typing i { animation: none; }
+}
