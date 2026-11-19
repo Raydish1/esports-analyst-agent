@@ -26,3 +26,25 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
   2022 / 1v1"), but the answer used only the date.
 - **Wanted (the user):** each set named by its tournament, written short (BCX 2022, Winter Royale 2023), rather than by
   date. The prompt's answer guidance, and the worked example showing a `head_to_head` call, say so.
+
+### 3. A follow-up without names is asked back instead of answered from the previous turn
+
+- **Seen:** "whats raydish's record with kyna", then "tell me about the 2v2 record" (`20261119T233544Z-002`, turns 6–7).
+  The history was there: the thinking named the previous question, and the previous `head_to_head` result held the
+  answer ("In 2v2, Raydish's teams and whoiskyna's teams met in 5 sets: Raydish's side won 2 and lost 3"). The model
+  asked which player, team or event was meant.
+- **Why:** nothing says a follow-up without names means the previous question's players. Retrieval embedded the bare
+  follow-up, and its examples (the most 2v2 wins, an event's 2v2 top 8) suggested other readings.
+- **Proposed:** rewrite a follow-up into a standalone question from the history ("Raydish's 2v2 record against
+  whoiskyna") before retrieval and before the model sees it, the trace keeping both; and a prompt line that a follow-up
+  without names continues the previous question's players and events.
+
+### 4. The no-tool check fires on a clarifying question, and the reply to it reaches the user
+
+- **Seen:** the same turn 7. The clarifying question quoted examples with numbers ("top 8", "2022"), so the no-tool
+  check sent it back. The second reply addressed the check, and that became the answer: "The answer includes numbers
+  like **8** (top 8) and **2022** (year) from earlier examples, but no specific tools were called…". The rule keeping
+  the first answer when a reply talks about the answer (2026-11-09) didn't apply, since the reply's list numbers (1, 2, 3)
+  counted as new numbers.
+- **Proposed:** a reply that asks the user a question and states no result isn't checked; list numbering isn't a
+  number; and a reply that talks about the check never goes to the user.
