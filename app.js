@@ -299,8 +299,18 @@ async function init() {
     }
     await newConversation();
   } catch (error) {
-    addMsg("bot error", el("p", null, `The server isn't reachable: ${error.message}`));
+    offline();
   }
+}
+
+// No backend answered: the page is on a static host (a preview, such as GitHub Pages) or the server is down. The page
+// and the hero still work; questions are switched off, and the chat says why.
+function offline() {
+  addMsg("bot", el("p", null, "This is a preview of the page: the agent isn't connected here yet, so questions are off."));
+  box.disabled = true;
+  box.placeholder = "Questions are off in this preview";
+  send.setAttribute("aria-disabled", "true");
+  state.busy = true;
 }
 
 init();
