@@ -1,5 +1,5 @@
 {
- "_about": "The particle hero (hero.js): its tuned settings, the canvas background (centre glow fading to the stage navy, so there's no visible box), and the character art with hand-drawn weapon masks (polygons in 0-1 image coordinates; auto-detecting weapons didn't work on this art). A new legend needs its mask drawn. The art is official Brawlhalla artwork, git-ignored until its redistribution is confirmed (DATA.md).",
+ "_about": "The particle hero (hero.js): its tuned settings, the canvas background (centre glow fading to the stage navy, so there's no visible box), and the character art with hand-drawn weapon masks (polygons in 0-1 image coordinates; auto-detecting weapons didn't work on this art). A new legend needs its mask drawn. The art is official Brawlhalla artwork, cleared for redistribution (DATA.md).",
  "config": {
   "holdMs": 7200,
   "morphMs": 3550,
