@@ -1,0 +1,274 @@
+{
+ "_about": "The particle hero (hero.js): its tuned settings, the canvas background (centre glow fading to the stage navy, so there's no visible box), and the character art with hand-drawn weapon masks (polygons in 0-1 image coordinates; auto-detecting weapons didn't work on this art). A new legend needs its mask drawn. The art is official Brawlhalla artwork, git-ignored until its redistribution is confirmed (DATA.md).",
+ "config": {
+  "holdMs": 7200,
+  "morphMs": 3550,
+  "stagger": 0.45,
+  "burst": 0.05,
+  "swirl": 0.2,
+  "particleCount": 36000,
+  "pointSize": 1.5,
+  "colorFloor": 0.18,
+  "colorCeil": 1,
+  "depth": 0.04,
+  "sampleSize": 420,
+  "fitHeight": 1.62,
+  "centerX": 0,
+  "sway": 0,
+  "mouseRadius": 0,
+  "weaponGlow": 1.8,
+  "weaponFlow": 0.19,
+  "sparks": 0.14,
+  "weaponLift": 0,
+  "weaponHum": 0,
+  "autoGlow": 0,
+  "autoPercent": 0.04,
+  "rim": 0,
+  "rimColor": "#2ee6d6",
+  "scan": 0.21,
+  "scanSpeed": 0.1,
+  "twinkle": 0.42,
+  "trails": 0.5,
+  "ascii": 0,
+  "asciiSize": 6.5,
+  "asciiDensity": 0.53
+ },
+ "theme": {
+  "bgIn": [
+   0.075,
+   0.235,
+   0.31
+  ],
+  "bgOut": [
+   0.043,
+   0.165,
+   0.235
+  ]
+ },
+ "images": [
+  {
+   "name": "Volkov",
+   "src": "art/hero/volkov.webp",
+   "weapons": [
+    [
+     [
+      0.895,
+      0.0
+     ],
+     [
+      0.95,
+      0.0
+     ],
+     [
+      0.785,
+      0.8
+     ],
+     [
+      0.735,
+      0.8
+     ]
+    ],
+    [
+     [
+      0.72,
+      0.82
+     ],
+     [
+      0.98,
+      0.84
+     ],
+     [
+      1.0,
+      0.97
+     ],
+     [
+      0.72,
+      0.93
+     ]
+    ]
+   ]
+  },
+  {
+   "name": "Lucien",
+   "src": "art/hero/lucien.webp",
+   "weapons": [
+    [
+     [
+      0.35,
+      0.62
+     ],
+     [
+      0.52,
+      0.62
+     ],
+     [
+      0.53,
+      0.75
+     ],
+     [
+      0.47,
+      0.88
+     ],
+     [
+      0.36,
+      0.88
+     ]
+    ],
+    [
+     [
+      0.71,
+      0.5
+     ],
+     [
+      0.85,
+      0.46
+     ],
+     [
+      0.91,
+      0.44
+     ],
+     [
+      0.89,
+      0.62
+     ],
+     [
+      0.79,
+      0.68
+     ],
+     [
+      0.72,
+      0.63
+     ]
+    ]
+   ]
+  },
+  {
+   "name": "Artemis",
+   "src": "art/hero/artemis.webp",
+   "weapons": [
+    [
+     [
+      0.0,
+      0.32
+     ],
+     [
+      0.07,
+      0.32
+     ],
+     [
+      0.12,
+      0.6
+     ],
+     [
+      0.22,
+      0.8
+     ],
+     [
+      0.24,
+      0.9
+     ],
+     [
+      0.12,
+      1.0
+     ],
+     [
+      0.05,
+      0.96
+     ],
+     [
+      0.0,
+      0.6
+     ]
+    ],
+    [
+     [
+      0.85,
+      0.0
+     ],
+     [
+      1.0,
+      0.0
+     ],
+     [
+      0.98,
+      0.1
+     ],
+     [
+      0.585,
+      0.92
+     ],
+     [
+      0.525,
+      0.92
+     ],
+     [
+      0.88,
+      0.12
+     ]
+    ]
+   ]
+  },
+  {
+   "name": "Ezio",
+   "src": "art/hero/ezio.webp",
+   "weapons": [
+    [
+     [
+      0.59,
+      0.25
+     ],
+     [
+      0.66,
+      0.23
+     ],
+     [
+      0.8,
+      0.23
+     ],
+     [
+      0.87,
+      0.29
+     ],
+     [
+      0.88,
+      0.45
+     ],
+     [
+      0.82,
+      0.52
+     ],
+     [
+      0.66,
+      0.53
+     ],
+     [
+      0.59,
+      0.46
+     ]
+    ],
+    [
+     [
+      0.0,
+      0.93
+     ],
+     [
+      0.05,
+      0.96
+     ],
+     [
+      0.2,
+      0.62
+     ],
+     [
+      0.13,
+      0.57
+     ],
+     [
+      0.06,
+      0.7
+     ]
+    ]
+   ]
+  }
+ ]
+}
