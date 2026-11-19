@@ -3,43 +3,67 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Esports Analyst</title>
-  <meta name="description" content="Ask about official Brawlhalla esports results in plain English.">
+  <title>Brawlhalla Cortex</title>
+  <meta name="description" content="Ask anything about Brawlhalla tournament history.">
+  <link rel="preconnect" href="https://api.fontshare.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=bespoke-sans@400,500,700,800,900&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@800;900&family=Montserrat:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="components.css">
+  <link rel="stylesheet" href="cortex.css">
   <link rel="stylesheet" href="broadcast.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <span class="logo" aria-hidden="true"></span>
-      <div>
-        <h1>Esports Analyst</h1>
-        <p class="sub">Official Brawlhalla results, in plain English</p>
+  <header class="site-header">
+    <div class="bar jag" data-jag="torn-bottom" data-seed="7">
+      <div class="logo">
+        <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <path d="M24 3 40 10v13c0 11-7 18-16 22C15 41 8 34 8 23V10L24 3Z" fill="#0b2a3c" stroke="#19b3c4" stroke-width="2.5"/>
+          <path d="M27 11 17 27h7l-3 11 11-17h-7l2-10Z" fill="#f49b0c"/>
+        </svg>
+        <span>Cortex</span>
       </div>
-    </div>
-    <div class="top-actions">
-      <span id="mode" class="mode" hidden></span>
-      <button id="restart" class="ghost" type="button">New conversation</button>
+      <nav class="site-nav" aria-label="Main">
+        <a href="#" class="active" aria-current="page">Ask</a>
+      </nav>
+      <span id="mode" class="mode-badge" hidden></span>
     </div>
   </header>
 
-  <main id="thread" class="thread" aria-live="polite">
-    <section id="welcome" class="welcome">
-      <h2>Ask about players, events and head-to-heads</h2>
-      <p>The agent looks players and events up, queries the results database, checks its answer, and shows how it got
-        there. It counts official events only.</p>
-      <div id="examples" class="examples"></div>
+  <main class="layout">
+    <section class="left" aria-label="Chat">
+      <h1 class="title">Brawlhalla <em>Cortex</em></h1>
+      <p class="tagline">Ask anything about Brawlhalla <b>tournament history</b>.</p>
+
+      <div class="chat-wrap shadow">
+        <div class="chat jag" data-jag="card" data-seed="21">
+          <div class="messages" id="messages" aria-live="polite">
+            <div class="msg bot jag" data-jag="bubble" data-seed="3">Hi! Ask me about players, head-to-heads and official
+              events. Results show up <span id="where">on the right</span>.</div>
+          </div>
+          <div class="suggest" id="suggest"></div>
+          <form class="composer" id="composer">
+            <label for="q" class="visually-hidden">Your question</label>
+            <div class="input jag" data-jag="input" data-seed="11">
+              <input id="q" autocomplete="off" maxlength="500" placeholder="How many wins does … have?">
+            </div>
+            <button class="send jag" data-jag="button" data-seed="5" type="submit">Ask</button>
+          </form>
+          <div class="chat-foot">
+            <button id="restart" class="jag" data-jag="button" data-seed="9" type="button">New conversation</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="right jag" data-jag="torn-left" data-seed="42" id="right" aria-label="Results">
+      <div class="hero" id="hero">
+        <canvas id="particles" aria-hidden="true"></canvas>
+        <div class="caption" id="heroName"></div>
+      </div>
     </section>
   </main>
-
-  <form id="composer" class="composer">
-    <label for="question" class="visually-hidden">Your question</label>
-    <textarea id="question" rows="1" maxlength="500" placeholder="Who won Worlds 2019 1v1?" autocomplete="off"></textarea>
-    <button id="send" type="submit">Ask</button>
-  </form>
 </body>
 </html>
