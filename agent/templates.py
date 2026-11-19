@@ -22,6 +22,8 @@ The rules they share:
 - A team is one row with all its players.
 - Counts are counted in SQL. A list (a table made optional) is left out, with its row count and a note, when the
   observation would pass tools.TOKEN_BUDGET, as run_sql leaves out a result that large.
+- No count whose value the arguments fix is shown (player_results' COUNTS): read as the player's whole record, the
+  2nd and 3rd places under top=1, all 0, made answers wrong (decided 2026-11-17).
 - Players are given by player_id, from resolve_player, so a name the resolver isn't sure of still goes to the user
   as suggestions. Events are given by name and resolved here, as resolve_event resolves them.
 """
@@ -48,6 +50,15 @@ BY_WORDS = {"wins": {"wins", "win", "titles", "title"}, "medals": {"medals", "me
             "top8s": {"top8s", "top8", "top8finishes"}}  # as a model may write them, without spaces or punctuation
 RANKED_AT_MOST = 30  # rows of a ranking listed; a tie group past them is counted instead
 PLAYER_ARGUMENTS = ("player_id", "opponent_id")  # the arguments that take a player, which person() reads
+# player_results' counts after the player and the mode: each one's SQL over a result r, and the cutoffs (top) that fix
+# its value, which leave it out. Under top=1, the 2nd and 3rd places were 0 and the top 8s the wins, and answers read
+# them as the player's whole record (h03 and h16 in the held-out set's final measurement, docs/experiments.md)
+COUNTS = [("results", "COUNT(*)", lambda top: False),
+          ("first", "SUM(r.placement = 1)", lambda top: top == 1),
+          ("second", "SUM(r.placement = 2)", lambda top: top is not None and top < 2),
+          ("third", "SUM(r.placement = 3)", lambda top: top is not None and top < 3),
+          ("top8", "SUM(r.placement <= 8)", lambda top: top is not None and top <= 8),
+          ("best", "MIN(r.placement)", lambda top: top == 1)]
 
 
 class Refused(ValueError):
@@ -375,6 +386,13 @@ def first_and_latest(rows, when):
     return [("first", r) for r in first] + [("latest", r) for r in latest]
 
 
+def both(column, values):
+    """A summary column over both modes: the better of their best placements, or the sum of a count."""
+    if column == "best":
+        return min((v for v in values if v is not None), default=None)
+    return sum(values)
+
+
 def player_results(query, tools, player_id, top=None, mode=None, year=None, event=None):
     player, name, given = person(tools, player_id)
     top = None if top is None else whole(top, "top")
@@ -385,9 +403,9 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
         return unanswered("player_results", found, query)
     where, scope = conditions(mode, year, found.events if found else None)
     where = " AND ".join([f"r.player_id = {player}"] + ([f"r.placement <= {top}"] if top else []) + where)
-    counted = {m: figures for m, *figures in query.rows(
-        "SELECT r.mode, COUNT(*), SUM(r.placement = 1), SUM(r.placement = 2), SUM(r.placement = 3),"
-        " SUM(r.placement <= 8), MIN(r.placement), SUM(r.format = 'crew_battle')"
+    shown = [(column, sql) for column, sql, fixed in COUNTS if not fixed(top)]
+    counted = {m: figures for m, *figures in query.rows(  # the shown counts, then the crew battles
+        f"SELECT r.mode, {', '.join(sql for _, sql in shown)}, SUM(r.format = 'crew_battle')"
         f" FROM v_results r WHERE {where} GROUP BY r.mode")}
     listed = query.rows(
         "SELECT r.start_date, r.tournament_name, r.event_name, r.mode, r.format, r.placement, r.start_time"
@@ -397,16 +415,17 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
     if given != player:
         notes.append(merged(given, player, name))
     modes = [mode] if mode else ["1v1", "2v2"]  # a mode has its row even with nothing in it: a 0 to read, not a gap
-    summary = [[name, m, *(counted[m][:6] if m in counted else [0, 0, 0, 0, 0, None])] for m in modes]
+    nothing = [None if column == "best" else 0 for column, _ in shown]
+    summary = [[name, m, *(counted[m][:-1] if m in counted else nothing)] for m in modes]
     if not mode:
-        best = min((row[7] for row in summary if row[7] is not None), default=None)
-        summary.append([name, "1v1 and 2v2", *(sum(row[i] for row in summary) for i in range(2, 7)), best])
+        summary.append([name, "1v1 and 2v2", *(both(column, [row[2 + i] for row in summary])
+                                               for i, (column, _) in enumerate(shown))])
     if not listed:
         notes.append(f"{name} has no official 1v1 or 2v2 results in the data." if not every else
                      f"None of {name}'s {sum(every.values())} official results"
                      f" ({', '.join(f'{n} in {m}' for m, n in sorted(every.items()))}) is among these: the count is 0,"
                      " which isn't the same as never having played.")
-    crews = sum(figures[6] or 0 for figures in counted.values())
+    crews = sum(figures[-1] or 0 for figures in counted.values())
     if crews:
         notes.append(f"{crews} of the 1v1 {cut(top)} {'is a crew battle: a team result' if crews == 1 else 'are crew battles: team results'},"
                      " counted as 1v1.")
@@ -414,8 +433,7 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
             for which, r in first_and_latest([r for r in listed if r[3] == m], lambda r: r[6])]
     each = [[r[0], event_name(r[1], r[2]), f"{r[3]} (crew battle)" if r[4] == "crew_battle" else r[3], r[5]] for r in listed]
     return observation("player_results", scope, notes, [
-        table(f"{name}'s {cut(top)}, counted by mode",
-              ["player", "mode", "results", "first", "second", "third", "top8", "best"], summary),
+        table(f"{name}'s {cut(top)}, counted by mode", ["player", "mode", *(column for column, _ in shown)], summary),
         table("the first and the latest of them in each mode", ["which", "mode", "date", "event", "placement"], ends)
         if ends else None,
         table("each of them, oldest first", ["date", "event", "mode", "placement"], each, optional=True)
@@ -555,7 +573,7 @@ TEMPLATES = {t.name: t for t in (
         "One player's results at official events: how many, by mode (1st, 2nd and 3rd places, top 8s, the best), the"
         " first and the latest, and the list. Use it for a player's wins, titles or majors (top 1), medals (top 3), top"
         " 8s (top 8) or every result (no top), and narrow it to a mode, a year, or an event or series ('worlds', 'bcx"
-        " 2024') when the question does.",
+        " 2024') when the question does. With top, it counts only those results, not the player's whole record.",
         {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
          "top": {"type": "integer", "description": "keep results placed this or better: 1 for wins, 3 for medals, 8 for"
                                                    " top 8s; leave out for every result"},
@@ -579,7 +597,8 @@ TEMPLATES = {t.name: t for t in (
         "Players ranked by their wins (1st places), medals (top 3) or top 8s at official events, every tie included:"
         " the top 5 is everyone ranked 5th or better. Each row has the player's count, its 1v1 and 2v2 split and its"
         " crew battles. Use it for who has the most wins, titles, majors, medals or top 8s, overall or in a mode, a"
-        " year, or an event or series ('worlds', 'bcx').",
+        " year, or an event or series ('worlds', 'bcx'). It can't leave players out or take another condition, such"
+        " as never having won: use run_sql.",
         {"by": {"type": "string", "enum": list(BY), "description": "what to count: wins, medals or top8s"},
          "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is everyone ranked 5th or"
                                                    " better"},

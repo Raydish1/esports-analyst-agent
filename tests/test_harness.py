@@ -431,6 +431,47 @@ class TemplateCallsTest(unittest.TestCase):
         self.assertEqual(lines[-2], "Per run: 4.0 steps and 40.0 s of model time, over 2 runs.")
 
 
+class NumberForANameTest(unittest.TestCase):
+    def test_a_resolve_player_call_given_a_number_for_a_name_is_scored_like_any_other_call(self):
+        question = {"id": "x02", "set": "existing", "players": {"sandstorm": 74433}}
+        run = trace(call("resolve_player", {"name": 74433}, {"error": "resolve_player takes one argument, name"}),
+                    sql("SELECT COUNT(*) FROM v_results WHERE player_id = 74433", [[1]]))
+        self.assertEqual(harness.stage1(question, run, None), {"result": "pass", "detail": "sandstorm: queried with it"})
+
+
+class NewChecksTest(unittest.TestCase):
+    """The number check and the name filter (agent/number_check.py, tools.name_filters): counted when a run is
+    scored, shown in the report, and replayed offline on a run from before them."""
+
+    def test_scoring_counts_each_checks_firings_and_the_report_shows_them(self):
+        replaced = [{"claim": "a", "replacement": "b", "numbers": ["5"]}, {"claim": "c", "replacement": "d", "numbers": ["6"]}]
+        run = {"steps": [{"tool_calls": [], "answer_check": {"action": "sent back"},
+                          "number_check": {"numbers": ["5"], "action": "kept"}},
+                         {"tool_calls": [{**sql("SELECT 1 FROM players WHERE name = 'x'", []), "name_filters": ["name = 'x'"]}]},
+                         {"tool_calls": [], "number_check": {"numbers": ["5"], "action": "sent back"}},
+                         {"tool_calls": [], "number_check": {"numbers": ["5", "6"], "action": "replaced: sent back once"
+                                                             " already", "replaced": replaced}}]}
+        self.assertEqual(harness.fired(run), {"answer check": 1, "number check, sent back": 1,
+                                              "number check, claims replaced": 2, "name filter, queries refused": 1})
+        lines = harness.check_use("Checks, retrieval on", [{"fired": harness.fired(run)}, {"fired": {}}])
+        self.assertIn("| answer check | 1/2 (50%) | 1 |", lines)
+        self.assertIn("| number check, claims replaced | 1/2 (50%) | 2 |", lines)
+        self.assertIn("| lookup check | 0/2 (0%) | 0 |", lines)
+
+    def test_a_replay_shows_what_the_checks_would_have_done_to_a_run_from_before_them(self):
+        run = {**trace(sql("SELECT start_time FROM v_sets_1v1 WHERE event_id = 'e1'", [[1688930865]]),
+                       sql("SELECT player_id FROM players WHERE name = 'Boomie'", [[18411]])),
+               "id": "x01", "seed": 0, "question": "When did the final start?", "answer": "The final began at 11:47 AM UTC."}
+        claims, named = harness.replay(run)
+        self.assertEqual(claims, [{"claim": "The final began at 11:47 AM UTC.", "numbers": ["11:47 AM UTC"],
+                                   "replacement": "I couldn't confirm the time from the data."}])
+        self.assertEqual(named, ["name = 'Boomie'"])
+        page = harness.replayed("R", [run, {**run, "seed": 1, "answer": "It began at 19:27 UTC."}])
+        self.assertEqual(page[2], "Of 2 runs, the number check flags 1 final answers and the name filter 2 run_sql queries.")
+        self.assertIn("## x01 seed 0: When did the final start?", page)
+        self.assertNotIn("## x01 seed 1: When did the final start?", page)  # 19:27 is the set's UTC start
+
+
 class HeldOutLeakTest(unittest.TestCase):
     """The held-out set must never reach the example bank (decided 2026-11-08), and names players the agent wasn't
     tuned on."""

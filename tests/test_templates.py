@@ -209,7 +209,7 @@ class PlayerResultsTest(Fixture):
     def test_top_mode_year_and_event_narrow_the_results_and_the_scope_says_so(self):
         wins = self.call("player_results", player_id=A, top=1, mode="doubles")
         self.assertEqual((wins["scope"], self.rows(wins, "A's wins (1st places)")),
-                         ("official events, 2v2", [["A", "2v2", 1, 1, 0, 0, 1, 1]]))
+                         ("official events, 2v2", [["A", "2v2", 1]]))
         self.assertEqual(self.rows(wins, "the first and the latest"), [["only", "2v2", "1970-01-01", "Duos", 1]])
         year = self.call("player_results", player_id=A, year=1970)
         self.assertEqual((year["scope"], self.rows(year, "A's results")[-1][2]), ("official events, 1v1 and 2v2, in 1970", 5))
@@ -218,10 +218,30 @@ class PlayerResultsTest(Fixture):
                          ("official events, 1v1 and 2v2, at the 2 events the name means", "confident"))
         self.assertEqual([row[1] for row in self.rows(cup, "each of them")], ["Cup", "Duos"])
 
+    def test_a_cutoff_leaves_out_the_counts_it_fixes(self):
+        def summary(top):
+            out = self.call("player_results", player_id=A, **({} if top is None else {"top": top}))
+            return next(t for t in out["tables"] if t["what"].endswith("counted by mode"))
+        every = ["player", "mode", "results", "first", "second", "third", "top8", "best"]
+        for top, columns in ((1, ["player", "mode", "results"]),
+                             (2, ["player", "mode", "results", "first", "second", "best"]),
+                             (3, ["player", "mode", "results", "first", "second", "third", "best"]),
+                             (8, ["player", "mode", "results", "first", "second", "third", "best"]),
+                             (9, every), (None, every)):
+            self.assertEqual(summary(top)["columns"], columns, top)
+        self.assertEqual(summary(3)["rows"], [["A", "1v1", 3, 2, 1, 0, 1], ["A", "2v2", 2, 1, 0, 1, 1],
+                                              ["A", "1v1 and 2v2", 5, 3, 1, 1, 1]])
+
+    def test_the_model_reads_that_a_cutoff_counts_only_its_results_and_a_ranking_takes_no_condition(self):
+        self.assertTrue(templates.TEMPLATES["player_results"].description.endswith(
+            "With top, it counts only those results, not the player's whole record."))
+        self.assertTrue(templates.TEMPLATES["rank_players"].description.endswith(
+            "It can't leave players out or take another condition, such as never having won: use run_sql."))
+        self.assertIn("  - who has the most wins, medals or top 8s, with no other condition: rank_players\n", react.SYSTEM)
+
     def test_a_count_of_zero_says_what_it_is_zero_of(self):
         out = self.call("player_results", player_id=D, top=1)
-        self.assertEqual(self.rows(out, "D's wins"), [["D", "1v1", 0, 0, 0, 0, 0, None], ["D", "2v2", 0, 0, 0, 0, 0, None],
-                                                      ["D", "1v1 and 2v2", 0, 0, 0, 0, 0, None]])
+        self.assertEqual(self.rows(out, "D's wins"), [["D", "1v1", 0], ["D", "2v2", 0], ["D", "1v1 and 2v2", 0]])
         self.assertEqual(out["notes"], ["None of D's 2 official results (1 in 1v1, 1 in 2v2) is among these: the count is"
                                         " 0, which isn't the same as never having played."])
         self.assertEqual(len(out["tables"]), 1)  # nothing first or latest, and no list

@@ -460,6 +460,29 @@ class CrawlTest(unittest.TestCase):
         self.assertTrue(any("3 entrant(s) missing from the standings, 2 player(s) with a Stats API record,"
                             " 1 placed by the Stats API" in line for line in self.log))
 
+    def test_legends_take_each_regions_top_and_record_three_periods(self):
+        def top(region, n):
+            return {"NA": [5, 6], "EU": [6, 7]}.get(region, [])[:n]
+
+        def legends(p):
+            if p["playerIds"] == [7]:
+                return ApiError(404, "/player/legend", p, "no such player")
+            return {"legends": [{"name": "RED_RAPTOR", "count": 9 if p.get("year") else 20}, {"name": "", "count": 1}]}
+        self.args.top = 2
+        with mock.patch.object(crawl, "pr_top", top):
+            self.assertEqual(self.run_stage(FakeApi({"/player/legend": legends}), "legends"), "finished")
+        self.assertEqual(self.statuses("legends"), {"done": 9})  # 5, 6 (in two regions) and 7 (unknown: done, nothing)
+        self.assertEqual(sorted(self.db.execute("SELECT * FROM crawl_legends WHERE player_id = 5")),
+                         [(5, "2025", "RED_RAPTOR", 9), (5, "2026", "RED_RAPTOR", 9), (5, "all", "RED_RAPTOR", 20)])
+        self.assertEqual(sorted({r[0] for r in self.db.execute("SELECT player_id FROM crawl_legends")}), [5, 6])
+
+    def test_pr_top_reads_cached_pages_in_rank_order(self):
+        pages = {1: {"prPlayers": [{"playerId": 2, "powerRanking": 2}, {"playerId": 1, "powerRanking": 1}], "totalPages": 2},
+                 2: {"prPlayers": [{"playerId": 3, "powerRanking": 3}], "totalPages": 2}}
+        cache = SimpleNamespace(newest=lambda endpoint, p: (200, json.dumps(pages[p["page"]]).encode()))
+        self.assertEqual(crawl.pr_top("NA", 3, cache), [1, 2, 3])
+        self.assertEqual(crawl.pr_top("NA", 1, cache), [1])
+
     def test_double_elimination_places(self):
         self.assertEqual(crawl.double_elimination_places(8), [1, 2, 3, 4, 5, 5, 7, 7])
         self.assertEqual(crawl.double_elimination_places(16)[8:], [9] * 4 + [13] * 4)

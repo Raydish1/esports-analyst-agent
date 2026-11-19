@@ -36,7 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from names import fold  # noqa: E402
-from tools import SNAPSHOT, connect, player_ids, run_sql, tables  # noqa: E402
+from tools import SNAPSHOT, connect, name_filters, player_ids, run_sql, tables  # noqa: E402
 
 EMBED_MODEL = "nomic-embed-text"
 # nomic-embed-text's task prefix for comparing texts of one kind, here a question with questions. On the evaluation
@@ -103,8 +103,9 @@ def cells(row):
 
 def check(examples, path=SNAPSHOT):
     """Each example's problems on the snapshot: its query fails, is too large to show, has rows when it should have
-    none or none when it should have some, or filters on a player the evaluation set names; its call fails, or its
-    result doesn't hold every row of the query's (held). {id: [problem]}, and the run's lines to print."""
+    none or none when it should have some, filters on a player the evaluation set names, or looks a player up by name,
+    which the loop refuses (tools.name_filters); its call fails, or its result doesn't hold every row of the query's
+    (held). {id: [problem]}, and the run's lines to print."""
     import react  # here: react imports this module
     evaluation = fold(" ".join(p.read_text(encoding="utf-8") for p in EVALUATION))
     db = connect(path, 30)
@@ -129,6 +130,7 @@ def check(examples, path=SNAPSHOT):
                 found.append(f"no player {pid}")
             elif fold(name) in evaluation or fold(name.split("|")[-1].strip()) in evaluation:
                 found.append(f"{name} ({pid}) is named in the evaluation set")
+        found += [f"looks a player up by name: {f}" for f in name_filters(e["sql"])]
         timed = ""
         if e.get("call"):
             begun = time.monotonic()
