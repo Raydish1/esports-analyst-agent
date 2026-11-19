@@ -52,22 +52,14 @@ button, input { font: inherit; }
 
 /* ---------- the two halves ---------- */
 
-.layout { position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
-
-/* The divider: a white strip, torn on its left like the header's bottom edge, straddling the centre under the navy's
-   torn edge; its shadow is on the unclipped parent, as the header's is. */
-.divider-shadow {
-  position: absolute; z-index: 1; top: 0; bottom: 0; left: calc(50% - 24px); width: 36px; pointer-events: none;
-  filter: drop-shadow(-5px 0 8px rgba(7, 55, 71, .16)) drop-shadow(-1px 0 1px rgba(7, 55, 71, .10));
-}
-.divider { width: 100%; height: 100%; background: #fff; }
+.layout { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
 .left {
   position: sticky; top: 0; height: 100vh; padding: calc(var(--header-h) + 34px) 40px 28px 44px;
   display: flex; flex-direction: column; min-width: 0;
 }
 /* the torn edge is cut 0-14 px into the right column: pull it left by half so the ragged line straddles the centre */
 .right {
-  position: relative; z-index: 2; min-height: 100vh; margin-left: -7px; background: var(--navy);
+  position: relative; min-height: 100vh; margin-left: -7px; background: var(--navy);
   padding: var(--header-h) 40px 60vh 52px; display: flex; flex-direction: column; gap: 32px; min-width: 0;
 }
 
@@ -146,7 +138,6 @@ h1.title em { font-style: normal; color: var(--orange); }
 
 @media (max-width: 960px) {
   .layout { grid-template-columns: 1fr; }
-  .divider-shadow { display: none; }
   .left { position: relative; top: 0; height: auto; padding: calc(var(--header-h) + 24px) 18px 0; }
   .chat-wrap { height: 70vh; }
   .right { margin-left: 0; margin-top: 24px; padding: 22px 18px 40vh; }
