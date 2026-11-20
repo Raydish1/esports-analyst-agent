@@ -31,7 +31,8 @@ numbers):
                what was named ('between the two'), and isn't read
 Anything the user's question writes is supported as written, and its numbers, dates and place words are evidence.
 What an answer asks and its code aren't claims (stated): a sentence ending in '?', and code, fenced or inline
-(`top=1`). Live, a clarifying question went back for the 8 and 2022 of its examples (decided 2026-11-19).
+(`top=1`). Live, a clarifying question went back for the 8 and 2022 of its examples (decided 2026-11-19). A name
+ending in '?', bold or quoted (**acno?**), asks nothing (2026-11-20).
 The replay on 20261117-grounding-before added top 3 and top 8, placement N and the words referring back: as numbers
 to check, they made the sentences holding an answer's main claim go (q35 seed 0, q45 seed 1).
 Arithmetic isn't a derivation: a sum, a difference or a count of rows the model made itself goes back, since the
@@ -58,6 +59,7 @@ NUM = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 END = r"(?![\w%/]|[.,]\d)"  # where a number ends: not inside a name, a fraction or a longer number
 CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)  # fenced code, then inline code
 SENTENCE = re.compile(r"[.!?]+[*_)\]\"'”’]*(?=\s|$)|\n")  # where a sentence ends: a mark before a space, or a line break
+NAMED = re.compile(r"(?:\*\*|__|[*_\"'“‘])[^\s*_\"'“”‘’]+\?+(?:\*\*|__|[*_\"'”’])$")  # one bold or quoted word: **acno?**
 PLACES = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8,
           "ninth": 9, "tenth": 10, "gold": 1, "silver": 2, "bronze": 3}
 WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -141,12 +143,20 @@ def stated(text):
     """A text as it states things, for the checks to read: its code (fenced, or inline such as `top=1`) and its
     questions (each sentence ending in '?') blanked, each character by one no pattern skips, so what's left keeps its
     place. A clarifying question states nothing by its examples: live, "Or a specific event's 2v2 bracket (e.g., "top
-    8 of the Europe Summer 2022 2v2")?" went back for its 8 and 2022 (docs/web-app-testing-notes.md, finding 4)."""
+    8 of the Europe Summer 2022 2v2")?" went back for its 8 and 2022 (docs/web-app-testing-notes.md, finding 4).
+    A '?' ending one bold or quoted word is a name's, such as **acno?**, and ends no sentence; and a question's
+    blanking keeps the spaces before it, so the numbering before it is still a list's. On 2026-11-19, '3. **acno?**'
+    lost both, and its 3 went back as a number no tool returned (q05 seeds 0 and 2; decided 2026-11-20)."""
     text = CODE.sub(lambda m: "\0" * len(m[0]), text)
     out, start = [], 0
     for m in SENTENCE.finditer(text):
+        if "?" in m[0] and NAMED.search(text, max(0, m.start() - 60), m.end()):
+            continue
         piece = text[start:m.end()]
-        out.append("\0" * len(piece) if "?" in m[0] else piece)
+        if "?" in m[0]:
+            body = piece.lstrip()
+            piece = piece[:len(piece) - len(body)] + "\0" * len(body)
+        out.append(piece)
         start = m.end()
     return "".join(out) + text[start:]
 

@@ -57,6 +57,19 @@ class ClaimsTest(unittest.TestCase):
         found = evidence(question="what did raydish get on March 10, 2024?")  # a user's question is still evidence
         self.assertEqual(flagged(found, "On March 10, 2024 he placed 5th."), ["5th"])
 
+    def test_a_name_ending_in_a_question_mark_asks_nothing_and_a_question_keeps_the_numbering_before_it(self):
+        listed = ("1. **gdsandstorm** - $258,984.17\n2. **Zivai** - $214,458.33\n3. **acno?** - $189,215.00\n"
+                  "4. **whoiskyna** - $161,110.00")  # q05 seeds 0 and 2 on 2026-11-19: its 3 went back
+        self.assertEqual(number_check.stated(listed), listed)
+        earnings = {"complete": True, "columns": ["name", "earnings_usd"], "rows": [
+            ["gdsandstorm", 258984.17], ["Zivai", 214458.33], ["acno?", 189215.0], ["whoiskyna", 161110.0]]}
+        self.assertEqual(flagged(evidence(earnings), listed), [])
+        plain = "2. Zivai - $214,458.33\n3. acno? - $189,215.00"  # not bold: a question to the reader, numbering kept
+        self.assertEqual([(c.kind, c.text) for c in number_check.claims(number_check.stated(plain))],
+                         [("list", "2."), ("money", "$214,458.33"), ("list", "3."), ("money", "$189,215.00")])
+        asked = "1. Did you mean **Raydish**?\n2. Or the top 8?"  # questions in a list still state nothing
+        self.assertEqual([c.text for c in number_check.claims(number_check.stated(asked))], ["1.", "2."])
+
 
 class EvidenceTest(unittest.TestCase):
     def test_a_number_a_result_holds_is_supported_and_one_it_doesnt_isnt(self):
