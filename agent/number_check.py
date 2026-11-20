@@ -30,6 +30,8 @@ numbers):
     word       the number, for two to twenty and twice; after 'the', 'these' or 'those' a word refers back to
                what was named ('between the two'), and isn't read
 Anything the user's question writes is supported as written, and its numbers, dates and place words are evidence.
+What an answer asks and its code aren't claims (stated): a sentence ending in '?', and code, fenced or inline
+(`top=1`). Live, a clarifying question went back for the 8 and 2022 of its examples (decided 2026-11-19).
 The replay on 20261117-grounding-before added top 3 and top 8, placement N and the words referring back: as numbers
 to check, they made the sentences holding an answer's main claim go (q35 seed 0, q45 seed 1).
 Arithmetic isn't a derivation: a sum, a difference or a count of rows the model made itself goes back, since the
@@ -54,6 +56,8 @@ MONTH = "(" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")\.?"  # capit
 DAY = r"(\d{1,2})(?:st|nd|rd|th)?"
 NUM = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 END = r"(?![\w%/]|[.,]\d)"  # where a number ends: not inside a name, a fraction or a longer number
+CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)  # fenced code, then inline code
+SENTENCE = re.compile(r"[.!?]+[*_)\]\"'”’]*(?=\s|$)|\n")  # where a sentence ends: a mark before a space, or a line break
 PLACES = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8,
           "ninth": 9, "tenth": 10, "gold": 1, "silver": 2, "bronze": 3}
 WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -133,6 +137,20 @@ KINDS = [(kind, re.compile(pattern, flags), parse) for kind, pattern, flags, par
 ]]
 
 
+def stated(text):
+    """A text as it states things, for the checks to read: its code (fenced, or inline such as `top=1`) and its
+    questions (each sentence ending in '?') blanked, each character by one no pattern skips, so what's left keeps its
+    place. A clarifying question states nothing by its examples: live, "Or a specific event's 2v2 bracket (e.g., "top
+    8 of the Europe Summer 2022 2v2")?" went back for its 8 and 2022 (docs/web-app-testing-notes.md, finding 4)."""
+    text = CODE.sub(lambda m: "\0" * len(m[0]), text)
+    out, start = [], 0
+    for m in SENTENCE.finditer(text):
+        piece = text[start:m.end()]
+        out.append("\0" * len(piece) if "?" in m[0] else piece)
+        start = m.end()
+    return "".join(out) + text[start:]
+
+
 def claims(text):
     """Every number-like claim in a text, in the order it's written. Each kind is read with the claims before it
     blanked out, so a date's day isn't also a number: blanked with a character no pattern skips, as a space would
@@ -163,7 +181,7 @@ class Evidence:
         self.questions.append(squeeze(question))
         row = []
         self.rows.append(row)
-        self.text(question, row)
+        self.text(re.sub(r"\b\d+v\d+\b", " ", question), row)  # a format names a mode, not a number: '2v2' holds no 2
         for c in claims(question):
             if c.kind in ("date", "datetime"):
                 self.date(*c.value[:3])
@@ -235,8 +253,24 @@ class Evidence:
         return any(written.search(q) for q in self.questions) or RULES[claim.kind](claim.value, self)
 
     def unsupported(self, answer):
-        """The claims in an answer that nothing in the conversation supports."""
-        return [c for c in claims(answer) if not self.supports(c)]
+        """The claims an answer states (stated) that nothing in the conversation supports."""
+        return [c for c in claims(stated(answer)) if not self.supports(c)]
+
+
+class Window:
+    """The evidence a turn's answer may cite: its own tool results and the previous turn's, each an Evidence, which is
+    what the model has in view, as react.Conversation keeps older turns as question and answer only. An older turn's
+    results, and every earlier answer, don't count (decided 2026-11-19): in the web app's live testing, an answer's
+    small numbers stood because some tool result many turns back held them."""
+
+    def __init__(self, *evidence):
+        self.evidence = evidence
+
+    def supports(self, claim):
+        return any(e.supports(claim) for e in self.evidence)
+
+    def unsupported(self, answer):
+        return [c for c in claims(stated(answer)) if not self.supports(c)]
 
 
 def rounded(value, target, precision):
@@ -346,7 +380,10 @@ def sentence_ends(body, start):
 
 
 def describe(claim, answer):
-    """What a claim states, without its number: 'the time', 'the number of games won', 'the career earnings'."""
+    """What a claim states, without its number: 'the time', 'the number of games won', 'the career earnings'. A
+    player's claim (kind player, which react.py makes for a name no tool in view returned) is 'this about Zivai'."""
+    if claim.kind == "player":
+        return f"this about {claim.value[0]}"
     if claim.kind in ("number", "word") and re.search(r"\b(?:player[ _-]?)?id\b[\s:#=*]*$", answer[:claim.start], re.I):
         return "the player ID"
     words = []

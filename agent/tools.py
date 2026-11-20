@@ -320,7 +320,11 @@ class EventResolver:
         if not found:
             stem = " ".join(t for t in rest if not YEAR.fullmatch(t))
             near = sorted(a for a in self.aliases if stem and (a == stem or a.startswith(stem + " ")))
-            note = "No official event matches this name. Say so; don't search event names with LIKE."
+            # The model spells a name out itself, rather than the data holding every abbreviation (decided 2026-11-19)
+            note = ("No official event matches this name. People shorten event names and use slang: if it has an"
+                    " abbreviation or a nickname, spell it out the way official event names write it (as 'bcx' is"
+                    " Brawlhalla World Championship Expo) and look it up once more. If that finds nothing either, say"
+                    " so. Don't search event names with LIKE.")
             if near:
                 note += f" Aliases that start with '{stem}': {', '.join(near[:10])}."
             return {**out, "status": "not_found", "note": note, "events": []}

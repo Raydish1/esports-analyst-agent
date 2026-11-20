@@ -274,9 +274,22 @@ class HeadToHeadTest(Fixture):
         self.assertEqual((out["player"], out["opponent"]), ({"player_id": A, "name": "A"}, {"player_id": B, "name": "B"}))
         self.assertEqual(self.rows(out, "A's 1v1 record against B"), [["A", A, "B", B, 3, 0, 3, 8, 1, 0]])
         self.assertEqual(self.rows(out, "each 1v1 set between them"), [  # not the forfeit, the tie or the crew battle
-            ["1970-01-01", "Cup", "A", A, 3, 1], ["1970-01-01", "Cup", "A", A, 3, 0], ["1970-01-01", "League", "A", A, 2, 0]])
+            ["Cup", "1970-01-01", "A", A, 3, 1], ["Cup", "1970-01-01", "A", A, 3, 0], ["League", "1970-01-01", "A", A, 2, 0]])
         self.assertEqual(self.rows(self.call("head_to_head", player_id=B, opponent_id=A), "B's 1v1 record against A"),
                          [["B", B, "A", A, 0, 3, 3, 1, 8, 0]])
+
+    def test_each_set_leads_with_its_event_named_without_a_mode_its_tournament_repeats(self):
+        named = [(t, e, templates.set_event(t, e)) for t, e in [
+            ("Brawlhalla World Championship Expo 2022", "1v1"), ("CEO 2025", "Brawlhalla Singles (1v1)"),
+            ("North America - Winter Championship 2023", "Brawlhalla Championship 1v1"), ("Cup", None),
+            ("DreamHack Atlanta 2019", "Brawlhalla World Championship 1v1"),
+            ("Brawl League Masters - Season 4 (NA)", "Top 8 Finals Brawlhalla")]]
+        self.assertEqual([n for _, _, n in named], [
+            "Brawlhalla World Championship Expo 2022", "CEO 2025", "North America - Winter Championship 2023", "Cup",
+            "DreamHack Atlanta 2019 / Brawlhalla World Championship 1v1",  # says more than the mode
+            "Brawl League Masters - Season 4 (NA) / Top 8 Finals Brawlhalla"])  # a phase of a split tournament
+        self.assertIn("- Name a set or a result by its event, written short (BCX 2022, Winter Royale 2023), not by its"
+                      " date.", react.SYSTEM)
 
     def test_the_model_reads_that_it_counts_sets_and_where_placements_are(self):
         description = " ".join(next(t["function"]["description"] for t in react.TOOLS

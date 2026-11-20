@@ -75,7 +75,7 @@ shape = "head_to_head"
 question = "noeL vs Remmy, what's their 1v1 history?"
 note = "v_head_to_head_1v1 holds each pairing twice: read only the row with the first player as player_id, never both."
 call = 'head_to_head(player_id=115723, opponent_id=79652)'
-call_note = "Both player_ids come from resolve_player. The record is the first player's, in sets, with the games and each set."
+call_note = "Both player_ids come from resolve_player. The record is the first player's, in sets, with the games and each set. Name a set by its event, written short (BCX 2022), not by its date."
 sql = '''
 SELECT wins, losses, matches, games_won, games_lost, unscored_matches
 FROM v_head_to_head_1v1

@@ -50,6 +50,9 @@ BY_WORDS = {"wins": {"wins", "win", "titles", "title"}, "medals": {"medals", "me
             "top8s": {"top8s", "top8", "top8finishes"}}  # as a model may write them, without spaces or punctuation
 RANKED_AT_MOST = 30  # rows of a ranking listed; a tie group past them is counted instead
 PLAYER_ARGUMENTS = ("player_id", "opponent_id")  # the arguments that take a player, which person() reads
+# An event name that says only the mode, which a list of 1v1 sets leaves out (set_event): 'Brawlhalla Championship
+# 1v1', 'Brawlhalla Singles (1v1)', '1v1'. 'World Championship 1v1' says more, and stays
+GENERIC_EVENT = re.compile(r"(?:brawlhalla\s*)?(?:championship\s*)?(?:singles|1v1)?\s*(?:\(1v1\))?", re.I)
 # player_results' counts after the player and the mode: each one's SQL over a result r, and the cutoffs (top) that fix
 # its value, which leave it out. Under top=1, the 2nd and 3rd places were 0 and the top 8s the wins, and answers read
 # them as the player's whole record (h03 and h16 in the held-out set's final measurement, docs/experiments.md)
@@ -374,6 +377,13 @@ def event_name(tournament, event):
     return f"{tournament} / {event}" if event else tournament
 
 
+def set_event(tournament, event):
+    """A set's event as a list of sets names it: the tournament, with its event's name only when that says more than
+    the mode ('Brawlhalla World Championship Expo 2022', not '... / 1v1'; 'DreamHack Atlanta 2019 / Brawlhalla World
+    Championship 1v1'). Live, an answer named each set by its date alone (docs/web-app-testing-notes.md, finding 2)."""
+    return tournament if not event or GENERIC_EVENT.fullmatch(event.strip()) else event_name(tournament, event)
+
+
 def first_and_latest(rows, when):
     """(which, row) for the rows first and latest in time, of rows in time order (`when` gives a row's time). Every
     row sharing the first time is first, and likewise the latest. Rows that all share one time are each 'only'."""
@@ -470,9 +480,9 @@ def head_to_head(query, tools, player_id, opponent_id):
     record = table(f"{name}'s 1v1 record against {other}, in sets",
                    ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets", "games_won", "games_lost",
                     "unscored_sets"], [[name, player, other, opponent, wins, losses, sets, games_won, games_lost, unscored]])
-    each = table("each 1v1 set between them, oldest first", ["date", "event", "winner", "winner_id", "winner_games",
+    each = table("each 1v1 set between them, oldest first", ["event", "date", "winner", "winner_id", "winner_games",
                                                               "loser_games"],
-                 [[r[0], event_name(r[4], r[5]), *r[6:]] for r in listed], optional=True) if listed else None
+                 [[set_event(r[4], r[5]), r[0], *r[6:]] for r in listed], optional=True) if listed else None
     return observation("head_to_head", SETS_SCOPE, notes, [record, each], query.ran,
                        player={"player_id": player, "name": name}, opponent={"player_id": opponent, "name": other})
 

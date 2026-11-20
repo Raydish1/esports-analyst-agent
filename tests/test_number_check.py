@@ -43,6 +43,20 @@ class ClaimsTest(unittest.TestCase):
     def test_digits_inside_names_and_fractions_arent_claims(self):
         self.assertEqual(number_check.claims("tike36 and Marckiem00 at SEA League Week 1/4"), [])
 
+    def test_what_an_answer_asks_and_its_code_state_nothing_and_the_rest_keeps_its_place(self):
+        live = ('To provide a detailed 2v2 record, please clarify:\n- Or a specific event\'s 2v2 bracket (e.g., "top 8 of'
+                ' the Europe Summer 2022 2v2")?\n- **Event-focused**: Use `event_results(event="...", top=8)`.\n'
+                "Let me know the specifics!")  # live, 20261119T233544Z-002 turn 7: sent back for 8 and 2022
+        said = number_check.stated(live)
+        self.assertEqual((len(said), [c.text for c in number_check.claims(said)]), (len(live), ["2v2"]))
+        self.assertEqual(said[:50], live[:50])
+        answer = "Raydish has 6 wins. Want the 2022 list?\n```sql\nSELECT 7\n```\nUse `top=1` for 3 of them."
+        self.assertEqual([(c.text, c.start) for c in number_check.claims(number_check.stated(answer))],
+                         [("6", answer.index("6")), ("3", answer.index("3 of"))])
+        self.assertEqual(flagged(evidence({"wins": 6}), answer), ["3"])  # the question, the SQL and top=1 aren't claims
+        found = evidence(question="what did raydish get on March 10, 2024?")  # a user's question is still evidence
+        self.assertEqual(flagged(found, "On March 10, 2024 he placed 5th."), ["5th"])
+
 
 class EvidenceTest(unittest.TestCase):
     def test_a_number_a_result_holds_is_supported_and_one_it_doesnt_isnt(self):

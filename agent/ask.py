@@ -184,6 +184,8 @@ def main(argv=None, read=input, out=print):
     parser.add_argument("--seed", type=int, default=0, help="the sampling seed (default: 0, as react.py's)")
     parser.add_argument("--examples", choices=["on", "off"], default="on", help="retrieve worked examples for each"
                                                                                 " question (default: on; needs chromadb)")
+    parser.add_argument("--follow-ups", choices=["cues", "model"], default="cues", help="how a follow-up is settled:"
+                        " hand-written cues, or one short model call (default: cues)")
     args = parser.parse_args(argv)
     load_env()
     start = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -199,7 +201,8 @@ def main(argv=None, read=input, out=print):
     show = (lambda step: [out(line) for line in step_lines(step)]) if args.trace else None
     retrieved = (lambda found: [out(line) for line in example_lines(found)]) if args.trace else None
     conversation = react.Conversation(react.Tools(), log=lambda *_: None, on_step=show, retriever=retriever,
-                                      on_examples=retrieved, model=react.MODEL, think=True, seed=args.seed)
+                                      on_examples=retrieved, follow_ups=args.follow_ups, model=react.MODEL, think=True,
+                                      seed=args.seed)
     session = Session(conversation, SESSIONS / start, header)
     if args.question:
         report(session.ask(" ".join(args.question)), out)
