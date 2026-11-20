@@ -9,6 +9,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "agent"))
 sys.path.insert(0, str(ROOT / "eval"))
+import mentions  # noqa: E402
 import model_comparison as mc  # noqa: E402
 import react  # noqa: E402
 import templates  # noqa: E402
@@ -317,6 +318,20 @@ class RunSqlTest(Fixture):
         self.assertIn("readonly", tools.run_sql("CREATE TEMP VIEW mine AS SELECT 1", self.path)["error"])
 
 
+class MentionsTest(Fixture):
+    def test_a_questions_content_words_leave_out_function_and_domain_words_formats_and_years(self):
+        self.assertEqual(mentions.words("whats megd and raydishes record in 1v1"), (["megd", "raydishes"], []))
+        self.assertEqual(mentions.words("when was ceo 2025"), (["ceo"], ["2025"]))
+        self.assertEqual(mentions.words("tell me about the 2v2 record"), ([], []))
+        self.assertEqual(mentions.words("whats raydish's record with kyna?"), (["raydish", "kyna"], []))
+
+    def test_the_lookups_resolve_each_word_naming_a_player_and_the_rest_as_an_event(self):
+        self.assertEqual(mentions.lookups(["raydish", "worlds"], [], self.resolver),
+                         [("resolve_player", {"name": "raydish"}), ("resolve_event", {"name": "worlds"})])
+        self.assertEqual(mentions.lookups(["cb"], ["2022"], self.resolver), [("resolve_event", {"name": "cb 2022"})])
+        self.assertEqual(mentions.lookups(["megd"], [], self.resolver), [("resolve_event", {"name": "megd"})])  # 2 results
+
+
 class NameFilterTest(unittest.TestCase):
     def test_a_player_looked_up_by_name_in_sql_is_found_in_any_form(self):
         for sql in ("SELECT * FROM v_entries WHERE player_id = (SELECT player_id FROM players WHERE name = 'Boomie')",
@@ -369,11 +384,19 @@ class AnswerCheckTest(Fixture):
         self.assertEqual(shown.unreturned_ids("Marckiem00 (player_id 4) beat player_id 3, player_id 71736 and"
                                               " player_id 12345."), [12345])
 
-    def test_facts_are_named_players_cited_ids_and_numbers_but_not_formats(self):
-        shown = self.shown()
-        self.assertEqual(shown.facts("**Raydish** (player_id 11) won 6 of 7 in 2v2, and Marckiem00 2."),
-                         {"players": ["Marckiem00", "Raydish"], "player IDs": ["11"], "numbers": ["11", "6", "7", "2"]})
-        self.assertEqual(shown.facts("Glad to help, in 1v1 or 2v2."), {})
+    def test_a_turn_that_called_no_tool_rests_only_on_the_results_in_view(self):
+        shown = react.Shown(self.resolver)
+        shown.ask("How many results has megd?")
+        shown.observe("resolve_player", self.resolver.resolve("megd"), {"name": "megd"})
+        shown.observe("run_sql", tools.run_sql("SELECT COUNT(*) FROM v_results WHERE player_id = 7", self.path), {})
+        self.assertEqual(shown.ungrounded("How many results has megd?", "megD has 2 official results."), {})
+        self.assertEqual(shown.ungrounded("How many results has megd?", "megD has 5, and **Raydish** 6."),
+                         {"players": ["Raydish"], "numbers": ["5", "6"]})
+        shown.ask("and in 2v2?")  # no content words, and the previous question's results are in view
+        self.assertEqual(shown.ungrounded("and in 2v2?", "Still 2."), {})
+        shown.ask("what about raydish?")
+        self.assertEqual(shown.ungrounded("what about raydish?", "Still 2."), {"words": ["raydish"], "numbers": ["2"]})
+        self.assertEqual(shown.ungrounded("thanks", "Glad to help, in 1v1 or 2v2."), {})
 
     def test_a_quoted_name_no_tool_returned_is_flagged_unless_the_conversation_showed_it(self):
         shown = self.shown()
@@ -509,27 +532,75 @@ class LoopTest(Fixture):
         self.assertIn("it cites player_id 12345, which no tool returned", ask.sent[2][-1]["content"])
         self.assertEqual((trace["answer"], trace["unreturned_ids"]), ("Marckiem00 is player_id 4.", []))
 
-    def test_an_answer_stating_facts_without_a_tool_call_goes_back_once(self):
+    def test_an_answer_without_a_tool_call_to_a_question_naming_something_goes_back_with_no_way_to_keep_it(self):
         ask = Scripted(reply("Raydish has 6 official wins."), reply(calls=[("resolve_player", {"name": "raydish"})]),
                        reply("Raydish has 6 official results."))
         trace = react.run("how many wins has raydish?", self.tools, ask=ask, log=lambda *_: None)
         told = trace["steps"][0]["no_tool_check"]
-        self.assertEqual((told["facts"], told["action"]), ({"numbers": ["6"]}, "sent back"))
-        self.assertIn("no tool was called for this question, yet the answer states numbers (6).", ask.sent[1][-1]["content"])
+        self.assertEqual((told["words"], told["numbers"], told["action"]), (["raydish"], ["6"], "sent back"))
+        message = ask.sent[1][-1]["content"]
+        self.assertIn("this question called no tool, and no tool result you can see holds 'raydish'", message)
+        self.assertNotIn("same answer", message)  # the escape that kept three turns of invented records is gone
         self.assertEqual((trace["answer"], trace["answered_without_tools"], trace["steps_used"]),
                          ("Raydish has 6 official results.", False, 3))
 
-    def test_a_reply_without_facts_needs_no_tool_and_a_repeated_one_is_kept(self):
-        self.assertEqual(react.run("thanks", self.tools, ask=Scripted(reply("Glad to help.")), log=lambda *_: None)["steps_used"], 1)
-        ask = Scripted(reply("**Raydish** won it."), reply("**Raydish** won it."))
+    def test_a_follow_up_answered_from_the_previous_questions_results_needs_no_tool(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"}),
+                                    ("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 7"})]),
+                       reply("megD has 2 official results."), reply("Still 2."), reply("Glad to help."),
+                       reply("Still 2."), reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 7"})]),
+                       reply("2, as before."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("How many results has megd?")
+        follow_up = conversation.ask("and in 2v2?")
+        self.assertEqual((follow_up["answer"], follow_up["steps_used"]), ("Still 2.", 1))  # in view: no check
+        conversation.ask("thanks")
+        later = conversation.ask("and how many again?")  # the 2 is two questions back now, out of view
+        told = later["steps"][0]["no_tool_check"]
+        self.assertEqual((told["numbers"], told["action"]), (["2"], "sent back"))
+        self.assertIn("Only this question's results and the previous question's count", ask.sent[5][-1]["content"])
+        self.assertEqual(later["answer"], "2, as before.")
+
+    def test_a_second_answer_without_a_tool_call_gets_the_questions_names_looked_up_for_it(self):
+        ask = Scripted(reply("**Raydish** won it."), reply("**Raydish** won it."), reply("Raydish never won worlds."))
         trace = react.run("has raydish won worlds", self.tools, ask=ask, log=lambda *_: None)
-        self.assertEqual([s["no_tool_check"]["action"] for s in trace["steps"]], ["sent back", "kept: sent back once already"])
-        self.assertEqual((trace["steps"][0]["no_tool_check"]["facts"], trace["answered_without_tools"]),
-                         ({"players": ["Raydish"]}, True))
-        self.assertEqual(react.summary(trace)["no_tool_checks"][1],
-                         {"step": 2, "facts": {"players": ["Raydish"]}, "action": "kept: sent back once already"})
+        sent, looked = trace["steps"][0]["no_tool_check"], trace["steps"][1]["no_tool_check"]
+        self.assertEqual((sent["words"], sent["action"]), (["raydish", "worlds"], "sent back"))
+        self.assertEqual((looked["action"], looked["lookups"]), ("looked up for the model", [
+            ["resolve_player", {"name": "raydish"}], ["resolve_event", {"name": "worlds"}]]))
+        forced = trace["steps"][1]["tool_calls"]
+        self.assertEqual([(c["name"], c["forced"]) for c in forced], [("resolve_player", True), ("resolve_event", True)])
+        self.assertEqual(json.loads(forced[0]["observation"])["candidates"][0]["player_id"], 11)
+        roles = [m["role"] for m in ask.sent[2][-4:]]
+        self.assertEqual((roles, ask.sent[2][-1]["content"]), (["assistant", "tool", "tool", "user"], react.FORCED))
+        self.assertEqual((trace["answer"], trace["answered_without_tools"]), ("Raydish never won worlds.", True))
         page = react.markdown([trace], HEADER)
-        self.assertIn("**No-tool check:** no tool was called, yet it states players: Raydish. Sent back with:", page)
+        self.assertIn("The loop looked up resolve_player({\"name\": \"raydish\"}), resolve_event({\"name\": \"worlds\"})"
+                      " for the model.", page)
+
+    def test_without_a_step_to_look_it_up_an_answer_that_rests_on_no_tool_is_replaced(self):
+        ask = Scripted(reply("**megD** is 3-1 against **Raydish**."), reply("**megD** is 3-1 against **Raydish**."))
+        trace = react.run("what about megd vs raydish", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
+        self.assertEqual(trace["steps"][1]["no_tool_check"]["action"], "replaced: sent back once already")
+        self.assertEqual((trace["answer"], trace["answered_without_tools"]), (react.NOT_LOOKED_UP, True))
+        self.assertEqual(trace["unconfirmed"][0]["numbers"], ["3-1"])
+
+    def test_a_player_no_result_in_view_returned_is_replaced_when_the_turn_looked_nothing_up(self):
+        ask = Scripted(reply("**tike36** and megD are 2-2."), reply("**tike36** and megD are 2-2. I hope that helps!"))
+        trace = react.run("what about megd and the other one", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "I couldn't confirm this about tike36 and the record from the data. I hope that"
+                                          " helps!")  # in the order the answer states them
+
+    def test_a_reply_without_facts_to_a_question_naming_nothing_needs_no_tool(self):
+        self.assertEqual(react.run("thanks", self.tools, ask=Scripted(reply("Glad to help.")), log=lambda *_: None)["steps_used"], 1)
+        ask = Scripted(reply("**Raydish** won it."), reply(calls=[("resolve_player", {"name": "raydish"})]),
+                       reply("Raydish won it."))
+        trace = react.run("has raydish won worlds", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(react.summary(trace)["no_tool_checks"],
+                         [{"step": 1, "words": ["raydish", "worlds"], "action": "sent back"}])
+        page = react.markdown([trace], HEADER)
+        self.assertIn("**No-tool check:** no tool was called, and nothing in view holds words raydish, worlds. Sent back"
+                      " with:", page)
 
     def test_an_answer_stating_a_number_no_tool_returned_goes_back_once_then_its_claim_is_replaced(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),

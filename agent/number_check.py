@@ -163,7 +163,7 @@ class Evidence:
         self.questions.append(squeeze(question))
         row = []
         self.rows.append(row)
-        self.text(question, row)
+        self.text(re.sub(r"\b\d+v\d+\b", " ", question), row)  # a format names a mode, not a number: '2v2' holds no 2
         for c in claims(question):
             if c.kind in ("date", "datetime"):
                 self.date(*c.value[:3])
@@ -236,6 +236,22 @@ class Evidence:
 
     def unsupported(self, answer):
         """The claims in an answer that nothing in the conversation supports."""
+        return [c for c in claims(answer) if not self.supports(c)]
+
+
+class Window:
+    """The evidence a turn's answer may cite: its own tool results and the previous turn's, each an Evidence, which is
+    what the model has in view, as react.Conversation keeps older turns as question and answer only. An older turn's
+    results, and every earlier answer, don't count (decided 2026-11-19): in the web app's live testing, an answer's
+    small numbers stood because some tool result many turns back held them."""
+
+    def __init__(self, *evidence):
+        self.evidence = evidence
+
+    def supports(self, claim):
+        return any(e.supports(claim) for e in self.evidence)
+
+    def unsupported(self, answer):
         return [c for c in claims(answer) if not self.supports(c)]
 
 
@@ -346,7 +362,10 @@ def sentence_ends(body, start):
 
 
 def describe(claim, answer):
-    """What a claim states, without its number: 'the time', 'the number of games won', 'the career earnings'."""
+    """What a claim states, without its number: 'the time', 'the number of games won', 'the career earnings'. A
+    player's claim (kind player, which react.py makes for a name no tool in view returned) is 'this about Zivai'."""
+    if claim.kind == "player":
+        return f"this about {claim.value[0]}"
     if claim.kind in ("number", "word") and re.search(r"\b(?:player[ _-]?)?id\b[\s:#=*]*$", answer[:claim.start], re.I):
         return "the player ID"
     words = []
