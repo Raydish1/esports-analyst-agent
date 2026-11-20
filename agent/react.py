@@ -51,7 +51,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
-from names import normalize, normalize_full  # noqa: E402
+from names import normalize, normalize_full, normalize_words  # noqa: E402
 from platform_clients import load_env  # noqa: E402
 import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
@@ -263,6 +263,10 @@ LOOKUP_MISS = ("Your last query returned no rows, and its diagnosis says no row 
                " (resolve_player for a player, resolve_event for an event, or one of the values the diagnosis lists)"
                " and query again before answering. If the empty result is right after all, reply with the same answer"
                " again.")
+UNFOUND = ("Before this answer is final: no official event matched {name!r}, and no other spelling was tried. People"
+           " shorten event names and use slang, so if it has an abbreviation or a nickname, spell it out the way"
+           " official event names write it, and look it up once more (resolve_event). If that finds nothing either,"
+           " say so.")
 NUMBERS = ("Before this answer is final: it states {numbers}, which no tool result in this conversation holds. Take every"
            " number from the tool results, as they give it or as a placement (2 is 2nd), a record of two numbers in one"
            " row (5-4), a date or a UTC time of a result, or a percentage of two numbers in one row. Don't add, subtract"
@@ -682,6 +686,35 @@ def paired_as(pairing):
             f" (resolve_player gives {pairing['name']} as player_id {pairing['name_is']})")
 
 
+def event_lookup(name, observation):
+    """(the event name a call looked up, whether nothing matched it): resolve_event's, or a template's event; None
+    for a call that looked up no event."""
+    if not isinstance(observation, dict) or "error" in observation:
+        return None
+    if name == "resolve_event" and observation.get("status"):
+        return observation.get("name") or "", observation["status"] == "not_found"
+    about = observation.get("event") if name in TEMPLATES else None
+    if isinstance(about, dict) and about.get("name"):
+        return about["name"], about.get("status") == "not_found"
+    return None
+
+
+def unretried(trace):
+    """The event name a turn's last event lookup found nothing for, when no other spelling was tried after the first
+    miss; else None. Live, "cb 2022" wasn't found, and the model said so without trying "crew battle"
+    (docs/web-app-testing-notes.md, finding 5)."""
+    tried, last = set(), None
+    for step in trace["steps"]:
+        for call in step["tool_calls"]:
+            looked = event_lookup(call["name"], json.loads(call["observation"])) if call.get("observation") else None
+            if looked and looked[1]:
+                tried.add(normalize_words(looked[0]))
+                last = looked[0]
+            elif looked:
+                tried, last = set(), None
+    return last if last is not None and len(tried) == 1 else None
+
+
 def gapped(gap):
     """What the no-tool check found (Shown.ungrounded), as a log line says it."""
     return "; ".join(f"{kind} {', '.join(values)}" for kind, values in gap.items())
@@ -825,12 +858,14 @@ class Conversation:
         without retrieval), each step's thinking, reply and tool calls with their observations, and
         any checks; then the answer, the outcome ('answered', 'step limit', ...), the names and player IDs in the answer
         that no tool returned, whether it came right after a result too large to show or a lookup miss, or without a
-        tool call, and the claims the number check replaced (unconfirmed). Six checks can send an answer back:
+        tool call, and the claims the number check replaced (unconfirmed). Seven checks can send an answer back:
         - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
           new query since, goes back as long as two steps are left, to query and to answer;
         - the lookup check: an answer right after an empty result whose diagnosis finds no row with a text value the
           query filters on (diagnose.missing_text), with no new query since, goes back once if two steps are left.
           Any other empty result can be a true "none";
+        - the event check: an answer after an event lookup that found nothing, with no other spelling tried since
+          (unretried), goes back once, to spell out an abbreviation or slang and look again (decided 2026-11-19);
         - the no-tool check, in a question that called no tool (decided 2026-11-19): an answer goes back once, with no
           offer to keep it, if its question has a content word no tool result in view holds, or it states a player or
           a number none holds (Shown.ungrounded). If the reply still calls no tool, the loop looks the question's
@@ -860,6 +895,7 @@ class Conversation:
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
+        respelled = False  # whether the event check sent an answer back, to look an event up with another spelling
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
         resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
         sent_back = None
@@ -916,6 +952,21 @@ class Conversation:
                     step["lookup_check"] = {"conditions": missing, "action": "kept: sent back once already" if missed
                                             else "kept: no steps left to query again"}
                     trace["answered_after_lookup_miss"] = True
+                event = unretried(trace) if outcome == "answered" else None
+                if event and not respelled and number < max_steps:
+                    respelled, message = True, UNFOUND.format(name=event)
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["event_check"] = {"event": event, "action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log(f"  event check: no event matched {event!r}, and no other spelling was tried; sent back")
+                    sent_back = (content, swaps, message)
+                    self.finished(step)
+                    continue
+                if event:
+                    step["event_check"] = {"event": event, "action": "kept: sent back once already" if respelled
+                                           else "kept: no steps left"}
                 gap = self.shown.ungrounded(question, content) if outcome == "answered" and not called else {}
                 if gap and not told and number < max_steps:
                     told, message = True, no_tool(gap)
@@ -1185,6 +1236,14 @@ def markdown(traces, header):
                 else:
                     out += [f"**Lookup check:** it came right after an empty result whose diagnosis found no row with"
                             f" {missing} ({lookup['action']}).", ""]
+            again = s.get("event_check")
+            if again:
+                what = f"no event matched {again['event']!r}, and no other spelling was tried"
+                if again["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**Event check:** {what}. Sent back with:", "",
+                            f"> {again['message']}", ""]
+                else:
+                    out += [f"**Event check:** {what} ({again['action']}).", ""]
             told = s.get("no_tool_check")
             if told:
                 stated = gapped({k: told[k] for k in ("words", "players", "numbers") if told.get(k)})
@@ -1291,12 +1350,15 @@ def summary(trace):
     metas = [{"step": s["step"], "action": s["meta_reply"]["action"]} for s in trace["steps"] if s.get("meta_reply")]
     pairings = [{"step": s["step"], "pairs": s["pairing_check"]["pairs"], "action": s["pairing_check"]["action"]}
                 for s in trace["steps"] if s.get("pairing_check")]
+    events = [{"step": s["step"], "event": s["event_check"]["event"], "action": s["event_check"]["action"]}
+              for s in trace["steps"] if s.get("event_check")]
     numbers = [{"step": s["step"], "numbers": s["number_check"]["numbers"], "action": s["number_check"]["action"]}
                for s in trace["steps"] if s.get("number_check")]
     return {**{k: trace.get(k) for k in keep}, **({"settled": trace["settled"]} if trace.get("settled") else {}),
             "examples": examples, "tool_calls": calls, "answer_checks": checks,
             "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told, "number_checks": numbers,
-            "meta_replies": metas, **({"pairing_checks": pairings} if pairings else {})}
+            "meta_replies": metas, **({"pairing_checks": pairings} if pairings else {}),
+            **({"event_checks": events} if events else {})}
 
 
 def main():

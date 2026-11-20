@@ -164,7 +164,7 @@ def tool_calls(trace):
 
 
 CHECKS_FIRED = {"size_check": "result-size check", "lookup_check": "lookup check", "no_tool_check": "no-tool check",
-                "pairing_check": "pairing check", "answer_check": "answer check"}
+                "event_check": "event check", "pairing_check": "pairing check", "answer_check": "answer check"}
 NEW_CHECKS = ["number check, sent back", "number check, claims replaced", "name filter, queries refused"]
 
 

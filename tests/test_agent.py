@@ -572,9 +572,32 @@ class LoopTest(Fixture):
         trace = conversation.ask("tell me about the 2v2 record")
         self.assertEqual((trace["answer"], trace["steps_used"], trace["steps"][0].get("no_tool_check")), (asking, 1, None))
         ask = Scripted(reply("Do you mean CEO 2025, the fighting game event?"), reply(calls=[("resolve_event", {"name": "ceo 2025"})]),
-                       reply("No official event matches it."))
+                       reply("No official event matches it."), reply("No official event matches it."))
         trace = react.run("when was ceo 2025", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual(trace["steps"][0]["no_tool_check"]["words"], ["ceo"])  # asking back isn't a way around a lookup
+        self.assertEqual([s.get("event_check", {}).get("action") for s in trace["steps"][2:]],
+                         ["sent back", "kept: sent back once already"])  # the tiny database has no CEO 2025
+
+    def test_an_event_found_by_no_spelling_but_one_goes_back_to_be_spelled_out(self):
+        miss, hit = ("resolve_event", {"name": "wce 2022"}), ("resolve_event", {"name": "world championship expo 2022"})
+        ask = Scripted(reply(calls=[miss]), reply("No official event matches wce 2022."), reply(calls=[hit]),
+                       reply("It was Brawlhalla World Championship Expo 2022, on 2022-11-04."))
+        trace = react.run("when was wce 2022", self.tools, ask=ask, log=lambda *_: None)
+        check = trace["steps"][1]["event_check"]
+        self.assertEqual((check["event"], check["action"]), ("wce 2022", "sent back"))
+        self.assertIn("spell it out the way official event names write it", check["message"])
+        self.assertEqual((trace["answer"], trace["steps_used"]), ("It was Brawlhalla World Championship Expo 2022, on"
+                                                                  " 2022-11-04.", 4))
+        observation = json.loads(trace["steps"][0]["tool_calls"][0]["observation"])
+        self.assertIn("spell it out the way official event names write it", observation["note"])  # the note says so too
+        # a second spelling that finds nothing either is a true "none"; so is a name a template found nothing for
+        tried = Scripted(reply(calls=[miss]), reply(calls=[("resolve_event", {"name": "wce two thousand 22"})]),
+                         reply("No official event matches it."))
+        self.assertNotIn("event_check", react.run("when was wce 2022", self.tools, ask=tried, log=lambda *_: None)["steps"][2])
+        template = Scripted(reply(calls=[("event_results", {"event": "wce 2022"})]), reply("Nothing matches."),
+                            reply("Nothing matches."))
+        trace = react.run("who won wce 2022", self.tools, ask=template, log=lambda *_: None)
+        self.assertEqual(trace["steps"][1]["event_check"]["event"], "wce 2022")
 
     def test_a_reply_that_gives_new_figures_after_a_check_is_a_new_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"}), ("run_sql", {"query": "SELECT 7 AS wins"})]),
