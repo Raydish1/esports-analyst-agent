@@ -34,6 +34,16 @@ class ChoiceTest(unittest.TestCase):
         self.assertEqual(settling.choice("Raydish and megD", asked),
                          [("raydishes", RAYDISH), ("megdd", {"player_id": 7, "name": "megD"})])
 
+    def test_a_reply_written_exactly_as_one_candidates_name_with_its_mark_picks_it(self):
+        dragons = [{"name": "dragon", "candidates": [  # live, 20261120T050251Z-005: "Dragon!" wasn't taken as a choice
+            {"player_id": 88841, "name": "Dragon!", "display": "Dragon!", "matched": "Dragon!"},
+            {"player_id": 48834, "name": "Parz", "display": "Parz (formerly Dragon)", "matched": "Frost | Dragon"},
+            {"player_id": 1421, "name": "Dragon", "display": "Dragon", "matched": "Dragon"}]}]
+        self.assertEqual([c["player_id"] for _, c in settling.choice("Dragon!", dragons)], [88841])
+        self.assertEqual([c["player_id"] for _, c in settling.choice("frost | dragon", dragons)], [48834])
+        self.assertEqual(settling.choice("dragon", dragons), [])  # without a mark, two of them are 'dragon'
+        self.assertEqual([c["player_id"] for _, c in settling.choice("the first one", dragons)], [88841])
+
     def test_a_choice_becomes_the_question_asked_with_the_chosen_player_written_in(self):
         context = Context("whats megd and raydishes record in 1v1", players=[("megD", 7)], asked=ASKED)
         settled = settling.chosen(context, [("raydishes", RAYDISH)])

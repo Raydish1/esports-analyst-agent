@@ -20,7 +20,8 @@ PLAYERS = [  # (player_id, name, canonical_id, official results)
     (5, "flowerVS", 5, 2), (6, "Flowers", 6, 1), (7, "megD", 7, 2), (8, "megdee", 7, 0), (9, "Boomie", 9, 2),
     (10, "Boomie", 10, 0), (11, "Raydish", 11, 6), (12, "lFiend", 12, 1), (13, "Ca$h", 13, 1), (14, "tike36", 14, 3),
     (15, "exact", 15, 2), (16, "7th", 16, 1), (17, "Notes", 17, 1), (18, "1234", 18, 1), (19, "Zivai", 19, 6),
-    (20, "Godly", 20, 1)]
+    (20, "Godly", 20, 1), (21, "Cody Travis", 21, 5), (22, "Dragon!", 22, 5), (23, "Dragon", 23, 4), (24, "Winter", 24, 6),
+    (25, "two", 25, 5)]
 ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("impala", 1, "display_name", "Impala", None), ("impala", 2, "display_name", "Impala", None),
     ("bbballoonboy", 3, "display_name", "BBBalloonBoy", None), ("balloonboy", 3, "former_name", "LGN | BalloonBoy", None),
@@ -33,7 +34,10 @@ ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("tike36", 14, "display_name", "tike36", None), ("exact", 15, "display_name", "exact", None),
     ("7th", 16, "display_name", "7th", None), ("notes", 17, "display_name", "Notes", None),
     ("1234", 18, "display_name", "1234", None), ("zivai", 19, "display_name", "Zivai", None),
-    ("godly", 19, "former_name", "Kingdom | Godly", None), ("godly", 20, "display_name", "Godly", None)]
+    ("godly", 19, "former_name", "Kingdom | Godly", None), ("godly", 20, "display_name", "Godly", None),
+    ("codytravis", 21, "display_name", "Cody Travis", None), ("dragon", 22, "display_name", "Dragon!", None),
+    ("dragon", 23, "display_name", "Dragon", None), ("winter", 24, "display_name", "Winter", None),
+    ("two", 25, "display_name", "two", None)]
 EVENTS = [  # (event_id, tournament_name, event_name, start_date, year, counts_as, status, sgg_tournament_slug)
     ("bcx22-1", "Brawlhalla World Championship Expo 2022", "1v1", "2022-11-04", 2022, "1v1", None, "bcx-2022"),
     ("bcx22-2", "Brawlhalla World Championship Expo 2022", "2v2", "2022-11-04", 2022, "2v2", None, "bcx-2022"),
@@ -121,6 +125,12 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("boomie"), ("confident", [9, 10]))
         first = self.resolver.resolve("impala")["candidates"][0]
         self.assertEqual((first["official_results"], first["results_from"], first["results_to"]), (3, "2020-01-01", "2022-01-01"))
+
+    def test_a_name_written_with_a_mark_only_one_player_has_exactly_is_that_player(self):
+        self.assertEqual(self.resolve("dragon"), ("ambiguous", [22, 23]))  # 5 official results to 4
+        self.assertEqual(self.resolve("Dragon!"), ("confident", [22]))  # live: tied with two players named Dragon
+        self.assertEqual(self.resolve("DRAGON!"), ("confident", [22]))  # in any case
+        self.assertEqual(self.resolve("Impala!"), ("ambiguous", [1, 2]))  # a mark no name has decides nothing
 
     def test_a_shared_name_whose_first_player_is_far_ahead_resolves_to_that_player_alone(self):
         out = self.resolver.resolve("godly")  # Zivai, 6 official results, as a former name; Godly, 1
@@ -343,11 +353,37 @@ class MentionsTest(Fixture):
         self.assertEqual(mentions.words("tell me about the 2v2 record"), ([], []))
         self.assertEqual(mentions.words("whats raydish's record with kyna?"), (["raydish", "kyna"], []))
 
-    def test_the_lookups_resolve_each_word_naming_a_player_and_the_rest_as_an_event(self):
-        self.assertEqual(mentions.lookups(["raydish", "worlds"], [], self.resolver),
+    def test_number_words_and_words_about_what_was_said_name_nothing(self):
+        self.assertEqual(mentions.words("which two players have the biggest head to head record"), ([], []))  # live: "two"
+        self.assertEqual(mentions.words("so why did you say cody travis and phazon have won 24 2v2 tournaments"),
+                         (["cody", "travis", "phazon"], []))  # live: looked up as "say cody travis 24"
+
+    def test_the_players_a_question_names_are_found_in_spans_of_up_to_three_words(self):
+        db = sqlite3.connect(self.path)
+        events = tools.EventResolver(db, curated=None)
+        db.close()
+
+        def named(question):
+            return [(text, out["status"], [c["player_id"] for c in out["candidates"]])
+                    for text, out in mentions.named(question, self.resolver, events.words)]
+        self.assertEqual(named("what about cody travis and raydish?"),
+                         [("cody travis", "confident", [21]), ("raydish?", "confident", [11])])
+        self.assertEqual(named("which two players have the biggest head to head record"), [])  # two (25) is a number
+        self.assertEqual(named("did winter win the 2023 winter championship"), [])  # Winter (24) is an event's word
+        self.assertEqual(named("how many results has megd"), [])  # megD has 2 official results, under 5
+        self.assertEqual(named("dragon stats"), [("dragon", "ambiguous", [22, 23])])
+        self.assertEqual(named("Dragon!"), [("Dragon!", "confident", [22])])
+
+    def test_the_lookups_resolve_each_player_named_and_the_rest_as_an_event(self):
+        self.assertEqual(mentions.lookups("has raydish won worlds", ["raydish", "worlds"], self.resolver),
                          [("resolve_player", {"name": "raydish"}), ("resolve_event", {"name": "worlds"})])
-        self.assertEqual(mentions.lookups(["cb"], ["2022"], self.resolver), [("resolve_event", {"name": "cb 2022"})])
-        self.assertEqual(mentions.lookups(["megd"], [], self.resolver), [("resolve_event", {"name": "megd"})])  # 2 results
+        self.assertEqual(mentions.lookups("the cb tournament in 2022", ["cb"], self.resolver),
+                         [("resolve_event", {"name": "cb 2022"})])
+        self.assertEqual(mentions.lookups("how many has megd", ["megd"], self.resolver),
+                         [("resolve_event", {"name": "megd"})])  # 2 results: no player to look up
+        said = "so why did you say cody travis and raydish have won 24 2v2 tournaments"  # live, 20261120T050251Z-001
+        self.assertEqual(mentions.lookups(said, mentions.words(said)[0], self.resolver),
+                         [("resolve_player", {"name": "cody travis"}), ("resolve_player", {"name": "raydish"})])
 
 
 class NameFilterTest(unittest.TestCase):
@@ -576,6 +612,46 @@ class LoopTest(Fixture):
                                  "No record exists for player_id 146606 (Boomie).")
         self.assertEqual([s["from"] for s in swaps], ["PlayerID 74433", "Player ID: 147982"])
 
+    def test_a_swap_made_at_every_mention_is_traced_once_with_how_many_times(self):
+        answer, swaps, _ = react.correct_names("Raydsh won. Then Raydsh lost, and Raydsh won again.",
+                                               [("Raydsh", 11, "Raydish", "Raydish")], self.tools.resolver)
+        self.assertEqual(answer, "Raydish won. Then Raydish lost, and Raydish won again.")
+        self.assertEqual(swaps, [{"kind": "the question's spelling", "from": "Raydsh", "to": "Raydish", "player_id": 11,
+                                  "times": 3}])  # live, 'Yuz' to 'yüz' was listed eleven times
+
+    def test_a_name_several_players_share_exactly_with_no_clear_cut_goes_to_the_user(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "dragon"})]), reply("Dragon has 5 results."))
+        trace = react.run("dragon stats", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["outcome"], trace["steps"][0]["suggestions"]), ("suggestions", {"dragon": [22, 23]}))
+        self.assertTrue(trace["answer"].startswith('Several players are named "dragon", so I won\'t guess.'))
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "Dragon!"})]), reply("Dragon! has 5 official results."))
+        self.assertEqual(react.run("Dragon! stats", self.tools, ask=ask, log=lambda *_: None)["outcome"], "answered")
+
+    def test_a_call_on_a_player_the_question_doesnt_name_goes_back_naming_who_it_does(self):
+        conversation = react.Conversation(self.tools, ask=Scripted(
+            reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+            reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id IN (7, 19)"})]),  # megD
+            reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id IN (11, 19)"})]),
+            reply("Raydish and Zivai have 12 official results.")), log=lambda *_: None)
+        conversation.ask("how many results has megd")
+        trace = conversation.ask("how many results have raydish and zivai")  # live: kyna vs yuz, with plewchi for kyna
+        refused, ran = trace["steps"][0]["tool_calls"][0], trace["steps"][1]["tool_calls"][0]
+        self.assertEqual(refused["unnamed_players"], [7])
+        self.assertEqual(json.loads(refused["observation"])["error"],
+                         "player_id 7 (megD) isn't a player this question names, and no tool returned it for this question."
+                         " The question names Raydish (player_id 11) and Zivai (player_id 19): use their player_ids, or"
+                         " look a player up with resolve_player first.")
+        self.assertEqual(json.loads(ran["observation"])["rows"], [[12]])  # named in code, so known without a lookup
+        self.assertEqual(trace["answer"], "Raydish and Zivai have 12 official results.")
+
+    def test_a_question_naming_players_may_still_use_players_its_note_or_its_own_results_give(self):
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 19 AS player_id"})]),
+                       reply(calls=[("head_to_head", {"player_id": 11, "opponent_id": 19})]),
+                       reply(calls=[("head_to_head", {"player_id": 7, "opponent_id": 11})]), reply("Done."))
+        trace = react.run("who has raydish played most, and how did he do vs raydish [he: megD (player_id 7), from the"
+                          " previous question.]", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([c.get("unnamed_players") for s in trace["steps"] for c in s["tool_calls"]], [None, None, None])
+
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
                        reply("The answer is correct: both are players."))
@@ -802,7 +878,7 @@ class LoopTest(Fixture):
         query = ("run_sql", {"query": "SELECT COUNT(*) AS n FROM v_results WHERE player_id = 11"})
         ask = Scripted(reply(calls=[query]), reply(calls=[("resolve_player", {"name": "Raydish"})]), reply(calls=[query]),
                        reply("Raydish has 6 official results."))
-        trace = react.run("How many results has Raydish?", self.tools, ask=ask, log=lambda *_: None)
+        trace = react.run("How many results has the champion?", self.tools, ask=ask, log=lambda *_: None)  # names no one
         refused, _, ran = (s["tool_calls"][0] for s in trace["steps"][:3])
         self.assertEqual(json.loads(refused["observation"])["error"],
                          "player_id 11 wasn't returned by any tool in this conversation, and the question doesn't give it,"

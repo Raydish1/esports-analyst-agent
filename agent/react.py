@@ -352,6 +352,20 @@ def unreturned_players(ids):
             f" {'the' if one else 'each'} player's name, and use the player_id it returns.")
 
 
+def unnamed_players(ids, named, shared_names, resolver):
+    """The error for a call on players that a question naming players doesn't name, and that no tool returned in it.
+    named: {player_id: (the question's words, how to call the player)}; shared_names: names several players share."""
+    one = len(ids) == 1
+    which = listed([f"{i} ({resolver.names.get(resolver.canonical.get(i, i)) or 'no name'})" for i in ids])
+    meant = [f"{display} (player_id {pid})" if normalize(text) == normalize(display) else
+             f"{text}, which is {display} (player_id {pid})" for pid, (text, display) in named.items()]
+    meant += [f"{text}, a name several players share, to look up with resolve_player" for text in shared_names]
+    theirs = "its player_id" if len(named) == 1 else "their player_ids"
+    return (f"player_id{'' if one else 's'} {which} {'is' if one else 'are'}n't a player this question names, and no"
+            f" tool returned {'it' if one else 'them'} for this question. The question names {listed(meant)}: use"
+            f" {theirs}, or look a player up with resolve_player first.")
+
+
 def looked_up_by_name(filters):
     """The error for a run_sql query that looks a player up by name (tools.name_filters), with the names to give
     resolve_player: the filters' text values, without LIKE's wildcards."""
@@ -635,7 +649,22 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
         swaps.append({"kind": "a player named only by ID", "from": m.group(0), "to": real, "player_id": pid})
         return real if m.group(1) else f"**{real}**"
 
-    return LONE_ID.sub(alone, answer), swaps, pairings
+    answer = LONE_ID.sub(alone, answer)
+    return answer, collapsed(swaps), pairings
+
+
+def collapsed(swaps):
+    """Each swap once, in the order first made, with how many times it was made (times) when more than once. Live,
+    one answer listed "Yuz" to "yüz" eleven times, once per mention (docs/web-app-testing-notes.md, finding 20)."""
+    out, seen = [], {}
+    for swap in swaps:
+        key = (swap["kind"], swap["from"], swap["to"], swap["player_id"])
+        if key in seen:
+            seen[key]["times"] = seen[key].get("times", 1) + 1
+        else:
+            seen[key] = dict(swap)
+            out.append(seen[key])
+    return out
 
 
 def is_meta(reply, answer, message=""):
@@ -664,11 +693,22 @@ def named_in(question, name):
     return bool(normalize_full(name)) and normalize_full(name) in normalize_full(question)
 
 
+def shared(observation):
+    """Whether a resolve_player result is a name several players share exactly, with no clear cut between them: its
+    status ambiguous, and its second candidate as close a match as a confident one."""
+    candidates = observation.get("candidates") or []
+    return observation.get("status") == "ambiguous" and len(candidates) > 1 and candidates[1]["score"] >= CONFIDENT
+
+
 def unsure(question, name, observation):
     """Whether a resolve_player result should go to the user as suggestions: a name from the question whose best
-    match scores below CONFIDENT. A name the model made up itself isn't the user's to settle."""
+    match scores below CONFIDENT, or that several players share exactly with no clear cut (shared; decided
+    2026-11-20). Live, "dragon" matched 33 players, the first three exactly (41, 10 and 9 official results), and the
+    model guessed at a character called Dragon (docs/web-app-testing-notes.md, finding 18). A name the model made up
+    itself isn't the user's to settle."""
     candidates = observation.get("candidates") or []
-    return bool(named_in(question, name) and candidates and max(c["score"] for c in candidates) < CONFIDENT)
+    return bool(named_in(question, name) and candidates
+                and (max(c["score"] for c in candidates) < CONFIDENT or shared(observation)))
 
 
 def noted(question, name, observation, asked, resolved):
@@ -737,7 +777,9 @@ def suggestions(names):
     """What the agent says instead of guessing: for each (name, resolve_player result), its top three candidates."""
     lines = []
     for name, observation in names:
-        lines.append(f'I couldn\'t find a player named "{name}", so I won\'t guess. The closest names in the data:')
+        lines.append(f'Several players are named "{name}", so I won\'t guess. The ones with the most official results:'
+                     if shared(observation) else
+                     f'I couldn\'t find a player named "{name}", so I won\'t guess. The closest names in the data:')
         for i, c in enumerate(observation["candidates"][:3], 1):
             n = c["official_results"]
             years = sorted({c["results_from"][:4], c["results_to"][:4]}) if n else []
@@ -879,8 +921,14 @@ class Conversation:
           step is left.
         The answer that comes back counts either way, but whatever text is final has each claim holding a number no
         tool result holds replaced by a sentence saying it couldn't be confirmed. A name from the question that
-        resolve_player matches only below CONFIDENT ends the turn instead: the user gets its top three candidates as
-        suggestions (outcome 'suggestions').
+        resolve_player matches only below CONFIDENT, or that several players share exactly with no clear cut (shared),
+        ends the turn instead: the user gets its top three candidates as suggestions (outcome 'suggestions').
+        Two checks refuse a call before it runs, with an error the model can act on: the player check, a call on a
+        player_id no tool returned in the conversation, which the question doesn't give or name (decided 2026-11-17);
+        and the named-player check, in a question that names players (mentions.named), a call on a player it doesn't
+        name, nor its notes give, nor a tool returned for it, whose error names the question's players with their
+        player_ids (decided 2026-11-20). Live, "whats kyna vs yuz head to head in only 1v1" was answered with the
+        previous turn's plewchi for kyna: "0 sets" (docs/web-app-testing-notes.md, finding 13).
         question is the text the turn answers, settled (Conversation.settle); said, the user's own words, is the
         trace's question when given, with the settled text beside it (settled) when it differs."""
         trace = {"question": said or question,
@@ -897,6 +945,13 @@ class Conversation:
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
         resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
         sent_back = None
+        # the players the question names, which a call may use besides those its notes and its own results give
+        # (decided 2026-11-20): {player_id: (words, display)}, and the names several players share
+        found = mentions.named(question, self.tools.resolver, self.tools.events.words)
+        named = {c["player_id"]: (text, c.get("display") or c["name"]) for text, out in found
+                 if out.get("status") == "confident" for c in out["candidates"][:1]}
+        shared_names = [text for text, out in found if shared(out)]
+        given = {int(n) for n in re.findall(r"-?\d+", question)}  # a note's player_id, or one the user writes
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
@@ -977,7 +1032,7 @@ class Conversation:
                     sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
-                lookups = (mentions.lookups(gap["words"], mentions.words(question)[1], self.tools.resolver)
+                lookups = (mentions.lookups(question, gap["words"], self.tools.resolver, self.tools.events.words)
                            if gap.get("words") and not forced and number < max_steps else [])
                 if lookups:
                     forced = called = True
@@ -1070,11 +1125,18 @@ class Conversation:
             for i, call in enumerate(calls):
                 name, arguments = call["function"].get("name"), call["function"].get("arguments")
                 begun = time.monotonic()
-                unknown = [pid for pid in dict.fromkeys(players_used(name, arguments)) if not self.shown.knows(pid)]
+                used, canonical = list(dict.fromkeys(players_used(name, arguments))), self.tools.resolver.canonical
+                # a player the question names is known as a returned one is: its ID reaches the model in this check's
+                # error, resolved in code
+                unknown = [pid for pid in used if not self.shown.knows(pid) and canonical.get(pid, pid) not in named]
+                allowed = set(named) | given | self.shown.returned_now
+                unnamed = [pid for pid in used if (named or shared_names) and not unknown
+                           and canonical.get(pid, pid) not in allowed and pid not in allowed]
                 query = parsed(arguments).get("query")
-                named = name_filters(query) if name == "run_sql" and isinstance(query, str) else []
+                filters = name_filters(query) if name == "run_sql" and isinstance(query, str) else []
                 observation = ({"error": unreturned_players(unknown)} if unknown else
-                               {"error": looked_up_by_name(named)} if named else self.call(name, arguments))
+                               {"error": unnamed_players(unnamed, named, shared_names, self.tools.resolver)} if unnamed else
+                               {"error": looked_up_by_name(filters)} if filters else self.call(name, arguments))
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
                 self.shown.observe(name, observation, arguments)
@@ -1088,7 +1150,9 @@ class Conversation:
                 step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
                                            "seconds": round(seconds, 3), **({} if ran is None else {"ran": ran}),
                                            **({"unreturned_players": unknown} if unknown else {}),
-                                           **({"name_filters": named} if named and not unknown else {})})
+                                           **({"unnamed_players": unnamed} if unnamed else {}),
+                                           **({"name_filters": filters} if filters and not unknown and not unnamed
+                                              else {})})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:
@@ -1127,7 +1191,8 @@ class Conversation:
         step["suggestions"] = {n: [c["player_id"] for c in o["candidates"][:3]] for n, o in asked}
         trace["answer"], trace["outcome"], trace["clarifying"] = suggestions(asked), "suggestions", clarifying(asked)
         trace["asked"] = [{"name": n, "candidates": o["candidates"][:3]} for n, o in asked]
-        self.log(f"  suggestions: {', '.join(n for n, _ in asked)} matched below {CONFIDENT}, so the user is asked")
+        self.log(f"  suggestions: {', '.join(n for n, _ in asked)} matched only loosely, or several players share it,"
+                 " so the user is asked")
         self.finished(step)
 
     def finished(self, step):

@@ -187,6 +187,25 @@ class Resolver:
                 self.skeletons[form].add(alias)
         self.forms = sorted(self.skeletons)
 
+    def known(self, name):
+        """Whether an alias is this name, or a spelling of it with common character swaps undone: a match resolve
+        finds without scanning every alias for a similar spelling."""
+        return bool({normalize(name), normalize_full(name)} & set(self.aliases)) or skeleton(name) in self.skeletons
+
+    def written(self, name, found):
+        """The one player of `found` whose name, or an alias as shown, is the name exactly as written (any case,
+        spaces collapsed), when it's written with a mark the aliases' normalizing drops ('Dragon!', 'Frost | Dragon');
+        else None. Live, "Dragon!" tied with two players named Dragon, so picking it from suggestions asked again
+        (docs/web-app-testing-notes.md, finding 18). Without such a mark it's None: "acno" isn't a choice of the player
+        named acno over acno?."""
+        if not re.search(r"[^\w\s]", name):
+            return None
+        said = " ".join(name.split()).casefold()
+        exact = {pid for alias in {normalize(name), normalize_full(name)} for pid, _, shown, _ in self.aliases.get(alias, ())
+                 if pid in found and " ".join((shown or "").split()).casefold() == said}
+        exact |= {pid for pid in found if " ".join((self.names.get(pid) or "").split()).casefold() == said}
+        return exact.pop() if len(exact) == 1 else None
+
     def resolve(self, name):
         """{name, status, note, candidates}: the players the name may mean, best first (the module docstring); or
         {name, error} for an ID."""
@@ -230,7 +249,10 @@ class Resolver:
         placed = [pid for pid in tied if pid in self.results]
         loose = max(found[pid][4] for pid in ranked) < CONFIDENT
         counts = [self.results.get(pid, (0,))[0] for pid in tied]
-        if loose:
+        written = None if loose else self.written(name, set(tied))
+        if written is not None:
+            status, ranked = "confident", [written]  # the one player named exactly as written
+        elif loose:
             status = "ambiguous"
         elif len(tied) == 1 or (TIERS[best] != "nickname" and len(placed) == 1):
             status = "confident"
@@ -316,6 +338,9 @@ class EventResolver:
         for term, means in [*db.execute("SELECT term, means FROM event_terms"), *(curated_terms(curated) if curated else [])]:
             if means not in self.terms[term]:
                 self.terms[term].append(means)
+        # the words of official event names, which a word of a question alone stands for before a player
+        # (mentions.named): 'Trial' of Trial of Laufey is no player, though Sadistic once went by it
+        self.words = frozenset(w for e in self.events.values() for w in e["words"])
 
     def resolve(self, name, listed=EVENTS_LISTED):
         """{name, status, note, matched, score, event_count, tournament_count, sql, events}: the events an event

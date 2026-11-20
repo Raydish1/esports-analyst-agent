@@ -108,6 +108,9 @@ def choice(message, asked):
     tokens = [t for t in (normalize(w) for w in WORD.findall(message)) if t]
     if not tokens or not asked:
         return []
+    exact = written(message, asked)
+    if exact:
+        return [exact]
     used, picked = set(), []
     for entry in asked:
         named_here = []
@@ -127,6 +130,19 @@ def choice(message, asked):
             picked = [(asked[0]["name"], candidates[places.pop()])]
     rest = [t for i, t in enumerate(tokens) if i not in used and t not in CHOOSING and t not in PICKS]
     return picked if picked and not rest else []
+
+
+def written(message, asked):
+    """The candidate a reply is exactly, as written in any case, when it's written with a mark the aliases'
+    normalizing drops ('Dragon!', 'Frost | Dragon'): (spelling asked about, candidate), or None. Normalized, "Dragon!"
+    is "dragon", which two of the three candidates for "dragon" are, so live it wasn't taken as a choice
+    (docs/web-app-testing-notes.md, finding 18)."""
+    said = " ".join(message.split()).casefold()
+    if not re.search(r"[^\w\s]", said):
+        return None
+    exact = [(entry["name"], c) for entry in asked for c in entry["candidates"]
+             if said in {" ".join(str(c.get(key) or "").split()).casefold() for key in ("name", "display", "matched")}]
+    return exact[0] if len(exact) == 1 else None
 
 
 def chosen(context, picked):

@@ -85,7 +85,8 @@ def problems(data):
 
 def ran(call):
     """Whether a tool call ran: not refused by a check before it ran, and not an error."""
-    return (call["observation"] is not None and not call.get("unreturned_players") and not call.get("name_filters")
+    return (call["observation"] is not None and not call.get("unreturned_players") and not call.get("unnamed_players")
+            and not call.get("name_filters")
             and "error" not in json.loads(call["observation"]))
 
 

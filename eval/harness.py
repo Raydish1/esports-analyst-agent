@@ -165,12 +165,13 @@ def tool_calls(trace):
 
 CHECKS_FIRED = {"size_check": "result-size check", "lookup_check": "lookup check", "no_tool_check": "no-tool check",
                 "event_check": "event check", "pairing_check": "pairing check", "answer_check": "answer check"}
-NEW_CHECKS = ["number check, sent back", "number check, claims replaced", "name filter, queries refused"]
+NEW_CHECKS = ["number check, sent back", "number check, claims replaced", "name filter, queries refused",
+              "named-player check, calls refused"]
 
 
 def fired(trace):
     """How many times each check fired in a run: the steps it acted on; for the number check its send-backs and the
-    claims it replaced apart, and for the name filter the queries it refused."""
+    claims it replaced apart, and for the name filter and the named-player check the calls they refused."""
     out = Counter()
     for step in trace["steps"]:
         out.update(label for key, label in CHECKS_FIRED.items() if step.get(key))
@@ -178,6 +179,7 @@ def fired(trace):
         out["number check, sent back"] += number.get("action") == "sent back"
         out["number check, claims replaced"] += len(number.get("replaced") or [])
         out["name filter, queries refused"] += sum(bool(c.get("name_filters")) for c in step["tool_calls"])
+        out["named-player check, calls refused"] += sum(bool(c.get("unnamed_players")) for c in step["tool_calls"])
     return {label: n for label, n in out.items() if n}
 
 
