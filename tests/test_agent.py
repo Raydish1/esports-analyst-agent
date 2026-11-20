@@ -186,7 +186,7 @@ class EventResolverTest(Fixture):
     def setUp(self):
         super().setUp()
         db = sqlite3.connect(self.path)
-        self.events = tools.EventResolver(db)
+        self.events = tools.EventResolver(db, curated=None)  # the fixture's own terms only
         db.close()
 
     def selected(self, name):
@@ -220,6 +220,24 @@ class EventResolverTest(Fixture):
     def test_terms_and_years_match_the_words_names_use(self):
         self.assertEqual(self.selected("winters 2023 na"), ("confident", {"naw23"}))  # not Europe's, nor the Royale
         self.assertEqual(self.selected("winters 2023")[1], {"naw23", "euw23"})
+
+    def test_a_term_the_database_lacks_comes_from_the_curation_file_checked_as_the_build_checks_it(self):
+        db = sqlite3.connect(self.path)
+        db.executemany("INSERT INTO v_events VALUES (?, ?, ?, ?, ?, '1v1', 'crew_battle', NULL, ?)", [
+            ("nacb22", "North America - Crew Battle Invitational", "Brawlhalla Crew Battle 3v3", "2022-03-20", 2022, "nacb"),
+            ("eucb22", "Europe - Crew Battle Invitational", "Brawlhalla Crew Battle 3v3", "2022-03-19", 2022, "eucb")])
+        terms = Path(self.tmp.name) / "event_terms.csv"
+        terms.write_text("term,means,note\nna,north america,\ncb,crew battle,\n", encoding="utf-8")
+        self.assertEqual(tools.EventResolver(db, curated=None).resolve("cb 2022")["status"], "not_found")  # eval-v1's
+        found = tools.EventResolver(db, curated=terms)
+        self.assertEqual(found.terms["na"], ["north america"])  # in both: once
+        out = found.resolve("cb 2022")
+        self.assertEqual((out["status"], {e["event_id"] for e in out["events"]}), ("ambiguous", {"nacb22", "eucb22"}))
+        self.assertEqual([e["event_id"] for e in found.resolve("na cb 2022")["events"]], ["nacb22"])
+        terms.write_text("term,means,note\ncb,cb,\n", encoding="utf-8")
+        with self.assertRaises(tools.curation.CurationError):
+            tools.EventResolver(db, curated=terms)
+        db.close()
 
     def test_several_tournaments_are_ambiguous_with_the_closest_name_first(self):
         out = self.events.resolve("ceo dreamland 2020")

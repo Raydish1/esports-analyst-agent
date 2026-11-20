@@ -55,7 +55,8 @@ it, and whether the value it filters on occurs in that column.
 
 Every connection the tools query through (connect) also has the views of ingest/views.sql that the database lacks, as
 temporary views: eval-v1 was frozen before v_sets_1v1 and v_event_series were written, and gets them this way, for
-that connection only, with its file unchanged (add_views).
+that connection only, with its file unchanged (add_views). Likewise resolve_event reads the event terms the database
+lacks from curation/event_terms.csv (curated_terms): eval-v1 predates 'cb' for crew battle (2026-11-20).
 
 Not built yet (decided 2026-10-19): when a user explicitly asks for a long list, the answer should summarize it, and
 the full table should go to the user directly, without passing through the model.
@@ -76,8 +77,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from diagnose import diagnose  # noqa: E402
 from names import normalize, normalize_full, normalize_words  # noqa: E402
+import curation  # noqa: E402
 
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
+EVENT_TERMS = ROOT / "curation" / "event_terms.csv"
 VIEWS = ROOT / "ingest" / "views.sql"
 SQL_SECONDS = 30  # a head-to-head view filtered by a literal player ID takes 0.1-0.4 s; with the ID looked up inside
 # the query it takes 18 s to over 90 s (docs/experiments.md), which this limit is meant to catch
@@ -268,11 +271,22 @@ def quoted(text):
     return "'" + text.replace("'", "''") + "'"
 
 
-class EventResolver:
-    """Every official event, with the curated event aliases and terms, read once from the database: event names
-    resolve in memory."""
+def curated_terms(path=EVENT_TERMS):
+    """The event terms of curation/event_terms.csv, checked as the build checks them (ingest/curation.py), as (term,
+    means). A snapshot frozen before a term was curated gets it this way, as add_views gives it a view: eval-v1
+    predates 'cb' for crew battle (decided 2026-11-20). Raises CurationError listing the file's problems."""
+    problems, cur = [], curation.Curation()
+    curation.load_event_terms(curation.read(Path(path), "event_terms.csv", problems), cur, problems)
+    if problems:
+        raise curation.CurationError(problems)
+    return [(t.term, t.means) for t in cur.event_terms]
 
-    def __init__(self, db):
+
+class EventResolver:
+    """Every official event, with the curated event aliases and terms, read once from the database, and the curated
+    terms it lacks from the curation file (curated_terms; None: none): event names resolve in memory."""
+
+    def __init__(self, db, curated=EVENT_TERMS):
         self.events = {}
         for event_id, tournament, event, start_date, year, counts_as, fmt, status, slug in db.execute(
                 "SELECT event_id, tournament_name, event_name, start_date, year, counts_as, format, status,"
@@ -299,8 +313,9 @@ class EventResolver:
                 self.series[stem].append(alias)
         self.series = {stem: aliases for stem, aliases in self.series.items() if len(aliases) >= 2}
         self.terms = defaultdict(list)
-        for term, means in db.execute("SELECT term, means FROM event_terms"):
-            self.terms[term].append(means)
+        for term, means in [*db.execute("SELECT term, means FROM event_terms"), *(curated_terms(curated) if curated else [])]:
+            if means not in self.terms[term]:
+                self.terms[term].append(means)
 
     def resolve(self, name, listed=EVENTS_LISTED):
         """{name, status, note, matched, score, event_count, tournament_count, sql, events}: the events an event
