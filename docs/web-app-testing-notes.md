@@ -10,6 +10,56 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
 
 ## For the agent session
 
+## Second round: live test with the six fixes (2026-11-20, `claude/agent` at f04eea3)
+
+From `data/experiments/web/20261120T050251Z-001`: "top 5 2v2 players in brawlhalla history", then Cody Travis and Phazon.
+Turns 1–2 ("raydishes", then "the first one") worked: the suggestion was settled to megD vs Raydish, and answered.
+
+### 7. "24 tournaments won together": an AND/OR precedence mistake (wrong answer; the truth is 4)
+
+- **Seen:** turn 5, "how many tournaments in 2v2 did cody travis and phazon win". The model's `run_sql`:
+  `WHERE (t.player_id = 117179 AND t.partner_id = 147522) OR (t.player_id = 147522 AND t.partner_id = 117179) AND
+  t.placement = 1`. AND binds tighter than OR, so the placement applies to the second pair only: it counted the 24
+  events they entered as partners, not the 4 they won. No check can see it: the 24 is a tool's number.
+- **Proposed:**
+  - a template for a duo, `team_results(player_id, partner_id)`: the events two players entered together, their
+    placements, and their wins, medals and top 8s together. "How did X and Y do as a team" is a common question, and a
+    template can't get this wrong;
+  - a code check on `run_sql`: a WHERE that mixes OR and AND at one level without parentheses is refused, with an error
+    explaining the precedence. It's a classic mistake, and cheap to catch.
+
+### 8. "what about X and Y?" after a ranking became a 1v1 head-to-head
+
+- **Seen:** turn 3 ranked the top 5 2v2 players by wins; turn 4, "what about cody travis and phazon?", resolved both and
+  called `head_to_head`: their 1v1 sets against each other (right numbers, wrong question). The user meant where they
+  stand in 2v2. The message names players, so fix 2's cues didn't settle it (`settled` is empty).
+- **Proposed:** the cues also settle "what about"/"and" with names: the previous question with the new names in it
+  ("top 5 2v2 players …: what about Cody Travis and Phazon" → their 2v2 wins, and rank if asked).
+
+### 9. The model doesn't know what the cards showed
+
+- **Seen:** turn 6, "are you sure? you just said phazon has 12 medals and cody travis has 6 medals in 2v2 in the
+  graphic". The card was right: 12 and 6 are their 2v2 wins (gold), from the app's own `player_results` calls. The
+  model never sees the cards, so it couldn't tell what the user pointed at; it looked up only Phazon, and invented an
+  explanation for Cody Travis's 6 ("likely came from a prior query not shown").
+- **Proposed:** the history keeps a one-line summary of what each card showed beside the answer (the web app supplies
+  it; it needs a hook in `Conversation` to add it to the turn's history, or an argument to `ask`). And "are you sure"
+  about a number re-runs the lookup behind it, for every player it named.
+
+### 10. A question about the agent's own answer was looked up as an event
+
+- **Seen:** turn 7, "so why did you say cody travis and phazon have won 24 2v2 tournaments". The no-tool check sent the
+  first reply back, then the loop's forced lookup ran `resolve_event("say cody travis 24")`; the event check then sent
+  it back for not retrying, and the answer explained that no event is called "say cody travis 24".
+- **Proposed:** a message about the agent's earlier answer (why did you say, are you sure, that's wrong) is answered
+  by re-checking that answer's claim with the right tool, not by looking up the message's words; `mentions` leaves out
+  "say", "said" and the like; and the forced lookups never call `resolve_event` on words that include a known player.
+
+### 11. The replacement sentence reads as noise
+
+- **Seen:** turns 6 and 7 begin or carry "I couldn't confirm the number from the data." as a sentence of its own, cut
+  loose from the claim it replaced. Already open from the number check's measurement (the replacement's wording).
+
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
 
 - **Seen:** megD's biggest records (`20261119T233544Z-002`, turns 15–17). No turn called a tool. Turn 15 wrote a
