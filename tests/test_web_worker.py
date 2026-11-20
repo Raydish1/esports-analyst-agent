@@ -31,6 +31,9 @@ class CardAgent(FakeAgent):
             raise self.cards
         return self.cards
 
+    def shown(self, cards):
+        self.told = cards
+
 
 class Clock:
     def __init__(self):
@@ -134,6 +137,18 @@ class WorkerTest(unittest.TestCase):
             job = worker.submit(worker.open().id, "one")
             worker.run_next()
             self.assertEqual(types(job)[-2:], ["answer", "done"])
+
+    def test_the_agent_is_told_the_cards_after_the_page_has_them(self):
+        agent = CardAgent([{"kind": "lifetime"}])
+        worker = workers.Worker(lambda: agent)
+        worker.submit(worker.open().id, "one")
+        worker.run_next()
+        self.assertEqual(agent.told, [{"kind": "lifetime"}])
+        agent = CardAgent([])
+        worker = workers.Worker(lambda: agent)
+        worker.submit(worker.open().id, "one")
+        worker.run_next()
+        self.assertFalse(hasattr(agent, "told"))  # no cards: nothing to tell
 
     def test_wait_gives_the_events_after_a_number(self):
         a = self.worker.open()

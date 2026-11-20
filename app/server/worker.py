@@ -130,6 +130,12 @@ class Worker:
             return
         if cards:
             job.emit(events.figures(cards))
+            tell = getattr(job.session.agent, "shown", None)
+            if tell is not None:
+                try:
+                    tell(cards)  # after the page has them: the line is for the next question
+                except Exception:
+                    traceback.print_exc()
 
     def job(self, job_id):
         with self.lock:

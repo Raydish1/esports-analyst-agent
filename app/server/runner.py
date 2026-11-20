@@ -12,6 +12,7 @@ import ask as asking
 import react
 
 import events
+import figures
 import replay
 
 
@@ -85,6 +86,14 @@ class Agent:
         """The stat cards for the last answer, built from the app's own template calls (figures.Cards), or []."""
         return self.cards.build(self.trace) if self.cards and self.trace else []
 
+    def shown(self, cards):
+        """Tell the agent what the page showed beside the last answer (react.Conversation.shown), as one line
+        (figures.summary), so a follow-up about a card's figure has it; and keep it in the transcript."""
+        line = figures.summary(cards)
+        if line:
+            self.conversation.shown(line)
+            self.state.shown(line)
+
 
 class ReplayState:
     def __init__(self):
@@ -92,6 +101,9 @@ class ReplayState:
 
     def ask(self, conversation, question):
         return conversation.ask(question)
+
+    def shown(self, line):
+        pass  # a replay has no transcript
 
 
 class Replay:
@@ -136,6 +148,12 @@ class LiveState:
         if self.session is None or self.session.conversation is not conversation:
             self.session = asking.Session(conversation, self.path, self.header)
         return self.session.ask(question)
+
+    def shown(self, line):
+        """The transcript's last turn gets the line too (Session keeps its own copy of each trace)."""
+        if self.session and self.session.traces:
+            self.session.traces[-1]["shown"] = line
+            self.session.save()
 
 
 class Live:

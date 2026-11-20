@@ -176,6 +176,18 @@ class LiveTest(Fixture):
         self.assertEqual(json.loads(transcript.read_text(encoding="utf-8"))["question"], QUESTION)
         self.assertTrue(transcript.with_suffix(".md").exists())
 
+    def test_the_cards_line_goes_to_the_history_and_the_transcript(self):
+        chat = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."))
+        agent = runner.Agent(self.tools, runner.Live(None, HEADER, self.folder, chat=chat))
+        agent.ask(QUESTION, lambda event: None)
+        card = {"kind": "lifetime", "player": {"name": "megD", "modes": {"1v1": {"results": 2, "first": 0, "second": 1,
+                                                                                 "third": 0, "top8": 2}}}}
+        agent.shown([card])
+        said = "megD in 1v1 only 2 results, GOLD 0, SILVER 1, BRONZE 0, TOP 8 2"
+        self.assertIn(said, agent.conversation.current[-1]["content"])
+        (transcript,) = self.folder.glob("*.jsonl")
+        self.assertIn(said, json.loads(transcript.read_text(encoding="utf-8"))["shown"])
+
     def test_the_model_server_address_never_reaches_the_page(self):
         def down(messages, **model):
             raise urllib.error.URLError("http://10.1.2.3:11434 refused the connection")

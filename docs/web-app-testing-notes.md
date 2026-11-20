@@ -142,6 +142,54 @@ whoiskyna vs yüz in 1v1 (17–17 in 34), and the stats of Mojakin, Bagus and Re
 - **Seen:** turns 6 and 7 begin or carry "I couldn't confirm the number from the data." as a sentence of its own, cut
   loose from the claim it replaced. Already open from the number check's measurement (the replacement's wording).
 
+## Fourth round: the card line, after findings 7–20's fixes (2026-11-20, `claude/agent` at 2c80a6c)
+
+The page now calls `Conversation.shown()` after each answer with cards. The line (`figures.summary`) names each card's
+labels with what they count: "MEDALS are GOLD (1st places), SILVER (2nd) and BRONZE (3rd)", then each player's figures
+by mode, one clause each, then a sets list's sets. Two smoke runs of "cody travis vs phazon head to head", then "on the
+card, where does phazon's 12 gold come from? is that medals?" (`20261120T175430Z-001` and the next conversation).
+Truth: Phazon's 12 GOLD is 2v2 (12 1st places in 2v2, 0 in 1v1, so 12 in both modes together).
+
+### 21. The answer copies the history's card tag into its own text
+
+- **Seen:** the second run's answer ends "[The page showed beside this answer: Phazon's 12 golds are 1st-place finishes
+  (medals) in 1v1 and 2v2, but …]", a tag it wrote itself.
+- **Why:** `shown()` appends the tag to the last *assistant* message, so the history shows answers ending in such a
+  tag, and the model imitates its own earlier answers.
+- **Proposed:** put the line in its own message, not in the answer's (for example a user-role note before the next
+  question: "The page showed the user, beside your last answer: …"); and leave any such tag out of a final answer.
+
+### 22. The card's figures were read against the wrong mode or the wrong player
+
+- **Seen:** run 1, "Phazon's 12 gold medals in 1v1" (his 1v1 GOLD is 0), with BCX Regional Qualifier 2017 and
+  DreamHack Atlanta 2019 as examples of his wins: both are events of the sets list, and he lost the 2019 set. Run 2:
+  `player_results(147522, top=1, mode="1v1")` returned 0, and the answer said "conflict with the stat card's 10 golds"
+  (Cody Travis's figure in both modes), "2v2: 2 wins" (no tool returned it), and pointed to a view
+  `v_player_medals` that doesn't exist.
+- **The page's part, fixed:** run 1's line wrote the combined figure as "Phazon in 1v1 and 2v2 … GOLD 12", read as 1v1.
+  It now says "in 1v1 only", "in 2v2 only" and "in both modes together", in that order. Run 2 was after the fix.
+- **Why no check caught it:** the number check checks where a number came from, not what it's about: 12 and 10 are in
+  the line, and 2 is in many results. The answer check reads only names shaped like tags, not view names.
+- **Proposed:** a question about the card ("on the card", "the graphic", a card label like GOLD) is answered from the
+  line, or from `player_results` with no `top`, which gives every mode at once, never one mode with `top=1`. And a
+  view or table the answer names that doesn't exist is a claim to check.
+
+### 23. "come" was looked up as an event
+
+- **Seen:** run 1, the no-tool check's forced lookups called `resolve_event("come")`, and the answer began "The term
+  'come' does not match any official Brawlhalla event".
+- **Why:** the question names Phazon, but it's about the card, not the agent's own answer, so the rule of commit 3
+  (only the named players are looked up) didn't apply.
+- **Proposed:** a question about what the page showed counts as one about the agent's own answer: only the named
+  players are looked up, never the message's other words.
+
+### 24. An ambiguous 2v2 sentence
+
+- **Seen:** run 1, turn 1: "In 2v2, Phazon's teams outperformed Cody Travis's teams in 20 sets (8 wins, 12 losses)."
+  On eval-v1, Cody Travis's side won 8 of the 20: the numbers are his, under Phazon's name.
+- **Proposed:** the answer guidance says a record is written from one named player's side ("Cody Travis's teams won 8
+  of the 20, lost 12").
+
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
 
 - **Seen:** megD's biggest records (`20261119T233544Z-002`, turns 15–17). No turn called a tool. Turn 15 wrote a

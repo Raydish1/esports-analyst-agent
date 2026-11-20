@@ -215,3 +215,68 @@ class Cards:
                                               "date": rows[0].get("date")}))
                 break
         return cards[:MOST]
+
+
+# What the cards showed, for the agent (react.Conversation.shown): live, the user asked about a card's "12 medals in
+# 2v2", which were Phazon's 2v2 GOLD figure, and the model, which never sees the cards, invented where it came from
+# (docs/web-app-testing-notes.md, finding 9). One clause per player and mode, separated by ";", so each record's numbers
+# share a clause, as the number check reads them. The card's own labels are named with what they count.
+
+LISTED = 12  # a sets card's sets written out one by one, up to this many; beyond it only their count
+
+
+def summary(cards):
+    """One line saying what the cards showed, in the words the user saw on them, or "" for no cards."""
+    parts = [said for said in (card_summary(c) for c in cards or []) if said]
+    if not parts:
+        return ""
+    return ("Stat cards, at official events; on them MEDALS are GOLD (1st places), SILVER (2nd) and BRONZE (3rd). "
+            + " ".join(parts))
+
+
+def card_summary(card):
+    kind = card.get("kind")
+    if kind == "lifetime":
+        return f"A lifetime card of {player_summary(card['player'])}."
+    if kind == "comparison":
+        return "A comparison card of " + "; and of ".join(player_summary(p) for p in card["players"]) + "."
+    if kind == "head_to_head":
+        a, b = card["players"]
+        r = card.get("record") or {}
+        record = (f"their 1v1 record, {a['name']} {r.get('wins')}-{r.get('losses')} against {b['name']} in"
+                  f" {r.get('sets')} sets, games {r.get('games_won')}-{r.get('games_lost')}"
+                  if r.get("sets") else f"no 1v1 sets between {a['name']} and {b['name']}")
+        return (f"A head-to-head card: {record}; with the lifetime figures of {player_summary(a)}; and of"
+                f" {player_summary(b)}.")
+    if kind == "sets":
+        sets, total = card.get("sets"), card.get("total")
+        where = f" at {card['event']}" if card.get("event") else ""
+        if not sets or len(sets) > LISTED:
+            return f"A list, {card['title']}{where}, of {total if total is not None else 'its'} sets."
+        listed = "; ".join(set_summary(s) for s in sets)
+        return f"A list, {card['title']}{where}, oldest first: {listed}."
+    return ""
+
+
+def player_summary(p):
+    figures = []
+    for mode, said in (("1v1", "in 1v1 only"), ("2v2", "in 2v2 only"), ("1v1 and 2v2", "in both modes together")):
+        m = (p.get("modes") or {}).get(mode)  # live, "in 1v1 and 2v2 ... GOLD 12" was read as a 1v1 figure
+        if m and m.get("results"):
+            figures.append(f"{p['name']} {said} {m['results']} results, GOLD {m['first']}, SILVER {m['second']},"
+                           f" BRONZE {m['third']}, TOP 8 {m['top8']}")
+    said = "; ".join(figures) or f"{p['name']} with no official results"
+    if p.get("first"):
+        said += f"; {p['name']}'s first result {p['first']}, latest {p['latest']}"
+    earnings = p.get("earnings")
+    if earnings is not None:
+        said += (f"; {p['name']}'s career earnings ${earnings['amount']:,.0f} ({earnings['source']}, as of"
+                 f" {earnings['as_of']})" if earnings.get("amount") is not None
+                 else f"; {p['name']}'s career earnings not recorded")
+    return said
+
+
+def set_summary(s):
+    score = (f" {s['winner_games']}-{s['loser_games']}" if s.get("winner_games") is not None else " (no score recorded)")
+    at = f" at {s['event']}" if s.get("event") else ""
+    return f"{s['date']}{at}, {s['winner']} beat {s['loser']}{score}"

@@ -214,6 +214,21 @@ class RealTest(unittest.TestCase):
         self.assertEqual([(s["winner"], s["loser"]) for s in sets["sets"]],
                          [("Impala", "BBBalloonBoy"), ("Impala", "BBBalloonBoy"), ("BBBalloonBoy", "Impala")])
 
+    def test_the_line_for_the_agent_says_what_the_cards_showed_in_their_own_words(self):
+        line = figures.summary(self.cards.head_to_head(168635, 149305))
+        self.assertTrue(line.startswith("Stat cards, at official events; on them MEDALS are GOLD (1st places)"))
+        self.assertIn("their 1v1 record, Impala 2-1 against BBBalloonBoy in 3 sets, games 8-4;", line)
+        self.assertIn("Impala's career earnings not recorded", line)
+        self.assertIn(", Impala beat BBBalloonBoy ", line)
+        self.assertEqual(figures.summary([]), "")
+        raydish = self.cards.lifetime(160000)
+        line = figures.summary([{"kind": "lifetime", "player": raydish}])
+        self.assertIn("Raydish in both modes together 98 results, GOLD 6, SILVER 7, BRONZE 9, TOP 8 43;", line)
+        self.assertIn("career earnings $83,825 (Stats API, as of 2026-10-02)", line)
+        many = {"kind": "sets", "title": "Sets between top 8 players", "event": "X", "total": 20,
+                "sets": [{"date": "2020-01-01", "winner": "a", "loser": "b", "winner_games": 3, "loser_games": 0}] * 20}
+        self.assertIn("A list, Sets between top 8 players at X, of 20 sets.", figures.summary([many]))
+
     def test_an_events_top_8_sets(self):
         card = self.cards.event_sets({"event_id": "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1", "name": "x",
                                       "date": "2019-11-15"})
