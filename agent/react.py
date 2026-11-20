@@ -238,6 +238,9 @@ LAST_STEP = "You have one step left: reply with your answer, without calling a t
 CHECK = ("Before this answer is final: it {what}, which no tool returned in this conversation. If that means a"
          " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
          " the tools return. If it isn't meant as a player, reply with the same answer again.")
+PAIRING = ("Before this answer is final: it pairs {pairs}. A player_id belongs to one player: if the name is the player"
+           " meant, use the player_id resolve_player gives for them, and query again if a query used the other one; if"
+           " the player_id is, name them by its name.")
 # The no-tool check: none offers to keep the answer if its facts "come from earlier results", which let three turns of
 # invented head-to-head records stand in the web app's live testing (decided 2026-11-19)
 NO_TOOL_LOOKUP = ("Before this answer is final: this question called no tool, and no tool result you can see holds {words},"
@@ -282,6 +285,8 @@ META = re.compile(r"\b(?:the|my|this|that|previous|original|above)\s+(?:answer|r
                   r"|\bno\s+(?:specific\s+)?tools?\s+(?:was|were|is|are|has\s+been|have\s+been)\s+(?:called|used)\b"
                   r"|\b(?:no-tool|number|answer|lookup|result-size)\s+check\b", re.I)
 LIST_NUMBER = re.compile(r"^\s*\d+[.)](?=\s)", re.M)  # a list's own numbering: '1. A specific player's record'
+# A player named only by an ID: 'Player 147569' (not '(player 147569)', explaining a name), or '**147569**'
+LONE_ID = re.compile(r"(?<![\w(])[Pp]layer\s*#?\s*(-?\d+)(?!\w)|\*\*(-?\d{5,})\*\*")
 
 
 # Talking to the model
@@ -562,15 +567,21 @@ def same_spelling(spelling, name):
     return bool(forms(spelling) & forms(name))
 
 
-def correct_names(answer, resolved, names):
-    """The answer with players' names corrected in code, and the swaps made, [{kind, from, to, player_id}], which
-    still measure how often the model gets a name wrong (decided 2026-11-09).
+def correct_names(answer, resolved, resolver, in_view=frozenset()):
+    """The answer with players' names corrected in code; the swaps made, [{kind, from, to, player_id}], which still
+    measure how often the model gets a name wrong (decided 2026-11-09); and the pairings left for the model to settle,
+    [{name, player_id, belongs_to, name_is}].
     - resolved: (spelling, player_id, name, display) for each player the question named that resolve_player decided.
       The question's spelling becomes the display where the answer first names the player, and the name after,
       unless it's quoted (the name talked about, not used) or in parentheses just after the name, explaining it.
-    - names: {player_id: name}. A name in bold, quotes or a tag's shape just before a player ID that isn't that ID's
-      name becomes it: '**Lucky** (player_id 147982)' becomes '**Zivai** (player_id 147982)'."""
-    swaps = []
+    - A name in bold, quotes or a tag's shape just before a player ID that isn't that ID's name becomes it: '**Lucky**
+      (player_id 147982)' becomes '**Zivai** (player_id 147982)'. But a name resolve_player decides as another player
+      is left as it is, a pairing for the model (decided 2026-11-19): live, 'Raydish (player_id 147569)' had capsar's
+      ID, copied wrong, and became capsar in every answer after it (resolver: tools.Resolver).
+    - A player named only by an ID that a tool in view returned (in_view: canonical IDs), 'Player 147569' or
+      '**147569**', gets their name (decided 2026-11-19): live, a crew battle's winners were three 'Player' numbers."""
+    names, canonical = resolver.names, resolver.canonical
+    swaps, pairings = [], []
     for spelling, pid, name, shown in dict.fromkeys(resolved):
         if same_spelling(spelling, name):
             continue
@@ -596,11 +607,27 @@ def correct_names(answer, resolved, names):
             real = names.get(pid)
             if not real or normalize(m.group(0)) in {normalize(real), normalize_full(real)}:
                 return m.group(0)
+            found = resolver.resolve(m.group(0))
+            other = found["candidates"][0]["player_id"] if found.get("status") == "confident" else None
+            if other is not None and other != canonical.get(pid, pid):
+                pairing = {"name": m.group(0), "player_id": pid, "belongs_to": real, "name_is": other}
+                if pairing not in pairings:
+                    pairings.append(pairing)
+                return m.group(0)
             swaps.append({"kind": "the name for a player ID", "from": m.group(0), "to": real, "player_id": pid})
             return real
 
         answer = re.sub(rf"(?<!\w){re.escape(span)}{AFTER_NAME}", by_id, answer, flags=re.I)
-    return answer, swaps
+
+    def alone(m):
+        pid = int(m.group(1) or m.group(2))
+        real = names.get(canonical.get(pid, pid))
+        if canonical.get(pid, pid) not in in_view or not real:
+            return m.group(0)
+        swaps.append({"kind": "a player named only by ID", "from": m.group(0), "to": real, "player_id": pid})
+        return real if m.group(1) else f"**{real}**"
+
+    return LONE_ID.sub(alone, answer), swaps, pairings
 
 
 def is_meta(reply, answer, message=""):
@@ -647,6 +674,12 @@ def noted(question, name, observation, asked, resolved):
             and named_in(question, observation.get("name") or "")):
         first = observation["candidates"][0]
         resolved.append((observation["name"], first["player_id"], first["name"], first.get("display") or first["name"]))
+
+
+def paired_as(pairing):
+    """A pairing the names correction left (correct_names), as the pairing check's message says it."""
+    return (f"{pairing['name']} with player_id {pairing['player_id']}, which is {pairing['belongs_to']}'s"
+            f" (resolve_player gives {pairing['name']} as player_id {pairing['name_is']})")
 
 
 def gapped(gap):
@@ -792,7 +825,7 @@ class Conversation:
         without retrieval), each step's thinking, reply and tool calls with their observations, and
         any checks; then the answer, the outcome ('answered', 'step limit', ...), the names and player IDs in the answer
         that no tool returned, whether it came right after a result too large to show or a lookup miss, or without a
-        tool call, and the claims the number check replaced (unconfirmed). Five checks can send an answer back:
+        tool call, and the claims the number check replaced (unconfirmed). Six checks can send an answer back:
         - the result-size check: an answer right after a result too large to show (run_sql's TOKEN_BUDGET), with no
           new query since, goes back as long as two steps are left, to query and to answer;
         - the lookup check: an answer right after an empty result whose diagnosis finds no row with a text value the
@@ -804,6 +837,9 @@ class Conversation:
           names up itself (mentions.lookups) and the model answers from them. If it never looked anything up itself,
           the final text has its unsupported players replaced as numbers are, and if no fact is left, it's
           NOT_LOOKED_UP;
+        - the pairing check: an answer pairing a name with another player's player_id, when resolve_player decides
+          the name as someone else (correct_names' pairings), goes back once if a step is left, and is never renamed
+          (decided 2026-11-19);
         - the answer check: an answer naming players, or citing player IDs, that no tool returned goes back once, if a
           step is left;
         - the number check: an answer stating a number no tool result holds (number_check.py) goes back once, if a
@@ -823,7 +859,7 @@ class Conversation:
         missing, missed = [], False  # the last empty result's text filters no row has, and whether that was sent back
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
-        numbered = False  # whether the number check sent an answer back
+        numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
         resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
         sent_back = None
@@ -845,13 +881,14 @@ class Conversation:
             log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
             if not calls:
                 outcome = ending(content, step["done_reason"])
-                swaps = []
+                swaps, pairings = [], []
                 if outcome == "answered" and sent_back and is_meta(content, *sent_back[::2]):
                     step["meta_reply"] = {"reply": content, "action": "kept the answer it replied about"}
                     log("  a reply about the answer, not an answer: the answer it replied about is kept")
                     content, swaps, _ = sent_back
                 elif outcome == "answered":
-                    content, swaps = correct_names(content, resolved, self.tools.resolver.names)
+                    content, swaps, pairings = correct_names(content, resolved, self.tools.resolver,
+                                                             self.shown.returned_now | self.shown.returned_before)
                     if swaps:
                         step["name_swaps"] = swaps
                         log("  names corrected: " + ", ".join(f"{x['from']} to {x['to']}" for x in swaps))
@@ -909,6 +946,20 @@ class Conversation:
                                              else "replaced: no steps left"}
                 if strict and outcome == "answered":
                     trace["answered_without_tools"] = True
+                if pairings and not paired and not strict and number < max_steps:
+                    paired, message = True, PAIRING.format(pairs=listed([paired_as(p) for p in pairings]))
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["pairing_check"] = {"pairs": pairings, "action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log(f"  pairing check: it pairs {listed([paired_as(p) for p in pairings])}; sent back")
+                    sent_back = (content, swaps, message)
+                    self.finished(step)
+                    continue
+                if pairings:
+                    step["pairing_check"] = {"pairs": pairings, "action": "kept as written: sent back once already"
+                                             if paired else "kept as written: no steps left"}
                 names = self.shown.unreturned(content) if outcome == "answered" else {}
                 ids = self.shown.unreturned_ids(content) if outcome == "answered" else []
                 if (names or ids) and not checked and not strict and number < max_steps:
@@ -1147,6 +1198,14 @@ def markdown(traces, header):
                 else:
                     out += [f"**No-tool check:** no tool was called, and nothing in view holds {stated}"
                             f" ({told['action']}).", ""]
+            pairing = s.get("pairing_check")
+            if pairing:
+                pairs = "; ".join(paired_as(p) for p in pairing["pairs"])
+                if pairing["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**Pairing check:** it pairs {pairs}. Sent back"
+                            " with:", "", f"> {pairing['message']}", ""]
+                else:
+                    out += [f"**Pairing check:** it pairs {pairs} ({pairing['action']}).", ""]
             check = s.get("answer_check")
             if check:
                 names = ", ".join(f"{n} ({', '.join(map(str, ids))})" for n, ids in check["names"].items())
@@ -1230,12 +1289,14 @@ def summary(trace):
                           "examples": [{k: e[k] for k in ("id", "shape", "similarity", "mmr")} for e in found["examples"]],
                           **({"skipped": found["skipped"]} if found.get("skipped") else {})}
     metas = [{"step": s["step"], "action": s["meta_reply"]["action"]} for s in trace["steps"] if s.get("meta_reply")]
+    pairings = [{"step": s["step"], "pairs": s["pairing_check"]["pairs"], "action": s["pairing_check"]["action"]}
+                for s in trace["steps"] if s.get("pairing_check")]
     numbers = [{"step": s["step"], "numbers": s["number_check"]["numbers"], "action": s["number_check"]["action"]}
                for s in trace["steps"] if s.get("number_check")]
     return {**{k: trace.get(k) for k in keep}, **({"settled": trace["settled"]} if trace.get("settled") else {}),
             "examples": examples, "tool_calls": calls, "answer_checks": checks,
             "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told, "number_checks": numbers,
-            "meta_replies": metas}
+            "meta_replies": metas, **({"pairing_checks": pairings} if pairings else {})}
 
 
 def main():

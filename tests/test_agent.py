@@ -508,6 +508,40 @@ class LoopTest(Fixture):
                                                 "player_id": 19}])
         self.assertNotIn("answer_check", trace["steps"][1])  # corrected, so nothing went back
 
+    def test_a_name_resolve_player_decides_as_another_player_goes_back_with_the_id_and_is_never_renamed(self):
+        lookups = reply(calls=[("resolve_player", {"name": "raydish"}), ("resolve_player", {"name": "tike36"})])
+        wrong = "**Raydish** (player_id 14) has 6 official results."  # 14 is tike36's: live, capsar's ID for Raydish
+        ask = Scripted(lookups, reply(wrong), reply("**Raydish** (player_id 11) has 6 official results."))
+        trace = react.run("how many results has raydish?", self.tools, ask=ask, log=lambda *_: None)
+        check = trace["steps"][1]["pairing_check"]
+        self.assertEqual((check["action"], check["pairs"]), ("sent back", [{"name": "Raydish", "player_id": 14,
+                                                                            "belongs_to": "tike36", "name_is": 11}]))
+        self.assertIn("Raydish with player_id 14, which is tike36's (resolve_player gives Raydish as player_id 11)",
+                      check["message"])
+        self.assertEqual(trace["answer"], "**Raydish** (player_id 11) has 6 official results.")
+        trace = react.run("how many results has raydish?", self.tools, ask=Scripted(lookups, reply(wrong)), max_steps=2,
+                          log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["name_swaps"], trace["steps"][1]["pairing_check"]["action"]),
+                         (wrong, [], "kept as written: no steps left"))
+
+    def test_a_player_named_only_by_an_id_a_result_in_view_holds_gets_their_name(self):
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 7 AS player_id, 1 AS placement"})]),
+                       reply("1st: **Player 7** (team placement: 1st)."))
+        trace = react.run("who won it?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "1st: **megD** (team placement: 1st).")
+        self.assertEqual(trace["name_swaps"], [{"kind": "a player named only by ID", "from": "Player 7", "to": "megD",
+                                                "player_id": 7}])
+
+    def test_the_names_correction_reads_a_bold_id_and_leaves_an_explaining_one(self):
+        class Names:
+            names, canonical = {147569: "capsar", 160000: "Raydish"}, {147569: 147569, 160000: 160000}
+
+            def resolve(self, name):
+                return {"status": "not_found", "candidates": []}
+        answer, swaps, pairings = react.correct_names("**147569** beat capsar (player 147569) and **160000**.", [],
+                                                      Names(), in_view={147569})
+        self.assertEqual((answer, len(swaps), pairings), ("**capsar** beat capsar (player 147569) and **160000**.", 1, []))
+
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
                        reply("The answer is correct: both are players."))
