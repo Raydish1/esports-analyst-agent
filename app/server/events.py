@@ -11,14 +11,15 @@ import re
 from urllib.parse import urlsplit
 
 ORDINALS = ["first", "second", "third", "fourth", "fifth"]
-TOOL_LABELS = {
-    "resolve_player": "Looking up the player {name}",
-    "resolve_event": "Looking up the event {name}",
-    "run_sql": "Running a query",
-    "event_results": "Getting the results of {event}",
-    "player_results": "Getting a player's results",
-    "head_to_head": "Getting a head-to-head record",
-    "rank_players": "Ranking players",
+TOP_WHAT = {1: "tournament wins", 3: "medals", 8: "top 8s"}
+RANK_BY = {"wins": "tournament wins", "medals": "medals", "top8s": "top 8s"}
+# What the page says while the model thinks, after a step a check sent back (the key is react's step key)
+CHECK_LABELS = {
+    "no_tool_check": "Double-checking: looking the facts up instead of answering from memory",
+    "number_check": "Double-checking a number in the answer",
+    "answer_check": "Double-checking a player the answer names",
+    "lookup_check": "Checking why a lookup came back empty",
+    "size_check": "The result was too big to read: narrowing it down",
 }
 NO_ANSWER = {
     "step limit": "No answer: the agent ran out of steps before it finished.",
@@ -73,21 +74,104 @@ def quoted(value):
     return f"“{value}”" if isinstance(value, str) and value.strip() else "(not given)"
 
 
-def tool_label(name, arguments):
-    """What the progress list says while a tool runs: 'Looking up the player “boomie”'."""
+def player_id(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def scope(arguments):
+    """' in 2v2 in 2024 at “bcx”': a template's filters, as words."""
+    parts = []
+    if arguments.get("mode"):
+        parts.append(f" in {arguments['mode']}")
+    if arguments.get("year"):
+        parts.append(f" in {arguments['year']}")
+    if arguments.get("event"):
+        parts.append(f" at {quoted(arguments['event'])}")
+    return "".join(parts)
+
+
+def tool_label(name, arguments, names=None):
+    """What the page says while a tool runs: 'Figuring out who “boomie” is', 'Finding the set history between megD and
+    Raydish'. names maps the player IDs the conversation has seen to their names; an unknown one is "a player"."""
     arguments = arguments if isinstance(arguments, dict) else {}
-    label = TOOL_LABELS.get(name)
-    if label is None:
-        return f"Calling {name}"
-    return label.format(name=quoted(arguments.get("name") or arguments.get("event")), event=quoted(arguments.get("event")))
+    names = names or {}
+
+    def who(key):
+        return names.get(player_id(arguments.get(key))) or "a player"
+
+    top = player_id(arguments.get("top"))
+    if name == "resolve_player":
+        return f"Figuring out who {quoted(arguments.get('name'))} is"
+    if name == "resolve_event":
+        return f"Figuring out which event {quoted(arguments.get('name') or arguments.get('event'))} means"
+    if name == "run_sql":
+        return "Querying the database"
+    if name == "event_results":
+        what = "the winners of" if top == 1 else f"the top {top} of" if top else "the results of"
+        return f"Getting {what} {quoted(arguments.get('event'))}"
+    if name == "player_results":
+        return f"Getting {who('player_id')}'s {TOP_WHAT.get(top, 'results')}{scope(arguments)}"
+    if name == "head_to_head":
+        return f"Finding the set history between {who('player_id')} and {who('opponent_id')}"
+    if name == "rank_players":
+        return f"Ranking players by {RANK_BY.get(arguments.get('by'), 'results')}{scope(arguments)}"
+    return f"Calling {name}"
 
 
-def tool_started(step, name, arguments):
-    return {"type": "tool_started", "step": step, "tool": name, "label": tool_label(name, arguments)}
+def observed(call):
+    """A recorded call's observation as a dict (traces keep it as JSON text)."""
+    value = call.get("observation")
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return {}
+    return value if isinstance(value, dict) else {}
 
 
-def thinking(step):
-    return {"type": "thinking", "step": step, "label": f"Thinking (step {step})"}
+def player_names(step, names):
+    """Adds every player a step's tool results named (a dict with a player_id and a name) to names."""
+    def walk(value):
+        if isinstance(value, dict):
+            pid, name = player_id(value.get("player_id")), value.get("name")
+            if pid is not None and isinstance(name, str) and name:
+                names.setdefault(pid, name)
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v)
+    for call in step.get("tool_calls") or []:
+        walk(observed(call))
+    return names
+
+
+def thinking_label(number, previous):
+    """What the page says while the model thinks: what it's doing with the step before."""
+    if number == 1 or not previous:
+        return "Reading your question"
+    for key, label in CHECK_LABELS.items():
+        if str((previous.get(key) or {}).get("action") or "").startswith("sent back"):
+            return label
+    calls = previous.get("tool_calls") or []
+    if not calls:
+        return "Thinking it over"
+    if any("error" in observed(c) for c in calls):
+        return "Fixing a lookup that didn't work"
+    if all(c.get("name") in ("resolve_player", "resolve_event") for c in calls):
+        return "Working out what to look up next"
+    return "Reading the results"
+
+
+def tool_started(step, name, arguments, names=None):
+    return {"type": "tool_started", "step": step, "tool": name, "label": tool_label(name, arguments, names)}
+
+
+def thinking(step, previous=None):
+    return {"type": "thinking", "step": step, "label": thinking_label(step, previous)}
 
 
 def short_thought(text, width=240):

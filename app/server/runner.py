@@ -1,6 +1,6 @@
 """One conversation's agent, for the worker: react.Conversation with the hooks the page needs, and the model it asks.
 
-- The model call is wrapped, so the page hears "thinking (step N)" before each step.
+- The model call is wrapped, so the page hears "what it is doing" before each step.
 - ProgressTools reports each tool call as it starts; the step itself comes from on_step once it finishes.
 - Replay mode (replay.py) gives each turn its recording's replies and examples; live mode (Live) asks the model
   server, as ask.py does.
@@ -36,32 +36,35 @@ class Agent:
 
     def __init__(self, tools, source, cards=None):
         self.tools, self.source, self.cards = tools, source, cards
-        self.emit, self.number, self.model, self.trace = None, 0, None, None
+        self.emit, self.number, self.model, self.trace, self.previous = None, 0, None, None, None
         self.start()
 
     def start(self):
         """A conversation from the beginning (also after an error, which can leave it half-way through a turn)."""
         self.state = self.source.state()
+        self.names = {}  # player IDs the conversation's tools returned, to their names: for the progress labels
         self.conversation = react.Conversation(self.tools, ask=self.chat, log=lambda *_: None, on_step=self.stepped,
                                                retriever=self.state.retriever, on_examples=self.examples,
                                                **self.source.model)
 
     def chat(self, messages, **model):
         self.number += 1
-        self.emit(events.thinking(self.number))
+        self.emit(events.thinking(self.number, self.previous))
         return self.model(messages, **model)
 
     def stepped(self, step):
+        self.previous = step
+        events.player_names(step, self.names)
         self.emit(events.step(step))
 
     def examples(self, found):
         self.emit(events.examples(found))
 
     def started(self, name, arguments):
-        self.emit(events.tool_started(self.number, name, arguments))
+        self.emit(events.tool_started(self.number, name, arguments, self.names))
 
     def ask(self, question, emit):
-        self.emit, self.number, self.trace = emit, 0, None
+        self.emit, self.number, self.trace, self.previous = emit, 0, None, None
         self.tools.listener = self.started
         try:
             self.model, about = self.source.begin(self.state, question)

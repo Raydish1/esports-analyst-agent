@@ -65,7 +65,7 @@ class AppTest(Fixture):
         self.assertEqual([e for e in kinds if e in ("thinking", "tool_started", "step")],
                          ["thinking", "tool_started", "step", "thinking", "tool_started", "step", "thinking", "step"])
         labels = [e["label"] for e in found if e["type"] == "tool_started"]
-        self.assertEqual(labels, ["Looking up the player “megd”", "Running a query"])
+        self.assertEqual(labels, ["Figuring out who “megd” is", "Querying the database"])
         answer = next(e for e in found if e["type"] == "answer")
         self.assertEqual(answer["text"], "megD has 2 official results.")
         self.assertEqual(answer["replay"], {"source": "run-a", "seed": 0})

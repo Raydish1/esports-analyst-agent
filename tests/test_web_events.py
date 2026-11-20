@@ -35,14 +35,44 @@ def suggested(*observations):
 
 
 class LabelTest(unittest.TestCase):
+    NAMES = {142100: "megD", 160000: "Raydish"}
+
     def test_each_tool_says_what_it_does(self):
-        self.assertEqual(events.tool_label("resolve_player", {"name": "boomie"}), "Looking up the player “boomie”")
-        self.assertEqual(events.tool_label("resolve_event", {"event": "bcx 2022"}), "Looking up the event “bcx 2022”")
-        self.assertEqual(events.tool_label("run_sql", {"query": "SELECT 1"}), "Running a query")
-        self.assertEqual(events.tool_label("event_results", {"event": "worlds 2023", "top": 8}),
-                         "Getting the results of “worlds 2023”")
-        self.assertEqual(events.tool_label("player_results", "not a dict"), "Getting a player's results")
-        self.assertEqual(events.tool_label("nonsense", {}), "Calling nonsense")
+        label = events.tool_label
+        self.assertEqual(label("resolve_player", {"name": "boomie"}), "Figuring out who “boomie” is")
+        self.assertEqual(label("resolve_event", {"event": "bcx 2022"}), "Figuring out which event “bcx 2022” means")
+        self.assertEqual(label("run_sql", {"query": "SELECT 1"}), "Querying the database")
+        self.assertEqual(label("event_results", {"event": "worlds 2023", "top": 8}), "Getting the top 8 of “worlds 2023”")
+        self.assertEqual(label("event_results", {"event": "worlds 2023", "top": 1}), "Getting the winners of “worlds 2023”")
+        self.assertEqual(label("player_results", "not a dict"), "Getting a player's results")
+        self.assertEqual(label("nonsense", {}), "Calling nonsense")
+
+    def test_players_are_named_once_the_conversation_has_seen_them(self):
+        label = events.tool_label
+        self.assertEqual(label("head_to_head", {"player_id": 142100, "opponent_id": "160000"}, self.NAMES),
+                         "Finding the set history between megD and Raydish")
+        self.assertEqual(label("player_results", {"player_id": 160000, "top": 3, "mode": "2v2", "year": 2024}, self.NAMES),
+                         "Getting Raydish's medals in 2v2 in 2024")
+        self.assertEqual(label("player_results", {"player_id": 999}, self.NAMES), "Getting a player's results")
+        self.assertEqual(label("rank_players", {"by": "wins", "mode": "1v1"}), "Ranking players by tournament wins in 1v1")
+
+    def test_names_come_from_any_tool_result(self):
+        step = {"tool_calls": [call("resolve_player", {"name": "godlyy"}, GODLY)]}
+        self.assertEqual(events.player_names(step, {}), {147982: "Zivai", 5: "Godlike"})
+
+    def test_thinking_says_what_the_model_is_doing_with_the_step_before(self):
+        label = events.thinking_label
+        resolved = {"tool_calls": [call("resolve_player", {"name": "godlyy"}, GODLY)]}
+        queried = {"tool_calls": [call("run_sql", {"query": "SELECT 1"}, {"columns": ["n"], "rows": [[1]]})]}
+        failed = {"tool_calls": [call("run_sql", {"query": "SELEC"}, {"error": "syntax"})]}
+        self.assertEqual(label(1, None), "Reading your question")
+        self.assertEqual(label(2, resolved), "Working out what to look up next")
+        self.assertEqual(label(3, queried), "Reading the results")
+        self.assertEqual(label(3, failed), "Fixing a lookup that didn't work")
+        self.assertEqual(label(2, {"tool_calls": [], "no_tool_check": {"action": "sent back"}}),
+                         "Double-checking: looking the facts up instead of answering from memory")
+        self.assertEqual(label(2, {"tool_calls": [], "no_tool_check": {"action": "kept: sent back once already"}}),
+                         "Thinking it over")
 
 
 class RedactTest(unittest.TestCase):
