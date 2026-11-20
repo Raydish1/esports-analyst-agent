@@ -117,6 +117,8 @@ id = "ex08"
 shape = "teammates"
 question = "Who has Phazon partnered with in 2v2, and how did they do together?"
 note = "Aggregate per partner in SQL (COUNT, MIN) instead of reading every result; v_team_results holds only 2v2, so no mode filter."
+call = 'team_results(player_id=147522)'
+call_note = "Without partner_id, every partner, with their events together, wins, medals, top 8s and best placement, the most events first."
 sql = '''
 SELECT p.name AS partner, COUNT(*) AS events, MIN(t.placement) AS best_placement, SUM(t.placement = 1) AS wins
 FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
@@ -130,6 +132,8 @@ id = "ex09"
 shape = "partnership"
 question = "How many 2v2 events have Cake and Addymestic played together, and what's their best result?"
 note = "For one partnership, filter both player_id and partner_id; each event is then one row."
+call = 'team_results(player_id=110, partner_id=115695)'
+call_note = "With partner_id, the two players' events together and their wins, medals, top 8s and best placement together, counted for you: no OR between the two orders to get wrong."
 sql = '''
 SELECT COUNT(*) AS events, MIN(placement) AS best_placement, SUM(placement = 1) AS wins
 FROM v_team_results
@@ -431,4 +435,34 @@ WHERE r.placement <= 8 AND r.event_id IN (SELECT event_id FROM v_event_series WH
 GROUP BY r.player_id
 ORDER BY top8s DESC
 LIMIT 5
+'''
+
+[[example]]
+id = "ex31"
+shape = "stats"
+question = "what are Remmy's stats"
+note = "A player's stats are their whole record: count every result by mode in SQL, wins, medals and top 8s included."
+call = 'player_results(player_id=79652)'
+call_note = "With no top, the whole record in one call: results, 1st, 2nd and 3rd places, medals, top 8s and the best, by mode and in all, with the first and the latest result."
+sql = '''
+SELECT mode, COUNT(*) AS results, SUM(placement = 1) AS first, SUM(placement = 2) AS second,
+       SUM(placement = 3) AS third, SUM(placement <= 3) AS medals, SUM(placement <= 8) AS top8, MIN(placement) AS best
+FROM v_results
+WHERE player_id = 79652
+GROUP BY mode
+'''
+
+[[example]]
+id = "ex32"
+shape = "most_played_pair"
+question = "Which two players have played each other the most in 1v1?"
+note = "Count the 1v1 sets between each pair once: v_sets_1v1 has one row per set, and MIN and MAX of the two IDs name the pair whichever won. Order by the count, then name both players."
+sql = '''
+WITH pairs AS (
+  SELECT MIN(winner_id, loser_id) AS player_id, MAX(winner_id, loser_id) AS opponent_id, COUNT(*) AS sets,
+         SUM(winner_id < loser_id) AS wins
+  FROM v_sets_1v1 GROUP BY 1, 2 ORDER BY sets DESC LIMIT 5)
+SELECT pairs.player_id, a.name AS player, pairs.opponent_id, b.name AS opponent, sets, wins, sets - wins AS losses
+FROM pairs JOIN players a ON a.player_id = pairs.player_id JOIN players b ON b.player_id = pairs.opponent_id
+ORDER BY sets DESC
 '''

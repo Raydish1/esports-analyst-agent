@@ -2,6 +2,135 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-19: the fixes for the web app testing notes, on the test conversations and the 45 questions
+
+**Change**, approved 2026-11-19 from the user's live test of the web app that day (`docs/web-app-testing-notes.md` on `claude/web-app`), one commit each:
+- **The test conversations** (9250ea1, verified in ae5372a): `eval/questions/conversations.toml`, 7 conversations and 20 turns cut from the live sessions. Each turn has what a right answer says, its reference queries, and checks read on the turn's window (its own and the previous turn's tool results). `eval/conversations.py` plays and scores them.
+- **Fix 1, a turn with no tool call** (626cc36). It's checked in code against the window. It goes back once when the question has a content word no result in view holds, or the answer states a player or a number none holds. If the reply still calls no tool, the loop runs the lookups itself (`forced`). With nothing looked up, unsupported claims are replaced.
+- **Fix 2, the context settled before retrieval and the model** (44e305b). A reply to suggestions becomes the question it answers, with the chosen player written in. A follow-up is settled one of two ways, behind a switch (`follow_ups`), to be chosen on these runs: hand-written cues (a note with the previous question, its players and events, and "he" when there was one player), or a one-call model rewrite.
+- **Fix 3** (b6f55fd): what an answer asks (a sentence ending in "?") and its code state nothing, and a reply that talks about a check keeps the answer it replied about.
+- **Fix 4** (1591dce): a player named only by an ID a tool returned gets their name, and a name next to another player's ID, where resolve_player decides the name as someone else, goes back (the pairing check) instead of being renamed.
+- **Fix 5** (9066289): an answer after an event lookup that found nothing, with no other spelling tried, goes back once to spell the name out and look again (the event check).
+- **Fix 6** (f04eea3): head_to_head's sets lead with their event, and answers name sets by event.
+
+**Runs**, retrieval on, seeds 0–2, Ollama 0.40.16, qwen3:8b with thinking. No run failed.
+- The conversations before: `20261119-conversations-before`, at ae5372a.
+- After, with cues: `20261119-conversations-cues`, at 31b4ebc (the agent as of f04eea3).
+- After, with the model rewrite: `20261119-conversations-model`, at 31b4ebc, `--follow-ups model`.
+- The 45 questions: `20261119-webfixes`, at 31b4ebc, against `20261118-grounding` (fdd2496).
+
+**The conversations**, scored with b0f93b7's check for c3 turn 2 (decision 2 below; 31b4ebc's gave 38, 45 and 42 turns):
+
+| Run | Turns passing every check | Later turns (2 on) | Conversations passing in every turn |
+|---|---|---|---|
+| Before | 38/60 (63%) | 21/39 | 7/21 |
+| Cues | 47/60 (78%) | 31/39 | 11/21 |
+| Model rewrite | 45/60 (75%) | 29/39 | 10/21 |
+
+| Turn | Message | Before | Cues | Rewrite |
+|---|---|---|---|---|
+| c1 turn 1 | whats the biggest record megd has | 3/3 | 3/3 | 3/3 |
+| c1 turn 2 | i meant biggest records vs other players, like set/game count | 0/3 | 0/3 | 0/3 |
+| c1 turn 3 | he doesnt have big records vs raydish or java or guichabou etc? | 1/3 | 1/3 | 2/3 |
+| c1 turn 4 | what about megd vs raydish | 3/3 | 3/3 | 3/3 |
+| c1 turn 5 | show head to head megd vs raydish in a graphic | 1/3 | 2/3 | 2/3 |
+| c2 turn 1 | whats megd and raydishes record in 1v1 | 3/3 | 3/3 | 3/3 |
+| c2 turn 2 | the first one | 0/3 | 3/3 | 3/3 |
+| c3 turn 1 | whats raydish's record with kyna | 2/3 | 2/3 | 2/3 |
+| c3 turn 2 | tell me about the 2v2 record | 0/3 | 3/3 | 3/3 |
+| c4 turn 1 | what did raydish get in autumn 2022 | 3/3 | 2/3 | 2/3 |
+| c4 turn 2 | when was ceo 2025 | 3/3 | 3/3 | 3/3 |
+| c4 turn 3 | who got 2nd at ceo 2025 | 3/3 | 2/3 | 1/3 |
+| c5 turn 1 | do you know about the cb tournament in 2022 | 0/3 | 0/3 | 0/3 |
+| c5 turn 2 | i meant the crew battle tournament in 2022 | 2/3 | 3/3 | 3/3 |
+| c5 turn 3 | tell me about the north america one | 1/3 | 3/3 | 2/3 |
+| c6 turn 1 | whats raydish and megd's record | 3/3 | 3/3 | 3/3 |
+| c6 turn 2 | raydish lifetime stat card | 1/3 | 2/3 | 1/3 |
+| c7 turns 1–3 | three standalone questions | 9/9 | 9/9 | 9/9 |
+
+- **What the fixes fixed:**
+  - "the first one" (c2 turn 2): 0 → 3 of 3 in both. It's settled in code into the question it answers, with Raydish (160000) chosen. Before, every seed answered about Addymestic, a worked example's player.
+  - "tell me about the 2v2 record" (c3 turn 2): 0 → 3 of 3 in both. Before: a clarifying question, a ranking of 2v2 winners, and the 1v1 record. After, every answer gives the 5 sets and Raydish's side 2-3 from the previous turn's head_to_head result, with no tool call, and the no-tool check rightly let them stand.
+  - The crew battle follow-ups (c5 turns 2 and 3): 3 → 6 of 6 with cues. c1 turn 5 and c6 turn 2 gained a run each.
+- **What they didn't:**
+  - "cb 2022" (c5 turn 1): 0 of 3 in all three runs, the two after runs alike, since turn 1 is the same input with the same seed. The event check fired in every run after, and the model looked again, but as "bcx 2022" (seeds 0 and 1) or "brawlhalla championship 2022" (seed 2), never "crew battle". Decision 5 below.
+  - c1 turn 2, megD's head-to-head with the most sets (luna, 18): 0 of 3 in all three runs. No tool ranks a player's opponents.
+  - Two turns lost a run: c4 turn 1 seed 2 named a team only by its ID ("team **34656**"), and c4 turn 3 seed 0 looked up only CEO 2025's singles event, so Raydish's 2nd place in doubles went missing.
+- **Checks fired** (steps):
+
+| Run | lookup | event | no-tool | pairing | answer | number | reply about a check |
+|---|---|---|---|---|---|---|---|
+| Before | 3 | 0 | 11 | 0 | 3 | 3 | 2 |
+| Cues | 0 | 3 | 9 | 0 | 4 | 4 | 1 |
+| Model rewrite | 0 | 3 | 3 | 0 | 2 | 5 | 0 |
+
+**Cues or the model rewrite.** Both runs settle replies to suggestions the same way, in code, and turn 1 is identical, so they differ on the 39 later turns: cues 31, the rewrite 29.
+- The cues gave 15 of the 39 a note (12 follow-ups, 3 pronouns); 3 were replies to suggestions and 21 went as asked. The rewrite made 36 calls, one per later turn but the replies to suggestions, 20 s in all: 19 rewritten, 17 kept as written.
+- **Where the rewrite went wrong:**
+  - It narrowed "who got 2nd at ceo 2025" to "who got 2nd at ceo 2025 / Brawlhalla Singles" in 2 of 3 seeds, losing Raydish's 2nd place in doubles.
+  - In c5 turn 3 seed 2, its "What about the North America - Crew Battle Invitational?" read as already answered. The model called no tool and invented that the event was part of the BCX 2022 qualifiers, with no bracket link. The no-tool check couldn't catch it: every name and number was in the previous turn's results.
+  - In c3 turn 2 seed 0, the answer placed the 5 2v2 sets at BCX 2024 and the Autumn Royale 2024. They were DreamHack San Diego 2023, BCX 2023, CEO 2024 and twice CEO 2025. The check passes it: the record is right.
+- **Where it helped:** c1 turn 3, 2 runs against 1.
+- Each difference is one run of three per turn, so the evidence is weak, but it points one way. **Decided 2026-11-20: keep the cues, and remove the model rewrite now that this entry records it.**
+
+**The 45 questions**, automatic stages:
+
+| Group | 2026-11-18 | 2026-11-19 |
+|---|---|---|
+| tuned | 50/51 | 49/51 |
+| existing, known shape | 66/66 | 66/66 |
+| existing, new shape | 15/18 | 15/18 |
+| **all** | **131/135 (97%)** | **130/135 (96%)** |
+
+- **Lost:**
+  - q05 seed 1 listed the top 10 earners as "**PlayerID 74433**" and so on, naming no one. Fix 4 names "Player 74433" and "**74433**" only (decision 4 below).
+  - q44 seed 0's WHERE asked one row to be both Ahmet_ and Zivai, so its COUNT gave 0, and the answer said never (it's 3).
+- **Gained:** q45 seed 0, whose query now selects player_id, so stage 2 ties the $83,825 to Raydish.
+- **The no-tool check** fired in 12 runs (6 on 2026-11-18). In the nine of q09, q32, q35 and q36, the model then looked the name up and said what the data doesn't hold. q36's two false alarms of 2026-11-18 are gone: no number check fired on it.
+- **The event check** fired on q34 seeds 0 and 1 ("worlds 2016"), sent back once each. The harness's count of 5 includes the entries that kept the answer after it.
+- **The number check** sent back 7 answers (2 on 2026-11-18) and replaced claims in 5 (2):
+  - q26 seed 0 was a real catch: "since 2017" became 2020, the year of BBBalloonBoy's first official result.
+  - q42 seed 0's "Worlds 2020 and 2021 each had 5 regional..." was dropped.
+  - q14 seed 1's invented reason for no 6th and 8th ("not awarded due to tiebreakers") was replaced.
+  - So were q39 seed 0's "0 in crew battles", with Boomie's whole line, and q34 seed 1's sentence citing the prompt's "Winters 2023 NA", as "I couldn't confirm the number of NA from the data."
+  - q05 seeds 0 and 2 were false alarms, from a bug in fix 3 (below).
+- The pairing check, the answer check, the lookup check and the name filter never fired. The names correction swapped 12 names in 9 runs (12 in 7 on 2026-11-18).
+- **Tool use per run**, 2026-11-18 and now: resolve_player 0.67 → 0.71, resolve_event 0.16 both, event_results 0.33 → 0.30, player_results 0.22 → 0.21, head_to_head and rank_players 0.07 both, run_sql 0.27 → 0.26. Steps 2.63 → 2.75, output tokens 1,183 → 1,281.
+- **Model time** went from 12.1 s to 22.1 s per run, but that's the server. It generated about 106 tokens a second on 2026-11-18, 82 in the before conversations, 70 in the cues run and 61 in the last two, with the same Ollama and model.
+
+**A bug from fix 3:** `number_check.stated()` read " **acno?**" as a question and blanked it, with the space after "3.", so the 3 was no longer a list's numbering. The number check sent it back and replaced it. q05 seeds 0 and 2, two right top-10 lists, came out with "I couldn't confirm the number from the data.. **acno?** - $189,215.00". It was on the live page too, since the web app had merged f04eea3. Decision 3 below fixes it.
+
+**Hand verdicts**, drafts for the user to review (`eval/results/20261119-webfixes-judgments.toml`), for the 19 runs not judged automatically whose stages changed or where a check fired:
+- **right (13):** q09 seed 1, q14 seed 1, q26 seed 0, q32, q35 and q36 in every seed, q45 seed 0.
+- **partly (4):**
+  - q05 seeds 0 and 2: the verified list, but with the acno? bug's sentence in place of a rank, casting doubt on a right figure.
+  - q34 seeds 0 and 1: they say 2016's championship isn't in the data, but not that the data starts in 2017, and suggest other spellings would find it. Seed 0 also invents a "BCX (Champions Cup)" series.
+- **wrong (2):**
+  - q39 seed 0, right on 2026-11-18: it says gdsandstorm has more medals, having read Boomie's 1v1 medals (34) as his total (80), with an invented split. The number check replaced that line, which hid the misreading but didn't cause it.
+  - q44 seed 0: the contradictory WHERE above, SQL logic.
+
+**Decided 2026-11-20** (the user's answers). Each was built after the runs, so none is measured yet:
+1. Keep the cues; remove the model rewrite once this entry records it.
+2. **c3 turn 2's check** (b0f93b7). 31b4ebc's strings ("2-3", "2–3", "won 2 and lost 3") failed 5 of the 6 right answers after, which wrote "Won 2 sets, lost 3 sets" or "2 wins, 3 losses". `says_record` reads the record in any wording, in a sentence about the 2v2 (2v2, team or side). It passes the 6 and fails the before run's 3: a question, a ranking and the 1v1 record, whose sets hold a 2 and a 3 too.
+3. **The acno? fix** (3a7981b). A "?" ending one bold or quoted word is a name's, and a question's blanking keeps the spaces before it. Replayed on the run's sent-back answers, q05's two false alarms go and the other six flags stay.
+4. **Names for "PlayerID 74433" and "Player ID 74433"** (6e4e12b), except inside parentheses or on a line naming the player ("Marckiem00 is player_id 4", "player_id 146606 (Boomie)"). On the recorded answers it turns q05 seed 1's ten IDs into the verified list.
+5. **"cb" for "crew battle"** in `curation/event_terms.csv` (f3b880e): a general abbreviation like "ltc", not an alias for one event. resolve_event reads the curated terms eval-v1 lacks from the file. "cb 2022" now finds 2022's three Crew Battle Invitationals. The event check stays for everything else.
+
+**What's open:**
+- The no-tool check reads names and numbers only, so an answer from the previous turn's results can invent the rest (c5 turn 3 seed 2, and c3 turn 2 seed 0's events).
+- For the strict replacement, a bold or quoted word that's also a player's name is a player. In c1 turn 5 seed 1 with cues, a turn with no tool call, "Games" became "I couldn't confirm this about Games from the data."
+- A team named by its bold ID ("team **34656**") is neither named nor sent back.
+- The replacement's wording ("the number of NA"; "the number" for a list's rank), and the prompt's own facts read as claims (q34 seed 1's "Winters 2023 NA"; 2026-11-18's q36 "from 2017").
+- The harness counts the event check's entries that kept an answer.
+- No tool ranks a player's opponents (c1 turn 2).
+- Next: the user's live test, then a run of the conversations and the 45 questions at the user's go-ahead.
+
+**Caveats:**
+- 3 seeds. By the 2026-11-17 rule, a change of one run per turn is noise.
+- The conversations' checks are automatic and written from the live failures, so they measure those failures, not right answers in general.
+- The 45 questions' drafts are Claude's.
+- The server's speed changed during the runs, so time per run isn't comparable.
+
 ## 2026-11-18: the number check, the name filter and the template outputs, on the 45 existing questions
 
 **Change** (commits 43f3028 to fdd2496), the proposal approved 2026-11-17, so that the agent never states a fact no tool returned:

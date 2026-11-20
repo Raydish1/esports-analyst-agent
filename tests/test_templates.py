@@ -194,8 +194,8 @@ class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)
         self.assertEqual((out["player"], out["scope"]), ({"player_id": A, "name": "A"}, "official events, 1v1 and 2v2"))
-        self.assertEqual(self.rows(out, "A's results, counted by mode"), [
-            ["A", "1v1", 3, 2, 1, 0, 3, 1], ["A", "2v2", 2, 1, 0, 1, 2, 1], ["A", "1v1 and 2v2", 5, 3, 1, 1, 5, 1]])
+        self.assertEqual(self.rows(out, "A's results, counted by mode"), [  # medals counted, not left to add up
+            ["A", "1v1", 3, 2, 1, 0, 3, 3, 1], ["A", "2v2", 2, 1, 0, 1, 2, 2, 1], ["A", "1v1 and 2v2", 5, 3, 1, 1, 5, 5, 1]])
         self.assertEqual(self.rows(out, "the first and the latest"), [
             ["first", "1v1", "1970-01-01", "Cup", 1], ["latest", "1v1", "1970-01-01", "Crew Battle 3v3", 1],
             ["first", "2v2", "1970-01-01", "Duos", 1], ["latest", "2v2", "1970-01-01", "Duos 2", 3]])
@@ -222,12 +222,12 @@ class PlayerResultsTest(Fixture):
         def summary(top):
             out = self.call("player_results", player_id=A, **({} if top is None else {"top": top}))
             return next(t for t in out["tables"] if t["what"].endswith("counted by mode"))
-        every = ["player", "mode", "results", "first", "second", "third", "top8", "best"]
-        for top, columns in ((1, ["player", "mode", "results"]),
-                             (2, ["player", "mode", "results", "first", "second", "best"]),
-                             (3, ["player", "mode", "results", "first", "second", "third", "best"]),
-                             (8, ["player", "mode", "results", "first", "second", "third", "best"]),
-                             (9, every), (None, every)):
+        every = ["first", "second", "third", "medals", "top8", "best"]  # the web app's cards read these by name
+        for top, columns in ((1, ["player", "mode", "wins"]),  # live, a 0 under 'results' read as no 2v2 results
+                             (2, ["player", "mode", "top2s", "first", "second", "best"]),
+                             (3, ["player", "mode", "medals", "first", "second", "third", "best"]),
+                             (8, ["player", "mode", "top8s", "first", "second", "third", "medals", "best"]),
+                             (9, ["player", "mode", "top9s", *every]), (None, ["player", "mode", "results", *every])):
             self.assertEqual(summary(top)["columns"], columns, top)
         self.assertEqual(summary(3)["rows"], [["A", "1v1", 3, 2, 1, 0, 1], ["A", "2v2", 2, 1, 0, 1, 1],
                                               ["A", "1v1 and 2v2", 5, 3, 1, 1, 1]])
@@ -238,6 +238,21 @@ class PlayerResultsTest(Fixture):
         self.assertTrue(templates.TEMPLATES["rank_players"].description.endswith(
             "It can't leave players out or take another condition, such as never having won: use run_sql."))
         self.assertIn("  - who has the most wins, medals or top 8s, with no other condition: rank_players\n", react.SYSTEM)
+
+    def test_a_narrowed_count_says_how_many_results_the_player_has_in_all(self):
+        top8 = self.call("player_results", player_id=A, top=8)  # live, volst's 25 2v2 results read as none
+        self.assertIn("A has 5 official results in all (3 in 1v1, 2 in 2v2): the counts here are only the top 8s (placed"
+                      " 8th or better).", top8["notes"])
+        doubles = self.call("player_results", player_id=A, top=1, mode="2v2")
+        self.assertIn("the counts here are only the wins (1st places) in 2v2.", doubles["notes"][-1])
+        self.assertFalse(any("in all" in n for n in self.call("player_results", player_id=A)["notes"]))  # nothing left out
+
+    def test_all_any_or_empty_asks_for_no_filter(self):
+        out = self.call("player_results", player_id=A, event="all", mode="", top=8)  # live: volst's top 8 vanished
+        self.assertEqual((out["scope"], "event" in out), ("official events, 1v1 and 2v2", False))
+        self.assertEqual(self.rows(out, "A's top 8s")[-1][2], 5)
+        self.assertEqual(self.call("player_results", player_id=A, mode="1v1 and 2v2", year="all")["scope"],
+                         "official events, 1v1 and 2v2")
 
     def test_a_count_of_zero_says_what_it_is_zero_of(self):
         out = self.call("player_results", player_id=D, top=1)
@@ -266,6 +281,34 @@ class PlayerResultsTest(Fixture):
         self.assertIn("no player has player_id 999", self.call("player_results", player_id=999)["error"])
         self.assertEqual(self.call("player_results", player_id=A, mode="standard")["error"], "mode is '1v1' or '2v2', not 'standard'")
         self.assertIn("top is a whole number, 1 or more", self.call("player_results", player_id=A, top=0)["error"])
+
+
+class TeamResultsTest(Fixture):
+    def test_two_partners_events_together_are_counted_with_each_event(self):
+        out = self.call("team_results", player_id=A, partner_id=B)  # live, an OR counted 24 events as wins (4)
+        self.assertEqual((out["player"], out["partner"], out["scope"]),
+                         ({"player_id": A, "name": "A"}, {"player_id": B, "name": "B"}, "official events, 2v2"))
+        self.assertEqual(self.rows(out, "A and B's 2v2 results together"), [["A", "B", 2, 1, 2, 2, 1]])
+        self.assertEqual(self.rows(out, "each of them"), [["1970-01-01", "Duos", 1], ["1970-01-01", "Duos 2", 3]])
+        self.assertEqual(self.rows(self.call("team_results", player_id=B, partner_id=A2), "B and A's"),
+                         [["B", "A", 2, 1, 2, 2, 1]])  # A2 is a record of A
+        none = self.call("team_results", player_id=A, partner_id=C)
+        self.assertEqual((none["notes"], none["tables"]), (["A and C have no official 2v2 results together."], []))
+
+    def test_without_a_partner_it_lists_every_partner_the_most_events_first(self):
+        out = self.call("team_results", player_id=A)  # live, q06 counted joined rows: "Raydish (8,218 events)"
+        self.assertEqual(self.rows(out, "A's 2v2 partners"), [["B", B, 2, 1, 2, 2, 1]])
+        self.assertEqual(out["notes"], ["A has 2 official 2v2 results with 1 partner."])
+        self.assertEqual(self.rows(self.call("team_results", player_id=C), "C's 2v2 partners"), [["D", D, 1, 0, 1, 1, 2]])
+        self.assertEqual(self.call("team_results", player_id=E)["notes"], ["E has no official 2v2 results."])
+
+    def test_a_partner_must_be_another_player_and_players_are_given_by_id(self):
+        self.assertIn("player_id and partner_id are both A", self.call("team_results", player_id=A, partner_id=A2)["error"])
+        self.assertIn("not a name: call resolve_player", self.call("team_results", player_id=A, partner_id="B")["error"])
+        self.assertIn("team_results", [t["function"]["name"] for t in react.TOOLS])
+        self.assertIn("  - two players as a team, or who a player has played with in 2v2: team_results\n", react.SYSTEM)
+        self.assertIn("  - a player's stats, record, profile or card: player_results with no top, every count in one call\n",
+                      react.SYSTEM)
 
 
 class HeadToHeadTest(Fixture):

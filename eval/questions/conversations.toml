@@ -1,8 +1,10 @@
-# Multi-turn test conversations, v1: what the user typed in the web app's live mode on 2026-11-19
-# (data/experiments/web/20261119T233544Z-002 and -003), cut into conversations, with expected facts computed from the
-# frozen snapshot eval-v1, all verified by the user (2026-11-19). Review them in conversations-review.md, which
-# `python eval/conversations.py review` makes from this file with each query's result; edit this file, never the
-# page. Played and scored by eval/conversations.py.
+# Multi-turn test conversations: what the user typed in the web app's live mode, cut into conversations, with expected
+# facts computed from the frozen snapshot eval-v1. c1-c7 (v1) come from 2026-11-19 (data/experiments/web/
+# 20261119T233544Z-002 and -003), all verified by the user that day. c8-c13 (v2, 2026-11-20) come from the second and
+# third rounds of live tests (20261120T050251Z-001, -003, -004 and -005; docs/web-app-testing-notes.md on
+# claude/web-app, findings 7-20). Review them in conversations-review.md, which `python eval/conversations.py review`
+# makes from this file with each query's result; edit this file, never the page. Played and scored by
+# eval/conversations.py.
 #
 # A set in the same format with `heldout = true` at the top is played and reported without its text: only its ids,
 # turn numbers and checks.
@@ -18,6 +20,8 @@
 #     say       the message, as the user typed it.
 #     expect    what a right answer says, written from the queries' results: for the hand verdict.
 #     query     the SQL behind expect, each with its purpose.
+#     shown     optional: the line the page adds to the turn's history about the cards it showed after the answer,
+#               as the web app would write it (finding 9), given to the agent once it takes one.
 #     checks, each optional, read on the turn's window: this turn's tool results and the previous turn's, which is
 #     what the model has in front of it (react.Conversation keeps older turns as question and answer only):
 #       rows         each pattern is held by a row of the window's results. Values match as stage 2 matches them:
@@ -28,13 +32,21 @@
 #       window_has   each text is in the window's tool results (a note, say).
 #       check        an evaluation set question's stage 2 check passes on the window's results ("q38").
 #       calls        the turn calls each of these tools.
+#       not_calls    it calls none of these.
 #       players      the turn's queries and template calls that ran use each of these player_ids.
 #       not_players  they use none of these.
+#       not_looked_up  no resolve_player or resolve_event call, the loop's own lookups included, is given a name holding
+#                    one of these words ("two", "say").
 #       suggests     the turn ends in suggestions, this player first.
 #       says         the answer has each of these texts (any case).
 #       says_any     the answer has one of them.
 #       not_says     the answer has none of them.
 #       says_numbers the answer states each of these numbers.
+#       says_record  {record = [a, b], about = [...]}: one sentence or list item of the answer has one of the about
+#                    words and states the record: "a-b" (or with a dash), or a and b with a word for winning or
+#                    losing ("won 2 sets, lost 3", "2 wins, 3 losses").
+#       unconfirmed_at_most  the number check replaced at most this many of the answer's claims (the trace's
+#                    unconfirmed): 0 where every fact the answer needs is one call away.
 #       grounded     on unless false: every number the answer states, and every player_id it cites, is in the
 #                    window or its questions, by the number check's rules (agent/number_check.py).
 #       named        on unless false: no player is named only by ID ("Player 147569").
@@ -228,6 +240,8 @@ won 2 and lost 3. The previous turn's head_to_head result already holds it, so n
 """
 window_has = ["met in 5 sets"]
 says_numbers = [5, 2, 3]
+# the 2v2 record itself, in any wording: seed 2 of the before run restated the 1v1 record, whose sets hold 5, 2 and 3
+says_record = { record = [2, 3], about = ["2v2", "team", "side"] }
 
 [[conversation.turn.query]]
 purpose = "their teams' 2v2 sets: how many, and how many Raydish's side won"
@@ -413,4 +427,400 @@ purpose = "megD's official wins"
 sql = '''
 SELECT player_id, start_date, tournament_name, mode, format FROM v_official_wins WHERE player_id = 142100
 ORDER BY start_time
+'''
+
+[[conversation]]
+id = "c8"
+title = "Cody Travis and Phazon after a 2v2 ranking"
+source = "20261120T050251Z-001, turns 3-7"
+measures = ["finding 8: 'what about X and Y?' continues the ranking", "finding 7: a duo's wins together", "finding 9: the card the page showed", "finding 10: a question about the agent's own answer is re-checked, its words never looked up"]
+verified = "yes"
+
+[[conversation.turn]]
+say = "top 5 2v2 players in brawlhalla history"
+expect = """
+By 2v2 wins at official events, the reading live: Boomie 32, Blaze and acno? 23 (tied 2nd), gdsandstorm 18, SiB | \
+Wess 14. By 2v2 medals: Boomie 46, Blaze 41, acno? 40, SiB | Wess 34, Phazon 33. Either is right if the answer says \
+which it counted.
+"""
+rows_any = [[[146606, "Boomie"], 32], [[146606, "Boomie"], 46]]
+
+[[conversation.turn.query]]
+purpose = "the top 5 by 2v2 wins, ties included"
+sql = '''
+WITH counted AS (SELECT player_id, COUNT(*) AS wins FROM v_results WHERE mode = '2v2' AND placement = 1 GROUP BY player_id),
+ranked AS (SELECT player_id, wins, RANK() OVER (ORDER BY wins DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, wins FROM ranked JOIN players p USING (player_id) WHERE rank <= 5 ORDER BY rank, p.name
+'''
+
+[[conversation.turn.query]]
+purpose = "the top 5 by 2v2 medals, ties included"
+sql = '''
+WITH counted AS (SELECT player_id, COUNT(*) AS medals FROM v_results WHERE mode = '2v2' AND placement <= 3 GROUP BY player_id),
+ranked AS (SELECT player_id, medals, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_id) WHERE rank <= 5 ORDER BY rank, p.name
+'''
+
+[[conversation.turn]]
+say = "what about cody travis and phazon?"
+expect = """
+It continues the ranking: where Cody Travis and Phazon stand by turn 1's measure, not their 1v1 record against each \
+other. By 2v2 wins: Phazon 12 (7th), Cody Travis 6 (tied 27th, with six others). By 2v2 medals: Phazon 33 (5th), \
+Cody Travis 27 (6th). Live, the turn called head_to_head and answered their 1v1 sets.
+"""
+shown = """
+Card shown with this answer: Cody Travis and Phazon, lifetime at official events. 1v1: Cody Travis 65 results (4 \
+1st, 4 2nd, 5 3rd, 28 top 8s), Phazon 76 (0 1st, 3 2nd, 9 3rd, 28 top 8s). 2v2: Cody Travis 57 results (6 1st, 15 \
+2nd, 6 3rd, 43 top 8s), Phazon 63 (12 1st, 15 2nd, 6 3rd, 51 top 8s).
+"""
+not_calls = ["head_to_head"]
+players = [117179, 147522]
+rows_any = [[[147522, "Phazon"], 12], [[147522, "Phazon"], 33]]
+
+[[conversation.turn.query]]
+purpose = "their 2v2 wins, and their rank by them"
+sql = '''
+WITH counted AS (SELECT player_id, COUNT(*) AS wins FROM v_results WHERE mode = '2v2' AND placement = 1 GROUP BY player_id),
+ranked AS (SELECT player_id, wins, RANK() OVER (ORDER BY wins DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, wins FROM ranked JOIN players p USING (player_id) WHERE player_id IN (117179, 147522)
+'''
+
+[[conversation.turn.query]]
+purpose = "their 2v2 medals, and their rank by them"
+sql = '''
+WITH counted AS (SELECT player_id, COUNT(*) AS medals FROM v_results WHERE mode = '2v2' AND placement <= 3 GROUP BY player_id),
+ranked AS (SELECT player_id, medals, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_id) WHERE player_id IN (117179, 147522)
+'''
+
+[[conversation.turn.query]]
+purpose = "their lifetime figures by mode, as the card shows them"
+sql = '''
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS first, SUM(placement = 2) AS second,
+       SUM(placement = 3) AS third, SUM(placement <= 8) AS top8s
+FROM v_results WHERE player_id IN (117179, 147522) GROUP BY player_id, mode
+'''
+
+[[conversation.turn]]
+say = "how many tournaments in 2v2 did cody travis and phazon win"
+expect = """
+4, as partners at official events, of the 24 2v2 events they entered together: the North America - Summer \
+Championship 2020 (2020-06-27), the North America - SteelSeries Championship (2020-08-15), the North America - Autumn \
+Championship 2020 (2020-09-19) and the North America - Winter Championship 2021 (2021-03-13). Live, a run_sql query \
+with an unparenthesized OR counted all 24 events as wins.
+"""
+says_numbers = [4]
+players = [117179, 147522]
+
+[[conversation.turn.query]]
+purpose = "their 2v2 events together: how many, and their wins, medals and top 8s together"
+sql = '''
+SELECT player_id, partner_id, COUNT(*) AS events, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_team_results WHERE player_id = 117179 AND partner_id = 147522
+'''
+
+[[conversation.turn.query]]
+purpose = "the 4 they won"
+sql = '''
+SELECT start_date, tournament_name, event_name, placement FROM v_team_results
+WHERE player_id = 117179 AND partner_id = 147522 AND placement = 1 ORDER BY start_date
+'''
+
+[[conversation.turn]]
+say = "are you sure? you just said phazon has 12 medals and cody travis has 6 medals in 2v2 in the graphic"
+expect = """
+The card's 12 and 6 are their 2v2 1st places (wins), each player's own, not wins together and not medals. Their 2v2 \
+medals are 33 for Phazon (12, 15 and 6) and 27 for Cody Travis (6, 15 and 6), checked again with a tool. Live, the \
+model couldn't see the card, looked up only Phazon, and invented a source for Cody Travis's 6.
+"""
+says_numbers = [33, 27]
+players = [117179, 147522]
+
+[[conversation.turn.query]]
+purpose = "their 2v2 1st, 2nd and 3rd places, and medals"
+sql = '''
+SELECT player_id, SUM(placement = 1) AS first, SUM(placement = 2) AS second, SUM(placement = 3) AS third,
+       SUM(placement <= 3) AS medals
+FROM v_results WHERE player_id IN (117179, 147522) AND mode = '2v2' GROUP BY player_id
+'''
+
+[[conversation.turn]]
+say = "so why did you say cody travis and phazon have won 24 2v2 tournaments"
+expect = """
+About the agent's own earlier answer, checked again: they won 4 2v2 events together, of the 24 they entered \
+together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). Live, the \
+loop looked up "say cody travis 24" as an event.
+"""
+says_numbers = [4]
+not_looked_up = ["say", "24"]
+players = [117179, 147522]
+
+[[conversation.turn.query]]
+purpose = "their 2v2 events together, and their wins together"
+sql = '''
+SELECT player_id, partner_id, COUNT(*) AS events, SUM(placement = 1) AS wins
+FROM v_team_results WHERE player_id = 117179 AND partner_id = 147522
+'''
+
+[[conversation]]
+id = "c9"
+title = "Mojakin's stats, picked from suggestions"
+source = "20261120T050251Z-001, turns 8-9"
+measures = ["finding 16: a player's stats from one call", "finding 15: no answer invented, then gutted by replacements"]
+verified = "yes"
+
+[[conversation.turn]]
+say = "what are mojakins stats"
+expect = "Suggestions, Mojakin (77046) first: 'mojakins' matches no name exactly, Mojakin only by a similar spelling."
+suggests = 77046
+
+[[conversation.turn.query]]
+purpose = "Mojakin's official results"
+sql = '''
+SELECT player_id, COUNT(*) AS results FROM v_results WHERE player_id = 77046
+'''
+
+[[conversation.turn]]
+say = "the first one"
+expect = """
+Mojakin's record at official events: 26 results, 9 in 1v1 and 17 in 2v2; no wins, medals or top 8s; best 25th in 2v2 \
+and 65th in 1v1; the latest the Autumn Championship - North America 2026 - 2v2 (2026-09-27). Live, the first reply \
+invented 8 1v1 wins, a 2023 Winter Royale win and a partner "Savage"; three player_results calls followed, all in 2v2 \
+only; and the number check replaced claims until half the answer was "I couldn't confirm ...".
+"""
+calls = ["player_results"]
+players = [77046]
+says_numbers = [26, 9, 17]
+not_says = ["Savage", "Winter Royale"]
+unconfirmed_at_most = 0
+rows = [[[77046, "Mojakin"], 26]]
+
+[[conversation.turn.query]]
+purpose = "Mojakin's results by mode: results, wins, medals, top 8s, best"
+sql = '''
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 77046 GROUP BY mode
+'''
+
+[[conversation.turn.query]]
+purpose = "Mojakin's results in all"
+sql = '''
+SELECT player_id, COUNT(*) AS results FROM v_results WHERE player_id = 77046
+'''
+
+[[conversation.turn.query]]
+purpose = "Mojakin's latest result"
+sql = '''
+SELECT start_date, tournament_name, event_name, mode, placement FROM v_results WHERE player_id = 77046
+ORDER BY start_time DESC LIMIT 1
+'''
+
+[[conversation]]
+id = "c10"
+title = "megD's partners, then the count disputed"
+source = "20261120T050251Z-003, turns 4-5 (turn 1 is q06, word for word)"
+measures = ["finding 12: a player's partners from a template", "findings 10 and 12: an answer the user disputes is checked again"]
+verified = "yes"
+
+[[conversation.turn]]
+say = "Who has megd played with in 2v2 tournaments, and how did they place?"
+expect = "As q06's verified answer in questions.toml. Live, a join on v_entries counted 8,218 events with Raydish."
+check = "q06"
+
+[[conversation.turn]]
+say = "there are not that many events"
+expect = """
+The user disputes the answer, so it's checked again: megD's 46 2v2 results were with 17 partners, most with Raydish \
+(20 events, best 2nd), then hardymj (4) and Winged_Shell (3). If turn 1 had them right, the answer says so. Live, this \
+turn called no tool and repeated the 8,218.
+"""
+rows = [[[160000, "Raydish"], 20, 2]]
+says_numbers = [20]
+
+[[conversation.turn.query]]
+purpose = "megD's 2v2 partners: events together, best placement, wins"
+sql = '''
+SELECT t.partner_id, p.name, COUNT(*) AS events, MIN(t.placement) AS best, SUM(t.placement = 1) AS wins
+FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
+WHERE t.player_id = 142100 GROUP BY t.partner_id ORDER BY events DESC, best
+'''
+
+[[conversation]]
+id = "c11"
+title = "volst's stats"
+source = "20261120T050251Z-003 turn 6 and -004 turn 1: the same question, two wrong answers"
+measures = ["finding 16: a player's stats from one call", "finding 17: event 'all' is no filter"]
+verified = "yes"
+
+[[conversation.turn]]
+say = "volst stats"
+expect = """
+volst's record at official events: 72 results, 47 in 1v1 and 25 in 2v2; no wins or medals; 1 top 8, 5th at the \
+Autumn Championship - North America 2026 - 1v1 (2026-09-20); best 9th in 2v2; the latest the Autumn Championship - \
+North America 2026 - 2v2 (2026-09-27, 13th). Live, one answer said he has no 2v2 results, and another, from \
+event="all", no top 8s.
+"""
+calls = ["player_results"]
+players = [162675]
+says_numbers = [72, 47, 25]
+says_any = ["Autumn Championship"]
+rows = [[[162675, "volst"], 72]]
+
+[[conversation.turn.query]]
+purpose = "volst's results by mode: results, wins, medals, top 8s, best"
+sql = '''
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 162675 GROUP BY mode
+'''
+
+[[conversation.turn.query]]
+purpose = "volst's results in all"
+sql = '''
+SELECT player_id, COUNT(*) AS results FROM v_results WHERE player_id = 162675
+'''
+
+[[conversation.turn.query]]
+purpose = "his top 8, and his latest result"
+sql = '''
+SELECT 'top 8' AS what, start_date, tournament_name, mode, placement FROM v_results WHERE player_id = 162675 AND placement <= 8
+UNION ALL
+SELECT * FROM (SELECT 'latest', start_date, tournament_name, mode, placement FROM v_results WHERE player_id = 162675
+               ORDER BY start_time DESC LIMIT 1)
+'''
+
+[[conversation]]
+id = "c12"
+title = "kyna vs yuz, the biggest head-to-head, then kyna vs yuz again"
+source = "20261120T050251Z-004, turns 5-7"
+measures = ["finding 19: a note's 'won 11 and lost 11' supports 11-11", "finding 14: 'two' isn't looked up as a player", "finding 13: the players the question names, not the previous turn's"]
+verified = "yes"
+
+[[conversation.turn]]
+say = "kyna vs yuz head to head"
+expect = """
+Kyna is whoiskyna (formerly Kyna), and yuz is yüz: 17-17 in 34 1v1 sets (games 65-63 for whoiskyna). In 2v2 their \
+teams met in 22 sets, whoiskyna's side 11-11. Live, the number check replaced the right 11-11 with "I couldn't confirm \
+the record from the data."
+"""
+rows = [[[135748, "whoiskyna"], [73254, "yüz"], 34, 17]]
+says_record = { record = [11, 11], about = ["2v2", "team", "side"] }
+unconfirmed_at_most = 0
+
+[[conversation.turn.query]]
+purpose = "whoiskyna's 1v1 record against yüz"
+sql = '''
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 135748 AND opponent_id = 73254
+'''
+
+[[conversation.turn.query]]
+purpose = "their teams' 2v2 sets: how many, and how many whoiskyna's side won"
+sql = '''
+SELECT COUNT(*) AS sets, SUM(a.won) AS whoiskyna_side_won FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+WHERE a.player_id = 135748 AND b.player_id = 73254 AND a.mode = '2v2'
+'''
+
+[[conversation.turn]]
+say = "which two players have the biggest head to head record"
+expect = """
+The most 1v1 sets between two players at official events: 34, a tie between SiB | Wess and lFiend (15-19) and yüz \
+and whoiskyna (17-17). Live, the loop looked "two" up as a player (plewchi, formerly two). Another reading of \
+"biggest" is right if the answer says which it took (the most wins against one opponent: gdsandstorm's 19 against \
+Boomie).
+"""
+not_looked_up = ["two"]
+says = ["lFiend"]
+says_numbers = [34]
+
+[[conversation.turn.query]]
+purpose = "the pairs with the most 1v1 sets between them, each pair once"
+sql = '''
+SELECT h.player_id, a.name, h.opponent_id, b.name, h.matches, h.wins, h.losses
+FROM v_head_to_head_1v1 h JOIN players a ON a.player_id = h.player_id JOIN players b ON b.player_id = h.opponent_id
+WHERE h.player_id < h.opponent_id ORDER BY h.matches DESC LIMIT 5
+'''
+
+[[conversation.turn]]
+say = "whats kyna vs yuz head to head in only 1v1"
+expect = """
+17-17 in 34 1v1 sets, as in turn 1, for whoiskyna and yüz. Live, the turn called head_to_head with plewchi's ID, from \
+the previous turn's lookup of "two", for kyna, and answered "0 sets".
+"""
+players = [135748, 73254]
+not_players = [168011]
+rows = [[[135748, "whoiskyna"], [73254, "yüz"], 34, 17]]
+
+[[conversation.turn.query]]
+purpose = "whoiskyna's 1v1 record against yüz"
+sql = '''
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 135748 AND opponent_id = 73254
+'''
+
+[[conversation]]
+id = "c13"
+title = "the most medals, then dragon"
+source = "20261120T050251Z-005, turns 1-3"
+measures = ["turn 1: control", "finding 18: a name several players share exactly, with no clear cut, ends in suggestions", "turn 3: a candidate picked by its name, punctuation and all"]
+verified = "yes"
+
+[[conversation.turn]]
+say = "top 5 players with the most medals"
+expect = """
+By medals (top 3s) at official events, 1v1 and 2v2 together: Boomie 80, gdsandstorm 69, acno? 66, SiB | Wess 65, and \
+whoiskyna and Zivai tied 5th with 52.
+"""
+rows = [[[146606, "Boomie"], 80], [[74433, "gdsandstorm"], 69], [[144399, "acno?"], 66], [[37977, "SiB | Wess"], 65], [[135748, "whoiskyna"], 52], [[147982, "Zivai"], 52]]
+
+[[conversation.turn.query]]
+purpose = "the top 5 by medals, ties included"
+sql = '''
+WITH counted AS (SELECT player_id, COUNT(*) AS medals FROM v_results WHERE placement <= 3 GROUP BY player_id),
+ranked AS (SELECT player_id, medals, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_id) WHERE rank <= 5 ORDER BY rank, p.name
+'''
+
+[[conversation.turn]]
+say = "dragon stats"
+expect = """
+Suggestions, Dragon! (88841) first: 33 players match "dragon" exactly, the first three Dragon! (41 official results), \
+Parz (formerly Dragon, 10) and Dragon (9), with no clear cut. Live, the turn didn't ask: it wrote SQL for the user to \
+run, and guessed at a character called Dragon.
+"""
+suggests = 88841
+
+[[conversation.turn.query]]
+purpose = "the players whose names are 'dragon' as aliases compare them, by official results"
+sql = '''
+SELECT a.player_id, p.name, a.shown_as, a.kind, (SELECT COUNT(*) FROM v_results r WHERE r.player_id = a.player_id) AS results
+FROM player_aliases a JOIN players p ON p.player_id = a.player_id WHERE a.alias = 'dragon' ORDER BY results DESC LIMIT 5
+'''
+
+[[conversation.turn]]
+say = "Dragon!"
+expect = """
+A reply to the suggestions, by name: Dragon!'s record at official events: 41 results, 24 in 1v1 and 17 in 2v2; no \
+wins or medals; 9 top 8s, 6 in 1v1 and 3 in 2v2; best 4th in both modes; the latest the Autumn Championship - North \
+America 2026 - 2v2 (2026-09-27, 5th). Live, the answer gave medals only, and said he "may have reached top 8".
+"""
+players = [88841]
+says_numbers = [41, 9]
+rows = [[[88841, "Dragon!"], 41]]
+
+[[conversation.turn.query]]
+purpose = "Dragon!'s results by mode: results, wins, medals, top 8s, best"
+sql = '''
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 88841 GROUP BY mode
+'''
+
+[[conversation.turn.query]]
+purpose = "Dragon!'s results in all, and top 8s"
+sql = '''
+SELECT player_id, COUNT(*) AS results, SUM(placement <= 8) AS top8s FROM v_results WHERE player_id = 88841
 '''

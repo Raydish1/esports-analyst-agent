@@ -6,8 +6,7 @@ wrong across turns, as testing the web app's live mode found (docs/web-app-testi
 asked back.
 
     python eval/conversations.py review                   the page to verify the set from (conversations-review.md)
-    py -3.14 eval/conversations.py run --seeds 0 1 2      every conversation, retrieval on (a run resumes); with
-                                                          --follow-ups model, follow-ups settled by the model
+    py -3.14 eval/conversations.py run --seeds 0 1 2      every conversation, retrieval on (a run resumes)
     python eval/conversations.py score RUN                each turn's checks: eval/results/<run>-conversations.json
     python eval/conversations.py report RUN [RUN ...]     each turn's result per seed, a column per run
 
@@ -75,7 +74,7 @@ def problems(data):
             where = f"{name} turn {n}"
             out += [f"{where}: no {field}" for field in ("say", "expect") if not str(turn.get(field, "")).strip()]
             out += [f"{where}: no check named {key!r}" for key in turn if key not in CHECKS and key not in
-                    ("say", "expect", "query")]
+                    ("say", "expect", "query", "shown")]
             if turn.get("check") and QUESTION_CHECKS.get(turn["check"]) is None:
                 out.append(f"{where}: check names {turn['check']!r}, which has no stage 2 check")
             out += [f"{where}: a query has no sql" for q in turn.get("query", []) if not q.get("sql")]
@@ -86,7 +85,8 @@ def problems(data):
 
 def ran(call):
     """Whether a tool call ran: not refused by a check before it ran, and not an error."""
-    return (call["observation"] is not None and not call.get("unreturned_players") and not call.get("name_filters")
+    return (call["observation"] is not None and not call.get("unreturned_players") and not call.get("unnamed_players")
+            and not call.get("name_filters") and not call.get("and_or")
             and "error" not in json.loads(call["observation"]))
 
 
@@ -184,6 +184,40 @@ def missing_texts(turn, texts, where):
     return not found, f"missing {', '.join(map(repr, found))}" if found else ""
 
 
+def not_looked_up(turn, words):
+    """Whether no resolve_player or resolve_event call of the turn, the loop's own lookups included, was given a name
+    holding one of these words: live, the loop looked up "two" as a player and "say cody travis 24" as an event
+    (docs/web-app-testing-notes.md, findings 10 and 14)."""
+    bad = []
+    for step in turn.trace["steps"]:
+        for c in step["tool_calls"]:
+            arguments = c["arguments"] if isinstance(c["arguments"], dict) else {}
+            name = str(arguments.get("name") or arguments.get("event") or "")
+            if c["name"] in ("resolve_player", "resolve_event") and {folded(w) for w in words} & set(folded(name).split()):
+                bad.append(f"{c['name']}({name!r})")
+    return not bad, f"looked up {', '.join(bad)}" if bad else ""
+
+
+WON_LOST = re.compile(r"\b(?:w[oi]n(?:s|ning)?|lost|los(?:s|ses|ing))\b")
+
+
+def says_record(turn, spec):
+    """Whether one sentence or list item of the answer has one of spec's `about` words and states its `record` [a, b]:
+    'a-b' (or with a dash), or a, then b, with a word for winning or losing. c3 turn 2's right answers wrote the 2v2
+    record as "won 2 sets, lost 3 sets" and "2 wins, 3 losses", and a wrong one restated the 1v1 record, whose sets
+    hold a 2 and a 3 too (decided 2026-11-20). What the answer asks and its code don't count (number_check.stated)."""
+    a, b = map(str, spec["record"])
+    for piece in re.split(r"(?<=[.!?])\s+|\n", re.sub(r"[*_`]", "", stated(turn.answer)).casefold()):
+        if not any(word.casefold() in piece for word in spec["about"]):
+            continue
+        if re.search(rf"(?<![\w.]){a}\s*[-–—]\s*{b}(?!\w|\.\d)", piece):
+            return True, ""
+        numbers = re.findall(r"(?<![\w.])\d+(?!\w|\.\d)", re.sub(r"\b\d+v\d+\b", " ", piece))
+        if a in numbers and b in numbers[numbers.index(a) + 1:] and WON_LOST.search(piece):
+            return True, ""
+    return False, f"no sentence about {' or '.join(map(repr, spec['about']))} states {a}-{b}"
+
+
 CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what each checks is in conversations.toml
     "rows": lambda t, ps: (lambda bad: (not bad, f"no row holds {bad}" if bad else ""))(held(t, ps)),
     "rows_any": lambda t, ps: (len(held(t, ps)) < len(ps), "no row holds any of them"),
@@ -191,6 +225,9 @@ CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what eac
     "check": lambda t, qid: (bool(QUESTION_CHECKS[qid](t.results)), f"{qid}'s stage 2 check"),
     "calls": lambda t, names: (lambda bad: (not bad, f"didn't call {', '.join(bad)}" if bad else ""))(
         [n for n in names if n not in harness.tool_calls(t.trace)]),
+    "not_calls": lambda t, names: (lambda bad: (not bad, f"called {', '.join(bad)}" if bad else ""))(
+        [n for n in names if n in harness.tool_calls(t.trace)]),
+    "not_looked_up": not_looked_up,
     "players": lambda t, ids: (lambda bad: (not bad, f"didn't use {bad}" if bad else ""))(
         [i for i in ids if i not in t.used]),
     "not_players": lambda t, ids: (lambda bad: (not bad, f"used {bad}" if bad else ""))([i for i in ids if i in t.used]),
@@ -201,6 +238,9 @@ CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what eac
         [x for x in texts if folded(x) in folded(t.answer)]),
     "says_numbers": lambda t, ns: (lambda bad: (not bad, f"doesn't state {bad}" if bad else ""))(
         [n for n in ns if n not in stated_numbers(t.answer)]),
+    "says_record": says_record,
+    "unconfirmed_at_most": lambda t, n: (lambda k: (k <= n, f"{k} claims replaced" if k > n else ""))(
+        len(t.trace.get("unconfirmed") or [])),
     "grounded": grounded,
     "named": lambda t, on: (lambda m: (not (on and m), f"names {m[0]!r}" if on and m else ""))(LONE_ID.search(t.answer)),
 }
@@ -237,13 +277,19 @@ def score(data, records, names):
 # Playing
 
 def play(spec, conversation):
-    """A conversation's turns, each the trace react.Conversation.ask returns, numbered."""
-    return [{"turn": n, **conversation.ask(turn["say"])} for n, turn in enumerate(spec["turn"], 1)]
+    """A conversation's turns, each the trace react.Conversation.ask returns, numbered. After a turn with `shown`, the
+    page's line about what it showed goes to the conversation, as the web app gives it (Conversation.shown)."""
+    out = []
+    for n, turn in enumerate(spec["turn"], 1):
+        trace = conversation.ask(turn["say"])
+        if turn.get("shown"):
+            conversation.shown(flat(turn["shown"]))
+        out.append({"turn": n, **trace})
+    return out
 
 
-def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print, follow_ups="cues"):
-    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes.
-    follow_ups is how a follow-up is settled (react.Conversation): "cues" or "model"."""
+def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
+    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes."""
     react.load_env()
     retriever = react.retriever_or_exit(examples_on, lambda message: sys.exit(message))
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -254,19 +300,18 @@ def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print, fo
     header = react.run_header(run_id, seeds=seeds, title=f"Conversations: run {run_id}",
                               examples=react.examples_header(examples_on))
     where = Path(set_path).resolve()
-    header.update(arm="on" if examples_on else "off", follow_ups=follow_ups, heldout=bool(data.get("heldout")),
+    header.update(arm="on" if examples_on else "off", heldout=bool(data.get("heldout")),
                   set=where.relative_to(ROOT).as_posix() if where.is_relative_to(ROOT) else str(where))
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     tools = react.Tools()
     chosen = [c for c in data["conversation"] if not ids or c["id"] in ids]
     todo = [(s, c) for s in seeds for c in chosen if (c["id"], s) not in done]
-    log(f"Run {run_id}: {len(chosen)} conversations, seeds {seeds}, examples {header['arm']}, follow-ups by"
-        f" {follow_ups}; {len(todo)} to go")
+    log(f"Run {run_id}: {len(chosen)} conversations, seeds {seeds}, examples {header['arm']}; {len(todo)} to go")
     for n, (seed, spec) in enumerate(todo, 1):
         for attempt in range(1, harness.TRIES + 1):  # a conversation that fails isn't written, so it starts afresh
             try:
-                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, follow_ups=follow_ups,
-                                                  model=react.MODEL, think=True, seed=seed)
+                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, model=react.MODEL,
+                                                  think=True, seed=seed)
                 turns = play(spec, conversation)
                 break
             except (OSError, ValueError, http.client.HTTPException) as e:
@@ -351,7 +396,7 @@ def review(data, path):
         answers = {q["id"]: q["answer"] for q in tomllib.load(f)["question"]}
     conversations = data["conversation"]
     verified = [c for c in conversations if str(c.get("verified", "")).strip()]
-    out = ["# Test conversations v1: review", "",
+    out = ["# Test conversations: review", "",
            "Made by `python eval/conversations.py review` from [`conversations.toml`](conversations.toml), which is the"
            " file to edit.", "",
            f"{len(conversations)} conversations, {sum(len(c['turn']) for c in conversations)} turns, with expected facts"
@@ -373,6 +418,8 @@ def review(data, path):
                 out += [f"**{turn['check']}'s verified answer:** {flat(answers[turn['check']])}", ""]
             out += ["**Checks:** " + "; ".join(f"{k} {json.dumps(v, ensure_ascii=False)}" for k, v in checks.items())
                     + ("; " if checks else "") + "grounded and named (every turn)", ""]
+            if turn.get("shown"):
+                out += [f"**Shown on the page after this turn:** {flat(turn['shown'])}", ""]
             results = []
             for m, query in enumerate(turn.get("query", []), 1):
                 sql = query["sql"].strip()
@@ -403,8 +450,6 @@ def main():
     go.add_argument("--examples", choices=["on", "off"], default="on")
     go.add_argument("--ids", nargs="+", help="conversation ids, such as c1 c3")
     go.add_argument("--run", help="a run id to resume")
-    go.add_argument("--follow-ups", choices=["cues", "model"], default="cues",
-                    help="how a follow-up is settled: hand-written cues, or one short model call (default: cues)")
     scoring = commands.add_parser("score", help="score each turn of a run")
     scoring.add_argument("run")
     reporting = commands.add_parser("report", help="each turn's result per seed, a column per run")
@@ -426,7 +471,7 @@ def main():
             sys.exit(1)
         return
     if args.command == "run":
-        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids, follow_ups=args.follow_ups))
+        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids))
         return
     db = sqlite3.connect(harness.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     names = dict(db.execute("SELECT player_id, name FROM players"))

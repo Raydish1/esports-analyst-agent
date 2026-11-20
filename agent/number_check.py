@@ -31,7 +31,8 @@ numbers):
                what was named ('between the two'), and isn't read
 Anything the user's question writes is supported as written, and its numbers, dates and place words are evidence.
 What an answer asks and its code aren't claims (stated): a sentence ending in '?', and code, fenced or inline
-(`top=1`). Live, a clarifying question went back for the 8 and 2022 of its examples (decided 2026-11-19).
+(`top=1`). Live, a clarifying question went back for the 8 and 2022 of its examples (decided 2026-11-19). A name
+ending in '?', bold or quoted (**acno?**), asks nothing (2026-11-20).
 The replay on 20261117-grounding-before added top 3 and top 8, placement N and the words referring back: as numbers
 to check, they made the sentences holding an answer's main claim go (q35 seed 0, q45 seed 1).
 Arithmetic isn't a derivation: a sum, a difference or a count of rows the model made itself goes back, since the
@@ -58,6 +59,7 @@ NUM = r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?"
 END = r"(?![\w%/]|[.,]\d)"  # where a number ends: not inside a name, a fraction or a longer number
 CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)  # fenced code, then inline code
 SENTENCE = re.compile(r"[.!?]+[*_)\]\"'”’]*(?=\s|$)|\n")  # where a sentence ends: a mark before a space, or a line break
+NAMED = re.compile(r"(?:\*\*|__|[*_\"'“‘])[^\s*_\"'“”‘’]+\?+(?:\*\*|__|[*_\"'”’])$")  # one bold or quoted word: **acno?**
 PLACES = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8,
           "ninth": 9, "tenth": 10, "gold": 1, "silver": 2, "bronze": 3}
 WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -141,12 +143,20 @@ def stated(text):
     """A text as it states things, for the checks to read: its code (fenced, or inline such as `top=1`) and its
     questions (each sentence ending in '?') blanked, each character by one no pattern skips, so what's left keeps its
     place. A clarifying question states nothing by its examples: live, "Or a specific event's 2v2 bracket (e.g., "top
-    8 of the Europe Summer 2022 2v2")?" went back for its 8 and 2022 (docs/web-app-testing-notes.md, finding 4)."""
+    8 of the Europe Summer 2022 2v2")?" went back for its 8 and 2022 (docs/web-app-testing-notes.md, finding 4).
+    A '?' ending one bold or quoted word is a name's, such as **acno?**, and ends no sentence; and a question's
+    blanking keeps the spaces before it, so the numbering before it is still a list's. On 2026-11-19, '3. **acno?**'
+    lost both, and its 3 went back as a number no tool returned (q05 seeds 0 and 2; decided 2026-11-20)."""
     text = CODE.sub(lambda m: "\0" * len(m[0]), text)
     out, start = [], 0
     for m in SENTENCE.finditer(text):
+        if "?" in m[0] and NAMED.search(text, max(0, m.start() - 60), m.end()):
+            continue
         piece = text[start:m.end()]
-        out.append("\0" * len(piece) if "?" in m[0] else piece)
+        if "?" in m[0]:
+            body = piece.lstrip()
+            piece = piece[:len(piece) - len(body)] + "\0" * len(body)
+        out.append(piece)
         start = m.end()
     return "".join(out) + text[start:]
 
@@ -232,7 +242,11 @@ class Evidence:
             self.times.add((moment.hour, moment.minute))
 
     def text(self, text, row):
-        for found in {*re.findall(NUM, text), *re.findall(r"\d+(?:\.\d+)?", text)}:
+        """A text's numbers, each as many times as it's written, so a note's "won 11 and lost 11" holds 11 twice, as a
+        row of 11 and 11 does: live, the right 11-11 was replaced (docs/web-app-testing-notes.md, finding 19). The
+        parts of a number with a comma (1 and 350 of 1,350) count once."""
+        written = re.findall(NUM, text)
+        for found in written + [n for n in dict.fromkeys(re.findall(r"\d+(?:\.\d+)?", text)) if n not in written]:
             self.number(amount(found)[0], row)
         for y, m, d, hour, minute in re.findall(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?", text):
             self.date(int(y), int(m), int(d))
@@ -335,14 +349,9 @@ RULES = {
 }
 
 
-# Replacing the claims an answer can't keep
+# Leaving out the claims an answer can't keep
 
 ABBREVIATIONS = {"vs", "e.g", "i.e", "etc", "approx", "no", "st", "jr", "sr", "mr", "ms", "dr", "inc", "ltd"}
-STOP = {"a", "an", "the", "and", "or", "but", "with", "at", "on", "in", "for", "from", "to", "by", "as", "than", "of",
-        "which", "that", "while", "after", "before", "since", "is", "are", "was", "were", "has", "have", "had"}
-NOUNS = {"datetime": "the date and time", "date": "the date", "month": "the date", "day": "the date",
-         "time": "the time", "money": "the amount", "percent": "the percentage", "record": "the record",
-         "ordinal": "the placement", "scope": "the cutoff"}
 
 
 def units(answer):
@@ -379,46 +388,40 @@ def sentence_ends(body, start):
     yield len(body)
 
 
-def describe(claim, answer):
-    """What a claim states, without its number: 'the time', 'the number of games won', 'the career earnings'. A
-    player's claim (kind player, which react.py makes for a name no tool in view returned) is 'this about Zivai'."""
-    if claim.kind == "player":
-        return f"this about {claim.value[0]}"
-    if claim.kind in ("number", "word") and re.search(r"\b(?:player[ _-]?)?id\b[\s:#=*]*$", answer[:claim.start], re.I):
-        return "the player ID"
-    words = []
-    for token in answer[claim.end:].split()[:4]:
-        core = re.match(r"[A-Za-z][\w'’-]*|\d+v\d+", token.strip("*_(\"“"))
-        if not core or core[0].lower() in STOP:
-            if words or claim.kind != "money" or not core:
-                break
-            continue  # '$12,500 in career earnings': the words after 'in'
-        words.append(core[0])
-        if len(words) == 3 or len(token.strip("*_(\"“")) > len(core[0]):
-            break
-    if words and claim.kind in ("money", "percent"):
-        return "the " + " ".join(words)
-    if claim.kind in ("number", "word"):
-        if words:
-            return "the number of " + " ".join(words)
-        return "the year" if claim.kind == "number" and 1900 <= claim.value[0] <= 2100 else "the number"
-    return NOUNS[claim.kind]
-
-
-def joined(items):
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+MARKUP = re.compile(r"[ \t]*(?:#{1,6}[ \t]+|>[ \t]*|[-*+][ \t]+|\d+[.)][ \t]+)*")  # a line's markup before its text
+NOT_CONFIRMED_CELL = "not confirmed"
 
 
 def without(answer, flagged):
-    """The answer with each claim (units) holding a flagged number replaced by a sentence saying what couldn't be
-    confirmed, and what was replaced: [{claim, replacement, numbers}], in the answer's order."""
+    """The answer with each claim (units) holding a flagged number left out, and what was left out: [{claim,
+    replacement, numbers}], in the answer's order. A sentence goes; a list item or a heading that is its line's only
+    claim goes with its line; a table cell says "not confirmed", so the table keeps its shape. left_out gives the
+    line that says so (decided 2026-11-20): live, sentences that replaced claims ("I couldn't confirm the number from
+    the data.") read as noise cut loose from what they replaced, and one answer was half such lines
+    (docs/web-app-testing-notes.md, findings 11 and 15)."""
     spans, by_unit = units(answer), {}
     for c in flagged:
         unit = next(((a, b) for a, b in spans if a <= c.start < b), (c.start, c.end))
         by_unit.setdefault(unit, []).append(c)
     out, replaced = answer, []
     for (a, b), found in sorted(by_unit.items(), reverse=True):
-        sentence = f"I couldn't confirm {joined(list(dict.fromkeys(describe(c, answer) for c in found)))} from the data."
-        replaced.append({"claim": answer[a:b], "replacement": sentence, "numbers": [c.text for c in found]})
-        out = out[:a] + sentence + out[b:]
-    return out, replaced[::-1]
+        start = out.rfind("\n", 0, a) + 1
+        end = len(out) if out.find("\n", b) < 0 else out.find("\n", b)
+        if out[start:end].lstrip().startswith("|"):
+            new, cut = NOT_CONFIRMED_CELL, (a, b)
+        elif MARKUP.fullmatch(out[start:a]) and not out[b:end].strip():
+            new, cut = "", (start, min(end + 1, len(out)))
+        else:
+            stop = b
+            while stop < end and out[stop] in " \t":
+                stop += 1
+            new, cut = "", (a, stop)
+        replaced.append({"claim": answer[a:b], "replacement": new, "numbers": [c.text for c in found]})
+        out = out[:cut[0]] + new + out[cut[1]:]
+    return re.sub(r"\n{3,}", "\n\n", out).strip(), replaced[::-1]
+
+
+def left_out(replaced):
+    """The line ending an answer that without() left claims out of, with no number of its own to check."""
+    return ("(I left out a statement I couldn't confirm from the data.)" if len(replaced) == 1 else
+            "(I left out some statements I couldn't confirm from the data.)")

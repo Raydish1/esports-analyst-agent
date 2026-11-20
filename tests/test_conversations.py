@@ -44,6 +44,8 @@ class SetTest(unittest.TestCase):
         self.assertEqual(found, ["x1 turn 1: no expect", "x1 turn 1: no check named 'rowz'",
                                  "x1 turn 2: check names 'q09', which has no stage 2 check"])  # q09 is unanswerable
         self.assertNotIn("secret", " ".join(found))
+        shown = {"conversation": [{"id": "x2", "title": "t", "turn": [{"say": "s", "expect": "e", "shown": "a card"}]}]}
+        self.assertEqual(conversations.problems(shown), [])  # what the page showed is a turn's field, not a check
 
 
 class WindowTest(unittest.TestCase):
@@ -82,6 +84,17 @@ class AnswerTest(unittest.TestCase):
                           "says_numbers": True})
         self.assertFalse(checked(turn, grounded=False, says_numbers=[4])["says_numbers"])
 
+    def test_says_record_wants_the_record_in_a_sentence_about_it_in_any_wording(self):
+        spec = {"record": [2, 3], "about": ["2v2", "team", "side"]}
+        right = ["Raydish's side is **2-3** in 2v2.", "- **Raydish's team**: Won **2 sets**, lost **3 sets**.",
+                 "- **Raydish's team**: 2 wins, 3 losses", "In 2v2, Raydish's side won 2 and lost 3.",
+                 "They met 5 times in 2v2, with Raydish's team winning 2 sets and whoiskyna's team winning 3 sets."]
+        wrong = ["Raydish leads 5-2 in 1v1: whoiskyna won 3-2 at BCX 2022. The 2v2 sets (5 total) aren't in it.",
+                 "Raydish's side won 2 of them.", "In 2v2, Raydish's team won 3 and lost 2.", "Is it 2-3 in 2v2?"]
+        for answer in right + wrong:
+            turn = Turn(trace("q", answer), None, NAMES)
+            self.assertEqual(checked(turn, grounded=False, says_record=spec)["says_record"], answer in right, answer)
+
 
 class CallsTest(unittest.TestCase):
     def test_only_calls_that_ran_count_as_using_a_player(self):
@@ -93,11 +106,50 @@ class CallsTest(unittest.TestCase):
                          {"grounded": True, "named": True, "players": True, "not_players": True, "calls": True})
         self.assertFalse(checked(turn, grounded=False, calls=["player_results"])["calls"])
 
+    def test_not_calls_and_not_looked_up_read_every_call_the_loops_own_lookups_included(self):
+        forced = call("resolve_event", {"name": "say cody travis 24"},
+                      {"name": "say cody travis 24", "status": "not_found", "events": []}, forced=True)
+        turn = Turn(trace("q", "", RESOLVED, forced), None, NAMES)  # live, 20261120T050251Z-001 turn 7
+        self.assertEqual(checked(turn, grounded=False, not_calls=["head_to_head"], not_looked_up=["two"]),
+                         {"grounded": True, "named": True, "not_calls": True, "not_looked_up": True})
+        self.assertEqual(score_turn(turn, {"not_looked_up": ["say", "24"]})["not_looked_up"],
+                         {"passed": False, "detail": "looked up resolve_event('say cody travis 24')"})
+        self.assertFalse(checked(turn, grounded=False, not_calls=["resolve_event"])["not_calls"])
+        self.assertFalse(checked(turn, grounded=False, not_looked_up=["MEGD"])["not_looked_up"])  # any case
+
+    def test_unconfirmed_at_most_counts_the_claims_the_number_check_replaced(self):
+        replaced = Turn({**trace("q", "x"), "unconfirmed": [{"claim": "a"}, {"claim": "b"}]}, None, NAMES)
+        self.assertEqual(score_turn(replaced, {"unconfirmed_at_most": 1})["unconfirmed_at_most"],
+                         {"passed": False, "detail": "2 claims replaced"})
+        self.assertTrue(checked(replaced, grounded=False, unconfirmed_at_most=2)["unconfirmed_at_most"])
+        self.assertTrue(checked(Turn(trace("q", "x"), None, NAMES), grounded=False, unconfirmed_at_most=0)["unconfirmed_at_most"])
+
     def test_suggests_wants_suggestions_with_the_player_first(self):
         asked = Turn(trace("q", "I couldn't find...", outcome="suggestions", suggestions={"raydishes": [160000, 24]}),
                      None, NAMES)
         self.assertTrue(checked(asked, suggests=160000)["suggests"])
         self.assertFalse(checked(asked, suggests=24)["suggests"])
+
+
+class PlayTest(unittest.TestCase):
+    def test_the_page_line_goes_to_the_conversation_after_its_turn(self):
+        class Fake:  # react.Conversation as play uses it
+            def __init__(self):
+                self.calls, self.last = [], None
+
+            def ask(self, say):
+                self.calls.append(("ask", say))
+                self.last = {"question": say, "answer": "a", "steps": []}
+                return self.last
+
+            def shown(self, line):
+                self.calls.append(("shown", line))
+                self.last["shown"] = line
+        fake = Fake()
+        played = conversations.play({"turn": [{"say": "q1", "shown": "Card: Phazon,\n 2v2: 12 1st"}, {"say": "q2"}]}, fake)
+        self.assertEqual(fake.calls, [("ask", "q1"), ("shown", "Card: Phazon, 2v2: 12 1st"), ("ask", "q2")])
+        self.assertEqual(([t["turn"] for t in played], played[0]["shown"], "shown" in played[1]),
+                         ([1, 2], "Card: Phazon, 2v2: 12 1st", False))
 
 
 class ScoringTest(unittest.TestCase):

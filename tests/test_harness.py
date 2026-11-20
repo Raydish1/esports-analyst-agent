@@ -464,7 +464,7 @@ class NewChecksTest(unittest.TestCase):
                "id": "x01", "seed": 0, "question": "When did the final start?", "answer": "The final began at 11:47 AM UTC."}
         claims, named = harness.replay(run)
         self.assertEqual(claims, [{"claim": "The final began at 11:47 AM UTC.", "numbers": ["11:47 AM UTC"],
-                                   "replacement": "I couldn't confirm the time from the data."}])
+                                   "replacement": ""}])  # left out (decided 2026-11-20)
         self.assertEqual(named, ["name = 'Boomie'"])
         page = harness.replayed("R", [run, {**run, "seed": 1, "answer": "It began at 19:27 UTC."}])
         self.assertEqual(page[2], "Of 2 runs, the number check flags 1 final answers and the name filter 2 run_sql queries.")

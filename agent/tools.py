@@ -55,7 +55,8 @@ it, and whether the value it filters on occurs in that column.
 
 Every connection the tools query through (connect) also has the views of ingest/views.sql that the database lacks, as
 temporary views: eval-v1 was frozen before v_sets_1v1 and v_event_series were written, and gets them this way, for
-that connection only, with its file unchanged (add_views).
+that connection only, with its file unchanged (add_views). Likewise resolve_event reads the event terms the database
+lacks from curation/event_terms.csv (curated_terms): eval-v1 predates 'cb' for crew battle (2026-11-20).
 
 Not built yet (decided 2026-10-19): when a user explicitly asks for a long list, the answer should summarize it, and
 the full table should go to the user directly, without passing through the model.
@@ -76,8 +77,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "ingest"))
 from diagnose import diagnose  # noqa: E402
 from names import normalize, normalize_full, normalize_words  # noqa: E402
+import curation  # noqa: E402
 
 SNAPSHOT = ROOT / "data" / "db" / "eval" / "eval-v1.sqlite"
+EVENT_TERMS = ROOT / "curation" / "event_terms.csv"
 VIEWS = ROOT / "ingest" / "views.sql"
 SQL_SECONDS = 30  # a head-to-head view filtered by a literal player ID takes 0.1-0.4 s; with the ID looked up inside
 # the query it takes 18 s to over 90 s (docs/experiments.md), which this limit is meant to catch
@@ -128,6 +131,8 @@ CLAUSE_WORDS = r"(?!(?:join|where|on|using|left|right|inner|outer|cross|natural|
 EVENT_SCORES = {"alias": 1.0, "series": 0.95, "words": 0.9, "some words": 0.85}  # rankings too, as SCORES
 MODE_WORDS = {"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}
 FILLER = {"the", "tournament", "event"}
+NO_EVENT = {"all", "any", "every", "everything", "both", "overall", "total", "none", "the", "a", "an", "of", "event",
+            "events", "tournament", "tournaments", "every"}  # words that alone name no event
 QUALIFIER = {"qualifier", "qualifiers", "lcq"}
 YEAR = re.compile(r"20\d\d")
 EVENTS_LISTED = 10
@@ -184,6 +189,25 @@ class Resolver:
                 self.skeletons[form].add(alias)
         self.forms = sorted(self.skeletons)
 
+    def known(self, name):
+        """Whether an alias is this name, or a spelling of it with common character swaps undone: a match resolve
+        finds without scanning every alias for a similar spelling."""
+        return bool({normalize(name), normalize_full(name)} & set(self.aliases)) or skeleton(name) in self.skeletons
+
+    def written(self, name, found):
+        """The one player of `found` whose name, or an alias as shown, is the name exactly as written (any case,
+        spaces collapsed), when it's written with a mark the aliases' normalizing drops ('Dragon!', 'Frost | Dragon');
+        else None. Live, "Dragon!" tied with two players named Dragon, so picking it from suggestions asked again
+        (docs/web-app-testing-notes.md, finding 18). Without such a mark it's None: "acno" isn't a choice of the player
+        named acno over acno?."""
+        if not re.search(r"[^\w\s]", name):
+            return None
+        said = " ".join(name.split()).casefold()
+        exact = {pid for alias in {normalize(name), normalize_full(name)} for pid, _, shown, _ in self.aliases.get(alias, ())
+                 if pid in found and " ".join((shown or "").split()).casefold() == said}
+        exact |= {pid for pid in found if " ".join((self.names.get(pid) or "").split()).casefold() == said}
+        return exact.pop() if len(exact) == 1 else None
+
     def resolve(self, name):
         """{name, status, note, candidates}: the players the name may mean, best first (the module docstring); or
         {name, error} for an ID."""
@@ -227,7 +251,10 @@ class Resolver:
         placed = [pid for pid in tied if pid in self.results]
         loose = max(found[pid][4] for pid in ranked) < CONFIDENT
         counts = [self.results.get(pid, (0,))[0] for pid in tied]
-        if loose:
+        written = None if loose else self.written(name, set(tied))
+        if written is not None:
+            status, ranked = "confident", [written]  # the one player named exactly as written
+        elif loose:
             status = "ambiguous"
         elif len(tied) == 1 or (TIERS[best] != "nickname" and len(placed) == 1):
             status = "confident"
@@ -268,11 +295,22 @@ def quoted(text):
     return "'" + text.replace("'", "''") + "'"
 
 
-class EventResolver:
-    """Every official event, with the curated event aliases and terms, read once from the database: event names
-    resolve in memory."""
+def curated_terms(path=EVENT_TERMS):
+    """The event terms of curation/event_terms.csv, checked as the build checks them (ingest/curation.py), as (term,
+    means). A snapshot frozen before a term was curated gets it this way, as add_views gives it a view: eval-v1
+    predates 'cb' for crew battle (decided 2026-11-20). Raises CurationError listing the file's problems."""
+    problems, cur = [], curation.Curation()
+    curation.load_event_terms(curation.read(Path(path), "event_terms.csv", problems), cur, problems)
+    if problems:
+        raise curation.CurationError(problems)
+    return [(t.term, t.means) for t in cur.event_terms]
 
-    def __init__(self, db):
+
+class EventResolver:
+    """Every official event, with the curated event aliases and terms, read once from the database, and the curated
+    terms it lacks from the curation file (curated_terms; None: none): event names resolve in memory."""
+
+    def __init__(self, db, curated=EVENT_TERMS):
         self.events = {}
         for event_id, tournament, event, start_date, year, counts_as, fmt, status, slug in db.execute(
                 "SELECT event_id, tournament_name, event_name, start_date, year, counts_as, format, status,"
@@ -299,8 +337,12 @@ class EventResolver:
                 self.series[stem].append(alias)
         self.series = {stem: aliases for stem, aliases in self.series.items() if len(aliases) >= 2}
         self.terms = defaultdict(list)
-        for term, means in db.execute("SELECT term, means FROM event_terms"):
-            self.terms[term].append(means)
+        for term, means in [*db.execute("SELECT term, means FROM event_terms"), *(curated_terms(curated) if curated else [])]:
+            if means not in self.terms[term]:
+                self.terms[term].append(means)
+        # the words of official event names, which a word of a question alone stands for before a player
+        # (mentions.named): 'Trial' of Trial of Laufey is no player, though Sadistic once went by it
+        self.words = frozenset(w for e in self.events.values() for w in e["words"])
 
     def resolve(self, name, listed=EVENTS_LISTED):
         """{name, status, note, matched, score, event_count, tournament_count, sql, events}: the events an event
@@ -309,6 +351,9 @@ class EventResolver:
         modes = {MODE_WORDS[t] for t in tokens if t in MODE_WORDS}
         mode = modes.pop() if len(modes) == 1 else None
         rest = [t for t in tokens if t not in MODE_WORDS]
+        if rest and all(t in NO_EVENT for t in rest):  # live, 'all' matched Adaptation: Win-ter Takes All (finding 17)
+            return {"name": name, "status": "not_found", "events": [],
+                    "note": f"{name!r} names no event: to count every event, leave the event out."}
         found, tier, matched, closeness, share = self.by_alias(" ".join(rest))
         if mode:
             found = {e for e in found if self.events[e]["counts_as"] == mode}
@@ -457,6 +502,61 @@ def player_ids(sql):
     found = []
     for one, many in PLAYER_FILTER.findall(sql):
         found += [int(one)] if one else [int(n) for n in many.split(",") if n.strip()]
+    return found
+
+
+CONDITION = {"WHERE", "ON", "HAVING", "WHEN"}  # the keywords that begin a condition
+ENDS_CONDITION = {"SELECT", "FROM", "JOIN", "GROUP", "ORDER", "LIMIT", "UNION", "INTERSECT", "EXCEPT", "WINDOW",
+                  "THEN", "ELSE", "END", "LEFT", "INNER", "CROSS", "RIGHT", "FULL", "NATURAL", "USING"}
+
+
+def mixed_conditions(sql):
+    """The conditions a query writes with AND and OR at one level, outside parentheses: the keyword each begins
+    with (WHERE, ON, HAVING, WHEN), once each. Quotes and comments are skipped, and a BETWEEN's AND isn't one. AND
+    binds tighter than OR, so 'a OR b AND c' is 'a OR (b AND c)': live, a query counted the 24 events Cody Travis and
+    Phazon entered together as their wins, though they won 4 (docs/web-app-testing-notes.md, finding 7). Of 518
+    recorded queries, 9 mixed them: 5 so, and 4 meaning what the precedence gives."""
+    found, stack, i, n = [], [{"clause": None, "ops": set(), "between": False}], 0, len(sql)
+
+    def close(frame):
+        if frame["clause"] and {"AND", "OR"} <= frame["ops"] and frame["clause"] not in found:
+            found.append(frame["clause"])
+
+    while i < n:
+        c = sql[i]
+        if c in "'\"`[":
+            end, i = ("]" if c == "[" else c), i + 1
+            while i < n and not (sql[i] == end and sql[i + 1:i + 2] != end):
+                i += 2 if sql[i] == end else 1
+            i += 1
+        elif sql.startswith("--", i):
+            i = sql.find("\n", i) + 1 or n
+        elif sql.startswith("/*", i):
+            i = sql.find("*/", i + 2) + 2 if "*/" in sql[i + 2:] else n
+        elif c == "(":
+            stack.append({"clause": stack[-1]["clause"], "ops": set(), "between": False})
+            i += 1
+        elif c == ")":
+            if len(stack) > 1:
+                close(stack.pop())
+            i += 1
+        elif (c.isalpha() or c == "_") and (i == 0 or not (sql[i - 1].isalnum() or sql[i - 1] == "_")):
+            m = re.match(r"\w+", sql[i:])
+            word, frame = m[0].upper(), stack[-1]
+            if word in CONDITION or word in ENDS_CONDITION:
+                close(frame)
+                frame["clause"], frame["ops"] = (word if word in CONDITION else None), set()
+            elif word == "BETWEEN":
+                frame["between"] = True
+            elif word == "AND" and frame["between"]:
+                frame["between"] = False
+            elif word in ("AND", "OR") and frame["clause"]:
+                frame["ops"].add(word)
+            i += len(m[0])
+        else:
+            i += 1
+    for frame in stack:
+        close(frame)
     return found
 
 

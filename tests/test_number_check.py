@@ -57,6 +57,19 @@ class ClaimsTest(unittest.TestCase):
         found = evidence(question="what did raydish get on March 10, 2024?")  # a user's question is still evidence
         self.assertEqual(flagged(found, "On March 10, 2024 he placed 5th."), ["5th"])
 
+    def test_a_name_ending_in_a_question_mark_asks_nothing_and_a_question_keeps_the_numbering_before_it(self):
+        listed = ("1. **gdsandstorm** - $258,984.17\n2. **Zivai** - $214,458.33\n3. **acno?** - $189,215.00\n"
+                  "4. **whoiskyna** - $161,110.00")  # q05 seeds 0 and 2 on 2026-11-19: its 3 went back
+        self.assertEqual(number_check.stated(listed), listed)
+        earnings = {"complete": True, "columns": ["name", "earnings_usd"], "rows": [
+            ["gdsandstorm", 258984.17], ["Zivai", 214458.33], ["acno?", 189215.0], ["whoiskyna", 161110.0]]}
+        self.assertEqual(flagged(evidence(earnings), listed), [])
+        plain = "2. Zivai - $214,458.33\n3. acno? - $189,215.00"  # not bold: a question to the reader, numbering kept
+        self.assertEqual([(c.kind, c.text) for c in number_check.claims(number_check.stated(plain))],
+                         [("list", "2."), ("money", "$214,458.33"), ("list", "3."), ("money", "$189,215.00")])
+        asked = "1. Did you mean **Raydish**?\n2. Or the top 8?"  # questions in a list still state nothing
+        self.assertEqual([c.text for c in number_check.claims(number_check.stated(asked))], ["1.", "2."])
+
 
 class EvidenceTest(unittest.TestCase):
     def test_a_number_a_result_holds_is_supported_and_one_it_doesnt_isnt(self):
@@ -143,33 +156,37 @@ class ReplacementTest(unittest.TestCase):
         found = evidence(*observations)
         return number_check.without(answer, found.unsupported(answer))
 
-    def test_the_sentence_holding_an_unsupported_number_is_replaced_and_the_others_stay(self):
+    def test_the_sentence_holding_an_unsupported_number_is_left_out_and_the_others_stay(self):
         text, replaced = self.replaced(  # q20 seed 2 in the template tools' after run
             "The 1v1 grand final was won by **Zivai** with a score of **3-0** against **Impala**. The match started at"
             " **July 7, 2023, 1:47:45 PM UTC**.", SET)
-        self.assertEqual(text, "The 1v1 grand final was won by **Zivai** with a score of **3-0** against **Impala**."
-                               " I couldn't confirm the time from the data.")
+        self.assertEqual(text, "The 1v1 grand final was won by **Zivai** with a score of **3-0** against **Impala**.")
         self.assertEqual(replaced, [{"claim": "The match started at **July 7, 2023, 1:47:45 PM UTC**.",
-                                     "replacement": "I couldn't confirm the time from the data.",
-                                     "numbers": ["1:47:45 PM UTC"]}])
+                                     "replacement": "", "numbers": ["1:47:45 PM UTC"]}])
+        text, _ = self.replaced("It's 1:47:45 PM UTC. Zivai won 3-0.", SET)  # a sentence before another, its space too
+        self.assertEqual(text, "Zivai won 3-0.")
 
     def test_an_abbreviation_doesnt_end_a_sentence(self):
         text, _ = self.replaced("It was **Zivai (3) vs. Impala (0)**. The match was at 11:47 AM UTC, a 3-0 win.", SET)
-        self.assertEqual(text, "It was **Zivai (3) vs. Impala (0)**. I couldn't confirm the time from the data.")
+        self.assertEqual(text, "It was **Zivai (3) vs. Impala (0)**.")
 
-    def test_a_list_item_keeps_its_markup_and_a_table_cell_is_replaced_alone(self):
+    def test_a_list_item_goes_with_its_line_and_a_table_cell_says_not_confirmed(self):
         text, _ = self.replaced("Their record:\n- **BBBalloonBoy**: 1 win, 2 losses, 5 games won.\n| Impala | 5 |", RECORD)
-        self.assertEqual(text, "Their record:\n- I couldn't confirm the number of games won from the data.\n"
-                               "| Impala | I couldn't confirm the number from the data. |")
+        self.assertEqual(text, "Their record:\n| Impala | not confirmed |")  # live: half an answer was such lines
+        text, _ = self.replaced("### 2024 Spring Championship\nImpala won 2 of 3 sets.", RECORD)  # a heading goes too
+        self.assertEqual(text, "Impala won 2 of 3 sets.")
 
-    def test_the_replacement_says_what_the_claim_was_about_without_its_number(self):
-        cases = [("V3M_T4NQUIL0 has **$12,500 in career earnings** as of 2023.", "the career earnings"),
-                 ("They're called \"Worlds 2016\" in the data.", "the year"),
-                 ("His rival is player_id 12345.", "the player ID"),
-                 ("A 75% win rate.", "the win rate"),
-                 ("On July 8, 2023 at 16:47 UTC.", "the date and the time")]
-        for answer, what in cases:
-            self.assertEqual(self.replaced(answer, SET)[0], f"I couldn't confirm {what} from the data.", answer)
+    def test_the_line_saying_claims_were_left_out_states_no_number(self):
+        self.assertEqual(number_check.left_out([{}]), "(I left out a statement I couldn't confirm from the data.)")
+        self.assertEqual(number_check.left_out([{}, {}]), "(I left out some statements I couldn't confirm from the data.)")
+        self.assertEqual([c for line in (number_check.left_out([{}]), number_check.left_out([{}, {}]))
+                          for c in number_check.claims(line)], [])  # nothing for a check to read as a claim
+
+    def test_a_number_written_twice_in_a_text_counts_twice(self):
+        note = {"notes": ["In 2v2, whoiskyna's teams and yüz's teams met in 22 sets: whoiskyna's side won 11 and lost 11."]}
+        self.assertEqual(flagged(evidence(note), "In 2v2 their teams split 11-11 in 22 sets."), [])  # live: replaced
+        self.assertEqual(flagged(evidence({"notes": ["won 11 of 22"]}), "It's 11-11."), ["11-11"])  # one 11: no record
+        self.assertEqual(flagged(evidence({"notes": ["1,350 games"]}), "1-1"), ["1-1"])  # a comma's parts count once
 
     def test_a_replaced_answer_holds_no_unsupported_number(self):
         answer = ("Boomie has **80 total medals** (34 in 1v1, 46 in 2v2), and gdsandstorm 69.\n\n- 42 in 1v1\n- 27 in"

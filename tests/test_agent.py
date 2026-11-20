@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "eval"))
 import mentions  # noqa: E402
 import model_comparison as mc  # noqa: E402
 import react  # noqa: E402
+import settling  # noqa: E402
 import templates  # noqa: E402
 import tools  # noqa: E402
 
@@ -20,7 +21,8 @@ PLAYERS = [  # (player_id, name, canonical_id, official results)
     (5, "flowerVS", 5, 2), (6, "Flowers", 6, 1), (7, "megD", 7, 2), (8, "megdee", 7, 0), (9, "Boomie", 9, 2),
     (10, "Boomie", 10, 0), (11, "Raydish", 11, 6), (12, "lFiend", 12, 1), (13, "Ca$h", 13, 1), (14, "tike36", 14, 3),
     (15, "exact", 15, 2), (16, "7th", 16, 1), (17, "Notes", 17, 1), (18, "1234", 18, 1), (19, "Zivai", 19, 6),
-    (20, "Godly", 20, 1)]
+    (20, "Godly", 20, 1), (21, "Cody Travis", 21, 5), (22, "Dragon!", 22, 5), (23, "Dragon", 23, 4), (24, "Winter", 24, 6),
+    (25, "two", 25, 5)]
 ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("impala", 1, "display_name", "Impala", None), ("impala", 2, "display_name", "Impala", None),
     ("bbballoonboy", 3, "display_name", "BBBalloonBoy", None), ("balloonboy", 3, "former_name", "LGN | BalloonBoy", None),
@@ -33,7 +35,10 @@ ALIASES = [  # (alias, player_id, kind, shown_as, note)
     ("tike36", 14, "display_name", "tike36", None), ("exact", 15, "display_name", "exact", None),
     ("7th", 16, "display_name", "7th", None), ("notes", 17, "display_name", "Notes", None),
     ("1234", 18, "display_name", "1234", None), ("zivai", 19, "display_name", "Zivai", None),
-    ("godly", 19, "former_name", "Kingdom | Godly", None), ("godly", 20, "display_name", "Godly", None)]
+    ("godly", 19, "former_name", "Kingdom | Godly", None), ("godly", 20, "display_name", "Godly", None),
+    ("codytravis", 21, "display_name", "Cody Travis", None), ("dragon", 22, "display_name", "Dragon!", None),
+    ("dragon", 23, "display_name", "Dragon", None), ("winter", 24, "display_name", "Winter", None),
+    ("two", 25, "display_name", "two", None)]
 EVENTS = [  # (event_id, tournament_name, event_name, start_date, year, counts_as, status, sgg_tournament_slug)
     ("bcx22-1", "Brawlhalla World Championship Expo 2022", "1v1", "2022-11-04", 2022, "1v1", None, "bcx-2022"),
     ("bcx22-2", "Brawlhalla World Championship Expo 2022", "2v2", "2022-11-04", 2022, "2v2", None, "bcx-2022"),
@@ -122,6 +127,12 @@ class ResolverTest(Fixture):
         first = self.resolver.resolve("impala")["candidates"][0]
         self.assertEqual((first["official_results"], first["results_from"], first["results_to"]), (3, "2020-01-01", "2022-01-01"))
 
+    def test_a_name_written_with_a_mark_only_one_player_has_exactly_is_that_player(self):
+        self.assertEqual(self.resolve("dragon"), ("ambiguous", [22, 23]))  # 5 official results to 4
+        self.assertEqual(self.resolve("Dragon!"), ("confident", [22]))  # live: tied with two players named Dragon
+        self.assertEqual(self.resolve("DRAGON!"), ("confident", [22]))  # in any case
+        self.assertEqual(self.resolve("Impala!"), ("ambiguous", [1, 2]))  # a mark no name has decides nothing
+
     def test_a_shared_name_whose_first_player_is_far_ahead_resolves_to_that_player_alone(self):
         out = self.resolver.resolve("godly")  # Zivai, 6 official results, as a former name; Godly, 1
         self.assertEqual((out["status"], [c["player_id"] for c in out["candidates"]]), ("confident", [19]))
@@ -186,7 +197,7 @@ class EventResolverTest(Fixture):
     def setUp(self):
         super().setUp()
         db = sqlite3.connect(self.path)
-        self.events = tools.EventResolver(db)
+        self.events = tools.EventResolver(db, curated=None)  # the fixture's own terms only
         db.close()
 
     def selected(self, name):
@@ -221,6 +232,24 @@ class EventResolverTest(Fixture):
         self.assertEqual(self.selected("winters 2023 na"), ("confident", {"naw23"}))  # not Europe's, nor the Royale
         self.assertEqual(self.selected("winters 2023")[1], {"naw23", "euw23"})
 
+    def test_a_term_the_database_lacks_comes_from_the_curation_file_checked_as_the_build_checks_it(self):
+        db = sqlite3.connect(self.path)
+        db.executemany("INSERT INTO v_events VALUES (?, ?, ?, ?, ?, '1v1', 'crew_battle', NULL, ?)", [
+            ("nacb22", "North America - Crew Battle Invitational", "Brawlhalla Crew Battle 3v3", "2022-03-20", 2022, "nacb"),
+            ("eucb22", "Europe - Crew Battle Invitational", "Brawlhalla Crew Battle 3v3", "2022-03-19", 2022, "eucb")])
+        terms = Path(self.tmp.name) / "event_terms.csv"
+        terms.write_text("term,means,note\nna,north america,\ncb,crew battle,\n", encoding="utf-8")
+        self.assertEqual(tools.EventResolver(db, curated=None).resolve("cb 2022")["status"], "not_found")  # eval-v1's
+        found = tools.EventResolver(db, curated=terms)
+        self.assertEqual(found.terms["na"], ["north america"])  # in both: once
+        out = found.resolve("cb 2022")
+        self.assertEqual((out["status"], {e["event_id"] for e in out["events"]}), ("ambiguous", {"nacb22", "eucb22"}))
+        self.assertEqual([e["event_id"] for e in found.resolve("na cb 2022")["events"]], ["nacb22"])
+        terms.write_text("term,means,note\ncb,cb,\n", encoding="utf-8")
+        with self.assertRaises(tools.curation.CurationError):
+            tools.EventResolver(db, curated=terms)
+        db.close()
+
     def test_several_tournaments_are_ambiguous_with_the_closest_name_first(self):
         out = self.events.resolve("ceo dreamland 2020")
         self.assertEqual((out["status"], [e["event_id"] for e in out["events"]]), ("ambiguous", ["ceo20", "ceoon20"]))
@@ -228,6 +257,12 @@ class EventResolverTest(Fixture):
         loose = self.events.resolve("dreamhack atlanta 2019 finals")
         self.assertEqual((loose["status"], [e["event_id"] for e in loose["events"]]), ("ambiguous", ["dha19"]))
         self.assertLess(loose["score"], tools.CONFIDENT)
+
+    def test_a_name_of_only_common_words_names_no_event(self):
+        out = self.events.resolve("all")  # live, 'all' matched Adaptation: Win-ter Takes All
+        self.assertEqual((out["status"], out["events"], out["note"]),
+                         ("not_found", [], "'all' names no event: to count every event, leave the event out."))
+        self.assertEqual(self.events.resolve("all 1v1 events")["status"], "not_found")
 
     def test_nothing_matching_is_not_found_with_the_aliases_that_start_alike(self):
         out = self.events.resolve("bcx 2021")
@@ -325,11 +360,55 @@ class MentionsTest(Fixture):
         self.assertEqual(mentions.words("tell me about the 2v2 record"), ([], []))
         self.assertEqual(mentions.words("whats raydish's record with kyna?"), (["raydish", "kyna"], []))
 
-    def test_the_lookups_resolve_each_word_naming_a_player_and_the_rest_as_an_event(self):
-        self.assertEqual(mentions.lookups(["raydish", "worlds"], [], self.resolver),
+    def test_number_words_and_words_about_what_was_said_name_nothing(self):
+        self.assertEqual(mentions.words("which two players have the biggest head to head record"), ([], []))  # live: "two"
+        self.assertEqual(mentions.words("so why did you say cody travis and phazon have won 24 2v2 tournaments"),
+                         (["cody", "travis", "phazon"], []))  # live: looked up as "say cody travis 24"
+
+    def test_the_players_a_question_names_are_found_in_spans_of_up_to_three_words(self):
+        db = sqlite3.connect(self.path)
+        events = tools.EventResolver(db, curated=None)
+        db.close()
+
+        def named(question):
+            return [(text, out["status"], [c["player_id"] for c in out["candidates"]])
+                    for text, out in mentions.named(question, self.resolver, events.words)]
+        self.assertEqual(named("what about cody travis and raydish?"),
+                         [("cody travis", "confident", [21]), ("raydish?", "confident", [11])])
+        self.assertEqual(named("which two players have the biggest head to head record"), [])  # two (25) is a number
+        self.assertEqual(named("did winter win the 2023 winter championship"), [])  # Winter (24) is an event's word
+        self.assertEqual(named("how many results has megd"), [])  # megD has 2 official results, under 5
+        self.assertEqual(named("dragon stats"), [("dragon", "ambiguous", [22, 23])])
+        self.assertEqual(named("Dragon!"), [("Dragon!", "confident", [22])])
+
+    def test_the_lookups_resolve_each_player_named_and_the_rest_as_an_event(self):
+        self.assertEqual(mentions.lookups("has raydish won worlds", ["raydish", "worlds"], self.resolver),
                          [("resolve_player", {"name": "raydish"}), ("resolve_event", {"name": "worlds"})])
-        self.assertEqual(mentions.lookups(["cb"], ["2022"], self.resolver), [("resolve_event", {"name": "cb 2022"})])
-        self.assertEqual(mentions.lookups(["megd"], [], self.resolver), [("resolve_event", {"name": "megd"})])  # 2 results
+        self.assertEqual(mentions.lookups("the cb tournament in 2022", ["cb"], self.resolver),
+                         [("resolve_event", {"name": "cb 2022"})])
+        self.assertEqual(mentions.lookups("how many has megd", ["megd"], self.resolver),
+                         [("resolve_event", {"name": "megd"})])  # 2 results: no player to look up
+        said = "so why did you say cody travis and raydish have won 24 2v2 tournaments"  # live, 20261120T050251Z-001
+        self.assertEqual(mentions.lookups(said, mentions.words(said)[0], self.resolver),
+                         [("resolve_player", {"name": "cody travis"}), ("resolve_player", {"name": "raydish"})])
+
+
+class MixedConditionsTest(unittest.TestCase):
+    def test_and_and_or_at_one_level_without_parentheses_are_found(self):
+        live = ("SELECT COUNT(DISTINCT t.event_id) FROM v_team_results t WHERE (t.player_id = 117179 AND t.partner_id ="
+                " 147522) OR (t.player_id = 147522 AND t.partner_id = 117179) AND t.placement = 1")  # live: 24, not 4
+        self.assertEqual(tools.mixed_conditions(live), ["WHERE"])
+        for sql in ["SELECT 1 FROM t WHERE ((a = 1 AND b = 2) OR (a = 2 AND b = 1)) AND p = 1",
+                    "SELECT 1 FROM t WHERE x BETWEEN 1 AND 2 OR y = 3",  # a BETWEEN's AND is no condition's
+                    "SELECT 1 FROM t WHERE x = 1 AND (y = 2 OR y = 3)",
+                    "SELECT 1 FROM t WHERE c = 'x OR y AND z' AND d = 1",
+                    "SELECT 1 FROM t WHERE a = 1 -- OR b = 2\n AND c = 3"]:
+            self.assertEqual(tools.mixed_conditions(sql), [], sql)
+        self.assertEqual(tools.mixed_conditions("SELECT 1 FROM t JOIN u ON u.a = t.a AND u.b = 1 OR u.c = 2"), ["ON"])
+        self.assertEqual(tools.mixed_conditions("SELECT SUM(CASE WHEN a = 1 OR b = 2 AND c = 3 THEN 1 END) FROM t"),
+                         ["WHEN"])
+        self.assertEqual(tools.mixed_conditions("SELECT * FROM t WHERE x IN (SELECT y FROM u WHERE a OR b AND c)"),
+                         ["WHERE"])
 
 
 class NameFilterTest(unittest.TestCase):
@@ -542,6 +621,89 @@ class LoopTest(Fixture):
                                                       Names(), in_view={147569})
         self.assertEqual((answer, len(swaps), pairings), ("**capsar** beat capsar (player 147569) and **160000**.", 1, []))
 
+    def test_a_player_written_as_playerid_gets_their_name_unless_it_was_written_just_before(self):
+        class Names:
+            names = {74433: "gdsandstorm", 147982: "Zivai", 160000: "Raydish", 146606: "Boomie"}
+            canonical = {pid: pid for pid in names}
+
+            def resolve(self, name):
+                return {"status": "not_found", "candidates": []}
+        live = ("1. **PlayerID 74433** - $258,984.17\n2. Player ID: 147982 - $214,458.33\n"  # q05 seed 1, 2026-11-19
+                "3. **Raydish** - player_id 160000 - $83,825.00\n4. Zivai (formerly Godly, player_id 147982)\n"
+                "No record exists for player_id 146606 (Boomie).")  # q33 seeds 0 and 1
+        answer, swaps, _ = react.correct_names(live, [], Names(), in_view={74433, 147982, 160000, 146606})
+        self.assertEqual(answer, "1. **gdsandstorm** - $258,984.17\n2. Zivai - $214,458.33\n"
+                                 "3. **Raydish** - player_id 160000 - $83,825.00\n4. Zivai (formerly Godly, player_id 147982)\n"
+                                 "No record exists for player_id 146606 (Boomie).")
+        self.assertEqual([s["from"] for s in swaps], ["PlayerID 74433", "Player ID: 147982"])
+
+    def test_a_swap_made_at_every_mention_is_traced_once_with_how_many_times(self):
+        answer, swaps, _ = react.correct_names("Raydsh won. Then Raydsh lost, and Raydsh won again.",
+                                               [("Raydsh", 11, "Raydish", "Raydish")], self.tools.resolver)
+        self.assertEqual(answer, "Raydish won. Then Raydish lost, and Raydish won again.")
+        self.assertEqual(swaps, [{"kind": "the question's spelling", "from": "Raydsh", "to": "Raydish", "player_id": 11,
+                                  "times": 3}])  # live, 'Yuz' to 'yüz' was listed eleven times
+
+    def test_a_name_several_players_share_exactly_with_no_clear_cut_goes_to_the_user(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "dragon"})]), reply("Dragon has 5 results."))
+        trace = react.run("dragon stats", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["outcome"], trace["steps"][0]["suggestions"]), ("suggestions", {"dragon": [22, 23]}))
+        self.assertTrue(trace["answer"].startswith('Several players are named "dragon", so I won\'t guess.'))
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "Dragon!"})]), reply("Dragon! has 5 official results."))
+        self.assertEqual(react.run("Dragon! stats", self.tools, ask=ask, log=lambda *_: None)["outcome"], "answered")
+
+    def test_a_call_on_a_player_the_question_doesnt_name_goes_back_naming_who_it_does(self):
+        conversation = react.Conversation(self.tools, ask=Scripted(
+            reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+            reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id IN (7, 19)"})]),  # megD
+            reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id IN (11, 19)"})]),
+            reply("Raydish and Zivai have 12 official results.")), log=lambda *_: None)
+        conversation.ask("how many results has megd")
+        trace = conversation.ask("how many results have raydish and zivai")  # live: kyna vs yuz, with plewchi for kyna
+        refused, ran = trace["steps"][0]["tool_calls"][0], trace["steps"][1]["tool_calls"][0]
+        self.assertEqual(refused["unnamed_players"], [7])
+        self.assertEqual(json.loads(refused["observation"])["error"],
+                         "player_id 7 (megD) isn't a player this question names, and no tool returned it for this question."
+                         " The question names Raydish (player_id 11) and Zivai (player_id 19): use their player_ids, or"
+                         " look a player up with resolve_player first.")
+        self.assertEqual(json.loads(ran["observation"])["rows"], [[12]])  # named in code, so known without a lookup
+        self.assertEqual(trace["answer"], "Raydish and Zivai have 12 official results.")
+
+    def test_a_question_naming_players_may_still_use_players_its_note_or_its_own_results_give(self):
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 19 AS player_id"})]),
+                       reply(calls=[("head_to_head", {"player_id": 11, "opponent_id": 19})]),
+                       reply(calls=[("head_to_head", {"player_id": 7, "opponent_id": 11})]), reply("Done."))
+        trace = react.run("who has raydish played most, and how did he do vs raydish [he: megD (player_id 7), from the"
+                          " previous question.]", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([c.get("unnamed_players") for s in trace["steps"] for c in s["tool_calls"]], [None, None, None])
+
+    def test_a_question_about_the_previous_answer_answered_with_no_tool_goes_back_to_check_it(self):
+        count = ("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 11"})
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply("Yes, 6, as I said."), reply(calls=[count]), reply("Yes: Raydish has 6 official results."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        trace = conversation.ask("are you sure? that's too many")  # live: "there are not that many events"
+        self.assertEqual((trace["settled"]["how"], trace["steps"][0]["no_tool_check"]["disputed"],
+                          trace["steps"][0]["no_tool_check"]["action"]), (settling.DISPUTED, True, "sent back"))
+        self.assertEqual(ask.sent[3][-1]["content"], react.RECHECK)
+        self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
+
+    def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply("The card shows 4 wins."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        first = conversation.ask("how many results has raydish")
+        conversation.shown("Card: Raydish, lifetime at official events: 6 results, 4 wins.")  # as the web app gives it
+        self.assertEqual(first["shown"], "Card: Raydish, lifetime at official events: 6 results, 4 wins.")
+        self.assertEqual(conversation.current[-1]["content"], "Raydish has 6 official results.\n\n[The page showed beside"
+                                                              " this answer: Card: Raydish, lifetime at official events: 6"
+                                                              " results, 4 wins.]")
+        trace = conversation.ask("what did the card say about his wins")  # 4 is the card's, so it stands
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), ("The card shows 4 wins.", []))
+        self.assertEqual(ask.sent[2][-2], {"role": "assistant", "content": conversation.previous[-1]["content"]})
+        self.assertIn("[The page showed beside this answer: Card: Raydish", ask.sent[2][-2]["content"])  # the model reads it
+
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
                        reply("The answer is correct: both are players."))
@@ -671,8 +833,9 @@ class LoopTest(Fixture):
     def test_a_player_no_result_in_view_returned_is_replaced_when_the_turn_looked_nothing_up(self):
         ask = Scripted(reply("**tike36** and megD are 2-2."), reply("**tike36** and megD are 2-2. I hope that helps!"))
         trace = react.run("what about megd and the other one", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
-        self.assertEqual(trace["answer"], "I couldn't confirm this about tike36 and the record from the data. I hope that"
-                                          " helps!")  # in the order the answer states them
+        self.assertEqual(trace["answer"], react.NOT_LOOKED_UP)  # "I hope that helps!" is no fact
+        self.assertEqual([(r["claim"], r["numbers"]) for r in trace["unconfirmed"]],
+                         [("**tike36** and megD are 2-2.", ["tike36", "2-2"])])
 
     def test_a_reply_without_facts_to_a_question_naming_nothing_needs_no_tool(self):
         self.assertEqual(react.run("thanks", self.tools, ask=Scripted(reply("Glad to help.")), log=lambda *_: None)["steps_used"], 1)
@@ -687,7 +850,7 @@ class LoopTest(Fixture):
 
     def test_an_answer_stating_a_number_no_tool_returned_goes_back_once_then_its_claim_is_replaced(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),
-                       reply("megD has 5 official results. The first was in 2020."))
+                       reply("megD has 5 official results. He has played since January 1, 2020."))
         trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
         sent, replaced = trace["steps"][1]["number_check"], trace["steps"][2]["number_check"]
         self.assertEqual((sent["numbers"], sent["action"], replaced["action"]),
@@ -696,31 +859,41 @@ class LoopTest(Fixture):
         self.assertEqual((flagged["content"], message["role"]), ("megD has 5 official results.", "user"))
         self.assertTrue(message["content"].startswith("Before this answer is final: it states '5', which no tool result"
                                                       " in this conversation holds."))
-        self.assertEqual(trace["answer"], "I couldn't confirm the number of official results from the data. The first"
-                                          " was in 2020.")  # megD's first result is from 2020
+        self.assertEqual(trace["answer"], "He has played since January 1, 2020.\n\n(I left out a statement I couldn't"
+                                          " confirm from the data.)")  # megD's first result is from 2020-01-01
         self.assertEqual(trace["unconfirmed"], [{"claim": "megD has 5 official results.", "numbers": ["5"],
-                                                 "replacement": "I couldn't confirm the number of official results from"
-                                                                " the data."}])
+                                                 "replacement": ""}])
         self.assertEqual(react.summary(trace)["number_checks"], [
             {"step": 2, "numbers": ["5"], "action": "sent back"},
             {"step": 3, "numbers": ["5"], "action": "replaced: sent back once already"}])
         page = react.markdown([trace], HEADER)
         self.assertIn("**Number check:** it states 5, which no tool result holds. Sent back with:", page)
-        self.assertIn("- 'megD has 5 official results.' became \"I couldn't confirm the number of official results from"
-                      " the data.\"", page)
+        self.assertIn("- 'megD has 5 official results.' was left out", page)
 
     def test_a_number_no_tool_returned_is_replaced_at_once_on_the_last_step_or_after_a_reply_about_the_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."))
         trace = react.run("q", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
-        self.assertEqual((trace["steps"][1]["number_check"]["action"], trace["answer"]),
-                         ("replaced: no steps left", "I couldn't confirm the number of official results from the data."))
+        self.assertEqual((trace["steps"][1]["number_check"]["action"], trace["answer"]),  # no fact left
+                         ("replaced: no steps left; no fact left, so the whole answer", react.NOT_CONFIRMED))
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),
                        reply("The answer is correct."))
         trace = react.run("q", self.tools, ask=ask, max_steps=3, log=lambda *_: None)
         self.assertIn(react.LAST_STEP, trace["steps"][1]["number_check"]["message"])
         self.assertEqual((trace["steps"][2]["meta_reply"]["action"], trace["steps"][2]["number_check"]["action"]),
-                         ("kept the answer it replied about", "replaced: sent back once already"))
-        self.assertEqual(trace["answer"], "I couldn't confirm the number of official results from the data.")
+                         ("kept the answer it replied about", "replaced: sent back once already; no fact left, so the"
+                                                              " whole answer"))
+        self.assertEqual(trace["answer"], react.NOT_CONFIRMED)
+
+    def test_a_player_id_written_as_an_id_is_no_number_to_check(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+                       reply(calls=[("run_sql", {"query": "SELECT 1"})]), reply("Back to it."),
+                       reply(calls=[("run_sql", {"query": "SELECT 2"})]),
+                       reply("**megD** (player_id 7) and megD (7) have 2 results."))  # live: Cody Travis (117179)
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("How many results has megd?")
+        conversation.ask("and now?")
+        trace = conversation.ask("and again?")  # megD was returned two questions back, out of the window
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), ("**megD** (player_id 7) and megD (7) have 2 results.", []))
 
     def test_a_follow_up_may_cite_a_number_an_earlier_question_returned(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
@@ -768,7 +941,7 @@ class LoopTest(Fixture):
         query = ("run_sql", {"query": "SELECT COUNT(*) AS n FROM v_results WHERE player_id = 11"})
         ask = Scripted(reply(calls=[query]), reply(calls=[("resolve_player", {"name": "Raydish"})]), reply(calls=[query]),
                        reply("Raydish has 6 official results."))
-        trace = react.run("How many results has Raydish?", self.tools, ask=ask, log=lambda *_: None)
+        trace = react.run("How many results has the champion?", self.tools, ask=ask, log=lambda *_: None)  # names no one
         refused, _, ran = (s["tool_calls"][0] for s in trace["steps"][:3])
         self.assertEqual(json.loads(refused["observation"])["error"],
                          "player_id 11 wasn't returned by any tool in this conversation, and the question doesn't give it,"
@@ -776,6 +949,18 @@ class LoopTest(Fixture):
                          " player_id it returns.")
         self.assertEqual(refused["unreturned_players"], [11])
         self.assertEqual(json.loads(ran["observation"])["rows"], [[6]])  # resolve_player returned 11
+
+    def test_a_query_mixing_and_and_or_without_parentheses_is_refused_with_the_precedence(self):
+        mixed = "SELECT COUNT(*) FROM v_results WHERE player_id = 11 OR player_id = 19 AND start_date > '2021'"
+        fixed = "SELECT COUNT(*) FROM v_results WHERE (player_id = 11 OR player_id = 19) AND start_date > '2021'"
+        ask = Scripted(reply(calls=[("run_sql", {"query": mixed})]), reply(calls=[("run_sql", {"query": fixed})]),
+                       reply("10."))
+        trace = react.run("how many results have raydish and zivai after 2021", self.tools, ask=ask, log=lambda *_: None)
+        refused, ran = trace["steps"][0]["tool_calls"][0], trace["steps"][1]["tool_calls"][0]
+        self.assertEqual(refused["and_or"], ["WHERE"])
+        self.assertTrue(json.loads(refused["observation"])["error"].startswith(
+            "This query wasn't run: its WHERE mixes AND and OR without parentheses. AND binds tighter than OR"))
+        self.assertEqual((json.loads(ran["observation"])["rows"], "and_or" in ran), ([[10]], False))
 
     def test_a_player_id_the_question_gives_or_a_result_returned_may_be_queried(self):
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 11"})]),
@@ -868,27 +1053,17 @@ class LoopTest(Fixture):
         self.assertEqual((found["status"], [c["player_id"] for c in found["candidates"]]), ("confident", [4]))
         self.assertEqual((trace["outcome"], trace["answer"]), ("answered", "Marckiem00 has 4 official results."))
 
-    def test_follow_ups_by_the_model_take_one_short_call_and_the_trace_keeps_the_users_words(self):
-        rewrites = []
-
-        def rephrase(messages, **model):
-            rewrites.append(model)
-            return {"message": {"role": "assistant", "content": "How many 2v2 results has megD?"}}
+    def test_a_follow_up_gets_a_note_on_what_it_continues_and_the_trace_keeps_the_users_words(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
                        reply("In 2v2 too, megD has 2."))
-        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, follow_ups="model",
-                                          rephrase=rephrase, model="m", seed=3)
-        conversation.ask("How many results has megd?")
-        self.assertEqual(rewrites, [])  # nothing to continue yet
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        first = conversation.ask("How many results has megd?")
+        self.assertNotIn("settled", first)  # nothing to continue yet
         trace = conversation.ask("now only 2v2")
-        self.assertEqual(rewrites, [{"model": "m", "seed": 3}])
-        self.assertEqual((trace["question"], trace["settled"]["text"], trace["settled"]["how"],
-                          trace["settled"]["rewrite"]["reply"], trace["outcome"]),
-                         ("now only 2v2", "How many 2v2 results has megD?", "rewritten", "How many 2v2 results has megD?",
-                          "answered"))
-        self.assertEqual(ask.sent[2][-1]["content"], "How many 2v2 results has megD?")
-        with self.assertRaises(ValueError):
-            react.Conversation(self.tools, follow_ups="both")
+        note = 'now only 2v2 [This continues the previous question, "How many results has megd?", about megD (player_id 7).]'
+        self.assertEqual((trace["question"], trace["settled"]["text"], trace["settled"]["how"], trace["outcome"]),
+                         ("now only 2v2", note, "a follow-up (cues)", "answered"))
+        self.assertEqual(ask.sent[2][-1]["content"], note)  # what the model reads
 
     def test_an_answer_right_after_a_result_too_large_to_show_goes_back_until_a_new_query(self):
         big, count = ("run_sql", {"query": "SELECT a FROM t"}), ("run_sql", {"query": "SELECT COUNT(*) FROM t"})
