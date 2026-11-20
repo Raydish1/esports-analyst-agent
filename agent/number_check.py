@@ -242,7 +242,11 @@ class Evidence:
             self.times.add((moment.hour, moment.minute))
 
     def text(self, text, row):
-        for found in {*re.findall(NUM, text), *re.findall(r"\d+(?:\.\d+)?", text)}:
+        """A text's numbers, each as many times as it's written, so a note's "won 11 and lost 11" holds 11 twice, as a
+        row of 11 and 11 does: live, the right 11-11 was replaced (docs/web-app-testing-notes.md, finding 19). The
+        parts of a number with a comma (1 and 350 of 1,350) count once."""
+        written = re.findall(NUM, text)
+        for found in written + [n for n in dict.fromkeys(re.findall(r"\d+(?:\.\d+)?", text)) if n not in written]:
             self.number(amount(found)[0], row)
         for y, m, d, hour, minute in re.findall(r"(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?", text):
             self.date(int(y), int(m), int(d))
@@ -345,14 +349,9 @@ RULES = {
 }
 
 
-# Replacing the claims an answer can't keep
+# Leaving out the claims an answer can't keep
 
 ABBREVIATIONS = {"vs", "e.g", "i.e", "etc", "approx", "no", "st", "jr", "sr", "mr", "ms", "dr", "inc", "ltd"}
-STOP = {"a", "an", "the", "and", "or", "but", "with", "at", "on", "in", "for", "from", "to", "by", "as", "than", "of",
-        "which", "that", "while", "after", "before", "since", "is", "are", "was", "were", "has", "have", "had"}
-NOUNS = {"datetime": "the date and time", "date": "the date", "month": "the date", "day": "the date",
-         "time": "the time", "money": "the amount", "percent": "the percentage", "record": "the record",
-         "ordinal": "the placement", "scope": "the cutoff"}
 
 
 def units(answer):
@@ -389,46 +388,40 @@ def sentence_ends(body, start):
     yield len(body)
 
 
-def describe(claim, answer):
-    """What a claim states, without its number: 'the time', 'the number of games won', 'the career earnings'. A
-    player's claim (kind player, which react.py makes for a name no tool in view returned) is 'this about Zivai'."""
-    if claim.kind == "player":
-        return f"this about {claim.value[0]}"
-    if claim.kind in ("number", "word") and re.search(r"\b(?:player[ _-]?)?id\b[\s:#=*]*$", answer[:claim.start], re.I):
-        return "the player ID"
-    words = []
-    for token in answer[claim.end:].split()[:4]:
-        core = re.match(r"[A-Za-z][\w'’-]*|\d+v\d+", token.strip("*_(\"“"))
-        if not core or core[0].lower() in STOP:
-            if words or claim.kind != "money" or not core:
-                break
-            continue  # '$12,500 in career earnings': the words after 'in'
-        words.append(core[0])
-        if len(words) == 3 or len(token.strip("*_(\"“")) > len(core[0]):
-            break
-    if words and claim.kind in ("money", "percent"):
-        return "the " + " ".join(words)
-    if claim.kind in ("number", "word"):
-        if words:
-            return "the number of " + " ".join(words)
-        return "the year" if claim.kind == "number" and 1900 <= claim.value[0] <= 2100 else "the number"
-    return NOUNS[claim.kind]
-
-
-def joined(items):
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+MARKUP = re.compile(r"[ \t]*(?:#{1,6}[ \t]+|>[ \t]*|[-*+][ \t]+|\d+[.)][ \t]+)*")  # a line's markup before its text
+NOT_CONFIRMED_CELL = "not confirmed"
 
 
 def without(answer, flagged):
-    """The answer with each claim (units) holding a flagged number replaced by a sentence saying what couldn't be
-    confirmed, and what was replaced: [{claim, replacement, numbers}], in the answer's order."""
+    """The answer with each claim (units) holding a flagged number left out, and what was left out: [{claim,
+    replacement, numbers}], in the answer's order. A sentence goes; a list item or a heading that is its line's only
+    claim goes with its line; a table cell says "not confirmed", so the table keeps its shape. left_out gives the
+    line that says so (decided 2026-11-20): live, sentences that replaced claims ("I couldn't confirm the number from
+    the data.") read as noise cut loose from what they replaced, and one answer was half such lines
+    (docs/web-app-testing-notes.md, findings 11 and 15)."""
     spans, by_unit = units(answer), {}
     for c in flagged:
         unit = next(((a, b) for a, b in spans if a <= c.start < b), (c.start, c.end))
         by_unit.setdefault(unit, []).append(c)
     out, replaced = answer, []
     for (a, b), found in sorted(by_unit.items(), reverse=True):
-        sentence = f"I couldn't confirm {joined(list(dict.fromkeys(describe(c, answer) for c in found)))} from the data."
-        replaced.append({"claim": answer[a:b], "replacement": sentence, "numbers": [c.text for c in found]})
-        out = out[:a] + sentence + out[b:]
-    return out, replaced[::-1]
+        start = out.rfind("\n", 0, a) + 1
+        end = len(out) if out.find("\n", b) < 0 else out.find("\n", b)
+        if out[start:end].lstrip().startswith("|"):
+            new, cut = NOT_CONFIRMED_CELL, (a, b)
+        elif MARKUP.fullmatch(out[start:a]) and not out[b:end].strip():
+            new, cut = "", (start, min(end + 1, len(out)))
+        else:
+            stop = b
+            while stop < end and out[stop] in " \t":
+                stop += 1
+            new, cut = "", (a, stop)
+        replaced.append({"claim": answer[a:b], "replacement": new, "numbers": [c.text for c in found]})
+        out = out[:cut[0]] + new + out[cut[1]:]
+    return re.sub(r"\n{3,}", "\n\n", out).strip(), replaced[::-1]
+
+
+def left_out(replaced):
+    """The line ending an answer that without() left claims out of, with no number of its own to check."""
+    return ("(I left out a statement I couldn't confirm from the data.)" if len(replaced) == 1 else
+            "(I left out some statements I couldn't confirm from the data.)")

@@ -57,7 +57,7 @@ import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
 import mentions  # noqa: E402
 import settling  # noqa: E402
-from number_check import Claim, Evidence, Window, claims as number_claims, stated, without  # noqa: E402
+from number_check import Claim, Evidence, Window, claims as number_claims, left_out, stated, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
                    name_filters, player_ids, run_sql, tables)
@@ -260,6 +260,7 @@ NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
           " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
+NOT_CONFIRMED = "I couldn't confirm this from the data, so I won't guess."  # when leaving claims out leaves no fact
 FACT_KINDS = {"number", "word", "ordinal", "record", "date", "datetime", "month", "day", "time", "money", "percent"}
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
                   " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
@@ -554,6 +555,21 @@ class Shown:
                 found[span] = sorted(players)[:5]
         return found
 
+    def without_ids(self, answer):
+        """An answer as the number check reads it: the digits of each player ID written as an ID ('Cody Travis
+        (117179)', 'player_id 117179', '**117179**') blanked, each by a character no pattern skips, when a tool in the
+        conversation returned the player or the user gave the ID. The answer check checks IDs, against the whole
+        conversation (unreturned_ids), while the number check's window is the last two questions' results: live,
+        Cody Travis's ID, returned two questions back, was replaced as a number (docs/web-app-testing-notes.md,
+        session 20261120T050251Z-001, turns 6 and 7; decided 2026-11-20)."""
+        spans = [m.span(3) for m in ID_MENTION.finditer(answer) if (m[1] or m[2] or "").lower() not in NOT_PLAYER]
+        spans += [m.span(1) if m[1] else m.span(2) for m in BARE_ID.finditer(answer)]
+        out = answer
+        for a, b in spans:
+            if self.knows(int(answer[a:b])):
+                out = out[:a] + "\0" * (b - a) + out[b:]
+        return out
+
     def unreturned_ids(self, answer):
         """The player IDs an answer cites (cited_ids), outside its questions and code, that neither a tool nor the
         question showed."""
@@ -566,7 +582,7 @@ class Shown:
         content, _ = mentions.words(question)
         found = {"words": [w for w in content if w not in self.seen],
                  "players": self.unseen_players(answer, question),
-                 "numbers": list(dict.fromkeys(c.text for c in self.window.unsupported(answer)))}
+                 "numbers": list(dict.fromkeys(c.text for c in self.window.unsupported(self.without_ids(answer))))}
         return {kind: values for kind, values in found.items() if values}
 
     def player_claims(self, answer, question):
@@ -1129,7 +1145,7 @@ class Conversation:
                 if names or ids:
                     step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
-                flagged = self.view.window.unsupported(content)  # in every final text, an answer or not
+                flagged = self.view.window.unsupported(self.view.without_ids(content))  # in every final text
                 if strict:  # and the players no result in view returned
                     flagged = sorted(flagged + self.view.player_claims(content, question), key=lambda c: c.start)
                 flagged_texts = [c.text for c in flagged]
@@ -1150,10 +1166,12 @@ class Conversation:
                     why = ("the turn looked nothing up" if strict else "sent back once already" if numbered
                            else "no steps left" if outcome == "answered" else "not an answer")
                     step["number_check"] = {"numbers": flagged_texts, "action": f"replaced: {why}", "replaced": unconfirmed}
-                    if strict and not self.view.states_facts(content):  # nothing it states rests on a tool
-                        content = NOT_LOOKED_UP
+                    if not self.view.states_facts(content):  # no fact is left once the claims are out
+                        content = NOT_LOOKED_UP if strict else NOT_CONFIRMED
                         step["number_check"]["action"] += "; no fact left, so the whole answer"
-                    log(f"  number check: {listed(flagged_texts)} replaced, since no tool result in view holds them")
+                    else:
+                        content = f"{content}\n\n{left_out(unconfirmed)}"
+                    log(f"  number check: {listed(flagged_texts)} left out, since no tool result in view holds them")
                 trace["answer"], trace["outcome"], trace["name_swaps"] = content.strip() or None, outcome, swaps
                 trace["unreturned_names"], trace["unreturned_ids"], trace["unconfirmed"] = names, ids, unconfirmed
                 log(f"  {trace['outcome']}: {short(content, 300)}")
@@ -1396,7 +1414,8 @@ def markdown(traces, header):
                             " tool result holds. Sent back with:", "", f"> {numbers['message']}", ""]
                 else:
                     out += [f"**Number check:** it states {stated}, which no tool result holds ({numbers['action']}).", ""]
-                    out += [f"- {r['claim']!r} became {r['replacement']!r}" for r in numbers["replaced"]] + [""]
+                    out += [f"- {r['claim']!r} became {r['replacement']!r}" if r["replacement"] else
+                            f"- {r['claim']!r} was left out" for r in numbers["replaced"]] + [""]
             if s.get("meta_reply"):
                 out += ["**Reply**", "", s["meta_reply"]["reply"].strip(), "",
                         "**A reply about the answer, not an answer:** the answer it replied about is kept.", ""]

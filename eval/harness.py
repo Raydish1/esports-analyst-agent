@@ -685,7 +685,8 @@ def replayed(run_id, traces):
     for t, claims in flagged:
         out += [f"## {t['id']} seed {t['seed']}: {t['question']}", ""]
         for c in claims:
-            out += [f"- {', '.join(c['numbers'])} in {c['claim']!r}", f"  becomes {c['replacement']!r}"]
+            out += [f"- {', '.join(c['numbers'])} in {c['claim']!r}",
+                    f"  becomes {c['replacement']!r}" if c["replacement"] else "  is left out"]
         out.append("")
     if named:
         out += ["## Name filters", ""] + [f"- {t['id']} seed {t['seed']}: {f}" for t, f in named] + [""]

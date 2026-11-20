@@ -833,8 +833,9 @@ class LoopTest(Fixture):
     def test_a_player_no_result_in_view_returned_is_replaced_when_the_turn_looked_nothing_up(self):
         ask = Scripted(reply("**tike36** and megD are 2-2."), reply("**tike36** and megD are 2-2. I hope that helps!"))
         trace = react.run("what about megd and the other one", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
-        self.assertEqual(trace["answer"], "I couldn't confirm this about tike36 and the record from the data. I hope that"
-                                          " helps!")  # in the order the answer states them
+        self.assertEqual(trace["answer"], react.NOT_LOOKED_UP)  # "I hope that helps!" is no fact
+        self.assertEqual([(r["claim"], r["numbers"]) for r in trace["unconfirmed"]],
+                         [("**tike36** and megD are 2-2.", ["tike36", "2-2"])])
 
     def test_a_reply_without_facts_to_a_question_naming_nothing_needs_no_tool(self):
         self.assertEqual(react.run("thanks", self.tools, ask=Scripted(reply("Glad to help.")), log=lambda *_: None)["steps_used"], 1)
@@ -849,7 +850,7 @@ class LoopTest(Fixture):
 
     def test_an_answer_stating_a_number_no_tool_returned_goes_back_once_then_its_claim_is_replaced(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),
-                       reply("megD has 5 official results. The first was in 2020."))
+                       reply("megD has 5 official results. He has played since January 1, 2020."))
         trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
         sent, replaced = trace["steps"][1]["number_check"], trace["steps"][2]["number_check"]
         self.assertEqual((sent["numbers"], sent["action"], replaced["action"]),
@@ -858,31 +859,41 @@ class LoopTest(Fixture):
         self.assertEqual((flagged["content"], message["role"]), ("megD has 5 official results.", "user"))
         self.assertTrue(message["content"].startswith("Before this answer is final: it states '5', which no tool result"
                                                       " in this conversation holds."))
-        self.assertEqual(trace["answer"], "I couldn't confirm the number of official results from the data. The first"
-                                          " was in 2020.")  # megD's first result is from 2020
+        self.assertEqual(trace["answer"], "He has played since January 1, 2020.\n\n(I left out a statement I couldn't"
+                                          " confirm from the data.)")  # megD's first result is from 2020-01-01
         self.assertEqual(trace["unconfirmed"], [{"claim": "megD has 5 official results.", "numbers": ["5"],
-                                                 "replacement": "I couldn't confirm the number of official results from"
-                                                                " the data."}])
+                                                 "replacement": ""}])
         self.assertEqual(react.summary(trace)["number_checks"], [
             {"step": 2, "numbers": ["5"], "action": "sent back"},
             {"step": 3, "numbers": ["5"], "action": "replaced: sent back once already"}])
         page = react.markdown([trace], HEADER)
         self.assertIn("**Number check:** it states 5, which no tool result holds. Sent back with:", page)
-        self.assertIn("- 'megD has 5 official results.' became \"I couldn't confirm the number of official results from"
-                      " the data.\"", page)
+        self.assertIn("- 'megD has 5 official results.' was left out", page)
 
     def test_a_number_no_tool_returned_is_replaced_at_once_on_the_last_step_or_after_a_reply_about_the_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."))
         trace = react.run("q", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
-        self.assertEqual((trace["steps"][1]["number_check"]["action"], trace["answer"]),
-                         ("replaced: no steps left", "I couldn't confirm the number of official results from the data."))
+        self.assertEqual((trace["steps"][1]["number_check"]["action"], trace["answer"]),  # no fact left
+                         ("replaced: no steps left; no fact left, so the whole answer", react.NOT_CONFIRMED))
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 5 official results."),
                        reply("The answer is correct."))
         trace = react.run("q", self.tools, ask=ask, max_steps=3, log=lambda *_: None)
         self.assertIn(react.LAST_STEP, trace["steps"][1]["number_check"]["message"])
         self.assertEqual((trace["steps"][2]["meta_reply"]["action"], trace["steps"][2]["number_check"]["action"]),
-                         ("kept the answer it replied about", "replaced: sent back once already"))
-        self.assertEqual(trace["answer"], "I couldn't confirm the number of official results from the data.")
+                         ("kept the answer it replied about", "replaced: sent back once already; no fact left, so the"
+                                                              " whole answer"))
+        self.assertEqual(trace["answer"], react.NOT_CONFIRMED)
+
+    def test_a_player_id_written_as_an_id_is_no_number_to_check(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+                       reply(calls=[("run_sql", {"query": "SELECT 1"})]), reply("Back to it."),
+                       reply(calls=[("run_sql", {"query": "SELECT 2"})]),
+                       reply("**megD** (player_id 7) and megD (7) have 2 results."))  # live: Cody Travis (117179)
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("How many results has megd?")
+        conversation.ask("and now?")
+        trace = conversation.ask("and again?")  # megD was returned two questions back, out of the window
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), ("**megD** (player_id 7) and megD (7) have 2 results.", []))
 
     def test_a_follow_up_may_cite_a_number_an_earlier_question_returned(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
