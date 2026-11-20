@@ -290,8 +290,10 @@ META = re.compile(r"\b(?:the|my|this|that|previous|original|above)\s+(?:answer|r
                   r"|\bno\s+(?:specific\s+)?tools?\s+(?:was|were|is|are|has\s+been|have\s+been)\s+(?:called|used)\b"
                   r"|\b(?:no-tool|number|answer|lookup|result-size)\s+check\b", re.I)
 LIST_NUMBER = re.compile(r"^\s*\d+[.)](?=\s)", re.M)  # a list's own numbering: '1. A specific player's record'
-# A player named only by an ID: 'Player 147569' (not '(player 147569)', explaining a name), or '**147569**'
-LONE_ID = re.compile(r"(?<![\w(])[Pp]layer\s*#?\s*(-?\d+)(?!\w)|\*\*(-?\d{5,})\*\*")
+# A player named only by an ID: 'Player 147569', 'PlayerID 74433' or 'Player ID: 74433' (not '(player 147569)',
+# explaining a name), or '**147569**'
+LONE_ID = re.compile(r"(?<![\w(])[Pp]layer(?:[ _]?(?:ID|Id|id))?\s*[#:]?\s*(-?\d+)(?!\w)|\*\*(-?\d{5,})\*\*")
+ID_WORD = re.compile(r"[Pp]layer[ _]?(?:ID|Id|id)")
 
 
 # Talking to the model
@@ -584,7 +586,10 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
       is left as it is, a pairing for the model (decided 2026-11-19): live, 'Raydish (player_id 147569)' had capsar's
       ID, copied wrong, and became capsar in every answer after it (resolver: tools.Resolver).
     - A player named only by an ID that a tool in view returned (in_view: canonical IDs), 'Player 147569' or
-      '**147569**', gets their name (decided 2026-11-19): live, a crew battle's winners were three 'Player' numbers."""
+      '**147569**', gets their name (decided 2026-11-19): live, a crew battle's winners were three 'Player' numbers.
+      'PlayerID 74433' and 'Player ID 74433' too (2026-11-20): q05 seed 1 listed the top 10 earners so. But an ID
+      word usually cites the ID of a name written with it, so not inside parentheses or on a line naming the player
+      ('whoiskyna (formerly Kyna, player_id 135748)', 'Marckiem00 is player_id 4', 'player_id 146606 (Boomie)')."""
     names, canonical = resolver.names, resolver.canonical
     swaps, pairings = [], []
     for spelling, pid, name, shown in dict.fromkeys(resolved):
@@ -629,6 +634,11 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
         real = names.get(canonical.get(pid, pid))
         if canonical.get(pid, pid) not in in_view or not real:
             return m.group(0)
+        if ID_WORD.match(m.group(0)):
+            before = m.string[:m.start()].rpartition("\n")[2]
+            line = before + m.string[m.start():].partition("\n")[0]
+            if before.count("(") > before.count(")") or re.search(rf"(?<!\w){re.escape(real)}(?!\w)", line, re.I):
+                return m.group(0)
         swaps.append({"kind": "a player named only by ID", "from": m.group(0), "to": real, "player_id": pid})
         return real if m.group(1) else f"**{real}**"
 

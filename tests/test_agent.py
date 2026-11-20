@@ -542,6 +542,22 @@ class LoopTest(Fixture):
                                                       Names(), in_view={147569})
         self.assertEqual((answer, len(swaps), pairings), ("**capsar** beat capsar (player 147569) and **160000**.", 1, []))
 
+    def test_a_player_written_as_playerid_gets_their_name_unless_it_was_written_just_before(self):
+        class Names:
+            names = {74433: "gdsandstorm", 147982: "Zivai", 160000: "Raydish", 146606: "Boomie"}
+            canonical = {pid: pid for pid in names}
+
+            def resolve(self, name):
+                return {"status": "not_found", "candidates": []}
+        live = ("1. **PlayerID 74433** - $258,984.17\n2. Player ID: 147982 - $214,458.33\n"  # q05 seed 1, 2026-11-19
+                "3. **Raydish** - player_id 160000 - $83,825.00\n4. Zivai (formerly Godly, player_id 147982)\n"
+                "No record exists for player_id 146606 (Boomie).")  # q33 seeds 0 and 1
+        answer, swaps, _ = react.correct_names(live, [], Names(), in_view={74433, 147982, 160000, 146606})
+        self.assertEqual(answer, "1. **gdsandstorm** - $258,984.17\n2. Zivai - $214,458.33\n"
+                                 "3. **Raydish** - player_id 160000 - $83,825.00\n4. Zivai (formerly Godly, player_id 147982)\n"
+                                 "No record exists for player_id 146606 (Boomie).")
+        self.assertEqual([s["from"] for s in swaps], ["PlayerID 74433", "Player ID: 147982"])
+
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
                        reply("The answer is correct: both are players."))
