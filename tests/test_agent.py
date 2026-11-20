@@ -516,6 +516,32 @@ class LoopTest(Fixture):
         self.assertEqual((trace["answer"], trace["steps"][2]["meta_reply"]["action"]),
                          ("**Raydish** and **tike36** won 6.", "kept the answer it replied about"))
 
+    def test_a_reply_about_the_check_with_a_numbered_list_keeps_the_answer_and_never_reaches_the_user(self):
+        live = ("The answer includes numbers like **7** from earlier examples, but no specific tools were called for this"
+                " question. Are you asking about:\n1. A **specific player's record**?\n2. An event?\n3. Rankings?")
+        self.assertTrue(react.is_meta(live, "Raydish has 7 wins.", "it states 7 and 2022"))
+        self.assertFalse(react.is_meta(live + " Raydish has 9.", "Raydish has 7 wins."))  # a new figure: an answer
+        ask = Scripted(reply("Raydish has 7 wins."), reply(live), reply("Raydish has 6 official results."))
+        trace = react.run("how many wins has raydish?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["steps"][0]["no_tool_check"]["action"], trace["steps"][1]["meta_reply"]["action"],
+                          trace["steps"][1]["no_tool_check"]["action"]),
+                         ("sent back", "kept the answer it replied about", "looked up for the model"))
+        self.assertEqual(trace["answer"], "Raydish has 6 official results.")  # from the lookup the loop made
+
+    def test_a_clarifying_question_states_nothing_but_a_word_no_result_holds_still_needs_a_lookup(self):
+        asking = ('Do you mean a player\'s 2v2 record (e.g., "top 8 of the Europe Summer 2022 2v2")?\n'
+                  "- Use `event_results(event=\"...\", top=8)` for an event. Let me know!")
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply(asking))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish?")
+        trace = conversation.ask("tell me about the 2v2 record")
+        self.assertEqual((trace["answer"], trace["steps_used"], trace["steps"][0].get("no_tool_check")), (asking, 1, None))
+        ask = Scripted(reply("Do you mean CEO 2025, the fighting game event?"), reply(calls=[("resolve_event", {"name": "ceo 2025"})]),
+                       reply("No official event matches it."))
+        trace = react.run("when was ceo 2025", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["steps"][0]["no_tool_check"]["words"], ["ceo"])  # asking back isn't a way around a lookup
+
     def test_a_reply_that_gives_new_figures_after_a_check_is_a_new_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"}), ("run_sql", {"query": "SELECT 7 AS wins"})]),
                        reply("**Raydish** and **tike36** won 6."), reply("The previous answer missed one: **Raydish** won 7."))

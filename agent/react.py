@@ -57,7 +57,7 @@ import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
 import mentions  # noqa: E402
 import settling  # noqa: E402
-from number_check import Claim, Evidence, Window, claims as number_claims, without  # noqa: E402
+from number_check import Claim, Evidence, Window, claims as number_claims, stated, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, name_filters,  # noqa: E402
                    player_ids, run_sql, tables)
@@ -278,7 +278,10 @@ NUMBER = re.compile(r"(?<![A-Za-z_\d])\d+(?:[.,:/-]\d+)*")  # not the digits of 
 # A player ID written just after a name: Zivai (player_id 147982), **Impala** (ID 168635)
 AFTER_NAME = r"(?=\**\s*\((?:player[ _]?id|canonical id|id)\s*:?\s*(-?\d{2,7}))"
 # A reply that talks about an answer instead of giving one: "The answer is correct", "The response correctly cites"
-META = re.compile(r"\b(?:the|my|this|that|previous|original|above)\s+(?:answer|response|reply)\b", re.I)
+META = re.compile(r"\b(?:the|my|this|that|previous|original|above)\s+(?:answer|response|reply)\b"
+                  r"|\bno\s+(?:specific\s+)?tools?\s+(?:was|were|is|are|has\s+been|have\s+been)\s+(?:called|used)\b"
+                  r"|\b(?:no-tool|number|answer|lookup|result-size)\s+check\b", re.I)
+LIST_NUMBER = re.compile(r"^\s*\d+[.)](?=\s)", re.M)  # a list's own numbering: '1. A specific player's record'
 
 
 # Talking to the model
@@ -502,15 +505,16 @@ class Shown:
         '**Autumn**' after a result of Autumn Championships is an event's word, though Autumn! is a player."""
         asked = {normalize(w) for w in question.split()} | {normalize_full(question)}
         returned = self.returned_now | self.returned_before
-        return list(dict.fromkeys(span for span in name_spans(answer) if not NUMBERISH.fullmatch(normalize(span))
+        return list(dict.fromkeys(span for span in name_spans(stated(answer)) if not NUMBERISH.fullmatch(normalize(span))
                                   and normalize(span) not in asked and normalize(span) not in self.seen
                                   and self.resolver.called(span) and not self.resolver.called(span) & returned))
 
     def unreturned(self, answer):
         """The names in an answer (name_spans) that are only the current names of players no tool returned:
-        {name: [player IDs]}. Numbers, ordinals and words the conversation already showed don't count."""
+        {name: [player IDs]}. Numbers, ordinals and words the conversation already showed don't count, nor what the
+        answer asks or its code (number_check.stated)."""
         found = {}
-        for span in name_spans(answer):
+        for span in name_spans(stated(answer)):
             key = normalize(span)
             if len(key) < 2 or NUMBERISH.fullmatch(key) or key in self.words or normalize_full(span) in self.words:
                 continue
@@ -520,8 +524,9 @@ class Shown:
         return found
 
     def unreturned_ids(self, answer):
-        """The player IDs an answer cites (cited_ids) that neither a tool nor the question showed."""
-        return [n for n in cited_ids(answer) if abs(n) not in self.numbers]
+        """The player IDs an answer cites (cited_ids), outside its questions and code, that neither a tool nor the
+        question showed."""
+        return [n for n in cited_ids(stated(answer)) if abs(n) not in self.numbers]
 
     def ungrounded(self, question, answer):
         """What a turn that called no tool can't rest on: the content words of its question (mentions.words) that no
@@ -535,17 +540,19 @@ class Shown:
 
     def player_claims(self, answer, question):
         """Each unseen player's first mention in an answer, as a claim number_check.without can replace."""
-        out = []
+        out, said = [], stated(answer)
         for name in self.unseen_players(answer, question):
-            m = re.search(rf"(?<!\w){re.escape(name)}(?!\w)", answer)
+            m = re.search(rf"(?<!\w){re.escape(name)}(?!\w)", said)
             if m:
                 out.append(Claim("player", name, m.start(), m.end(), (name,)))
         return out
 
     def states_facts(self, answer):
-        """Whether an answer still states a fact: a number of the kinds the number check reads, or a player."""
-        return (any(c.kind in FACT_KINDS for c in number_claims(answer))
-                or any(self.resolver.called(s) and not NUMBERISH.fullmatch(normalize(s)) for s in name_spans(answer)))
+        """Whether an answer still states a fact, outside its questions and code: a number of the kinds the number
+        check reads, or a player."""
+        said = stated(answer)
+        return (any(c.kind in FACT_KINDS for c in number_claims(said))
+                or any(self.resolver.called(s) and not NUMBERISH.fullmatch(normalize(s)) for s in name_spans(said)))
 
 
 def same_spelling(spelling, name):
@@ -596,11 +603,15 @@ def correct_names(answer, resolved, names):
     return answer, swaps
 
 
-def is_meta(reply, answer):
-    """Whether a reply to a check talks about the answer instead of giving one: it refers to an answer or a response,
-    and states no number the answer it replies about didn't. In the 2026-11-08 evaluation, q03 and q30 ended on
-    such replies ("The answer is correct"), losing the answer itself."""
-    return bool(META.search(reply)) and not set(NUMBER.findall(reply)) - set(NUMBER.findall(answer))
+def is_meta(reply, answer, message=""):
+    """Whether a reply to a check talks about the answer or the check instead of giving an answer: it refers to an
+    answer, a response or a check, or says no tools were called, and states no number beyond the answer's, the check
+    message's and its own list numbering. In the 2026-11-08 evaluation, q03 and q30 ended on such replies ("The
+    answer is correct"), losing the answer itself; live, "The answer includes numbers like **8** (top 8) and **2022**
+    (year) from earlier examples, but no specific tools were called", with a list numbered 1 to 3, was the answer
+    (docs/web-app-testing-notes.md, finding 4)."""
+    new = set(NUMBER.findall(LIST_NUMBER.sub(" ", reply))) - set(NUMBER.findall(answer)) - set(NUMBER.findall(message))
+    return bool(META.search(reply)) and not new
 
 
 def unreturned(names, ids):
@@ -835,10 +846,10 @@ class Conversation:
             if not calls:
                 outcome = ending(content, step["done_reason"])
                 swaps = []
-                if outcome == "answered" and sent_back and is_meta(content, sent_back[0]):
+                if outcome == "answered" and sent_back and is_meta(content, *sent_back[::2]):
                     step["meta_reply"] = {"reply": content, "action": "kept the answer it replied about"}
                     log("  a reply about the answer, not an answer: the answer it replied about is kept")
-                    content, swaps = sent_back
+                    content, swaps, _ = sent_back
                 elif outcome == "answered":
                     content, swaps = correct_names(content, resolved, self.tools.resolver.names)
                     if swaps:
@@ -850,7 +861,7 @@ class Conversation:
                         self.current += [{"role": "assistant", "content": content, "thinking": thinking},
                                          {"role": "user", "content": TOO_BIG_ANSWER}]
                         log("  result-size check: answered right after a result too large to show; sent back")
-                        sent_back = (content, swaps)
+                        sent_back = (content, swaps, TOO_BIG_ANSWER)
                         self.finished(step)
                         continue
                     step["size_check"] = {"action": "kept: no steps left to query again"}
@@ -862,7 +873,7 @@ class Conversation:
                         self.current += [{"role": "assistant", "content": content, "thinking": thinking},
                                          {"role": "user", "content": message}]
                         log(f"  lookup check: answered right after no row had {' and '.join(missing)}; sent back")
-                        sent_back = (content, swaps)
+                        sent_back = (content, swaps, message)
                         self.finished(step)
                         continue
                     step["lookup_check"] = {"conditions": missing, "action": "kept: sent back once already" if missed
@@ -877,7 +888,7 @@ class Conversation:
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
                                      {"role": "user", "content": message}]
                     log(f"  no-tool check: no tool was called, and nothing in view holds {gapped(gap)}; sent back")
-                    sent_back = (content, swaps)
+                    sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
                 lookups = (mentions.lookups(gap["words"], mentions.words(question)[1], self.tools.resolver)
@@ -908,7 +919,7 @@ class Conversation:
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
                                      {"role": "user", "content": message}]
                     log(f"  answer check: it {unreturned(names, ids)}, which no tool returned; sent back")
-                    sent_back = (content, swaps)
+                    sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
                 if names or ids:
@@ -917,16 +928,16 @@ class Conversation:
                 flagged = self.shown.window.unsupported(content)  # in every final text, an answer or not
                 if strict:  # and the players no result in view returned
                     flagged = sorted(flagged + self.shown.player_claims(content, question), key=lambda c: c.start)
-                stated = [c.text for c in flagged]
+                flagged_texts = [c.text for c in flagged]
                 if flagged and outcome == "answered" and not numbered and not strict and number < max_steps:
-                    numbered, message = True, NUMBERS.format(numbers=listed([repr(n) for n in stated]))
+                    numbered, message = True, NUMBERS.format(numbers=listed([repr(n) for n in flagged_texts]))
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
-                    step["number_check"] = {"numbers": stated, "action": "sent back", "message": message}
+                    step["number_check"] = {"numbers": flagged_texts, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
                                      {"role": "user", "content": message}]
-                    log(f"  number check: it states {listed(stated)}, which no tool result holds; sent back")
-                    sent_back = (content, swaps)
+                    log(f"  number check: it states {listed(flagged_texts)}, which no tool result holds; sent back")
+                    sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
                 unconfirmed = []
@@ -934,11 +945,11 @@ class Conversation:
                     content, unconfirmed = without(content, flagged)
                     why = ("the turn looked nothing up" if strict else "sent back once already" if numbered
                            else "no steps left" if outcome == "answered" else "not an answer")
-                    step["number_check"] = {"numbers": stated, "action": f"replaced: {why}", "replaced": unconfirmed}
+                    step["number_check"] = {"numbers": flagged_texts, "action": f"replaced: {why}", "replaced": unconfirmed}
                     if strict and not self.shown.states_facts(content):  # nothing it states rests on a tool
                         content = NOT_LOOKED_UP
                         step["number_check"]["action"] += "; no fact left, so the whole answer"
-                    log(f"  number check: {listed(stated)} replaced, since no tool result in view holds them")
+                    log(f"  number check: {listed(flagged_texts)} replaced, since no tool result in view holds them")
                 trace["answer"], trace["outcome"], trace["name_swaps"] = content.strip() or None, outcome, swaps
                 trace["unreturned_names"], trace["unreturned_ids"], trace["unconfirmed"] = names, ids, unconfirmed
                 log(f"  {trace['outcome']}: {short(content, 300)}")

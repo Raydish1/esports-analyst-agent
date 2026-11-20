@@ -39,7 +39,7 @@ sys.path.insert(0, str(ROOT / "ingest"))
 sys.path.insert(0, str(ROOT / "eval"))
 import harness  # noqa: E402
 import react  # noqa: E402
-from number_check import Evidence, claims  # noqa: E402
+from number_check import Evidence, claims, stated  # noqa: E402
 from result_checks import CHECKS as QUESTION_CHECKS, matches  # noqa: E402
 from review_questions import flat, table  # noqa: E402
 from tools import connect  # noqa: E402
@@ -153,9 +153,10 @@ def folded(text):
 
 
 def stated_numbers(answer):
-    """The numbers an answer states (number_check.claims), as whole numbers: '5 sets', '2-3', 'five'."""
+    """The numbers an answer states (number_check.claims), as whole numbers: '5 sets', '2-3', 'five'. What it asks
+    and its code don't count (number_check.stated), as for the agent's checks."""
     found = set()
-    for c in claims(answer):
+    for c in claims(stated(answer)):
         if c.kind == "word":
             found.add(c.value[0])
         elif c.kind in ("number", "ordinal", "record", "scope", "category"):
@@ -167,7 +168,7 @@ def grounded(turn, on):
     if not on or turn.trace.get("outcome") == "suggestions" or not turn.answer:
         return True, ""
     numbers = [c.text for c in turn.evidence.unsupported(turn.answer)]
-    ids = [str(n) for n in react.cited_ids(turn.answer) if float(abs(n)) not in turn.evidence.values]
+    ids = [str(n) for n in react.cited_ids(stated(turn.answer)) if float(abs(n)) not in turn.evidence.values]
     bad = numbers + [f"player_id {i}" for i in ids if i not in numbers]
     return not bad, f"not in the window: {', '.join(bad)}" if bad else ""
 
