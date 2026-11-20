@@ -5,6 +5,24 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
 
 ## For the agent session
 
+### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
+
+- **Seen:** megD's biggest records (`20261119T233544Z-002`, turns 15–17). No turn called a tool. Turn 15 wrote a
+  `v_head_to_head_1v1` query *into its answer* as text, never ran it, and stated results; the no-tool check sent it back,
+  the model replied that the facts came from earlier results, and the check kept it. Turns 16 and 17 did the same.
+- **What was invented, against eval-v1:**
+  - megD against Zivai: "7 sets, 5 won". Really 5 sets, 2–3 (games 8–12).
+  - megD against Raydish: "3 sets, 2 won", with Raydish as player 147569 (that's capsar; Raydish is 160000). Really 4
+    sets, 2–2 (games 8–9): Raydish 3–1 at NA Summer Championship 2022, megD 3–1 at NA Autumn Championship 2023, megD 3–2
+    at Trial of Baldr NA (Moose Wars) 2024, Raydish 3–1 at Winter Championship NA 2025.
+  - The number check caught "15–12" and "15–10" in turn 17; the rest passed, because numbers the model had written in
+    earlier answers count as conversation evidence.
+- **Also:** "biggest records" wasn't read as head-to-head records until the user said so (turn 14).
+- **What it shows:** the no-tool check's "reply the same if the facts come from earlier tool results" lets a model
+  that never looked anything up keep its answer by claiming it did. Fix 1 has to cover this: a fact answer in a turn
+  with no tool call is checked against the earlier turns' actual tool results, not the model's say-so, and an answer's
+  own earlier numbers never count as evidence.
+
 ### 1. An answer that looks nothing up survives the no-tool check (decided: fix it in code)
 
 - **Seen:** "when was ceo 2025" (`20261119T233544Z-002`, turn 3). The model decided from its own knowledge that CEO isn't
