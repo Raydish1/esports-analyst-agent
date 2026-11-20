@@ -200,6 +200,7 @@ Answering
   table returns, not the one the question used. Name only players, and cite only player IDs, that a tool returned.
 - State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
   official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
+- Name a set or a result by its event, written short (BCX 2022, Winter Royale 2023), not by its date.
 - The first time you name a player the question named, use the display resolve_player gave, such as 'Zivai (formerly
   Godly)', and don't explain how the name was matched. If resolve_player was ambiguous, add one short clause saying
   which player you took.
