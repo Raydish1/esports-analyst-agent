@@ -1,0 +1,415 @@
+# Multi-turn test conversations, v1: what the user typed in the web app's live mode on 2026-11-19
+# (data/experiments/web/20261119T233544Z-002 and -003), cut into conversations, with expected facts computed from the
+# frozen snapshot eval-v1. Review them in conversations-review.md, which `python eval/conversations.py review` makes
+# from this file with each query's result; edit this file, never the page. Played and scored by eval/conversations.py.
+#
+# A held-out set in the same format goes in a file of its own, with `heldout = true` at the top: the commands then
+# print and write nothing of its text, only its ids, turn numbers and checks.
+#
+# Each conversation has:
+#   id        c1, c2, ...: stable, never reused.
+#   title     what it is, in a few words.
+#   source    the transcript and turns it comes from.
+#   measures  what it tests: the fix it targets, or "control" for one that went right and must stay right.
+#   verified  filled in by the person verifying: "" until checked, then "yes" (or "yes: ..."), or "no: ..." /
+#             "partly: ..." with what's right.
+#   turn      the user's messages, in order, each with:
+#     say       the message, as the user typed it.
+#     expect    what a right answer says, written from the queries' results: for the hand verdict.
+#     query     the SQL behind expect, each with its purpose.
+#     checks, each optional, read on the turn's window: this turn's tool results and the previous turn's, which is
+#     what the model has in front of it (react.Conversation keeps older turns as question and answer only):
+#       rows         each pattern is held by a row of the window's results. Values match as stage 2 matches them:
+#                    numbers to two decimals, text equal to a cell or inside it (four characters or more). A list in
+#                    a pattern is alternatives, such as [142100, "megD"]. A player_id counts as its name once a tool
+#                    returned the name.
+#       rows_any     one of the patterns is.
+#       window_has   each text is in the window's tool results (a note, say).
+#       check        an evaluation set question's stage 2 check passes on the window's results ("q38").
+#       calls        the turn calls each of these tools.
+#       players      the turn's queries and template calls that ran use each of these player_ids.
+#       not_players  they use none of these.
+#       suggests     the turn ends in suggestions, this player first.
+#       says         the answer has each of these texts (any case).
+#       says_any     the answer has one of them.
+#       not_says     the answer has none of them.
+#       says_numbers the answer states each of these numbers.
+#       grounded     on unless false: every number the answer states, and every player_id it cites, is in the
+#                    window or its questions, by the number check's rules (agent/number_check.py).
+#       named        on unless false: no player is named only by ID ("Player 147569").
+
+snapshot = "data/db/eval/eval-v1.sqlite"
+build = "20261007T230135Z"
+
+[[conversation]]
+id = "c1"
+title = "megD's biggest records"
+source = "20261119T233544Z-002, turns 14-18"
+measures = ["fix 1: no turn keeps records it never looked up", "fix 2: 'he' is megD", "fix 4: Raydish isn't renamed capsar"]
+verified = ""
+
+[[conversation.turn]]
+say = "whats the biggest record megd has"
+expect = """
+Ambiguous: a record can be a result or a head-to-head. megD's official wins are 2, both counted as 1v1: the Summer \
+Championship - North America 2026 - 1v1 (2026-07-19) and the Eternal Sports Crew Battle Championship 2026 - North \
+America (2026-08-30), a crew battle. megD's head-to-head with the most sets is against luna: 18 sets, 6-12. A right \
+answer says which reading it took, or asks.
+"""
+
+[[conversation.turn.query]]
+purpose = "megD's official wins"
+sql = '''
+SELECT start_date, tournament_name, mode, format FROM v_official_wins WHERE player_id = 142100 ORDER BY start_time
+'''
+
+[[conversation.turn]]
+say = "i meant biggest records vs other players, like set/game count"
+expect = """
+megD's 1v1 head-to-heads with the most sets: luna 18 (megD 6-12, games 26-42), bestjava 10 (3-7, 15-23), STING RAY \
+9 (6-3, 20-13), then cosolix (5-2) and Impala (1-6) with 7 each.
+"""
+rows_any = [[[51494, "luna"], 18, 6, 12]]
+
+[[conversation.turn.query]]
+purpose = "megD's 1v1 head-to-heads, the most sets first"
+sql = '''
+SELECT h.opponent_id, p.name, h.matches, h.wins, h.losses, h.games_won, h.games_lost
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.opponent_id
+WHERE h.player_id = 142100 ORDER BY h.matches DESC, h.wins DESC LIMIT 5
+'''
+
+[[conversation.turn]]
+say = "he doesnt have big records vs raydish or java or guichabou etc?"
+expect = """
+"he" is megD, and "java" is bestjava. megD's 1v1 records against them: Raydish 2-2 in 4 sets (games 8-9), bestjava \
+3-7 in 10 (15-23), and Pink | Guichabou 2-1 in 3 (8-4).
+"""
+rows = [[[160000, "Raydish"], 4, 2], [[145913, "bestjava"], 10, 3, 7], [[142284, "Guichabou"], 3, 2, 1]]
+
+[[conversation.turn.query]]
+purpose = "megD against Raydish, bestjava and Pink | Guichabou"
+sql = '''
+SELECT h.opponent_id, p.name, h.matches, h.wins, h.losses, h.games_won, h.games_lost
+FROM v_head_to_head_1v1 h JOIN players p ON p.player_id = h.opponent_id
+WHERE h.player_id = 142100 AND h.opponent_id IN (160000, 145913, 142284)
+'''
+
+[[conversation.turn]]
+say = "what about megd vs raydish"
+expect = """
+megD and Raydish are 2-2 in 4 1v1 sets (games 8-9): Raydish 3-1 at the North America - Summer Championship 2022, \
+megD 3-1 at the North America - Autumn Championship 2023, megD 3-2 at Trial of Baldr - North America (Moose Wars) \
+in 2024, and Raydish 3-1 at the Winter Championship - North America 2025. In 2v2, Raydish's teams won all 3 of their \
+sets against megD's.
+"""
+rows = [[[142100, "megD"], [160000, "Raydish"], 4, 2]]
+not_says = ["147569", "capsar"]
+
+[[conversation.turn.query]]
+purpose = "megD's 1v1 record against Raydish"
+sql = '''
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost, unscored_matches
+FROM v_head_to_head_1v1 WHERE player_id = 142100 AND opponent_id = 160000
+'''
+
+[[conversation.turn.query]]
+purpose = "their four 1v1 sets"
+sql = '''
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games FROM v_sets_1v1
+WHERE winner_id = 142100 AND loser_id = 160000
+UNION ALL
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games FROM v_sets_1v1
+WHERE winner_id = 160000 AND loser_id = 142100
+ORDER BY start_date
+'''
+
+[[conversation.turn.query]]
+purpose = "their teams' 2v2 sets: how many, and how many Raydish's side won"
+sql = '''
+SELECT COUNT(*) AS sets, SUM(a.won) AS raydish_side_won FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+WHERE a.player_id = 160000 AND b.player_id = 142100 AND a.mode = '2v2'
+'''
+
+[[conversation.turn]]
+say = "show head to head megd vs raydish in a graphic"
+expect = """
+The same 2-2 record in 4 sets (games 8-9). The page draws its head-to-head card only from this turn's own \
+head_to_head call, so the turn must make one.
+"""
+calls = ["head_to_head"]
+players = [142100, 160000]
+rows = [[[142100, "megD"], [160000, "Raydish"], 4, 2]]
+not_says = ["147569", "capsar"]
+
+[[conversation]]
+id = "c2"
+title = "picking a suggestion"
+source = "20261119T233544Z-003, turns 1-2"
+measures = ["fix 2: a reply to suggestions answers the original question with the chosen player"]
+verified = ""
+
+[[conversation.turn]]
+say = "whats megd and raydishes record in 1v1"
+expect = """
+megD resolves (142100), but "raydishes" matches no player exactly, so the agent suggests the closest names instead \
+of guessing: Raydish (160000) first, then Radses and radish.
+"""
+suggests = 160000
+
+[[conversation.turn.query]]
+purpose = "the players named Raydish, Radses and radish, with their official results"
+sql = '''
+SELECT p.player_id, p.name, COUNT(r.event_id) AS results FROM players p LEFT JOIN v_results r USING (player_id)
+WHERE p.player_id IN (160000, 24, 169374) GROUP BY p.player_id ORDER BY results DESC
+'''
+
+[[conversation.turn]]
+say = "the first one"
+expect = """
+The user picked Raydish: megD and Raydish's 1v1 record, 2-2 in 4 sets (games 8-9), the sets as in c1. Nothing about \
+Addymestic, the worked example the bare reply retrieved.
+"""
+players = [142100, 160000]
+not_players = [115695, 222222]
+rows = [[[142100, "megD"], [160000, "Raydish"], 4, 2]]
+not_says = ["Addymestic"]
+
+[[conversation.turn.query]]
+purpose = "megD's 1v1 record against Raydish"
+sql = '''
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 142100 AND opponent_id = 160000
+'''
+
+[[conversation]]
+id = "c3"
+title = "the 2v2 follow-up"
+source = "20261119T233544Z-002, turns 6-7"
+measures = ["fix 2: a follow-up without names continues the previous question", "fix 3: no clarifying question sent back as an answer", "fix 6: sets named by their events"]
+verified = ""
+
+[[conversation.turn]]
+say = "whats raydish's record with kyna"
+expect = """
+Kyna is whoiskyna (formerly Kyna). Raydish leads 5-2 in 7 1v1 sets (games 17-10): whoiskyna 3-2 at BCX 2022; \
+Raydish 3-1 and 3-0 at the Winter Royale 2023, 3-0 at the Spring Royale 2024, and 3-1 and 3-2 at the Autumn Royale \
+2024; whoiskyna 3-0 at BCX 2024. Each set is named by its event, not its date. In 2v2, their teams met in 5 sets, \
+Raydish's side 2-3.
+"""
+rows = [[[160000, "Raydish"], [135748, "whoiskyna"], 7, 5, 2]]
+says_any = ["Royale", "BCX", "World Championship Expo"]
+
+[[conversation.turn.query]]
+purpose = "Raydish's 1v1 record against whoiskyna"
+sql = '''
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 160000 AND opponent_id = 135748
+'''
+
+[[conversation.turn.query]]
+purpose = "their seven 1v1 sets"
+sql = '''
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games FROM v_sets_1v1
+WHERE winner_id = 160000 AND loser_id = 135748
+UNION ALL
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games FROM v_sets_1v1
+WHERE winner_id = 135748 AND loser_id = 160000
+ORDER BY start_date
+'''
+
+[[conversation.turn]]
+say = "tell me about the 2v2 record"
+expect = """
+It continues Raydish and whoiskyna: in 2v2, Raydish's teams and whoiskyna's teams met in 5 sets, and Raydish's side \
+won 2 and lost 3. The previous turn's head_to_head result already holds it, so no question back.
+"""
+window_has = ["met in 5 sets"]
+says_numbers = [5, 2, 3]
+
+[[conversation.turn.query]]
+purpose = "their teams' 2v2 sets: how many, and how many Raydish's side won"
+sql = '''
+SELECT COUNT(*) AS sets, SUM(a.won) AS raydish_side_won FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+WHERE a.player_id = 160000 AND b.player_id = 135748 AND a.mode = '2v2'
+'''
+
+[[conversation]]
+id = "c4"
+title = "CEO 2025"
+source = "20261119T233544Z-002, turns 2-4"
+measures = ["fix 1: an event is looked up, never denied from memory"]
+verified = ""
+
+[[conversation.turn]]
+say = "what did raydish get in autumn 2022"
+expect = """
+At the North America - Autumn Championship 2022, Raydish placed 5th in 1v1 (2022-09-25) and 13th in 2v2 \
+(2022-09-18).
+"""
+rows = [["Autumn Championship 2022", 5], ["Autumn Championship 2022", 13]]
+
+[[conversation.turn.query]]
+purpose = "Raydish's results at the 2022 Autumn Championships"
+sql = '''
+SELECT start_date, tournament_name, event_name, mode, placement FROM v_results
+WHERE player_id = 160000 AND start_date LIKE '2022%' AND tournament_name LIKE '%Autumn Championship%'
+ORDER BY start_time
+'''
+
+[[conversation.turn]]
+say = "when was ceo 2025"
+expect = """
+CEO 2025's Brawlhalla events: the Doubles (2v2) began on 2025-06-13 and the Singles (1v1) on 2025-06-14. Saying \
+CEO isn't a Brawlhalla event, without looking it up, is wrong.
+"""
+rows = [["CEO 2025", "2025-06-13"], ["CEO 2025", "2025-06-14"]]
+says_any = ["June 13", "June 14", "2025-06-13", "2025-06-14", "13 June", "14 June"]
+
+[[conversation.turn.query]]
+purpose = "CEO 2025's events"
+sql = '''
+SELECT event_id, tournament_name, event_name, start_date, mode FROM v_events
+WHERE tournament_name LIKE 'CEO 2025%' ORDER BY start_date
+'''
+
+[[conversation.turn]]
+say = "who got 2nd at ceo 2025"
+expect = """
+2nd at CEO 2025: BBBalloonBoy in the Singles (1v1), and BBBalloonBoy and Raydish together in the Doubles (2v2).
+"""
+rows = [[[149305, "BBBalloonBoy"], 2], [[160000, "Raydish"], 2]]
+says = ["BBBalloonBoy"]
+
+[[conversation.turn.query]]
+purpose = "the 2nd places at CEO 2025"
+sql = '''
+SELECT r.event_name, r.mode, r.player_id, p.name, r.placement FROM v_results r JOIN players p USING (player_id)
+WHERE r.event_id IN (SELECT event_id FROM v_events WHERE tournament_name LIKE 'CEO 2025%') AND r.placement = 2
+'''
+
+[[conversation]]
+id = "c5"
+title = "the crew battles"
+source = "20261119T233544Z-002, turns 8-10"
+measures = ["fix 5: 'cb' found by a retry the agent makes itself", "fix 4: every player named, not numbered"]
+verified = ""
+
+[[conversation.turn]]
+say = "do you know about the cb tournament in 2022"
+expect = """
+"cb" is crew battle: the 2022 Crew Battle Invitationals, one per region, crew battles counted as 1v1: South America \
+(2022-03-18), Europe (2022-03-19) and North America (2022-03-20). The agent finds them without the user spelling \
+"cb" out.
+"""
+rows = [["South America - Crew Battle Invitational"], ["Europe - Crew Battle Invitational"], ["North America - Crew Battle Invitational"]]
+
+[[conversation.turn.query]]
+purpose = "the 2022 Crew Battle Invitationals"
+sql = '''
+SELECT event_id, tournament_name, event_name, start_date, format FROM v_events
+WHERE tournament_name LIKE '%Crew Battle Invitational%' AND start_date LIKE '2022%' ORDER BY start_date
+'''
+
+[[conversation.turn]]
+say = "i meant the crew battle tournament in 2022"
+expect = "The same three invitationals, if the first turn didn't find them; if it did, the same answer again."
+rows = [["South America - Crew Battle Invitational"], ["Europe - Crew Battle Invitational"], ["North America - Crew Battle Invitational"]]
+
+[[conversation.turn.query]]
+purpose = "the 2022 Crew Battle Invitationals"
+sql = '''
+SELECT event_id, tournament_name, event_name, start_date, format FROM v_events
+WHERE tournament_name LIKE '%Crew Battle Invitational%' AND start_date LIKE '2022%' ORDER BY start_date
+'''
+
+[[conversation.turn]]
+say = "tell me about the north america one"
+expect = """
+The North America - Crew Battle Invitational (2022-03-20), each crew on one row: 1st Boomie, antireplay and capsar; \
+2nd Anon Alex, Phazon and Raydish; 3rd Cody Travis, Zinquer and experiencedoa. Every player named, none by ID.
+"""
+rows = [[[146606, "Boomie"], 1], [[158406, "antireplay"], 1], [[147569, "capsar"], 1]]
+says = ["Boomie", "antireplay", "capsar"]
+
+[[conversation.turn.query]]
+purpose = "the NA invitational's top 3 crews"
+sql = '''
+SELECT r.placement, r.player_id, p.name FROM v_results r JOIN players p USING (player_id)
+WHERE r.event_id = 'tournament/north-america-crew-battle-invitational/event/brawlhalla-crew-battle-3v3'
+AND r.placement <= 3 ORDER BY r.placement, p.name
+'''
+
+[[conversation]]
+id = "c6"
+title = "Raydish and megD, then a stat card"
+source = "20261119T233544Z-003, turns 3-4"
+measures = ["turn 1: control", "turn 2 failed live, and no fix targets it: player_results with mode 1v1 and top 1 gave Raydish's wins alone, and the answer said he has no 2v2 results"]
+verified = ""
+
+[[conversation.turn]]
+say = "whats raydish and megd's record"
+expect = """
+Raydish and megD are 2-2 in 4 1v1 sets (games 9-8 from Raydish's side), the sets as in c1. In 2v2, Raydish's teams \
+won all 3 of their sets against megD's.
+"""
+rows = [[[160000, "Raydish"], [142100, "megD"], 4, 2]]
+
+[[conversation.turn.query]]
+purpose = "Raydish's 1v1 record against megD"
+sql = '''
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 160000 AND opponent_id = 142100
+'''
+
+[[conversation.turn]]
+say = "raydish lifetime stat card"
+expect = """
+Raydish's official results: 98, 55 in 1v1 and 43 in 2v2; 6 wins, all 1v1; 22 medals (15 and 7); 43 top 8s (27 and \
+16); best 1st in 1v1 and 2nd in 2v2. The page's lifetime card comes from player_results.
+"""
+calls = ["player_results"]
+players = [160000]
+rows_any = [[[160000, "Raydish"], "1v1", 55], [[160000, "Raydish"], "1v1 and 2v2", 98]]
+
+[[conversation.turn.query]]
+purpose = "Raydish's results by mode: results, wins, medals, top 8s, best"
+sql = '''
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 160000 GROUP BY mode
+'''
+
+[[conversation]]
+id = "c7"
+title = "three standalone questions"
+source = "20261119T233544Z-002, turns 11-13 (the first two are q38 and q06, word for word)"
+measures = ["control"]
+verified = ""
+
+[[conversation.turn]]
+say = "rank the top 5 players by official 1v1 wins"
+expect = "As q38's verified answer in questions.toml."
+check = "q38"
+
+[[conversation.turn]]
+say = "Who has megd played with in 2v2 tournaments, and how did they place?"
+expect = "As q06's verified answer in questions.toml."
+check = "q06"
+
+[[conversation.turn]]
+say = "has megd won a tournament"
+expect = """
+Yes: two official events, both counted as 1v1, the Summer Championship - North America 2026 - 1v1 (2026-07-19) and \
+the Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle. No 2v2 wins.
+"""
+rows = [["Summer Championship - North America 2026"], ["Eternal Sports Crew Battle Championship 2026"]]
+
+[[conversation.turn.query]]
+purpose = "megD's official wins"
+sql = '''
+SELECT player_id, start_date, tournament_name, mode, format FROM v_official_wins WHERE player_id = 142100
+ORDER BY start_time
+'''
