@@ -434,7 +434,7 @@ id = "c8"
 title = "Cody Travis and Phazon after a 2v2 ranking"
 source = "20261120T050251Z-001, turns 3-7"
 measures = ["finding 8: 'what about X and Y?' continues the ranking", "finding 7: a duo's wins together", "finding 9: the card the page showed", "finding 10: a question about the agent's own answer is re-checked, its words never looked up"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "top 5 2v2 players in brawlhalla history"
@@ -568,7 +568,7 @@ id = "c9"
 title = "Mojakin's stats, picked from suggestions"
 source = "20261120T050251Z-001, turns 8-9"
 measures = ["finding 16: a player's stats from one call", "finding 15: no answer invented, then gutted by replacements"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "what are mojakins stats"
@@ -622,7 +622,7 @@ id = "c10"
 title = "megD's partners, then the count disputed"
 source = "20261120T050251Z-003, turns 4-5 (turn 1 is q06, word for word)"
 measures = ["finding 12: a player's partners from a template", "findings 10 and 12: an answer the user disputes is checked again"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "Who has megd played with in 2v2 tournaments, and how did they place?"
@@ -652,7 +652,7 @@ id = "c11"
 title = "volst's stats"
 source = "20261120T050251Z-003 turn 6 and -004 turn 1: the same question, two wrong answers"
 measures = ["finding 16: a player's stats from one call", "finding 17: event 'all' is no filter"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "volst stats"
@@ -696,7 +696,7 @@ id = "c12"
 title = "kyna vs yuz, the biggest head-to-head, then kyna vs yuz again"
 source = "20261120T050251Z-004, turns 5-7"
 measures = ["finding 19: a note's 'won 11 and lost 11' supports 11-11", "finding 14: 'two' isn't looked up as a player", "finding 13: the players the question names, not the previous turn's"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "kyna vs yuz head to head"
@@ -766,7 +766,7 @@ id = "c13"
 title = "the most medals, then dragon"
 source = "20261120T050251Z-005, turns 1-3"
 measures = ["turn 1: control", "finding 18: a name several players share exactly, with no clear cut, ends in suggestions", "turn 3: a candidate picked by its name, punctuation and all"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "top 5 players with the most medals"

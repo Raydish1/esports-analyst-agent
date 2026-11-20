@@ -6,7 +6,7 @@ Made by `python eval/conversations.py review` from [`conversations.toml`](conver
 
 **To verify:** check each turn's expected answer against what you know, then fill in `verified` for its conversation in `conversations.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the command to update this page.
 
-**Verified:** 7 of 13.
+**Verified:** 13 of 13.
 
 | Id | Conversation | Turns | Measures | Verified |
 |---|---|---|---|---|
@@ -17,12 +17,12 @@ Made by `python eval/conversations.py review` from [`conversations.toml`](conver
 | [c5](#c5) | the crew battles | 3 | fix 5: 'cb' found by a retry the agent makes itself; fix 4: every player named, not numbered | yes |
 | [c6](#c6) | Raydish and megD, then a stat card | 2 | turn 1: control; turn 2 failed live, and no fix targets it: player_results with mode 1v1 and top 1 gave Raydish's wins alone, and the answer said he has no 2v2 results | yes |
 | [c7](#c7) | three standalone questions | 3 | control | yes |
-| [c8](#c8) | Cody Travis and Phazon after a 2v2 ranking | 5 | finding 8: 'what about X and Y?' continues the ranking; finding 7: a duo's wins together; finding 9: the card the page showed; finding 10: a question about the agent's own answer is re-checked, its words never looked up |  |
-| [c9](#c9) | Mojakin's stats, picked from suggestions | 2 | finding 16: a player's stats from one call; finding 15: no answer invented, then gutted by replacements |  |
-| [c10](#c10) | megD's partners, then the count disputed | 2 | finding 12: a player's partners from a template; findings 10 and 12: an answer the user disputes is checked again |  |
-| [c11](#c11) | volst's stats | 1 | finding 16: a player's stats from one call; finding 17: event 'all' is no filter |  |
-| [c12](#c12) | kyna vs yuz, the biggest head-to-head, then kyna vs yuz again | 3 | finding 19: a note's 'won 11 and lost 11' supports 11-11; finding 14: 'two' isn't looked up as a player; finding 13: the players the question names, not the previous turn's |  |
-| [c13](#c13) | the most medals, then dragon | 3 | turn 1: control; finding 18: a name several players share exactly, with no clear cut, ends in suggestions; turn 3: a candidate picked by its name, punctuation and all |  |
+| [c8](#c8) | Cody Travis and Phazon after a 2v2 ranking | 5 | finding 8: 'what about X and Y?' continues the ranking; finding 7: a duo's wins together; finding 9: the card the page showed; finding 10: a question about the agent's own answer is re-checked, its words never looked up | yes |
+| [c9](#c9) | Mojakin's stats, picked from suggestions | 2 | finding 16: a player's stats from one call; finding 15: no answer invented, then gutted by replacements | yes |
+| [c10](#c10) | megD's partners, then the count disputed | 2 | finding 12: a player's partners from a template; findings 10 and 12: an answer the user disputes is checked again | yes |
+| [c11](#c11) | volst's stats | 1 | finding 16: a player's stats from one call; finding 17: event 'all' is no filter | yes |
+| [c12](#c12) | kyna vs yuz, the biggest head-to-head, then kyna vs yuz again | 3 | finding 19: a note's 'won 11 and lost 11' supports 11-11; finding 14: 'two' isn't looked up as a player; finding 13: the players the question names, not the previous turn's | yes |
+| [c13](#c13) | the most medals, then dragon | 3 | turn 1: control; finding 18: a name several players share exactly, with no clear cut, ends in suggestions; turn 3: a candidate picked by its name, punctuation and all | yes |
 
 <a id="c1"></a>
 
@@ -635,7 +635,7 @@ FROM v_team_results WHERE player_id = 117179 AND partner_id = 147522
 |---|---|---|---|
 | 117179 | 147522 | 24 | 4 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c9"></a>
 
@@ -699,7 +699,7 @@ ORDER BY start_time DESC LIMIT 1
 |---|---|---|---|---|
 | 2026-09-27 | Autumn Championship - North America 2026 - 2v2 | NULL | 2v2 | 65 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c10"></a>
 
@@ -749,7 +749,7 @@ WHERE t.player_id = 142100 GROUP BY t.partner_id ORDER BY events DESC, best
 | 113714 | iLLu | 1 | 25 | 0 |
 | 162681 | .kira | 1 | 25 | 0 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c11"></a>
 
@@ -800,7 +800,7 @@ SELECT * FROM (SELECT 'latest', start_date, tournament_name, mode, placement FRO
 | top 8 | 2026-09-20 | Autumn Championship - North America 2026 - 1v1 | 1v1 | 5 |
 | latest | 2026-09-27 | Autumn Championship - North America 2026 - 2v2 | 2v2 | 13 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c12"></a>
 
@@ -876,7 +876,7 @@ FROM v_head_to_head_1v1 WHERE player_id = 135748 AND opponent_id = 73254
 |---|---|---|---|---|---|---|
 | 135748 | 73254 | 34 | 17 | 17 | 65 | 63 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c13"></a>
 
@@ -957,4 +957,4 @@ SELECT player_id, COUNT(*) AS results, SUM(placement <= 8) AS top8s FROM v_resul
 |---|---|---|
 | 88841 | 41 | 9 |
 
-**Verified:** not yet
+**Verified:** yes
