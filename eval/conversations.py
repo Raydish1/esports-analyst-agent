@@ -277,8 +277,15 @@ def score(data, records, names):
 # Playing
 
 def play(spec, conversation):
-    """A conversation's turns, each the trace react.Conversation.ask returns, numbered."""
-    return [{"turn": n, **conversation.ask(turn["say"])} for n, turn in enumerate(spec["turn"], 1)]
+    """A conversation's turns, each the trace react.Conversation.ask returns, numbered. After a turn with `shown`, the
+    page's line about what it showed goes to the conversation, as the web app gives it (Conversation.shown)."""
+    out = []
+    for n, turn in enumerate(spec["turn"], 1):
+        trace = conversation.ask(turn["say"])
+        if turn.get("shown"):
+            conversation.shown(flat(turn["shown"]))
+        out.append({"turn": n, **trace})
+    return out
 
 
 def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):

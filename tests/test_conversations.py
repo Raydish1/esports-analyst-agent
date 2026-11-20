@@ -131,6 +131,27 @@ class CallsTest(unittest.TestCase):
         self.assertFalse(checked(asked, suggests=24)["suggests"])
 
 
+class PlayTest(unittest.TestCase):
+    def test_the_page_line_goes_to_the_conversation_after_its_turn(self):
+        class Fake:  # react.Conversation as play uses it
+            def __init__(self):
+                self.calls, self.last = [], None
+
+            def ask(self, say):
+                self.calls.append(("ask", say))
+                self.last = {"question": say, "answer": "a", "steps": []}
+                return self.last
+
+            def shown(self, line):
+                self.calls.append(("shown", line))
+                self.last["shown"] = line
+        fake = Fake()
+        played = conversations.play({"turn": [{"say": "q1", "shown": "Card: Phazon,\n 2v2: 12 1st"}, {"say": "q2"}]}, fake)
+        self.assertEqual(fake.calls, [("ask", "q1"), ("shown", "Card: Phazon, 2v2: 12 1st"), ("ask", "q2")])
+        self.assertEqual(([t["turn"] for t in played], played[0]["shown"], "shown" in played[1]),
+                         ([1, 2], "Card: Phazon, 2v2: 12 1st", False))
+
+
 class ScoringTest(unittest.TestCase):
     DATA = {"conversation": [{"id": "x1", "title": "a secret title", "turn": [
         {"say": "q1", "expect": "e", "says": ["secret"]}, {"say": "q2", "expect": "e"}]}]}

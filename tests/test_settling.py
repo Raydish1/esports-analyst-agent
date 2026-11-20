@@ -79,9 +79,33 @@ class CuesTest(Fixture):
         for message in ["in 2v2?", "and in 2023", "what about at bcx 2022", "i meant the 2v2 record", "how did they do"]:
             self.assertEqual(self.settle(message).how, "a follow-up (cues)", message)
 
+    def test_a_message_that_opens_as_a_follow_up_and_names_players_continues_with_them(self):
+        ranking = Context("top 5 2v2 players in brawlhalla history")  # live, then "what about cody travis and phazon?"
+        settled = self.settle("what about cody travis and raydish?", ranking)
+        self.assertEqual(settled.text, 'what about cody travis and raydish? [This continues the previous question, "top'
+                                       ' 5 2v2 players in brawlhalla history", now about Cody Travis (player_id 21) and'
+                                       ' Raydish (player_id 11).]')
+        self.assertEqual((settled.how, settled.players, settled.retrieve),
+                         ("a follow-up with new names (cues)", [("Cody Travis", 21), ("Raydish", 11)],
+                          "top 5 2v2 players in brawlhalla history what about cody travis and raydish?"))
+        self.assertEqual(self.settle("what about zivai vs godly").players, [("Zivai", 19)])  # Godly is Zivai: once
+
+    def test_a_question_about_the_previous_answer_gets_a_note_to_check_it_again(self):
+        partners = Context("who has megd played with in 2v2", players=[("megD", 7)])
+        settled = self.settle("there are not that many events", partners)  # live: repeated the answer, no lookup
+        self.assertEqual(settled.text, 'there are not that many events [This questions your answer to the previous'
+                                       ' question, "who has megd played with in 2v2", about megD (player_id 7): check'
+                                       ' what it questions with the tools again, then say plainly whether that answer'
+                                       ' was right, and correct it if it wasn\'t.]')
+        self.assertEqual((settled.how, settled.retrieve), (settling.DISPUTED, "who has megd played with in 2v2"))
+        why = self.settle("so why did you say cody travis and raydish have won 24 2v2 tournaments", partners)
+        self.assertEqual((why.how, why.players), (settling.DISPUTED, [("megD", 7), ("Cody Travis", 21), ("Raydish", 11)]))
+        for message in ["are you sure?", "you just said 12", "that's wrong", "is that right", "that can't be right"]:
+            self.assertEqual(self.settle(message, partners).how, settling.DISPUTED, message)
+        self.assertEqual(settling.by_cues("are you sure", Context(), self.resolver).how, "as asked")  # nothing before
+
     def test_a_message_that_names_a_player_or_refers_to_nothing_is_as_asked(self):
-        for message in ["what about zivai vs godly", "rank the top 5 players by official 1v1 wins", "has raydish won worlds",
-                        "thanks"]:
+        for message in ["rank the top 5 players by official 1v1 wins", "has raydish won worlds", "thanks"]:
             self.assertEqual((self.settle(message).how, self.settle(message).text), ("as asked", message), message)
         first = settling.by_cues("tell me about the 2v2 record", Context(), self.resolver)  # nothing to continue
         self.assertEqual(first.how, "as asked")

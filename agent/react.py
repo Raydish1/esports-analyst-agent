@@ -196,6 +196,9 @@ Answering
 - Answer in plain English, and give the main facts the question asks for, with the figures they rest on.
 - Take every fact from what the tools returned in this conversation, and look facts up in every question, follow-ups
   included: never answer from memory.
+- When the user asks whether an answer was right ("are you sure", "why did you say"), check it again with the tools,
+  then say plainly whether it was right: never defend it, or explain it away, from memory.
+- A note "[The page showed beside this answer: ...]" is what the user saw beside an answer, such as its stat cards.
 - If a question asks for something no table holds, say the data doesn't cover it, and what it does have. Never
   answer from a nearby table as a stand-in, such as official wins for community tournaments.
 - Name players by their current display name, spelled as the data spells it: the name resolve_player or the players
@@ -261,6 +264,10 @@ FACT_KINDS = {"number", "word", "ordinal", "record", "date", "datetime", "month"
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
                   " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
                   " before answering.")
+RECHECK = ("Before this answer is final: the question asks whether your previous answer was right, and this reply"
+           " called no tool. Check what it questions with the tools again, the same lookups or queries the answer"
+           " rested on, then say whether that answer was right, and correct it if it wasn't. Don't defend it from"
+           " memory.")
 AND_OR = ("This query wasn't run: its {clauses} AND and OR without parentheses. AND binds tighter than OR, so"
           " 'a OR b AND c' means 'a OR (b AND c)', and a condition after the last OR applies to it alone. Put"
           " parentheses around what each OR joins, such as '(a OR b) AND c', and run it again.")
@@ -837,8 +844,9 @@ class Conversation:
         self.retriever, self.on_examples = retriever, on_examples
         self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
-        self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
+        self.view = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
+        self.last = None  # the last trace ask() returned, which shown() adds to
 
     @property
     def messages(self):
@@ -851,13 +859,37 @@ class Conversation:
         settled = self.settle(question)
         found = self.examples(settled.retrieve)
         self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(settled.text, found)}]
-        self.shown.ask(settled.text)
+        self.view.ask(settled.text)
         trace = self.turn(settled.text, found, said=question, settled=settled)
         self.current[0] = {"role": "user", "content": settled.text}
         content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
         self.current.append({"role": "assistant", "content": content})
         self.context = settling.after(trace, settled)
+        self.last = trace
         return trace
+
+    def shown(self, summary):
+        """What the page showed the user beside the last answer, such as its stat cards: one line the web app writes
+        from its own figures (decided 2026-11-20). Live, the user asked about a card's "12" and "6", and the model,
+        which never sees the cards, invented where they came from (docs/web-app-testing-notes.md, finding 9).
+        Call it after ask() returns and the page has built what it shows, before the next ask(); not at all when it
+        shows nothing. A second call adds a second line.
+        - The history: the last answer's message gains "[The page showed beside this answer: <summary>]", and keeps
+          it as the conversation goes on, so a later question can refer to what the user saw.
+        - The evidence: the summary counts as the last question's tool results do, for the next question's answer
+          (the number check's window, and the words in view): each sentence or clause of it is a row of its own, so a
+          record needs both its numbers in one clause.
+        - The trace ask() returned gets it as `shown`."""
+        summary = " ".join(str(summary).split())
+        if not summary or not self.current or self.current[-1]["role"] != "assistant":
+            return
+        self.current[-1]["content"] += f"\n\n[The page showed beside this answer: {summary}]"
+        self.view.read(summary)
+        self.view.seen_now |= mentions.seen([summary])
+        for part in re.split(r"(?<=[.;:])\s+", summary):
+            self.view.evidence.observe({"shown": part})
+        if self.last is not None:
+            self.last["shown"] = (self.last["shown"] + " " if self.last.get("shown") else "") + summary
 
     def settle(self, message):
         """The message as the turn takes it (settling.py): a choice from suggestions, else a follow-up with a note on
@@ -867,7 +899,7 @@ class Conversation:
             self.chosen.update({normalize(s): (s, c) for s, c in picked if normalize(s)})
             settled = settling.chosen(self.context, picked)
         else:
-            settled = settling.by_cues(message, self.context, self.tools.resolver)
+            settled = settling.by_cues(message, self.context, self.tools.resolver, self.tools.events.words)
         if settled.text != message:
             self.log(f"  settled ({settled.how}): {short(settled.text, 300)}")
         return settled
@@ -947,6 +979,7 @@ class Conversation:
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
         respelled = False  # whether the event check sent an answer back, to look an event up with another spelling
+        disputed = bool(settled and settled.how == settling.DISPUTED)  # a question about the previous answer
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
         resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
         sent_back = None
@@ -982,7 +1015,7 @@ class Conversation:
                     content, swaps, _ = sent_back
                 elif outcome == "answered":
                     content, swaps, pairings = correct_names(content, resolved, self.tools.resolver,
-                                                             self.shown.returned_now | self.shown.returned_before)
+                                                             self.view.returned_now | self.view.returned_before)
                     if swaps:
                         step["name_swaps"] = swaps
                         log("  names corrected: " + ", ".join(f"{x['from']} to {x['to']}" for x in swaps))
@@ -1025,7 +1058,18 @@ class Conversation:
                 if event:
                     step["event_check"] = {"event": event, "action": "kept: sent back once already" if respelled
                                            else "kept: no steps left"}
-                gap = self.shown.ungrounded(question, content) if outcome == "answered" and not called else {}
+                if outcome == "answered" and disputed and not called and not told and number < max_steps:
+                    told, message = True, RECHECK  # the no-tool check's one send-back
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["no_tool_check"] = {"disputed": True, "action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log("  no-tool check: a question about the previous answer, answered with no tool; sent back")
+                    sent_back = (content, swaps, message)
+                    self.finished(step)
+                    continue
+                gap = self.view.ungrounded(question, content) if outcome == "answered" and not called else {}
                 if gap and not told and number < max_steps:
                     told, message = True, no_tool(gap)
                     if number == max_steps - 1:
@@ -1069,8 +1113,8 @@ class Conversation:
                 if pairings:
                     step["pairing_check"] = {"pairs": pairings, "action": "kept as written: sent back once already"
                                              if paired else "kept as written: no steps left"}
-                names = self.shown.unreturned(content) if outcome == "answered" else {}
-                ids = self.shown.unreturned_ids(content) if outcome == "answered" else []
+                names = self.view.unreturned(content) if outcome == "answered" else {}
+                ids = self.view.unreturned_ids(content) if outcome == "answered" else []
                 if (names or ids) and not checked and not strict and number < max_steps:
                     checked, message = True, CHECK.format(what=unreturned(names, ids))
                     if number == max_steps - 1:
@@ -1085,9 +1129,9 @@ class Conversation:
                 if names or ids:
                     step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
-                flagged = self.shown.window.unsupported(content)  # in every final text, an answer or not
+                flagged = self.view.window.unsupported(content)  # in every final text, an answer or not
                 if strict:  # and the players no result in view returned
-                    flagged = sorted(flagged + self.shown.player_claims(content, question), key=lambda c: c.start)
+                    flagged = sorted(flagged + self.view.player_claims(content, question), key=lambda c: c.start)
                 flagged_texts = [c.text for c in flagged]
                 if flagged and outcome == "answered" and not numbered and not strict and number < max_steps:
                     numbered, message = True, NUMBERS.format(numbers=listed([repr(n) for n in flagged_texts]))
@@ -1106,7 +1150,7 @@ class Conversation:
                     why = ("the turn looked nothing up" if strict else "sent back once already" if numbered
                            else "no steps left" if outcome == "answered" else "not an answer")
                     step["number_check"] = {"numbers": flagged_texts, "action": f"replaced: {why}", "replaced": unconfirmed}
-                    if strict and not self.shown.states_facts(content):  # nothing it states rests on a tool
+                    if strict and not self.view.states_facts(content):  # nothing it states rests on a tool
                         content = NOT_LOOKED_UP
                         step["number_check"]["action"] += "; no fact left, so the whole answer"
                     log(f"  number check: {listed(flagged_texts)} replaced, since no tool result in view holds them")
@@ -1133,8 +1177,8 @@ class Conversation:
                 used, canonical = list(dict.fromkeys(players_used(name, arguments))), self.tools.resolver.canonical
                 # a player the question names is known as a returned one is: its ID reaches the model in this check's
                 # error, resolved in code
-                unknown = [pid for pid in used if not self.shown.knows(pid) and canonical.get(pid, pid) not in named]
-                allowed = set(named) | given | self.shown.returned_now
+                unknown = [pid for pid in used if not self.view.knows(pid) and canonical.get(pid, pid) not in named]
+                allowed = set(named) | given | self.view.returned_now
                 unnamed = [pid for pid in used if (named or shared_names) and not unknown
                            and canonical.get(pid, pid) not in allowed and pid not in allowed]
                 query = parsed(arguments).get("query")
@@ -1148,7 +1192,7 @@ class Conversation:
                 refused = unknown or unnamed or filters
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
-                self.shown.observe(name, observation, arguments)
+                self.view.observe(name, observation, arguments)
                 if name in QUERIES:  # only a new query clears a result too large to show, or a lookup miss
                     too_big = observation.get("complete") is False
                     missing, missed = missing_text(observation.get("diagnosis")), False
@@ -1186,7 +1230,7 @@ class Conversation:
         for name, arguments in lookups:
             begun = time.monotonic()
             observation = self.call(name, arguments)
-            self.shown.observe(name, observation, arguments)
+            self.view.observe(name, observation, arguments)
             noted(question, name, observation, asked, resolved)
             text = json.dumps(observation, ensure_ascii=False)
             step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,

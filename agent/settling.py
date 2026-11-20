@@ -40,6 +40,15 @@ STARTS = {"in", "at", "for", "with", "against", "vs", "versus", "from", "since",
 FRAGMENT = 4  # words at most
 ONE = {"he", "him", "his", "she", "her", "hers"}
 MANY = {"they", "them", "their", "theirs"}
+# A message questioning the previous answer: live, "so why did you say cody travis and phazon have won 24 2v2
+# tournaments" was looked up as an event, and "there are not that many events" repeated the answer's numbers without
+# a lookup (docs/web-app-testing-notes.md, findings 10 and 12)
+DISPUTES = re.compile(r"\b(?:are you sure|you sure|why did you (?:say|write|tell|think|claim|put|count)|you (?:just )?"
+                      r"(?:said|wrote|told)|that(?:'s|s| is| was) (?:not right|not true|not correct|wrong|incorrect|false)"
+                      r"|you(?:'re| are) wrong|(?:is|was) that (?:right|true|correct)|not that many|(?:can'?t|cannot)"
+                      r" be right|doesn'?t (?:sound|seem|look) right|too (?:many|few)|double.?check|check (?:that|it|this)"
+                      r" again)\b", re.I)
+DISPUTED = "a question about the previous answer (cues)"
 
 
 @dataclass
@@ -169,20 +178,25 @@ def resolved(name, spelling, candidate):
 
 # A follow-up, by cues
 
-def by_cues(message, context, resolver):
-    """A message as hand-written rules settle it: a follow-up gets a note on what it continues, and 'he' or 'she' the
-    player meant (the module docstring)."""
+def by_cues(message, context, resolver, event_words=frozenset()):
+    """A message as hand-written rules settle it: a question about the previous answer gets a note to check it again,
+    a follow-up a note on what it continues, and 'he' or 'she' the player meant (the module docstring)."""
     words = [w.lower().strip("'’") for w in WORD.findall(message)]
     if not context.question or not words:
         return as_asked(message)
-    content, _ = mentions.words(message)
-    names = [w for w in content if w not in mentions.REGIONS and mentions.player(resolver, w)]
+    found = mentions.named(message, resolver, event_words, least=mentions.MIN_SCORE)
+    names = unique([(c.get("display") or c["name"], c["player_id"]) for _, out in found if out.get("status") == "confident"
+                    for c in out["candidates"][:1]])
+    if DISPUTES.search(message):
+        return about_answer(message, context, names)
     said = " ".join(words)
     fragment = len(words) <= FRAGMENT and words[0] in STARTS
-    refers = (any(said == o or said.startswith(o + " ") for o in OPENERS) or bool(REFERS.search(message))
-              or bool(MANY & set(words)))
-    if fragment or (refers and not names):
+    opens = any(said == o or said.startswith(o + " ") for o in OPENERS)
+    refers = opens or bool(REFERS.search(message)) or bool(MANY & set(words))
+    if fragment or (refers and not found):
         return continuing(message, context)
+    if opens and names:  # live, "what about cody travis and phazon?" after a ranking got their 1v1 record (finding 8)
+        return continuing(message, context, names)
     he = next((w for w in words if w in ONE), None)
     if he and len(context.players) == 1:
         name, pid = context.players[0]
@@ -191,16 +205,38 @@ def by_cues(message, context, resolver):
     return as_asked(message)
 
 
-def continuing(message, context):
+def continuing(message, context, names=None):
     """A follow-up with a note on what it continues: the previous question, and the players and events it was
-    about. Retrieval embeds the previous question with it."""
+    about, or with names [(name, player_id)] the players the message names instead, now ('what about cody travis and
+    phazon?' after a ranking: the ranking's question, now about them). Retrieval embeds the previous question with
+    it."""
     previous = mentions.unnoted(context.question)
-    about = [listed([f"{name} (player_id {pid})" for name, pid in context.players])] if context.players else []
+    players = names or context.players
+    about = [listed([f"{name} (player_id {pid})" for name, pid in players])] if players else []
     if context.events:  # by name: the IDs are in the previous question's results, and some are long slugs
         about.append("the events " + listed([name for name, _ in context.events[:EVENTS]]))
-    note = f'This continues the previous question, "{previous}"' + (f", about {'; and '.join(about)}" if about else "")
-    return Settled(f"{message} [{note}.]", f"{previous} {message}", "a follow-up (cues)", players=list(context.players),
+    note = (f'This continues the previous question, "{previous}"'
+            + (f", now about {listed([f'{name} (player_id {pid})' for name, pid in names])}" if names else
+               f", about {'; and '.join(about)}" if about else ""))
+    if names and context.events:
+        note += f", at the events {listed([name for name, _ in context.events[:EVENTS]])}"
+    return Settled(f"{message} [{note}.]", f"{previous} {message}",
+                   "a follow-up with new names (cues)" if names else "a follow-up (cues)", players=list(players),
                    events=list(context.events))
+
+
+def about_answer(message, context, names):
+    """A question about the previous answer ('are you sure', 'why did you say', 'there are not that many'), with a
+    note to check it again with the tools and say whether it was right, and the players it and the message are about.
+    Retrieval embeds the previous question, the shape the check takes again. react.py sends back an answer to it
+    that calls no tool."""
+    previous = mentions.unnoted(context.question)
+    players = unique(list(context.players) + list(names))
+    note = (f'This questions your answer to the previous question, "{previous}"'
+            + (f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else "")
+            + ": check what it questions with the tools again, then say plainly whether that answer was right, and"
+              " correct it if it wasn't")
+    return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
 
 
 # The context after a turn

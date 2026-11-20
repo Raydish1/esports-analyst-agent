@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "eval"))
 import mentions  # noqa: E402
 import model_comparison as mc  # noqa: E402
 import react  # noqa: E402
+import settling  # noqa: E402
 import templates  # noqa: E402
 import tools  # noqa: E402
 
@@ -675,6 +676,33 @@ class LoopTest(Fixture):
         trace = react.run("who has raydish played most, and how did he do vs raydish [he: megD (player_id 7), from the"
                           " previous question.]", self.tools, ask=ask, log=lambda *_: None)
         self.assertEqual([c.get("unnamed_players") for s in trace["steps"] for c in s["tool_calls"]], [None, None, None])
+
+    def test_a_question_about_the_previous_answer_answered_with_no_tool_goes_back_to_check_it(self):
+        count = ("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 11"})
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply("Yes, 6, as I said."), reply(calls=[count]), reply("Yes: Raydish has 6 official results."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        trace = conversation.ask("are you sure? that's too many")  # live: "there are not that many events"
+        self.assertEqual((trace["settled"]["how"], trace["steps"][0]["no_tool_check"]["disputed"],
+                          trace["steps"][0]["no_tool_check"]["action"]), (settling.DISPUTED, True, "sent back"))
+        self.assertEqual(ask.sent[3][-1]["content"], react.RECHECK)
+        self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
+
+    def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply("The card shows 4 wins."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        first = conversation.ask("how many results has raydish")
+        conversation.shown("Card: Raydish, lifetime at official events: 6 results, 4 wins.")  # as the web app gives it
+        self.assertEqual(first["shown"], "Card: Raydish, lifetime at official events: 6 results, 4 wins.")
+        self.assertEqual(conversation.current[-1]["content"], "Raydish has 6 official results.\n\n[The page showed beside"
+                                                              " this answer: Card: Raydish, lifetime at official events: 6"
+                                                              " results, 4 wins.]")
+        trace = conversation.ask("what did the card say about his wins")  # 4 is the card's, so it stands
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), ("The card shows 4 wins.", []))
+        self.assertEqual(ask.sent[2][-2], {"role": "assistant", "content": conversation.previous[-1]["content"]})
+        self.assertIn("[The page showed beside this answer: Card: Raydish", ask.sent[2][-2]["content"])  # the model reads it
 
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
