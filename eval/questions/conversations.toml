@@ -228,6 +228,7 @@ won 2 and lost 3. The previous turn's head_to_head result already holds it, so n
 """
 window_has = ["met in 5 sets"]
 says_numbers = [5, 2, 3]
+says_any = ["2-3", "2–3", "won 2 and lost 3"]  # the 2v2 record itself: seed 2 of the before run restated the 1v1 record, whose sets hold 5, 2 and 3
 
 [[conversation.turn.query]]
 purpose = "their teams' 2v2 sets: how many, and how many Raydish's side won"
