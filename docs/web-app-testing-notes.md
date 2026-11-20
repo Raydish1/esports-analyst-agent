@@ -55,6 +55,88 @@ Turns 1–2 ("raydishes", then "the first one") worked: the suggestion was settl
   by re-checking that answer's claim with the right tool, not by looking up the message's words; `mentions` leaves out
   "say", "said" and the like; and the forced lookups never call `resolve_event` on words that include a known player.
 
+## Third round: more live tests (2026-11-20, same code)
+
+From `data/experiments/web/20261120T050251Z-001` (turns 8–9), `-003`, `-004` and `-005`. Checked on eval-v1 and right:
+megD vs Raydish (2–2 in 4 sets, each set named by its event), the top 5 by 2v2 wins, by 1v1 wins and by medals,
+whoiskyna vs yüz in 1v1 (17–17 in 34), and the stats of Mojakin, Bagus and Renivic (in `-003`).
+
+### 12. A wrong partner count from a query that multiplied rows, kept when the user objected
+
+- **Seen:** `-003` turn 4 is q06 word for word ("Who has megd played with in 2v2 tournaments, and how did they place?").
+  The first query failed (`no such column: t.mode`); the second joined `v_entries` to add the mode and counted the
+  joined rows: "Raydish (8,218 events)", "Winged_Shell (7,684 events)". The truth: Raydish 20 events (best 2nd),
+  hardymj 4, Winged_Shell 3. Turn 5, "there are not that many events", called no tool and repeated the numbers; the
+  no-tool check passed it, since the numbers were in the previous turn's results.
+- **Proposed:** finding 7's `team_results` template, with the partner optional, answers "who has X played with" (each
+  partner, events together, best placement, wins); a `run_sql` count larger than the player's own number of results is
+  flagged back; and a message disputing the answer re-checks it (finding 10).
+
+### 13. A follow-up used the previous turn's player instead of the one it named
+
+- **Seen:** `-004` turn 7, "whats kyna vs yuz head to head in only 1v1", right after the "two" turn (finding 14).
+  It called no `resolve_player` and passed `head_to_head` plewchi's ID (168011, from the "two" lookup) for kyna, and
+  answered "plewchi vs yuz: 0 sets". The truth (turn 5 of the same conversation): 17–17 in 34. The player check let
+  it through, since a tool had returned 168011.
+- **Proposed:** every player the question names is resolved in code before the model answers, and a template call
+  whose players aren't the ones the question names (where it names two) goes back, naming who was meant.
+
+### 14. A forced lookup took a number word for a player
+
+- **Seen:** `-004` turn 6, "which two players have the biggest head to head record". The model first answered with no
+  tool; the forced lookup ran `resolve_player("two")`, which matched plewchi (formerly two) and two others, and the
+  answer explained the "two" players. The question is answerable: the most 1v1 sets between two players is 34, by SiB
+  | Wess vs lFiend (15–19) and yüz vs whoiskyna (17–17).
+- **Proposed:** forced lookups skip ordinary words (numbers, quantity words), unless quoted or capitalized as a name;
+  a worked example for "the biggest head-to-head" (the pair with the most sets, from `v_head_to_head_1v1`, each pair
+  once).
+
+### 15. "the first one" for Mojakin: an answer invented, then gutted by replacements
+
+- **Seen:** `-001` turn 9, after suggestions for "mojakins" (settled correctly to Mojakin, 77046). The first reply had
+  no tool call; then three `player_results` calls, all with `mode="2v2"`; the answers claimed 8 1v1 wins, a 2023
+  Winter Royale 2v2 win and a partner "Savage". The number check replaced claims until the final text was half "I
+  couldn't confirm …" lines. The truth: no wins, medals or top 8s (9 1v1 results, 17 2v2). 8 steps, 95 s.
+- **Proposed:** an answer with two or more claims replaced isn't sent as it is: the turn gets one more step with the
+  checks' findings, or the answer becomes a short statement of what was confirmed. And finding 16's one-call stats.
+
+### 16. "stats" takes three calls and still gives partial answers
+
+- **Seen:** every "X stats" turn calls `player_results` three times (top 1, 3, 8) and `run_sql` for the last event:
+  - `-004` turn 1: volst's 1 top 8 is right (5th, Autumn Championship NA 2026), but "No 2v2 results" is wrong: he
+    has 25 2v2 results, none in a top 8;
+  - `-005` turn 3, "Dragon!": only `top=3`, so the answer said he "may have reached top 8"; he has 9 (6 in 1v1, 3 in
+    2v2).
+- **Proposed:** `player_results` with no `top` gives the whole record (results, wins, medals, top 8s by mode, the
+  latest event), and the prompt says a player's stats or record is that one call, which is also the lifetime card's.
+
+### 17. `event="all"` was taken as an event, and volst's top 8 vanished
+
+- **Seen:** `-003` turn 6, "volst stats": `player_results(event="all", mode="", top=8)`. "all" resolved as one event,
+  confident ("every word"), and the count was 0, though the note said none of his results was there. The answer: no
+  top 8s, against `-004` turn 1's right 1.
+- **Proposed:** the templates read "all", "any", "everything" and an empty value as no filter; `resolve_event` never
+  matches a lone common word.
+
+### 18. "dragon" was ambiguous between exact names, but gave no suggestions
+
+- **Seen:** `-005` turn 2, "dragon stats". `resolve_player("dragon")`: ambiguous, with Dragon!, Parz (formerly Dragon)
+  and Dragon all at 0.98. Since the score was above 0.9, the turn didn't end in suggestions; the model wrote SQL for
+  the user to run and guessed at a character called Dragon.
+- **Proposed:** an ambiguous result between exact matches, with no clear cut (`CLEAR_CUT`), ends the turn in
+  suggestions, as a low score does.
+
+### 19. The number check replaced a right 2v2 record
+
+- **Seen:** `-004` turn 5: `head_to_head`'s note said "whoiskyna's side won 11 and lost 11"; the answer's "11-11
+  split" was replaced by "I couldn't confirm the record from the data."
+- **Proposed:** a record of two numbers is supported by a note's "won X and lost Y" as by a row.
+
+### 20. The trace repeats one name swap dozens of times
+
+- **Seen:** `-004` turn 5's `name_swaps` lists "Yuz" → "yüz" once per mention and per step, dozens of times. Only the
+  trace's noise, but the harness counts swaps per run from it.
+
 ### 11. The replacement sentence reads as noise
 
 - **Seen:** turns 6 and 7 begin or carry "I couldn't confirm the number from the data." as a sentence of its own, cut
