@@ -82,6 +82,17 @@ class AnswerTest(unittest.TestCase):
                           "says_numbers": True})
         self.assertFalse(checked(turn, grounded=False, says_numbers=[4])["says_numbers"])
 
+    def test_says_record_wants_the_record_in_a_sentence_about_it_in_any_wording(self):
+        spec = {"record": [2, 3], "about": ["2v2", "team", "side"]}
+        right = ["Raydish's side is **2-3** in 2v2.", "- **Raydish's team**: Won **2 sets**, lost **3 sets**.",
+                 "- **Raydish's team**: 2 wins, 3 losses", "In 2v2, Raydish's side won 2 and lost 3.",
+                 "They met 5 times in 2v2, with Raydish's team winning 2 sets and whoiskyna's team winning 3 sets."]
+        wrong = ["Raydish leads 5-2 in 1v1: whoiskyna won 3-2 at BCX 2022. The 2v2 sets (5 total) aren't in it.",
+                 "Raydish's side won 2 of them.", "In 2v2, Raydish's team won 3 and lost 2.", "Is it 2-3 in 2v2?"]
+        for answer in right + wrong:
+            turn = Turn(trace("q", answer), None, NAMES)
+            self.assertEqual(checked(turn, grounded=False, says_record=spec)["says_record"], answer in right, answer)
+
 
 class CallsTest(unittest.TestCase):
     def test_only_calls_that_ran_count_as_using_a_player(self):

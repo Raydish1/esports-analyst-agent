@@ -230,7 +230,7 @@ ORDER BY start_date
 
 **Expected:** It continues Raydish and whoiskyna: in 2v2, Raydish's teams and whoiskyna's teams met in 5 sets, and Raydish's side won 2 and lost 3. The previous turn's head_to_head result already holds it, so no question back.
 
-**Checks:** window_has ["met in 5 sets"]; says_numbers [5, 2, 3]; grounded and named (every turn)
+**Checks:** window_has ["met in 5 sets"]; says_numbers [5, 2, 3]; says_record {"record": [2, 3], "about": ["2v2", "team", "side"]}; grounded and named (every turn)
 
 **Query 1:** their teams' 2v2 sets: how many, and how many Raydish's side won
 

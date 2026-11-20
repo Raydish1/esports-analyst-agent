@@ -184,6 +184,26 @@ def missing_texts(turn, texts, where):
     return not found, f"missing {', '.join(map(repr, found))}" if found else ""
 
 
+WON_LOST = re.compile(r"\b(?:w[oi]n(?:s|ning)?|lost|los(?:s|ses|ing))\b")
+
+
+def says_record(turn, spec):
+    """Whether one sentence or list item of the answer has one of spec's `about` words and states its `record` [a, b]:
+    'a-b' (or with a dash), or a, then b, with a word for winning or losing. c3 turn 2's right answers wrote the 2v2
+    record as "won 2 sets, lost 3 sets" and "2 wins, 3 losses", and a wrong one restated the 1v1 record, whose sets
+    hold a 2 and a 3 too (decided 2026-11-20). What the answer asks and its code don't count (number_check.stated)."""
+    a, b = map(str, spec["record"])
+    for piece in re.split(r"(?<=[.!?])\s+|\n", re.sub(r"[*_`]", "", stated(turn.answer)).casefold()):
+        if not any(word.casefold() in piece for word in spec["about"]):
+            continue
+        if re.search(rf"(?<![\w.]){a}\s*[-–—]\s*{b}(?!\w|\.\d)", piece):
+            return True, ""
+        numbers = re.findall(r"(?<![\w.])\d+(?!\w|\.\d)", re.sub(r"\b\d+v\d+\b", " ", piece))
+        if a in numbers and b in numbers[numbers.index(a) + 1:] and WON_LOST.search(piece):
+            return True, ""
+    return False, f"no sentence about {' or '.join(map(repr, spec['about']))} states {a}-{b}"
+
+
 CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what each checks is in conversations.toml
     "rows": lambda t, ps: (lambda bad: (not bad, f"no row holds {bad}" if bad else ""))(held(t, ps)),
     "rows_any": lambda t, ps: (len(held(t, ps)) < len(ps), "no row holds any of them"),
@@ -201,6 +221,7 @@ CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what eac
         [x for x in texts if folded(x) in folded(t.answer)]),
     "says_numbers": lambda t, ns: (lambda bad: (not bad, f"doesn't state {bad}" if bad else ""))(
         [n for n in ns if n not in stated_numbers(t.answer)]),
+    "says_record": says_record,
     "grounded": grounded,
     "named": lambda t, on: (lambda m: (not (on and m), f"names {m[0]!r}" if on and m else ""))(LONE_ID.search(t.answer)),
 }

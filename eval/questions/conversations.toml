@@ -35,6 +35,9 @@
 #       says_any     the answer has one of them.
 #       not_says     the answer has none of them.
 #       says_numbers the answer states each of these numbers.
+#       says_record  {record = [a, b], about = [...]}: one sentence or list item of the answer has one of the about
+#                    words and states the record: "a-b" (or with a dash), or a and b with a word for winning or
+#                    losing ("won 2 sets, lost 3", "2 wins, 3 losses").
 #       grounded     on unless false: every number the answer states, and every player_id it cites, is in the
 #                    window or its questions, by the number check's rules (agent/number_check.py).
 #       named        on unless false: no player is named only by ID ("Player 147569").
@@ -228,7 +231,8 @@ won 2 and lost 3. The previous turn's head_to_head result already holds it, so n
 """
 window_has = ["met in 5 sets"]
 says_numbers = [5, 2, 3]
-says_any = ["2-3", "2–3", "won 2 and lost 3"]  # the 2v2 record itself: seed 2 of the before run restated the 1v1 record, whose sets hold 5, 2 and 3
+# the 2v2 record itself, in any wording: seed 2 of the before run restated the 1v1 record, whose sets hold 5, 2 and 3
+says_record = { record = [2, 3], about = ["2v2", "team", "side"] }
 
 [[conversation.turn.query]]
 purpose = "their teams' 2v2 sets: how many, and how many Raydish's side won"
