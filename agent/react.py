@@ -56,6 +56,7 @@ from platform_clients import load_env  # noqa: E402
 import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
 import mentions  # noqa: E402
+import settling  # noqa: E402
 from number_check import Claim, Evidence, Window, claims as number_claims, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, name_filters,  # noqa: E402
@@ -295,6 +296,13 @@ def chat(messages, model=MODEL, think=True, seed=0):
     """One model reply, with the tools offered: the server's /api/chat response."""
     return ollama("/api/chat", {"model": model, "stream": False, "think": think, "tools": TOOLS, "messages": messages,
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
+
+
+def rephrase(messages, model=MODEL, seed=0):
+    """One short reply without tools or thinking: the follow-up rewrite (settling.by_model). It keeps the agent's
+    context size, so the server doesn't load the model again for it."""
+    return ollama("/api/chat", {"model": model, "stream": False, "think": False, "messages": messages,
+                                "options": {**OPTIONS, "num_predict": 256, "seed": seed}}, timeout=120)
 
 
 def parsed(arguments):
@@ -684,19 +692,28 @@ class Conversation:
       reuse its player IDs and queries.
     - Older ones keep only their question and answer, which keeps the context bounded.
     - Suggestions stay as the question the agent asked the user (clarifying), not as an answer.
+    - Each message is settled before retrieval and the model see it (settling.py, decided 2026-11-19): a reply to
+      suggestions becomes the question it answers, with the chosen player, whom resolve_player then returns for the
+      spelling asked about (call); a follow-up becomes a question that stands on its own, by hand-written cues
+      (follow_ups="cues") or by one short model call (follow_ups="model", rephrase). The history keeps the settled
+      text, and the trace the user's words, with the settled text beside them.
     - The answer check counts everything the conversation has shown.
     - With a retriever (retrieval.Retriever), each question goes to the model with the worked examples it retrieves
       (retrieval.prompt), and the history keeps the bare question. The examples aren't what the conversation has
-      shown, so an example's player in an answer is still flagged.
+      shown, so an example's player in an answer is still flagged. A text that carries no question of its own
+      ("the first one", "thanks": mentions.asks) retrieves nothing.
     on_step, if given, gets each step as it finishes."""
 
     def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, on_examples=None,
-                 **model):
+                 follow_ups="cues", rephrase=rephrase, **model):
+        if follow_ups not in ("cues", "model"):
+            raise ValueError(f"follow_ups is 'cues' or 'model', not {follow_ups!r}")
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
-        self.retriever, self.on_examples = retriever, on_examples
+        self.retriever, self.on_examples, self.follow_ups, self.rephrase = retriever, on_examples, follow_ups, rephrase
         self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
+        self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
 
     @property
     def messages(self):
@@ -706,21 +723,60 @@ class Conversation:
         """Answer a question (turn), and keep it in the conversation with its answer."""
         if self.previous:
             self.earlier += [self.previous[0], self.previous[-1]]
-        found = self.retriever.retrieve(question) if self.retriever else None
-        if found is not None:
-            self.log("  examples: " + (", ".join(f"{e['id']} {e['shape']} {e['similarity']:.2f}" for e in found["examples"])
-                                       or f"none at {found['threshold']} or more"))
-            if self.on_examples:
-                self.on_examples(found)
-        self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(question, found)}]
-        self.shown.ask(question)
-        trace = self.turn(question, found)
-        self.current[0] = {"role": "user", "content": question}
+        settled = self.settle(question)
+        found = self.examples(settled.retrieve)
+        self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(settled.text, found)}]
+        self.shown.ask(settled.text)
+        trace = self.turn(settled.text, found, said=question, settled=settled)
+        self.current[0] = {"role": "user", "content": settled.text}
         content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
         self.current.append({"role": "assistant", "content": content})
+        self.context = settling.after(trace, settled)
         return trace
 
-    def turn(self, question, examples=None):
+    def settle(self, message):
+        """The message as the turn takes it (settling.py): a choice from suggestions, else a follow-up settled the
+        conversation's way, or the message as asked."""
+        picked = settling.choice(message, self.context.asked)
+        if picked:
+            self.chosen.update({normalize(s): (s, c) for s, c in picked if normalize(s)})
+            settled = settling.chosen(self.context, picked)
+        elif self.follow_ups == "model":
+            settled = settling.by_model(message, self.context, self.rephrase, model=self.model.get("model", MODEL),
+                                        seed=self.model.get("seed", 0))
+        else:
+            settled = settling.by_cues(message, self.context, self.tools.resolver)
+        if settled.text != message or settled.rewrite:
+            self.log(f"  settled ({settled.how}): {short(settled.text, 300)}")
+        return settled
+
+    def examples(self, text):
+        """The worked examples retrieved for a settled text, or None without a retriever. A text that carries no
+        question of its own retrieves none."""
+        if not self.retriever:
+            return None
+        if mentions.asks(text):
+            found = self.retriever.retrieve(text)
+            self.log("  examples: " + (", ".join(f"{e['id']} {e['shape']} {e['similarity']:.2f}" for e in found["examples"])
+                                       or f"none at {found['threshold']} or more"))
+        else:
+            found = {"threshold": retrieval.THRESHOLD, "candidates": 0, "examples": [],
+                     "skipped": "the message carries no question of its own"}
+            self.log("  examples: not retrieved, since the message carries no question of its own")
+        if self.on_examples:
+            self.on_examples(found)
+        return found
+
+    def call(self, name, arguments):
+        """A tool call's observation (Tools.call); but resolve_player on a spelling the user settled by choosing from
+        suggestions returns the player chosen (settling.resolved)."""
+        observation = self.tools.call(name, arguments)
+        value = parsed(arguments).get("name") if name == "resolve_player" else None
+        if isinstance(value, str) and normalize(value) in self.chosen:
+            return settling.resolved(value, *self.chosen[normalize(value)])
+        return observation
+
+    def turn(self, question, examples=None, said=None, settled=None):
         """One question's steps. The trace: the examples retrieved for it (retrieval.Retriever.retrieve, or None
         without retrieval), each step's thinking, reply and tool calls with their observations, and
         any checks; then the answer, the outcome ('answered', 'step limit', ...), the names and player IDs in the answer
@@ -744,8 +800,12 @@ class Conversation:
         The answer that comes back counts either way, but whatever text is final has each claim holding a number no
         tool result holds replaced by a sentence saying it couldn't be confirmed. A name from the question that
         resolve_player matches only below CONFIDENT ends the turn instead: the user gets its top three candidates as
-        suggestions (outcome 'suggestions')."""
-        trace = {"question": question, "examples": examples, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
+        suggestions (outcome 'suggestions').
+        question is the text the turn answers, settled (Conversation.settle); said, the user's own words, is the
+        trace's question when given, with the settled text beside it (settled) when it differs."""
+        trace = {"question": said or question,
+                 **({"settled": settled.traced()} if settled and (settled.text != said or settled.rewrite) else {}),
+                 "examples": examples, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
                  "unreturned_ids": [], "answered_after_too_big": False, "answered_after_lookup_miss": False,
                  "answered_without_tools": False, "name_swaps": [], "unconfirmed": []}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
@@ -753,7 +813,9 @@ class Conversation:
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered = False  # whether the number check sent an answer back
-        resolved, sent_back = [], None  # the question's players resolve_player decided; the last answer sent back
+        # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
+        resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
+        sent_back = None
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
@@ -901,7 +963,7 @@ class Conversation:
                 query = parsed(arguments).get("query")
                 named = name_filters(query) if name == "run_sql" and isinstance(query, str) else []
                 observation = ({"error": unreturned_players(unknown)} if unknown else
-                               {"error": looked_up_by_name(named)} if named else self.tools.call(name, arguments))
+                               {"error": looked_up_by_name(named)} if named else self.call(name, arguments))
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
                 self.shown.observe(name, observation, arguments)
@@ -938,7 +1000,7 @@ class Conversation:
             {"function": {"name": name, "arguments": arguments}} for name, arguments in lookups]})
         for name, arguments in lookups:
             begun = time.monotonic()
-            observation = self.tools.call(name, arguments)
+            observation = self.call(name, arguments)
             self.shown.observe(name, observation, arguments)
             noted(question, name, observation, asked, resolved)
             text = json.dumps(observation, ensure_ascii=False)
@@ -949,9 +1011,11 @@ class Conversation:
         return asked
 
     def suggested(self, trace, step, asked):
-        """End the turn with suggestions for the names from the question matched only below CONFIDENT."""
+        """End the turn with suggestions for the names from the question matched only below CONFIDENT. The trace keeps
+        the names asked about with the candidates shown (asked), which a reply may choose from (settling.choice)."""
         step["suggestions"] = {n: [c["player_id"] for c in o["candidates"][:3]] for n, o in asked}
         trace["answer"], trace["outcome"], trace["clarifying"] = suggestions(asked), "suggestions", clarifying(asked)
+        trace["asked"] = [{"name": n, "candidates": o["candidates"][:3]} for n, o in asked]
         self.log(f"  suggestions: {', '.join(n for n, _ in asked)} matched below {CONFIDENT}, so the user is asked")
         self.finished(step)
 
@@ -1021,8 +1085,17 @@ def markdown(traces, header):
                  else f"{t['turn']}. {t['question']}" if t.get("turn") else t["question"])
         out += [f"## {title}", "", f"**Outcome:** {t['outcome']}, {t['steps_used']} steps, {t['model_seconds']} s of model"
                 f" time, {t['output_tokens']:,} output tokens, largest context {t['largest_context']:,} tokens.", ""]
+        settled = t.get("settled")
+        if settled:
+            out += [f"**Settled** ({settled['how']}): {settled['text']}", ""]
+            if settled.get("rewrite"):
+                rewrite = settled["rewrite"]
+                out += [f"**The rewrite's reply** ({rewrite.get('seconds', '?')} s): "
+                        f"{rewrite.get('reply', rewrite.get('error', ''))!r}", ""]
         found = t.get("examples")
-        if found:
+        if found and found.get("skipped"):
+            out += [f"**Retrieved examples:** none, since {found['skipped']}.", ""]
+        elif found:
             out += [f"**Retrieved examples** ({found['candidates']} of the {retrieval.CANDIDATES} most similar at"
                     f" {found['threshold']} or more; similarity, then MMR score):", ""]
             out += [f"- {e['id']} {e['shape']}, {e['similarity']:.3f}, {e['mmr']:.3f}: {e['question']}"
@@ -1143,11 +1216,13 @@ def summary(trace):
                for s in trace["steps"] if s.get("lookup_check")]
     found = trace.get("examples")
     examples = found and {"threshold": found["threshold"], "candidates": found["candidates"],
-                          "examples": [{k: e[k] for k in ("id", "shape", "similarity", "mmr")} for e in found["examples"]]}
+                          "examples": [{k: e[k] for k in ("id", "shape", "similarity", "mmr")} for e in found["examples"]],
+                          **({"skipped": found["skipped"]} if found.get("skipped") else {})}
     metas = [{"step": s["step"], "action": s["meta_reply"]["action"]} for s in trace["steps"] if s.get("meta_reply")]
     numbers = [{"step": s["step"], "numbers": s["number_check"]["numbers"], "action": s["number_check"]["action"]}
                for s in trace["steps"] if s.get("number_check")]
-    return {**{k: trace.get(k) for k in keep}, "examples": examples, "tool_calls": calls, "answer_checks": checks,
+    return {**{k: trace.get(k) for k in keep}, **({"settled": trace["settled"]} if trace.get("settled") else {}),
+            "examples": examples, "tool_calls": calls, "answer_checks": checks,
             "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told, "number_checks": numbers,
             "meta_replies": metas}
 

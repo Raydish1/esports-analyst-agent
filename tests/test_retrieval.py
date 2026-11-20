@@ -86,9 +86,10 @@ class FakeRetriever:
     """Retrieves the same examples for every question."""
 
     def __init__(self, *examples):
-        self.found = {"threshold": 0.7, "candidates": len(examples), "examples": list(examples)}
+        self.found, self.asked = {"threshold": 0.7, "candidates": len(examples), "examples": list(examples)}, []
 
     def retrieve(self, question, threshold=0.7):
+        self.asked.append(question)
         return self.found
 
 
@@ -135,7 +136,7 @@ class ConversationTest(Fixture):
         seen = []
         conversation = react.Conversation(react.Tools(self.path), ask=Scripted(reply("Glad to help.")), log=lambda *_: None,
                                           retriever=FakeRetriever(shown), on_examples=seen.append)
-        trace = {"number": 6, **conversation.ask("thanks")}
+        trace = {"number": 6, **conversation.ask("who has the most 2v2 partners?")}
         self.assertEqual(seen, [trace["examples"]])  # as the question starts, for ask.py --trace
         self.assertEqual(react.summary(trace)["examples"], {"threshold": 0.7, "candidates": 1, "examples": [
             {"id": "ex08", "shape": "teammates", "similarity": 0.8, "mmr": 0.56}]})
@@ -145,9 +146,29 @@ class ConversationTest(Fixture):
         self.assertIn("**Retrieved examples** (1 of the 10 most similar at 0.7 or more; similarity, then MMR score):\n\n"
                       "- ex08 teammates, 0.800, 0.560: Who has Phazon partnered with in 2v2?", page)
         empty = {"number": 6, **react.Conversation(react.Tools(self.path), ask=Scripted(reply("Glad to help.")),
-                                                   log=lambda *_: None, retriever=FakeRetriever()).ask("thanks")}
+                                                   log=lambda *_: None, retriever=FakeRetriever()).ask("most 2v2 partners?")}
         self.assertIn("**Retrieved examples** (0 of the 10 most similar at 0.7 or more; similarity, then MMR score):\n\n- none",
                       react.markdown([empty], header))
+
+    def test_a_reply_that_carries_no_question_retrieves_nothing_and_a_follow_up_retrieves_with_what_it_continues(self):
+        shown = {**example("ex15", "What was Phazon's first official title?", "first_title"), "similarity": 0.7, "mmr": 0.7}
+        retriever, seen = FakeRetriever(shown), []
+        ask = Scripted(reply("Glad to help."), reply(calls=[("resolve_player", {"name": "megd"})]),
+                       reply("megD has 2 official results."), reply("In 2v2 too, megD has 2."))
+        conversation = react.Conversation(react.Tools(self.path), ask=ask, log=lambda *_: None, retriever=retriever,
+                                          on_examples=seen.append)
+        thanks = conversation.ask("thanks")
+        self.assertEqual((retriever.asked, ask.sent[0][-1]["content"]), ([], "thanks"))  # no example passes for it
+        self.assertEqual(react.summary(thanks)["examples"], {"threshold": 0.7, "candidates": 0, "examples": [],
+                                                             "skipped": "the message carries no question of its own"})
+        header = {"run": "R", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "x",
+                  "snapshot": {"file": "f", "build_id": "b"}}
+        self.assertIn("**Retrieved examples:** none, since the message carries no question of its own.",
+                      react.markdown([{"number": 1, **thanks}], header))
+        conversation.ask("How many results has megd?")
+        conversation.ask("and in 2v2?")
+        self.assertEqual(retriever.asked, ["How many results has megd?", "How many results has megd? and in 2v2?"])
+        self.assertEqual(len(seen), 3)
 
     def test_ask_trace_prints_the_examples_before_the_steps(self):
         import ask

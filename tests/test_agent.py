@@ -762,11 +762,50 @@ class LoopTest(Fixture):
         self.assertTrue(first["answer"].startswith('I couldn\'t find a player named "markiemoo"'))  # what the user sees
         conversation.ask("the first one")
         asked, follow_up = ask.sent[1][-2:]
-        self.assertEqual((asked["role"], follow_up["content"]), ("assistant", "the first one"))
+        self.assertEqual((asked["role"], follow_up["content"]), ("assistant", 'did Marckiem00 ever win worlds [Marckiem00'
+                                                                 ' is player_id 4: the user chose them when asked which'
+                                                                 ' player "markiemoo" means.]'))
         self.assertEqual(asked["content"], '(A clarifying question to the user, not an answer.) I asked which player'
                                            ' "markiemoo" means: 1. Marckiem00 (player_id 4). Their next message answers it.')
         conversation.ask("has raydish won worlds")
         self.assertEqual(ask.sent[3][2]["content"], asked["content"])  # still a question once it's an older turn
+
+    def test_a_reply_to_suggestions_answers_the_question_asked_with_the_player_chosen(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "markiemoo"})]),
+                       reply(calls=[("resolve_player", {"name": "markiemoo"})]), reply("markiemoo has 4 official results."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(conversation.ask("how many results has markiemoo")["outcome"], "suggestions")
+        trace = conversation.ask("the first one")
+        self.assertEqual((trace["question"], trace["settled"]["how"], trace["settled"]["chosen"]),
+                         ("the first one", "a reply to suggestions",
+                          [{"spelling": "markiemoo", "player_id": 4, "name": "Marckiem00"}]))
+        self.assertEqual(ask.sent[1][-1]["content"], trace["settled"]["text"])  # what the model reads: the question
+        self.assertTrue(trace["settled"]["text"].startswith("how many results has Marckiem00 [Marckiem00 is player_id 4"))
+        found = json.loads(trace["steps"][0]["tool_calls"][0]["observation"])  # the spelling asked about, settled
+        self.assertEqual((found["status"], [c["player_id"] for c in found["candidates"]]), ("confident", [4]))
+        self.assertEqual((trace["outcome"], trace["answer"]), ("answered", "Marckiem00 has 4 official results."))
+
+    def test_follow_ups_by_the_model_take_one_short_call_and_the_trace_keeps_the_users_words(self):
+        rewrites = []
+
+        def rephrase(messages, **model):
+            rewrites.append(model)
+            return {"message": {"role": "assistant", "content": "How many 2v2 results has megD?"}}
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
+                       reply("In 2v2 too, megD has 2."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, follow_ups="model",
+                                          rephrase=rephrase, model="m", seed=3)
+        conversation.ask("How many results has megd?")
+        self.assertEqual(rewrites, [])  # nothing to continue yet
+        trace = conversation.ask("now only 2v2")
+        self.assertEqual(rewrites, [{"model": "m", "seed": 3}])
+        self.assertEqual((trace["question"], trace["settled"]["text"], trace["settled"]["how"],
+                          trace["settled"]["rewrite"]["reply"], trace["outcome"]),
+                         ("now only 2v2", "How many 2v2 results has megD?", "rewritten", "How many 2v2 results has megD?",
+                          "answered"))
+        self.assertEqual(ask.sent[2][-1]["content"], "How many 2v2 results has megD?")
+        with self.assertRaises(ValueError):
+            react.Conversation(self.tools, follow_ups="both")
 
     def test_an_answer_right_after_a_result_too_large_to_show_goes_back_until_a_new_query(self):
         big, count = ("run_sql", {"query": "SELECT a FROM t"}), ("run_sql", {"query": "SELECT COUNT(*) FROM t"})
@@ -844,7 +883,8 @@ class LoopTest(Fixture):
         follow_up = ask.sent[2]  # the follow-up's first request: the first question in full, tool call included
         self.assertEqual([m["role"] for m in follow_up], ["system", "user", "assistant", "tool", "assistant", "user"])
         self.assertEqual((follow_up[1]["content"], follow_up[4]["content"], follow_up[5]["content"]),
-                         ("How many results has megd?", "megD has 2 official results.", "now only 2v2"))
+                         ("How many results has megd?", "megD has 2 official results.", 'now only 2v2 [This continues'
+                          ' the previous question, "How many results has megd?", about megD (player_id 7).]'))
         conversation.ask("thanks")
         third = [(m["role"], m.get("tool_name")) for m in ask.sent[4]]  # the first question as question and answer
         self.assertEqual(third, [("system", None), ("user", None), ("assistant", None), ("user", None),

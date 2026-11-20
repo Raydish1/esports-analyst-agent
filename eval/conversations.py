@@ -6,7 +6,8 @@ wrong across turns, as testing the web app's live mode found (docs/web-app-testi
 asked back.
 
     python eval/conversations.py review                   the page to verify the set from (conversations-review.md)
-    py -3.14 eval/conversations.py run --seeds 0 1 2      every conversation, retrieval on (a run resumes)
+    py -3.14 eval/conversations.py run --seeds 0 1 2      every conversation, retrieval on (a run resumes); with
+                                                          --follow-ups model, follow-ups settled by the model
     python eval/conversations.py score RUN                each turn's checks: eval/results/<run>-conversations.json
     python eval/conversations.py report RUN [RUN ...]     each turn's result per seed, a column per run
 
@@ -239,8 +240,9 @@ def play(spec, conversation):
     return [{"turn": n, **conversation.ask(turn["say"])} for n, turn in enumerate(spec["turn"], 1)]
 
 
-def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
-    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes."""
+def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print, follow_ups="cues"):
+    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes.
+    follow_ups is how a follow-up is settled (react.Conversation): "cues" or "model"."""
     react.load_env()
     retriever = react.retriever_or_exit(examples_on, lambda message: sys.exit(message))
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -251,18 +253,19 @@ def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
     header = react.run_header(run_id, seeds=seeds, title=f"Conversations: run {run_id}",
                               examples=react.examples_header(examples_on))
     where = Path(set_path).resolve()
-    header.update(arm="on" if examples_on else "off", heldout=bool(data.get("heldout")),
+    header.update(arm="on" if examples_on else "off", follow_ups=follow_ups, heldout=bool(data.get("heldout")),
                   set=where.relative_to(ROOT).as_posix() if where.is_relative_to(ROOT) else str(where))
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     tools = react.Tools()
     chosen = [c for c in data["conversation"] if not ids or c["id"] in ids]
     todo = [(s, c) for s in seeds for c in chosen if (c["id"], s) not in done]
-    log(f"Run {run_id}: {len(chosen)} conversations, seeds {seeds}, examples {header['arm']}; {len(todo)} to go")
+    log(f"Run {run_id}: {len(chosen)} conversations, seeds {seeds}, examples {header['arm']}, follow-ups by"
+        f" {follow_ups}; {len(todo)} to go")
     for n, (seed, spec) in enumerate(todo, 1):
         for attempt in range(1, harness.TRIES + 1):  # a conversation that fails isn't written, so it starts afresh
             try:
-                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, model=react.MODEL,
-                                                  think=True, seed=seed)
+                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, follow_ups=follow_ups,
+                                                  model=react.MODEL, think=True, seed=seed)
                 turns = play(spec, conversation)
                 break
             except (OSError, ValueError, http.client.HTTPException) as e:
@@ -399,6 +402,8 @@ def main():
     go.add_argument("--examples", choices=["on", "off"], default="on")
     go.add_argument("--ids", nargs="+", help="conversation ids, such as c1 c3")
     go.add_argument("--run", help="a run id to resume")
+    go.add_argument("--follow-ups", choices=["cues", "model"], default="cues",
+                    help="how a follow-up is settled: hand-written cues, or one short model call (default: cues)")
     scoring = commands.add_parser("score", help="score each turn of a run")
     scoring.add_argument("run")
     reporting = commands.add_parser("report", help="each turn's result per seed, a column per run")
@@ -420,7 +425,7 @@ def main():
             sys.exit(1)
         return
     if args.command == "run":
-        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids))
+        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids, follow_ups=args.follow_ups))
         return
     db = sqlite3.connect(harness.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     names = dict(db.execute("SELECT player_id, name FROM players"))
