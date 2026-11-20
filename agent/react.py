@@ -313,13 +313,6 @@ def chat(messages, model=MODEL, think=True, seed=0):
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
 
 
-def rephrase(messages, model=MODEL, seed=0):
-    """One short reply without tools or thinking: the follow-up rewrite (settling.by_model). It keeps the agent's
-    context size, so the server doesn't load the model again for it."""
-    return ollama("/api/chat", {"model": model, "stream": False, "think": False, "messages": messages,
-                                "options": {**OPTIONS, "num_predict": 256, "seed": seed}}, timeout=120)
-
-
 def parsed(arguments):
     """A tool call's arguments as a dict: JSON text parsed, and anything else that isn't a dict as none."""
     if isinstance(arguments, str):
@@ -782,9 +775,8 @@ class Conversation:
     - Suggestions stay as the question the agent asked the user (clarifying), not as an answer.
     - Each message is settled before retrieval and the model see it (settling.py, decided 2026-11-19): a reply to
       suggestions becomes the question it answers, with the chosen player, whom resolve_player then returns for the
-      spelling asked about (call); a follow-up becomes a question that stands on its own, by hand-written cues
-      (follow_ups="cues") or by one short model call (follow_ups="model", rephrase). The history keeps the settled
-      text, and the trace the user's words, with the settled text beside them.
+      spelling asked about (call); a follow-up gets a note on what it continues, by hand-written cues. The history
+      keeps the settled text, and the trace the user's words, with the settled text beside them.
     - The answer check counts everything the conversation has shown.
     - With a retriever (retrieval.Retriever), each question goes to the model with the worked examples it retrieves
       (retrieval.prompt), and the history keeps the bare question. The examples aren't what the conversation has
@@ -793,11 +785,9 @@ class Conversation:
     on_step, if given, gets each step as it finishes."""
 
     def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, on_examples=None,
-                 follow_ups="cues", rephrase=rephrase, **model):
-        if follow_ups not in ("cues", "model"):
-            raise ValueError(f"follow_ups is 'cues' or 'model', not {follow_ups!r}")
+                 **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
-        self.retriever, self.on_examples, self.follow_ups, self.rephrase = retriever, on_examples, follow_ups, rephrase
+        self.retriever, self.on_examples = retriever, on_examples
         self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.shown = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
@@ -823,18 +813,15 @@ class Conversation:
         return trace
 
     def settle(self, message):
-        """The message as the turn takes it (settling.py): a choice from suggestions, else a follow-up settled the
-        conversation's way, or the message as asked."""
+        """The message as the turn takes it (settling.py): a choice from suggestions, else a follow-up with a note on
+        what it continues, or the message as asked."""
         picked = settling.choice(message, self.context.asked)
         if picked:
             self.chosen.update({normalize(s): (s, c) for s, c in picked if normalize(s)})
             settled = settling.chosen(self.context, picked)
-        elif self.follow_ups == "model":
-            settled = settling.by_model(message, self.context, self.rephrase, model=self.model.get("model", MODEL),
-                                        seed=self.model.get("seed", 0))
         else:
             settled = settling.by_cues(message, self.context, self.tools.resolver)
-        if settled.text != message or settled.rewrite:
+        if settled.text != message:
             self.log(f"  settled ({settled.how}): {short(settled.text, 300)}")
         return settled
 
@@ -897,7 +884,7 @@ class Conversation:
         question is the text the turn answers, settled (Conversation.settle); said, the user's own words, is the
         trace's question when given, with the settled text beside it (settled) when it differs."""
         trace = {"question": said or question,
-                 **({"settled": settled.traced()} if settled and (settled.text != said or settled.rewrite) else {}),
+                 **({"settled": settled.traced()} if settled and settled.text != said else {}),
                  "examples": examples, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
                  "unreturned_ids": [], "answered_after_too_big": False, "answered_after_lookup_miss": False,
                  "answered_without_tools": False, "name_swaps": [], "unconfirmed": []}
@@ -1212,10 +1199,6 @@ def markdown(traces, header):
         settled = t.get("settled")
         if settled:
             out += [f"**Settled** ({settled['how']}): {settled['text']}", ""]
-            if settled.get("rewrite"):
-                rewrite = settled["rewrite"]
-                out += [f"**The rewrite's reply** ({rewrite.get('seconds', '?')} s): "
-                        f"{rewrite.get('reply', rewrite.get('error', ''))!r}", ""]
         found = t.get("examples")
         if found and found.get("skipped"):
             out += [f"**Retrieved examples:** none, since {found['skipped']}.", ""]

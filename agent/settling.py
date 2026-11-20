@@ -5,33 +5,29 @@ question; the settled text is what the model reads and the history keeps.
   question it answers, with the chosen player written in, and resolve_player on the question's spelling returns that
   player (react.Conversation.call). Live, "the first one" was taken as a question of its own: retrieval found a worked
   example about Addymestic in its three words, and the model answered that.
-- A follow-up becomes a question that stands on its own, in one of two ways, measured on the multi-turn test
-  conversations (eval/questions/conversations.toml) before one is chosen:
-  - by_cues, hand-written rules: a message that names no player and refers back ("the 2v2 record", "what about",
-    "i meant", "and ...", "they"), or a fragment ("in 2v2?"), gets a note with what it continues: the previous
-    question, and the players and events it was about. 'he' or 'she' gets the player when there was one;
-  - by_model: one short model call (REWRITE) writes the message as a question of its own, or keeps it.
-  Live, "tell me about the 2v2 record" retrieved worked examples of other readings, and the model asked which players
-  it meant.
+- A follow-up becomes a question that stands on its own, by hand-written rules (by_cues): a message that names no
+  player and refers back ("the 2v2 record", "what about", "i meant", "and ...", "they"), or a fragment ("in 2v2?"),
+  gets a note with what it continues: the previous question, and the players and events it was about. 'he' or 'she'
+  gets the player when there was one. Live, "tell me about the 2v2 record" retrieved worked examples of other
+  readings, and the model asked which players it meant. A one-call model rewrite was measured against the cues on the
+  test conversations (eval/questions/conversations.toml) and removed (decided 2026-11-20): it passed 29 of the 39
+  later turns to the cues' 31, narrowed "who got 2nd at ceo 2025" to the singles event, and cost a call per turn
+  (docs/experiments.md, 2026-11-19).
 - Retrieval embeds the settled question (for a follow-up by cues, the previous question with it), and doesn't run on
   one that carries no question of its own (mentions.asks).
-after() gives the context the next message may continue: the question as settled, its answer, the players and events
-it was about, and, when it ended in suggestions, the names asked about with their candidates.
+after() gives the context the next message may continue: the question as settled, the players and events it was
+about, and, when it ended in suggestions, the names asked about with their candidates.
 """
 
 import json
 import re
-import time
-import urllib.error
 from dataclasses import dataclass, field
 
 import mentions  # which puts ingest/ on the path, for names
 from mentions import FUNCTION, WORD, normalize
-from names import normalize_full, normalize_words
+from names import normalize_full
 
 EVENTS = 5  # the events a note lists at most
-ANSWER = 1500  # the characters of the previous answer the rewrite reads
-LONGEST = 400  # characters: a longer rewrite is an answer, not a question
 PICKS = {"first": 0, "1st": 0, "1": 0, "second": 1, "2nd": 1, "2": 1, "two": 1, "third": 2, "3rd": 2, "3": 2,
          "three": 2, "last": -1}
 CHOOSING = FUNCTION | {"option", "number", "pick", "choose", "chose", "player", "guy", "person", "thats", "correct",
@@ -44,28 +40,19 @@ STARTS = {"in", "at", "for", "with", "against", "vs", "versus", "from", "since",
 FRAGMENT = 4  # words at most
 ONE = {"he", "him", "his", "she", "her", "hers"}
 MANY = {"they", "them", "their", "theirs"}
-REWRITE = (
-    "You rewrite the latest message of a conversation about official Brawlhalla esports results as a question that can"
-    " be understood without the conversation. If the message already makes sense on its own, reply with it unchanged."
-    " If it continues the conversation, such as \"tell me about the 2v2 record\", \"what about 2023\", \"he\" or \"the"
-    " north america one\", write out the question it asks, with the players, events, modes and years it leaves out"
-    " taken from the conversation, by the names the conversation gives them. Add nothing else: no condition the user"
-    " didn't ask for, and no facts. Never answer it. Reply with the question alone, on one line.")
-LABEL = re.compile(r"^(?:the\s+)?(?:standalone\s+|rewritten\s+)?(?:question|rewrite)\s*:\s*", re.I)
 
 
 @dataclass
 class Settled:
     """What a message becomes: the text the model reads and the history keeps (text), the text retrieval embeds
-    (retrieve), how it was settled, the players chosen from suggestions [(spelling, candidate)], the players and
-    events it carries from the context [(name, id)], and the rewrite's reply when one was asked for."""
+    (retrieve), how it was settled, the players chosen from suggestions [(spelling, candidate)], and the players and
+    events it carries from the context [(name, id)]."""
     text: str
     retrieve: str
     how: str = "as asked"
     chosen: list = field(default_factory=list)
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
-    rewrite: dict = None
 
     def traced(self):
         """For the trace: the text and how, and what else applies."""
@@ -74,17 +61,14 @@ class Settled:
             out["retrieved_on"] = self.retrieve
         if self.chosen:
             out["chosen"] = [{"spelling": s, "player_id": c["player_id"], "name": c["name"]} for s, c in self.chosen]
-        if self.rewrite:
-            out["rewrite"] = self.rewrite
         return out
 
 
 @dataclass
 class Context:
-    """What the next message may continue: the last question as settled, its answer, the players and events it was
-    about [(name, id)], and the names it asked the user about, [{name, candidates}], when it ended in suggestions."""
+    """What the next message may continue: the last question as settled, the players and events it was about
+    [(name, id)], and the names it asked the user about, [{name, candidates}], when it ended in suggestions."""
     question: str = ""
-    answer: str = ""
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
     asked: list = field(default_factory=list)
@@ -110,8 +94,8 @@ def named(text, name):
     return any(form in normalize_full(text) for form in forms)
 
 
-def as_asked(message, how="as asked", rewrite=None):
-    return Settled(message, message, how, rewrite=rewrite)
+def as_asked(message):
+    return Settled(message, message)
 
 
 # A reply to suggestions
@@ -203,51 +187,6 @@ def continuing(message, context):
                    events=list(context.events))
 
 
-# A follow-up, by the model
-
-def by_model(message, context, rephrase, **model):
-    """A message as one short model call settles it (REWRITE); as asked when the call fails or gives no question.
-    The rewrite's reply and time go to the trace."""
-    if not context.question:
-        return as_asked(message)
-    request = [{"role": "system", "content": REWRITE}, {"role": "user", "content": rewrite_request(message, context)}]
-    begun = time.monotonic()
-    try:
-        reply = rephrase(request, **model)
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
-        return as_asked(message, "as asked: the rewrite failed", {"error": f"{type(e).__name__}: {e}"})
-    content = ((reply or {}).get("message") or {}).get("content") or ""
-    out = {"reply": content, "seconds": round(time.monotonic() - begun, 2)}
-    text = question_in(content)
-    if not text:
-        return as_asked(message, "as asked: the rewrite gave no question", out)
-    if normalize_words(text) == normalize_words(message):
-        return as_asked(message, "kept by the rewrite", out)
-    return Settled(text, text, "rewritten", players=[p for p in context.players if named(text, p[0])], rewrite=out)
-
-
-def rewrite_request(message, context):
-    """What the rewrite reads: the previous question and its answer, who and what it was about, then the message."""
-    lines = [f"Previous question: {mentions.unnoted(context.question)}"]
-    if context.answer:
-        lines.append("Previous answer: " + (context.answer if len(context.answer) <= ANSWER
-                                            else context.answer[:ANSWER] + " ..."))
-    if context.players:
-        lines.append("Players it was about: " + ", ".join(name for name, _ in context.players))
-    if context.events:
-        lines.append("Events it was about: " + ", ".join(name for name, _ in context.events[:EVENTS]))
-    return "\n".join(lines + ["", f"Latest message: {message}"])
-
-
-def question_in(content):
-    """The question a rewrite's reply gives: its first line, without a label or quotes; None when there's none, or
-    it's too long to be one."""
-    content = re.sub(r"<think>.*?</think>", "", content, flags=re.S)
-    line = next((line.strip() for line in content.splitlines() if line.strip()), "")
-    line = LABEL.sub("", line).strip().strip('*"“”').strip()
-    return line if line and len(line) <= LONGEST else None
-
-
 # The context after a turn
 
 def after(trace, settled):
@@ -275,5 +214,4 @@ def after(trace, settled):
                 if "event" in t.get("columns", ()) and "event_id" in t["columns"]:
                     i, j = t["columns"].index("event"), t["columns"].index("event_id")
                     events += [(row[i], row[j]) for row in t["rows"]]
-    return Context(settled.text, trace.get("answer") or "", unique(players), unique(events)[:EVENTS],
-                   trace.get("asked") or [])
+    return Context(settled.text, unique(players), unique(events)[:EVENTS], trace.get("asked") or [])

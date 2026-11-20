@@ -902,27 +902,17 @@ class LoopTest(Fixture):
         self.assertEqual((found["status"], [c["player_id"] for c in found["candidates"]]), ("confident", [4]))
         self.assertEqual((trace["outcome"], trace["answer"]), ("answered", "Marckiem00 has 4 official results."))
 
-    def test_follow_ups_by_the_model_take_one_short_call_and_the_trace_keeps_the_users_words(self):
-        rewrites = []
-
-        def rephrase(messages, **model):
-            rewrites.append(model)
-            return {"message": {"role": "assistant", "content": "How many 2v2 results has megD?"}}
+    def test_a_follow_up_gets_a_note_on_what_it_continues_and_the_trace_keeps_the_users_words(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
                        reply("In 2v2 too, megD has 2."))
-        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, follow_ups="model",
-                                          rephrase=rephrase, model="m", seed=3)
-        conversation.ask("How many results has megd?")
-        self.assertEqual(rewrites, [])  # nothing to continue yet
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        first = conversation.ask("How many results has megd?")
+        self.assertNotIn("settled", first)  # nothing to continue yet
         trace = conversation.ask("now only 2v2")
-        self.assertEqual(rewrites, [{"model": "m", "seed": 3}])
-        self.assertEqual((trace["question"], trace["settled"]["text"], trace["settled"]["how"],
-                          trace["settled"]["rewrite"]["reply"], trace["outcome"]),
-                         ("now only 2v2", "How many 2v2 results has megD?", "rewritten", "How many 2v2 results has megD?",
-                          "answered"))
-        self.assertEqual(ask.sent[2][-1]["content"], "How many 2v2 results has megD?")
-        with self.assertRaises(ValueError):
-            react.Conversation(self.tools, follow_ups="both")
+        note = 'now only 2v2 [This continues the previous question, "How many results has megd?", about megD (player_id 7).]'
+        self.assertEqual((trace["question"], trace["settled"]["text"], trace["settled"]["how"], trace["outcome"]),
+                         ("now only 2v2", note, "a follow-up (cues)", "answered"))
+        self.assertEqual(ask.sent[2][-1]["content"], note)  # what the model reads
 
     def test_an_answer_right_after_a_result_too_large_to_show_goes_back_until_a_new_query(self):
         big, count = ("run_sql", {"query": "SELECT a FROM t"}), ("run_sql", {"query": "SELECT COUNT(*) FROM t"})

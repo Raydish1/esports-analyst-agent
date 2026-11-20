@@ -1,7 +1,6 @@
 import json
 import sys
 import unittest
-import urllib.error
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "agent"))
@@ -93,57 +92,6 @@ class CuesTest(Fixture):
                          ' 2022 / 2v2.]')
 
 
-class Rephrase:
-    """A rewrite model: the replies it's given, in order, and every request it got."""
-
-    def __init__(self, *replies):
-        self.replies, self.sent = list(replies), []
-
-    def __call__(self, messages, **model):
-        self.sent.append((messages, model))
-        reply = self.replies.pop(0)
-        if isinstance(reply, Exception):
-            raise reply
-        return {"message": {"role": "assistant", "content": reply}}
-
-
-class ModelTest(unittest.TestCase):
-    def setUp(self):
-        self.context = Context("whats raydish's record with zivai", "Raydish leads Zivai 5-2 in 7 sets.",
-                               players=[("Raydish", 11), ("Zivai", 19)])
-
-    def test_one_short_call_rewrites_a_follow_up_as_a_question_of_its_own(self):
-        rephrase = Rephrase("What is Raydish's 2v2 record against Zivai?")
-        settled = settling.by_model("tell me about the 2v2 record", self.context, rephrase, model="m", seed=2)
-        self.assertEqual((settled.text, settled.retrieve, settled.how, settled.players),
-                         ("What is Raydish's 2v2 record against Zivai?", "What is Raydish's 2v2 record against Zivai?",
-                          "rewritten", [("Raydish", 11), ("Zivai", 19)]))
-        self.assertEqual(settled.rewrite["reply"], "What is Raydish's 2v2 record against Zivai?")
-        (messages, model), = rephrase.sent
-        self.assertEqual((messages[0], model), ({"role": "system", "content": settling.REWRITE}, {"model": "m", "seed": 2}))
-        self.assertEqual(messages[1]["content"], "Previous question: whats raydish's record with zivai\nPrevious answer:"
-                                                 " Raydish leads Zivai 5-2 in 7 sets.\nPlayers it was about: Raydish,"
-                                                 " Zivai\n\nLatest message: tell me about the 2v2 record")
-
-    def test_a_kept_message_a_label_and_a_failure(self):
-        kept = settling.by_model("who won bcx 2022?", self.context, Rephrase("Who won BCX 2022?"))
-        self.assertEqual((kept.text, kept.how), ("who won bcx 2022?", "kept by the rewrite"))
-        labelled = settling.by_model("and in 2023", self.context,
-                                     Rephrase('Standalone question: "What is Raydish\'s record against Zivai in 2023?"\n'
-                                              "I filled in the players."))
-        self.assertEqual(labelled.text, "What is Raydish's record against Zivai in 2023?")
-        failed = settling.by_model("and in 2023", self.context, Rephrase(urllib.error.URLError("refused")))
-        self.assertEqual((failed.text, failed.how, failed.rewrite), ("and in 2023", "as asked: the rewrite failed",
-                                                                     {"error": "URLError: <urlopen error refused>"}))
-        rambling = settling.by_model("and in 2023", self.context, Rephrase("x" * 500))
-        self.assertEqual((rambling.text, rambling.how), ("and in 2023", "as asked: the rewrite gave no question"))
-
-    def test_the_first_message_calls_no_model(self):
-        rephrase = Rephrase()
-        self.assertEqual(settling.by_model("who won bcx 2022?", Context(), rephrase).how, "as asked")
-        self.assertEqual(rephrase.sent, [])
-
-
 class AfterTest(unittest.TestCase):
     def test_the_context_holds_the_players_the_text_names_and_the_events_found(self):
         def call(name, observation, arguments=None):
@@ -167,9 +115,8 @@ class AfterTest(unittest.TestCase):
         settled = settling.Settled("did raydish or godly win bcx 2022 [x]", "did raydish or godly win bcx 2022",
                                    players=[("megD", 7)])
         context = settling.after(trace, settled)
-        self.assertEqual((context.question, context.answer, context.players, context.events, context.asked),
-                         ("did raydish or godly win bcx 2022 [x]", "Raydish won it.",
-                          [("megD", 7), ("Raydish", 11), ("Zivai", 19)],
+        self.assertEqual((context.question, context.players, context.events, context.asked),
+                         ("did raydish or godly win bcx 2022 [x]", [("megD", 7), ("Raydish", 11), ("Zivai", 19)],
                           [("BCX 2022 / 1v1", "bcx22-1"), ("BCX 2022 / 2v2", "bcx22-2")], []))
 
 
