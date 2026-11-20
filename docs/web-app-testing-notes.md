@@ -15,8 +15,10 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
   - megD against Raydish: "3 sets, 2 won", with Raydish as player 147569 (that's capsar; Raydish is 160000). Really 4
     sets, 2–2 (games 8–9): Raydish 3–1 at NA Summer Championship 2022, megD 3–1 at NA Autumn Championship 2023, megD 3–2
     at Trial of Baldr NA (Moose Wars) 2024, Raydish 3–1 at Winter Championship NA 2025.
-  - The number check caught "15–12" and "15–10" in turn 17; the rest passed, because numbers the model had written in
-    earlier answers count as conversation evidence.
+  - The number check caught "15–12" and "15–10" in turn 17; the rest passed. Small numbers like 7 and 5 are in some earlier
+    tool result of the conversation, and the check asks only whether a number appears in one, not in the row it's
+    about (as its docstring says: it checks where a number came from, not what it means). Not yet checked number by
+    number.
 - **Also:** "biggest records" wasn't read as head-to-head records until the user said so (turn 14).
 - **What it shows:** the no-tool check's "reply the same if the facts come from earlier tool results" lets a model
   that never looked anything up keep its answer by claiming it did. Fix 1 has to cover this: a fact answer in a turn
