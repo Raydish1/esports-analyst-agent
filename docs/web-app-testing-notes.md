@@ -3,6 +3,11 @@
 The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa73). Transcripts are in
 `data/experiments/web/`. Findings in `agent/` are for the agent session; page findings are fixed on `claude/web-app`.
 
+## For the page (claude/web-app)
+
+- **A graphic asked for and not made:** when the question asks for a graphic or card and the turn produced none, say
+  so under the answer ("No graphic: the agent didn't look this matchup up"), rather than nothing. Not built yet.
+
 ## For the agent session
 
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
@@ -20,6 +25,9 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
     about (as its docstring says: it checks where a number came from, not what it means). Not yet checked number by
     number.
 - **Also:** "biggest records" wasn't read as head-to-head records until the user said so (turn 14).
+- **Turn 18, "show head to head megd vs raydish in a graphic":** again no tool call, the same invented 2–1 with capsar's
+  ID, and so no card: the app builds cards only from the turn's own template calls, never from the answer's text. With
+  fix 1, the turn would have to call `head_to_head`, and the card follows.
 - **What it shows:** the no-tool check's "reply the same if the facts come from earlier tool results" lets a model
   that never looked anything up keep its answer by claiming it did. Fix 1 has to cover this: a fact answer in a turn
   with no tool call is checked against the earlier turns' actual tool results, not the model's say-so, and an answer's
