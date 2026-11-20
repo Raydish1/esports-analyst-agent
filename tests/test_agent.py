@@ -257,6 +257,12 @@ class EventResolverTest(Fixture):
         self.assertEqual((loose["status"], [e["event_id"] for e in loose["events"]]), ("ambiguous", ["dha19"]))
         self.assertLess(loose["score"], tools.CONFIDENT)
 
+    def test_a_name_of_only_common_words_names_no_event(self):
+        out = self.events.resolve("all")  # live, 'all' matched Adaptation: Win-ter Takes All
+        self.assertEqual((out["status"], out["events"], out["note"]),
+                         ("not_found", [], "'all' names no event: to count every event, leave the event out."))
+        self.assertEqual(self.events.resolve("all 1v1 events")["status"], "not_found")
+
     def test_nothing_matching_is_not_found_with_the_aliases_that_start_alike(self):
         out = self.events.resolve("bcx 2021")
         self.assertEqual((out["status"], out["events"]), ("not_found", []))
@@ -384,6 +390,24 @@ class MentionsTest(Fixture):
         said = "so why did you say cody travis and raydish have won 24 2v2 tournaments"  # live, 20261120T050251Z-001
         self.assertEqual(mentions.lookups(said, mentions.words(said)[0], self.resolver),
                          [("resolve_player", {"name": "cody travis"}), ("resolve_player", {"name": "raydish"})])
+
+
+class MixedConditionsTest(unittest.TestCase):
+    def test_and_and_or_at_one_level_without_parentheses_are_found(self):
+        live = ("SELECT COUNT(DISTINCT t.event_id) FROM v_team_results t WHERE (t.player_id = 117179 AND t.partner_id ="
+                " 147522) OR (t.player_id = 147522 AND t.partner_id = 117179) AND t.placement = 1")  # live: 24, not 4
+        self.assertEqual(tools.mixed_conditions(live), ["WHERE"])
+        for sql in ["SELECT 1 FROM t WHERE ((a = 1 AND b = 2) OR (a = 2 AND b = 1)) AND p = 1",
+                    "SELECT 1 FROM t WHERE x BETWEEN 1 AND 2 OR y = 3",  # a BETWEEN's AND is no condition's
+                    "SELECT 1 FROM t WHERE x = 1 AND (y = 2 OR y = 3)",
+                    "SELECT 1 FROM t WHERE c = 'x OR y AND z' AND d = 1",
+                    "SELECT 1 FROM t WHERE a = 1 -- OR b = 2\n AND c = 3"]:
+            self.assertEqual(tools.mixed_conditions(sql), [], sql)
+        self.assertEqual(tools.mixed_conditions("SELECT 1 FROM t JOIN u ON u.a = t.a AND u.b = 1 OR u.c = 2"), ["ON"])
+        self.assertEqual(tools.mixed_conditions("SELECT SUM(CASE WHEN a = 1 OR b = 2 AND c = 3 THEN 1 END) FROM t"),
+                         ["WHEN"])
+        self.assertEqual(tools.mixed_conditions("SELECT * FROM t WHERE x IN (SELECT y FROM u WHERE a OR b AND c)"),
+                         ["WHERE"])
 
 
 class NameFilterTest(unittest.TestCase):
@@ -886,6 +910,18 @@ class LoopTest(Fixture):
                          " player_id it returns.")
         self.assertEqual(refused["unreturned_players"], [11])
         self.assertEqual(json.loads(ran["observation"])["rows"], [[6]])  # resolve_player returned 11
+
+    def test_a_query_mixing_and_and_or_without_parentheses_is_refused_with_the_precedence(self):
+        mixed = "SELECT COUNT(*) FROM v_results WHERE player_id = 11 OR player_id = 19 AND start_date > '2021'"
+        fixed = "SELECT COUNT(*) FROM v_results WHERE (player_id = 11 OR player_id = 19) AND start_date > '2021'"
+        ask = Scripted(reply(calls=[("run_sql", {"query": mixed})]), reply(calls=[("run_sql", {"query": fixed})]),
+                       reply("10."))
+        trace = react.run("how many results have raydish and zivai after 2021", self.tools, ask=ask, log=lambda *_: None)
+        refused, ran = trace["steps"][0]["tool_calls"][0], trace["steps"][1]["tool_calls"][0]
+        self.assertEqual(refused["and_or"], ["WHERE"])
+        self.assertTrue(json.loads(refused["observation"])["error"].startswith(
+            "This query wasn't run: its WHERE mixes AND and OR without parentheses. AND binds tighter than OR"))
+        self.assertEqual((json.loads(ran["observation"])["rows"], "and_or" in ran), ([[10]], False))
 
     def test_a_player_id_the_question_gives_or_a_result_returned_may_be_queried(self):
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT COUNT(*) FROM v_results WHERE player_id = 11"})]),

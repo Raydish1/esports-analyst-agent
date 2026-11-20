@@ -59,8 +59,8 @@ import mentions  # noqa: E402
 import settling  # noqa: E402
 from number_check import Claim, Evidence, Window, claims as number_claims, stated, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
-from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, name_filters,  # noqa: E402
-                   player_ids, run_sql, tables)
+from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
+                   name_filters, player_ids, run_sql, tables)
 
 MODEL = "qwen3:8b"
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -79,14 +79,16 @@ Choosing a tool
 - Call resolve_player for every player the question names, first.
 - If a template fits the question, call it, and write no SQL for what it returns:
   - who won an event, its top 8, its date or its bracket link: event_results
-  - one player's wins, medals, top 8s or placements, overall, in a year or at an event: player_results
+  - a player's stats, record, profile or card: player_results with no top, every count in one call
+  - one player's wins, medals, top 8s or placements alone, overall, in a year or at an event: player_results
+  - two players as a team, or who a player has played with in 2v2: team_results
   - two players against each other: head_to_head
   - who has the most wins, medals or top 8s, with no other condition: rank_players
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
-- For anything else (partners, records against a player, the last event entered, sets at an event, dominance,
-  earnings), use run_sql, with resolve_event for an event's name.
+- For anything else (records against a player, the last event entered, sets at an event, dominance, earnings), use
+  run_sql, with resolve_event for an event's name.
 
 Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
@@ -259,6 +261,9 @@ FACT_KINDS = {"number", "word", "ordinal", "record", "date", "datetime", "month"
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
                   " it. Reduce it in SQL to what the answer needs (GROUP BY, WHERE, ORDER BY ... LIMIT) and query again"
                   " before answering.")
+AND_OR = ("This query wasn't run: its {clauses} AND and OR without parentheses. AND binds tighter than OR, so"
+          " 'a OR b AND c' means 'a OR (b AND c)', and a condition after the last OR applies to it alone. Put"
+          " parentheses around what each OR joins, such as '(a OR b) AND c', and run it again.")
 LOOKUP_MISS = ("Your last query returned no rows, and its diagnosis says no row has {conditions}: a value its column"
                " doesn't hold. That usually means a lookup went wrong, not that the answer is none. Find the right value"
                " (resolve_player for a player, resolve_event for an event, or one of the values the diagnosis lists)"
@@ -1134,9 +1139,13 @@ class Conversation:
                            and canonical.get(pid, pid) not in allowed and pid not in allowed]
                 query = parsed(arguments).get("query")
                 filters = name_filters(query) if name == "run_sql" and isinstance(query, str) else []
+                mixed = mixed_conditions(query) if name == "run_sql" and isinstance(query, str) else []
                 observation = ({"error": unreturned_players(unknown)} if unknown else
                                {"error": unnamed_players(unnamed, named, shared_names, self.tools.resolver)} if unnamed else
-                               {"error": looked_up_by_name(filters)} if filters else self.call(name, arguments))
+                               {"error": looked_up_by_name(filters)} if filters else
+                               {"error": AND_OR.format(clauses=listed(mixed) + (" mixes" if len(mixed) == 1 else " mix"))}
+                               if mixed else self.call(name, arguments))
+                refused = unknown or unnamed or filters
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
                 self.shown.observe(name, observation, arguments)
@@ -1152,7 +1161,8 @@ class Conversation:
                                            **({"unreturned_players": unknown} if unknown else {}),
                                            **({"unnamed_players": unnamed} if unnamed else {}),
                                            **({"name_filters": filters} if filters and not unknown and not unnamed
-                                              else {})})
+                                              else {}),
+                                           **({"and_or": mixed} if mixed and not refused else {})})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:

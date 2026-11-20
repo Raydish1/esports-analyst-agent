@@ -49,7 +49,7 @@ BY = {"wins": 1, "medals": 3, "top8s": 8}  # what rank_players counts, and the p
 BY_WORDS = {"wins": {"wins", "win", "titles", "title"}, "medals": {"medals", "medal", "podiums", "podium"},
             "top8s": {"top8s", "top8", "top8finishes"}}  # as a model may write them, without spaces or punctuation
 RANKED_AT_MOST = 30  # rows of a ranking listed; a tie group past them is counted instead
-PLAYER_ARGUMENTS = ("player_id", "opponent_id")  # the arguments that take a player, which person() reads
+PLAYER_ARGUMENTS = ("player_id", "opponent_id", "partner_id")  # the arguments that take a player, which person() reads
 # An event name that says only the mode, which a list of 1v1 sets leaves out (set_event): 'Brawlhalla Championship
 # 1v1', 'Brawlhalla Singles (1v1)', '1v1'. 'World Championship 1v1' says more, and stays
 GENERIC_EVENT = re.compile(r"(?:brawlhalla\s*)?(?:championship\s*)?(?:singles|1v1)?\s*(?:\(1v1\))?", re.I)
@@ -60,8 +60,19 @@ COUNTS = [("results", "COUNT(*)", lambda top: False),
           ("first", "SUM(r.placement = 1)", lambda top: top == 1),
           ("second", "SUM(r.placement = 2)", lambda top: top is not None and top < 2),
           ("third", "SUM(r.placement = 3)", lambda top: top is not None and top < 3),
+          ("medals", "SUM(r.placement <= 3)", lambda top: top is not None and top <= 3),
           ("top8", "SUM(r.placement <= 8)", lambda top: top is not None and top <= 8),
           ("best", "MIN(r.placement)", lambda top: top == 1)]
+# What the results column counts under a top, as the summary names it: live, a 0 in a column named results read as
+# "no 2v2 results" for a player with 25 (docs/web-app-testing-notes.md, finding 16). The web app's cards read the
+# summary without a top, by these names: results, first, second, third, top8
+COUNTED = {1: "wins", 3: "medals", 8: "top8s"}
+# An event, mode or year argument that asks for no filter: live, event="all" matched Adaptation: Win-ter Takes All,
+# and volst's top 8 vanished (finding 17)
+NO_FILTER = {"", "all", "any", "every", "everything", "both", "overall", "total", "none", "*", "all events", "every event",
+             "any event", "all modes", "both modes", "all years", "any year", "1v1 and 2v2", "1v1 & 2v2", "all time",
+             "lifetime", "career"}
+FILTERS = ("event", "mode", "year")
 
 
 class Refused(ValueError):
@@ -102,7 +113,8 @@ class Template:
         unknown = sorted(set(arguments) - set(self.parameters))
         if unknown:
             return {"error": f"{self.name} has no argument {unknown[0]!r}: {takes}"}
-        given = {k: v for k, v in arguments.items() if v not in (None, "")}
+        given = {k: v for k, v in arguments.items() if v is not None and not (
+            isinstance(v, str) and (not v.strip() or k in FILTERS and v.strip().casefold() in NO_FILTER))}
         missing = [k for k in self.required if k not in given]
         if missing:
             return {"error": f"{self.name} needs {missing[0]}: {takes}"}
@@ -174,6 +186,19 @@ def joined(items):
 def cut(top):
     """What a placement cutoff keeps, as a table says it."""
     return "results" if top is None else CUTS.get(top, f"results placed {ordinal(top)} or better")
+
+
+def counted_as(top):
+    """The name of the summary's results column: results, or under a top what it counts (COUNTED)."""
+    return "results" if top is None else COUNTED.get(top, f"top{top}s")
+
+
+def narrowed(top, mode, year, found):
+    """What a narrowed player_results counts, as its note says it: 'the wins (1st places) in 2v2'."""
+    said = [f"the {cut(top)}" if top else "the results"] + ([f"in {mode}"] if mode else []) + (
+        [f"in {year}"] if year else []) + ([f"at the event{'' if len(found.events) == 1 else 's'} the name means"]
+                                         if found else [])
+    return " ".join(said)
 
 
 def table(what, columns, rows, optional=False):
@@ -430,11 +455,15 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
     if not mode:
         summary.append([name, "1v1 and 2v2", *(both(column, [row[2 + i] for row in summary])
                                                for i, (column, _) in enumerate(shown))])
+    split = ", ".join(f"{n} in {m}" for m, n in sorted(every.items()))
     if not listed:
         notes.append(f"{name} has no official 1v1 or 2v2 results in the data." if not every else
-                     f"None of {name}'s {sum(every.values())} official results"
-                     f" ({', '.join(f'{n} in {m}' for m, n in sorted(every.items()))}) is among these: the count is 0,"
+                     f"None of {name}'s {sum(every.values())} official results ({split}) is among these: the count is 0,"
                      " which isn't the same as never having played.")
+    elif top or mode or year or found:  # what the counts leave out, so a 0 isn't read as never having played
+        total = sum(every.values())
+        notes.append(f"{name} has {total} official result{'' if total == 1 else 's'} in all ({split}): the counts here"
+                     f" are only {narrowed(top, mode, year, found)}.")
     crews = sum(figures[-1] or 0 for figures in counted.values())
     if crews:
         notes.append(f"{crews} of the 1v1 {cut(top)} {'is a crew battle: a team result' if crews == 1 else 'are crew battles: team results'},"
@@ -443,11 +472,62 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
             for which, r in first_and_latest([r for r in listed if r[3] == m], lambda r: r[6])]
     each = [[r[0], event_name(r[1], r[2]), f"{r[3]} (crew battle)" if r[4] == "crew_battle" else r[3], r[5]] for r in listed]
     return observation("player_results", scope, notes, [
-        table(f"{name}'s {cut(top)}, counted by mode", ["player", "mode", *(column for column, _ in shown)], summary),
+        table(f"{name}'s {cut(top)}, counted by mode",
+              ["player", "mode", *(counted_as(top) if column == "results" else column for column, _ in shown)], summary),
         table("the first and the latest of them in each mode", ["which", "mode", "date", "event", "placement"], ends)
         if ends else None,
         table("each of them, oldest first", ["date", "event", "mode", "placement"], each, optional=True)
         if each else None], query.ran, player={"player_id": player, "name": name}, event=found and found.about)
+
+
+# team_results
+
+def team_results(query, tools, player_id, partner_id=None, year=None, event=None):
+    player, name, given = person(tools, player_id)
+    partner, other, given_partner = person(tools, partner_id, "partner_id") if partner_id is not None else (None, None, None)
+    if partner == player:
+        raise Refused(f"player_id and partner_id are both {name}: pass the two players' player_ids, or leave partner_id"
+                      " out for every partner")
+    year = None if year is None else whole(year, "year")
+    found = None if event is None else match_events(tools, event)
+    if found and not found.usable:
+        return unanswered("team_results", found, query)
+    where, said = [f"t.player_id = {player}"] + ([f"t.partner_id = {partner}"] if partner else []), ["2v2"]
+    if year:
+        where.append(f"substr(t.start_date, 1, 4) = '{year}'")
+        said.append(f"in {year}")
+    if found:
+        where.append(f"t.event_id IN ({in_ids(found.events)})")
+        said.append(f"at the {len(found.events)} event{'' if len(found.events) == 1 else 's'} the name means")
+    scope, cond = f"{SCOPE}, {', '.join(said)}", " AND ".join(where)
+    notes = (found.notes + status_notes(query, found.events) if found else []) + [
+        note for note in (merged(given, player, name), partner and merged(given_partner, partner, other)) if note]
+    counts = "COUNT(*), SUM(t.placement = 1), SUM(t.placement <= 3), SUM(t.placement <= 8), MIN(t.placement)"
+    about = {"player": {"player_id": player, "name": name}, "event": found and found.about}
+    if partner is None:
+        partners = query.rows(f"SELECT p.name, t.partner_id, {counts} FROM v_team_results t JOIN players p ON"
+                              f" p.player_id = t.partner_id WHERE {cond} GROUP BY t.partner_id ORDER BY 3 DESC, 7, p.name")
+        results = sum(r[2] for r in partners)
+        notes.append(f"{name} has {results} official 2v2 result{'' if results == 1 else 's'} with {len(partners)}"
+                     f" partner{'' if len(partners) == 1 else 's'}{' here' if year or found else ''}." if partners else
+                     f"{name} has no official 2v2 results{' here' if year or found else ''}.")
+        return observation("team_results", scope, notes, [
+            table(f"{name}'s 2v2 partners, the most events together first",
+                  ["partner", "partner_id", "events", "wins", "medals", "top8s", "best"], partners, optional=True)
+            if partners else None], query.ran, **about)
+    together = query.rows(f"SELECT {counts} FROM v_team_results t WHERE {cond}")[0]
+    listed = query.rows(f"SELECT t.start_date, t.tournament_name, t.event_name, t.placement FROM v_team_results t"
+                        f" WHERE {cond} ORDER BY t.start_date, t.event_id")
+    if not listed:
+        notes.append(f"{name} and {other} have no official 2v2 results together{' here' if year or found else ''}.")
+    ends = [[which, r[0], event_name(r[1], r[2]), r[3]] for which, r in first_and_latest(listed, lambda r: r[0])]
+    return observation("team_results", scope, notes, [
+        table(f"{name} and {other}'s 2v2 results together", ["player", "partner", "events", "wins", "medals", "top8s",
+                                                             "best"], [[name, other, *together]]) if listed else None,
+        table("the first and the latest of them", ["which", "date", "event", "placement"], ends) if ends else None,
+        table("each of them, oldest first", ["date", "event", "placement"],
+              [[r[0], event_name(r[1], r[2]), r[3]] for r in listed], optional=True) if listed else None],
+        query.ran, **about, partner={"player_id": partner, "name": other})
 
 
 # head_to_head
@@ -580,9 +660,10 @@ TEMPLATES = {t.name: t for t in (
         ("event",), event_results),
     Template(
         "player_results",
-        "One player's results at official events: how many, by mode (1st, 2nd and 3rd places, top 8s, the best), the"
-        " first and the latest, and the list. Use it for a player's wins, titles or majors (top 1), medals (top 3), top"
-        " 8s (top 8) or every result (no top), and narrow it to a mode, a year, or an event or series ('worlds', 'bcx"
+        "One player's results at official events: how many, by mode (1st, 2nd and 3rd places, medals, top 8s, the"
+        " best), the first and the latest, and the list. With no top it's the player's whole record in one call: use it"
+        " so for a player's stats, record, profile or card. Use top for their wins, titles or majors alone (top 1),"
+        " medals (top 3) or top 8s (top 8), and narrow it to a mode, a year, or an event or series ('worlds', 'bcx"
         " 2024') when the question does. With top, it counts only those results, not the player's whole record.",
         {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
          "top": {"type": "integer", "description": "keep results placed this or better: 1 for wins, 3 for medals, 8 for"
@@ -591,6 +672,19 @@ TEMPLATES = {t.name: t for t in (
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), player_results),
+    Template(
+        "team_results",
+        "One player's 2v2 results with partners at official events. With partner_id, the two players' events together:"
+        " how many, their wins, medals, top 8s and best placement together, the first and the latest, and each event."
+        " Without it, each partner the player has had, with those figures, the most events together first. Use it for"
+        " how two players did as a team, how many events they won together, or who a player has played with in 2v2,"
+        " and narrow it to a year, or an event or series, when the question does.",
+        {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
+         "partner_id": {"type": "integer", "description": "the partner's player_id, from resolve_player; leave out for"
+                                                          " every partner"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        ("player_id",), team_results),
     Template(
         "head_to_head",
         "Two players against each other at official events: the first player's 1v1 record against the other in sets"

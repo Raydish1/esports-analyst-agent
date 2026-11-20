@@ -131,6 +131,8 @@ CLAUSE_WORDS = r"(?!(?:join|where|on|using|left|right|inner|outer|cross|natural|
 EVENT_SCORES = {"alias": 1.0, "series": 0.95, "words": 0.9, "some words": 0.85}  # rankings too, as SCORES
 MODE_WORDS = {"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}
 FILLER = {"the", "tournament", "event"}
+NO_EVENT = {"all", "any", "every", "everything", "both", "overall", "total", "none", "the", "a", "an", "of", "event",
+            "events", "tournament", "tournaments", "every"}  # words that alone name no event
 QUALIFIER = {"qualifier", "qualifiers", "lcq"}
 YEAR = re.compile(r"20\d\d")
 EVENTS_LISTED = 10
@@ -349,6 +351,9 @@ class EventResolver:
         modes = {MODE_WORDS[t] for t in tokens if t in MODE_WORDS}
         mode = modes.pop() if len(modes) == 1 else None
         rest = [t for t in tokens if t not in MODE_WORDS]
+        if rest and all(t in NO_EVENT for t in rest):  # live, 'all' matched Adaptation: Win-ter Takes All (finding 17)
+            return {"name": name, "status": "not_found", "events": [],
+                    "note": f"{name!r} names no event: to count every event, leave the event out."}
         found, tier, matched, closeness, share = self.by_alias(" ".join(rest))
         if mode:
             found = {e for e in found if self.events[e]["counts_as"] == mode}
@@ -497,6 +502,61 @@ def player_ids(sql):
     found = []
     for one, many in PLAYER_FILTER.findall(sql):
         found += [int(one)] if one else [int(n) for n in many.split(",") if n.strip()]
+    return found
+
+
+CONDITION = {"WHERE", "ON", "HAVING", "WHEN"}  # the keywords that begin a condition
+ENDS_CONDITION = {"SELECT", "FROM", "JOIN", "GROUP", "ORDER", "LIMIT", "UNION", "INTERSECT", "EXCEPT", "WINDOW",
+                  "THEN", "ELSE", "END", "LEFT", "INNER", "CROSS", "RIGHT", "FULL", "NATURAL", "USING"}
+
+
+def mixed_conditions(sql):
+    """The conditions a query writes with AND and OR at one level, outside parentheses: the keyword each begins
+    with (WHERE, ON, HAVING, WHEN), once each. Quotes and comments are skipped, and a BETWEEN's AND isn't one. AND
+    binds tighter than OR, so 'a OR b AND c' is 'a OR (b AND c)': live, a query counted the 24 events Cody Travis and
+    Phazon entered together as their wins, though they won 4 (docs/web-app-testing-notes.md, finding 7). Of 518
+    recorded queries, 9 mixed them: 5 so, and 4 meaning what the precedence gives."""
+    found, stack, i, n = [], [{"clause": None, "ops": set(), "between": False}], 0, len(sql)
+
+    def close(frame):
+        if frame["clause"] and {"AND", "OR"} <= frame["ops"] and frame["clause"] not in found:
+            found.append(frame["clause"])
+
+    while i < n:
+        c = sql[i]
+        if c in "'\"`[":
+            end, i = ("]" if c == "[" else c), i + 1
+            while i < n and not (sql[i] == end and sql[i + 1:i + 2] != end):
+                i += 2 if sql[i] == end else 1
+            i += 1
+        elif sql.startswith("--", i):
+            i = sql.find("\n", i) + 1 or n
+        elif sql.startswith("/*", i):
+            i = sql.find("*/", i + 2) + 2 if "*/" in sql[i + 2:] else n
+        elif c == "(":
+            stack.append({"clause": stack[-1]["clause"], "ops": set(), "between": False})
+            i += 1
+        elif c == ")":
+            if len(stack) > 1:
+                close(stack.pop())
+            i += 1
+        elif (c.isalpha() or c == "_") and (i == 0 or not (sql[i - 1].isalnum() or sql[i - 1] == "_")):
+            m = re.match(r"\w+", sql[i:])
+            word, frame = m[0].upper(), stack[-1]
+            if word in CONDITION or word in ENDS_CONDITION:
+                close(frame)
+                frame["clause"], frame["ops"] = (word if word in CONDITION else None), set()
+            elif word == "BETWEEN":
+                frame["between"] = True
+            elif word == "AND" and frame["between"]:
+                frame["between"] = False
+            elif word in ("AND", "OR") and frame["clause"]:
+                frame["ops"].add(word)
+            i += len(m[0])
+        else:
+            i += 1
+    for frame in stack:
+        close(frame)
     return found
 
 
