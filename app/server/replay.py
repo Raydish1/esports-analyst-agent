@@ -154,4 +154,8 @@ class ReplayRetriever:
         self.trace = None
 
     def retrieve(self, question):
-        return self.trace.get("examples") if self.trace else None
+        """The recorded turn's examples; for a turn recorded without any (retrieval off), none, in retrieval's own
+        shape, since the agent reads what it was given (react.Conversation.examples)."""
+        found = self.trace.get("examples") if self.trace else None
+        return found or {"threshold": None, "candidates": 0, "examples": [],
+                         "skipped": "the recording retrieved no examples"}

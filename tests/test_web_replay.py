@@ -113,7 +113,7 @@ class ReplayModelTest(Fixture):
 
     def test_the_recorded_examples_come_back(self):
         retriever = replay.ReplayRetriever()
-        self.assertIsNone(retriever.retrieve("q"))
+        self.assertEqual(retriever.retrieve("q")["examples"], [])  # a turn recorded without retrieval: none
         retriever.trace = {"examples": {"examples": [], "threshold": 0.7}}
         self.assertEqual(retriever.retrieve("q"), {"examples": [], "threshold": 0.7})
 
