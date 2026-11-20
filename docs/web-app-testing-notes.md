@@ -33,6 +33,26 @@ The user's own questions in live mode (qwen3:8b, `claude/agent` merged at a74fa7
   with no tool call is checked against the earlier turns' actual tool results, not the model's say-so, and an answer's
   own earlier numbers never count as evidence.
 
+### 0b. Picking a suggestion answered a worked example's question instead
+
+- **Seen:** a new conversation (`20261119T233544Z-003`). "whats megd and raydishes record in 1v1" gave suggestions for
+  "raydishes" (Raydish, Radses, radish), rightly. The user clicked Raydish, which sends "the first one". Retrieval
+  embedded those three words alone and returned one example, ex15 "What was Addymestic's first official title?" (0.703,
+  on "first"). The model's thinking began "let's tackle the user's question: What was Addymestic's first official
+  title?"; it called `player_results` with the example's placeholder ID 222222 (refused by the player check), then
+  resolved the real Addymestic and answered about him. The page drew his lifetime card.
+- **Why:** a reply to suggestions is handled as a new question: the model has to rebuild the original question from the
+  history, and retrieval runs on the bare reply. And the bank's example questions name real players, so one can pass for
+  the user's question.
+- **Proposed:**
+  - in code, a reply to suggestions (an ordinal, a number, or a candidate's name) is turned back into the original
+    question with the chosen player settled ("whats megd and Raydish's record in 1v1", Raydish given as player_id
+    160000), traced; retrieval and the model see that question, never the bare reply. This is finding 3's rewrite, made
+    deterministic for this case;
+  - retrieval never runs on a reply too short to carry a question;
+  - the examples block makes the user's question unmistakable (it comes last, marked as the question to answer), and
+    the bank's questions could use placeholder names instead of real players.
+
 ### 1. An answer that looks nothing up survives the no-tool check (decided: fix it in code)
 
 - **Seen:** "when was ceo 2025" (`20261119T233544Z-002`, turn 3). The model decided from its own knowledge that CEO isn't
