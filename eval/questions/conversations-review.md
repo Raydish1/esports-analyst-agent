@@ -6,17 +6,17 @@ Made by `python eval/conversations.py review` from [`conversations.toml`](conver
 
 **To verify:** check each turn's expected answer against what you know, then fill in `verified` for its conversation in `conversations.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the command to update this page.
 
-**Verified:** 0 of 7.
+**Verified:** 7 of 7.
 
 | Id | Conversation | Turns | Measures | Verified |
 |---|---|---|---|---|
-| [c1](#c1) | megD's biggest records | 5 | fix 1: no turn keeps records it never looked up; fix 2: 'he' is megD; fix 4: Raydish isn't renamed capsar |  |
-| [c2](#c2) | picking a suggestion | 2 | fix 2: a reply to suggestions answers the original question with the chosen player |  |
-| [c3](#c3) | the 2v2 follow-up | 2 | fix 2: a follow-up without names continues the previous question; fix 3: no clarifying question sent back as an answer; fix 6: sets named by their events |  |
-| [c4](#c4) | CEO 2025 | 3 | fix 1: an event is looked up, never denied from memory |  |
-| [c5](#c5) | the crew battles | 3 | fix 5: 'cb' found by a retry the agent makes itself; fix 4: every player named, not numbered |  |
-| [c6](#c6) | Raydish and megD, then a stat card | 2 | turn 1: control; turn 2 failed live, and no fix targets it: player_results with mode 1v1 and top 1 gave Raydish's wins alone, and the answer said he has no 2v2 results |  |
-| [c7](#c7) | three standalone questions | 3 | control |  |
+| [c1](#c1) | megD's biggest records | 5 | fix 1: no turn keeps records it never looked up; fix 2: 'he' is megD; fix 4: Raydish isn't renamed capsar | yes |
+| [c2](#c2) | picking a suggestion | 2 | fix 2: a reply to suggestions answers the original question with the chosen player | yes |
+| [c3](#c3) | the 2v2 follow-up | 2 | fix 2: a follow-up without names continues the previous question; fix 3: no clarifying question sent back as an answer; fix 6: sets named by their events | yes |
+| [c4](#c4) | CEO 2025 | 3 | fix 1: an event is looked up, never denied from memory | yes |
+| [c5](#c5) | the crew battles | 3 | fix 5: 'cb' found by a retry the agent makes itself; fix 4: every player named, not numbered | yes |
+| [c6](#c6) | Raydish and megD, then a stat card | 2 | turn 1: control; turn 2 failed live, and no fix targets it: player_results with mode 1v1 and top 1 gave Raydish's wins alone, and the answer said he has no 2v2 results | yes |
+| [c7](#c7) | three standalone questions | 3 | control | yes |
 
 <a id="c1"></a>
 
@@ -136,7 +136,7 @@ WHERE a.player_id = 160000 AND b.player_id = 142100 AND a.mode = '2v2'
 
 **Checks:** calls ["head_to_head"]; players [142100, 160000]; rows [[[142100, "megD"], [160000, "Raydish"], 4, 2]]; not_says ["147569", "capsar"]; grounded and named (every turn)
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c2"></a>
 
@@ -180,7 +180,7 @@ FROM v_head_to_head_1v1 WHERE player_id = 142100 AND opponent_id = 160000
 |---|---|---|---|---|---|---|
 | 142100 | 160000 | 4 | 2 | 2 | 8 | 9 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c3"></a>
 
@@ -244,7 +244,7 @@ WHERE a.player_id = 160000 AND b.player_id = 135748 AND a.mode = '2v2'
 |---|---|
 | 5 | 2 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c4"></a>
 
@@ -308,7 +308,7 @@ WHERE r.event_id IN (SELECT event_id FROM v_events WHERE tournament_name LIKE 'C
 | Brawlhalla Doubles | 2v2 | 160000 | Raydish | 2 |
 | Brawlhalla Singles | 1v1 | 149305 | BBBalloonBoy | 2 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c5"></a>
 
@@ -380,7 +380,7 @@ AND r.placement <= 3 ORDER BY r.placement, p.name
 | 3 | 147592 | Zinquer |
 | 3 | 118094 | experiencedoa |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c6"></a>
 
@@ -424,7 +424,7 @@ FROM v_results WHERE player_id = 160000 GROUP BY mode
 | 160000 | 1v1 | 55 | 6 | 15 | 27 | 1 |
 | 160000 | 2v2 | 43 | 0 | 7 | 16 | 2 |
 
-**Verified:** not yet
+**Verified:** yes
 
 <a id="c7"></a>
 
@@ -466,4 +466,4 @@ ORDER BY start_time
 | 142100 | 2026-07-19 | Summer Championship - North America 2026 - 1v1 | 1v1 | standard |
 | 142100 | 2026-08-30 | Eternal Sports Crew Battle Championship 2026 - North America | 1v1 | crew_battle |
 
-**Verified:** not yet
+**Verified:** yes

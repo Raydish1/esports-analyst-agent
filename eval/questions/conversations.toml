@@ -1,10 +1,11 @@
 # Multi-turn test conversations, v1: what the user typed in the web app's live mode on 2026-11-19
 # (data/experiments/web/20261119T233544Z-002 and -003), cut into conversations, with expected facts computed from the
-# frozen snapshot eval-v1. Review them in conversations-review.md, which `python eval/conversations.py review` makes
-# from this file with each query's result; edit this file, never the page. Played and scored by eval/conversations.py.
+# frozen snapshot eval-v1, all verified by the user (2026-11-19). Review them in conversations-review.md, which
+# `python eval/conversations.py review` makes from this file with each query's result; edit this file, never the
+# page. Played and scored by eval/conversations.py.
 #
-# A held-out set in the same format goes in a file of its own, with `heldout = true` at the top: the commands then
-# print and write nothing of its text, only its ids, turn numbers and checks.
+# A set in the same format with `heldout = true` at the top is played and reported without its text: only its ids,
+# turn numbers and checks.
 #
 # Each conversation has:
 #   id        c1, c2, ...: stable, never reused.
@@ -46,7 +47,7 @@ id = "c1"
 title = "megD's biggest records"
 source = "20261119T233544Z-002, turns 14-18"
 measures = ["fix 1: no turn keeps records it never looked up", "fix 2: 'he' is megD", "fix 4: Raydish isn't renamed capsar"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "whats the biggest record megd has"
@@ -148,7 +149,7 @@ id = "c2"
 title = "picking a suggestion"
 source = "20261119T233544Z-003, turns 1-2"
 measures = ["fix 2: a reply to suggestions answers the original question with the chosen player"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "whats megd and raydishes record in 1v1"
@@ -188,7 +189,7 @@ id = "c3"
 title = "the 2v2 follow-up"
 source = "20261119T233544Z-002, turns 6-7"
 measures = ["fix 2: a follow-up without names continues the previous question", "fix 3: no clarifying question sent back as an answer", "fix 6: sets named by their events"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "whats raydish's record with kyna"
@@ -241,7 +242,7 @@ id = "c4"
 title = "CEO 2025"
 source = "20261119T233544Z-002, turns 2-4"
 measures = ["fix 1: an event is looked up, never denied from memory"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "what did raydish get in autumn 2022"
@@ -295,7 +296,7 @@ id = "c5"
 title = "the crew battles"
 source = "20261119T233544Z-002, turns 8-10"
 measures = ["fix 5: 'cb' found by a retry the agent makes itself", "fix 4: every player named, not numbered"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "do you know about the cb tournament in 2022"
@@ -347,7 +348,7 @@ id = "c6"
 title = "Raydish and megD, then a stat card"
 source = "20261119T233544Z-003, turns 3-4"
 measures = ["turn 1: control", "turn 2 failed live, and no fix targets it: player_results with mode 1v1 and top 1 gave Raydish's wins alone, and the answer said he has no 2v2 results"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "whats raydish and megd's record"
@@ -387,7 +388,7 @@ id = "c7"
 title = "three standalone questions"
 source = "20261119T233544Z-002, turns 11-13 (the first two are q38 and q06, word for word)"
 measures = ["control"]
-verified = ""
+verified = "yes"
 
 [[conversation.turn]]
 say = "rank the top 5 players by official 1v1 wins"
