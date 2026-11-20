@@ -44,6 +44,8 @@ class SetTest(unittest.TestCase):
         self.assertEqual(found, ["x1 turn 1: no expect", "x1 turn 1: no check named 'rowz'",
                                  "x1 turn 2: check names 'q09', which has no stage 2 check"])  # q09 is unanswerable
         self.assertNotIn("secret", " ".join(found))
+        shown = {"conversation": [{"id": "x2", "title": "t", "turn": [{"say": "s", "expect": "e", "shown": "a card"}]}]}
+        self.assertEqual(conversations.problems(shown), [])  # what the page showed is a turn's field, not a check
 
 
 class WindowTest(unittest.TestCase):
@@ -103,6 +105,24 @@ class CallsTest(unittest.TestCase):
                                  calls=["head_to_head"]),
                          {"grounded": True, "named": True, "players": True, "not_players": True, "calls": True})
         self.assertFalse(checked(turn, grounded=False, calls=["player_results"])["calls"])
+
+    def test_not_calls_and_not_looked_up_read_every_call_the_loops_own_lookups_included(self):
+        forced = call("resolve_event", {"name": "say cody travis 24"},
+                      {"name": "say cody travis 24", "status": "not_found", "events": []}, forced=True)
+        turn = Turn(trace("q", "", RESOLVED, forced), None, NAMES)  # live, 20261120T050251Z-001 turn 7
+        self.assertEqual(checked(turn, grounded=False, not_calls=["head_to_head"], not_looked_up=["two"]),
+                         {"grounded": True, "named": True, "not_calls": True, "not_looked_up": True})
+        self.assertEqual(score_turn(turn, {"not_looked_up": ["say", "24"]})["not_looked_up"],
+                         {"passed": False, "detail": "looked up resolve_event('say cody travis 24')"})
+        self.assertFalse(checked(turn, grounded=False, not_calls=["resolve_event"])["not_calls"])
+        self.assertFalse(checked(turn, grounded=False, not_looked_up=["MEGD"])["not_looked_up"])  # any case
+
+    def test_unconfirmed_at_most_counts_the_claims_the_number_check_replaced(self):
+        replaced = Turn({**trace("q", "x"), "unconfirmed": [{"claim": "a"}, {"claim": "b"}]}, None, NAMES)
+        self.assertEqual(score_turn(replaced, {"unconfirmed_at_most": 1})["unconfirmed_at_most"],
+                         {"passed": False, "detail": "2 claims replaced"})
+        self.assertTrue(checked(replaced, grounded=False, unconfirmed_at_most=2)["unconfirmed_at_most"])
+        self.assertTrue(checked(Turn(trace("q", "x"), None, NAMES), grounded=False, unconfirmed_at_most=0)["unconfirmed_at_most"])
 
     def test_suggests_wants_suggestions_with_the_player_first(self):
         asked = Turn(trace("q", "I couldn't find...", outcome="suggestions", suggestions={"raydishes": [160000, 24]}),

@@ -1,12 +1,12 @@
-# Test conversations v1: review
+# Test conversations: review
 
 Made by `python eval/conversations.py review` from [`conversations.toml`](conversations.toml), which is the file to edit.
 
-7 conversations, 20 turns, with expected facts computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each turn shows what a right answer says, the automatic checks scoring it, and the queries behind them with their results.
+13 conversations, 36 turns, with expected facts computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each turn shows what a right answer says, the automatic checks scoring it, and the queries behind them with their results.
 
 **To verify:** check each turn's expected answer against what you know, then fill in `verified` for its conversation in `conversations.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the command to update this page.
 
-**Verified:** 7 of 7.
+**Verified:** 7 of 13.
 
 | Id | Conversation | Turns | Measures | Verified |
 |---|---|---|---|---|
@@ -17,6 +17,12 @@ Made by `python eval/conversations.py review` from [`conversations.toml`](conver
 | [c5](#c5) | the crew battles | 3 | fix 5: 'cb' found by a retry the agent makes itself; fix 4: every player named, not numbered | yes |
 | [c6](#c6) | Raydish and megD, then a stat card | 2 | turn 1: control; turn 2 failed live, and no fix targets it: player_results with mode 1v1 and top 1 gave Raydish's wins alone, and the answer said he has no 2v2 results | yes |
 | [c7](#c7) | three standalone questions | 3 | control | yes |
+| [c8](#c8) | Cody Travis and Phazon after a 2v2 ranking | 5 | finding 8: 'what about X and Y?' continues the ranking; finding 7: a duo's wins together; finding 9: the card the page showed; finding 10: a question about the agent's own answer is re-checked, its words never looked up |  |
+| [c9](#c9) | Mojakin's stats, picked from suggestions | 2 | finding 16: a player's stats from one call; finding 15: no answer invented, then gutted by replacements |  |
+| [c10](#c10) | megD's partners, then the count disputed | 2 | finding 12: a player's partners from a template; findings 10 and 12: an answer the user disputes is checked again |  |
+| [c11](#c11) | volst's stats | 1 | finding 16: a player's stats from one call; finding 17: event 'all' is no filter |  |
+| [c12](#c12) | kyna vs yuz, the biggest head-to-head, then kyna vs yuz again | 3 | finding 19: a note's 'won 11 and lost 11' supports 11-11; finding 14: 'two' isn't looked up as a player; finding 13: the players the question names, not the previous turn's |  |
+| [c13](#c13) | the most medals, then dragon | 3 | turn 1: control; finding 18: a name several players share exactly, with no clear cut, ends in suggestions; turn 3: a candidate picked by its name, punctuation and all |  |
 
 <a id="c1"></a>
 
@@ -467,3 +473,488 @@ ORDER BY start_time
 | 142100 | 2026-08-30 | Eternal Sports Crew Battle Championship 2026 - North America | 1v1 | crew_battle |
 
 **Verified:** yes
+
+<a id="c8"></a>
+
+## c8. Cody Travis and Phazon after a 2v2 ranking
+
+From 20261120T050251Z-001, turns 3-7.
+
+### Turn 1: top 5 2v2 players in brawlhalla history
+
+**Expected:** By 2v2 wins at official events, the reading live: Boomie 32, Blaze and acno? 23 (tied 2nd), gdsandstorm 18, SiB | Wess 14. By 2v2 medals: Boomie 46, Blaze 41, acno? 40, SiB | Wess 34, Phazon 33. Either is right if the answer says which it counted.
+
+**Checks:** rows_any [[[146606, "Boomie"], 32], [[146606, "Boomie"], 46]]; grounded and named (every turn)
+
+**Query 1:** the top 5 by 2v2 wins, ties included
+
+```sql
+WITH counted AS (SELECT player_id, COUNT(*) AS wins FROM v_results WHERE mode = '2v2' AND placement = 1 GROUP BY player_id),
+ranked AS (SELECT player_id, wins, RANK() OVER (ORDER BY wins DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, wins FROM ranked JOIN players p USING (player_id) WHERE rank <= 5 ORDER BY rank, p.name
+```
+
+| rank | player_id | name | wins |
+|---|---|---|---|
+| 1 | 146606 | Boomie | 32 |
+| 2 | 149204 | Blaze | 23 |
+| 2 | 144399 | acno? | 23 |
+| 4 | 74433 | gdsandstorm | 18 |
+| 5 | 37977 | SiB \| Wess | 14 |
+
+**Query 2:** the top 5 by 2v2 medals, ties included
+
+```sql
+WITH counted AS (SELECT player_id, COUNT(*) AS medals FROM v_results WHERE mode = '2v2' AND placement <= 3 GROUP BY player_id),
+ranked AS (SELECT player_id, medals, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_id) WHERE rank <= 5 ORDER BY rank, p.name
+```
+
+| rank | player_id | name | medals |
+|---|---|---|---|
+| 1 | 146606 | Boomie | 46 |
+| 2 | 149204 | Blaze | 41 |
+| 3 | 144399 | acno? | 40 |
+| 4 | 37977 | SiB \| Wess | 34 |
+| 5 | 147522 | Phazon | 33 |
+
+### Turn 2: what about cody travis and phazon?
+
+**Expected:** It continues the ranking: where Cody Travis and Phazon stand by turn 1's measure, not their 1v1 record against each other. By 2v2 wins: Phazon 12 (7th), Cody Travis 6 (tied 27th, with six others). By 2v2 medals: Phazon 33 (5th), Cody Travis 27 (6th). Live, the turn called head_to_head and answered their 1v1 sets.
+
+**Checks:** not_calls ["head_to_head"]; players [117179, 147522]; rows_any [[[147522, "Phazon"], 12], [[147522, "Phazon"], 33]]; grounded and named (every turn)
+
+**Shown on the page after this turn:** Card shown with this answer: Cody Travis and Phazon, lifetime at official events. 1v1: Cody Travis 65 results (4 1st, 4 2nd, 5 3rd, 28 top 8s), Phazon 76 (0 1st, 3 2nd, 9 3rd, 28 top 8s). 2v2: Cody Travis 57 results (6 1st, 15 2nd, 6 3rd, 43 top 8s), Phazon 63 (12 1st, 15 2nd, 6 3rd, 51 top 8s).
+
+**Query 1:** their 2v2 wins, and their rank by them
+
+```sql
+WITH counted AS (SELECT player_id, COUNT(*) AS wins FROM v_results WHERE mode = '2v2' AND placement = 1 GROUP BY player_id),
+ranked AS (SELECT player_id, wins, RANK() OVER (ORDER BY wins DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, wins FROM ranked JOIN players p USING (player_id) WHERE player_id IN (117179, 147522)
+```
+
+| rank | player_id | name | wins |
+|---|---|---|---|
+| 27 | 117179 | Cody Travis | 6 |
+| 7 | 147522 | Phazon | 12 |
+
+**Query 2:** their 2v2 medals, and their rank by them
+
+```sql
+WITH counted AS (SELECT player_id, COUNT(*) AS medals FROM v_results WHERE mode = '2v2' AND placement <= 3 GROUP BY player_id),
+ranked AS (SELECT player_id, medals, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_id) WHERE player_id IN (117179, 147522)
+```
+
+| rank | player_id | name | medals |
+|---|---|---|---|
+| 6 | 117179 | Cody Travis | 27 |
+| 5 | 147522 | Phazon | 33 |
+
+**Query 3:** their lifetime figures by mode, as the card shows them
+
+```sql
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS first, SUM(placement = 2) AS second,
+       SUM(placement = 3) AS third, SUM(placement <= 8) AS top8s
+FROM v_results WHERE player_id IN (117179, 147522) GROUP BY player_id, mode
+```
+
+| player_id | mode | results | first | second | third | top8s |
+|---|---|---|---|---|---|---|
+| 117179 | 1v1 | 65 | 4 | 4 | 5 | 28 |
+| 117179 | 2v2 | 57 | 6 | 15 | 6 | 43 |
+| 147522 | 1v1 | 76 | 0 | 3 | 9 | 28 |
+| 147522 | 2v2 | 63 | 12 | 15 | 6 | 51 |
+
+### Turn 3: how many tournaments in 2v2 did cody travis and phazon win
+
+**Expected:** 4, as partners at official events, of the 24 2v2 events they entered together: the North America - Summer Championship 2020 (2020-06-27), the North America - SteelSeries Championship (2020-08-15), the North America - Autumn Championship 2020 (2020-09-19) and the North America - Winter Championship 2021 (2021-03-13). Live, a run_sql query with an unparenthesized OR counted all 24 events as wins.
+
+**Checks:** says_numbers [4]; players [117179, 147522]; grounded and named (every turn)
+
+**Query 1:** their 2v2 events together: how many, and their wins, medals and top 8s together
+
+```sql
+SELECT player_id, partner_id, COUNT(*) AS events, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_team_results WHERE player_id = 117179 AND partner_id = 147522
+```
+
+| player_id | partner_id | events | wins | medals | top8s | best |
+|---|---|---|---|---|---|---|
+| 117179 | 147522 | 24 | 4 | 15 | 20 | 1 |
+
+**Query 2:** the 4 they won
+
+```sql
+SELECT start_date, tournament_name, event_name, placement FROM v_team_results
+WHERE player_id = 117179 AND partner_id = 147522 AND placement = 1 ORDER BY start_date
+```
+
+| start_date | tournament_name | event_name | placement |
+|---|---|---|---|
+| 2020-06-27 | North America - Summer Championship 2020 | Brawlhalla Championship 2v2 | 1 |
+| 2020-08-15 | North America - SteelSeries Championship | Brawlhalla Championship 2v2 | 1 |
+| 2020-09-19 | North America - Autumn Championship 2020 | Brawlhalla Championship 2v2 | 1 |
+| 2021-03-13 | North America - Winter Championship 2021 | Brawlhalla Championship 2v2 | 1 |
+
+### Turn 4: are you sure? you just said phazon has 12 medals and cody travis has 6 medals in 2v2 in the graphic
+
+**Expected:** The card's 12 and 6 are their 2v2 1st places (wins), each player's own, not wins together and not medals. Their 2v2 medals are 33 for Phazon (12, 15 and 6) and 27 for Cody Travis (6, 15 and 6), checked again with a tool. Live, the model couldn't see the card, looked up only Phazon, and invented a source for Cody Travis's 6.
+
+**Checks:** says_numbers [33, 27]; players [117179, 147522]; grounded and named (every turn)
+
+**Query 1:** their 2v2 1st, 2nd and 3rd places, and medals
+
+```sql
+SELECT player_id, SUM(placement = 1) AS first, SUM(placement = 2) AS second, SUM(placement = 3) AS third,
+       SUM(placement <= 3) AS medals
+FROM v_results WHERE player_id IN (117179, 147522) AND mode = '2v2' GROUP BY player_id
+```
+
+| player_id | first | second | third | medals |
+|---|---|---|---|---|
+| 117179 | 6 | 15 | 6 | 27 |
+| 147522 | 12 | 15 | 6 | 33 |
+
+### Turn 5: so why did you say cody travis and phazon have won 24 2v2 tournaments
+
+**Expected:** About the agent's own earlier answer, checked again: they won 4 2v2 events together, of the 24 they entered together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). Live, the loop looked up "say cody travis 24" as an event.
+
+**Checks:** says_numbers [4]; not_looked_up ["say", "24"]; players [117179, 147522]; grounded and named (every turn)
+
+**Query 1:** their 2v2 events together, and their wins together
+
+```sql
+SELECT player_id, partner_id, COUNT(*) AS events, SUM(placement = 1) AS wins
+FROM v_team_results WHERE player_id = 117179 AND partner_id = 147522
+```
+
+| player_id | partner_id | events | wins |
+|---|---|---|---|
+| 117179 | 147522 | 24 | 4 |
+
+**Verified:** not yet
+
+<a id="c9"></a>
+
+## c9. Mojakin's stats, picked from suggestions
+
+From 20261120T050251Z-001, turns 8-9.
+
+### Turn 1: what are mojakins stats
+
+**Expected:** Suggestions, Mojakin (77046) first: 'mojakins' matches no name exactly, Mojakin only by a similar spelling.
+
+**Checks:** suggests 77046; grounded and named (every turn)
+
+**Query 1:** Mojakin's official results
+
+```sql
+SELECT player_id, COUNT(*) AS results FROM v_results WHERE player_id = 77046
+```
+
+| player_id | results |
+|---|---|
+| 77046 | 26 |
+
+### Turn 2: the first one
+
+**Expected:** Mojakin's record at official events: 26 results, 9 in 1v1 and 17 in 2v2; no wins, medals or top 8s; best 25th in 2v2 and 65th in 1v1; the latest the Autumn Championship - North America 2026 - 2v2 (2026-09-27). Live, the first reply invented 8 1v1 wins, a 2023 Winter Royale win and a partner "Savage"; three player_results calls followed, all in 2v2 only; and the number check replaced claims until half the answer was "I couldn't confirm ...".
+
+**Checks:** calls ["player_results"]; players [77046]; says_numbers [26, 9, 17]; not_says ["Savage", "Winter Royale"]; unconfirmed_at_most 0; rows [[[77046, "Mojakin"], 26]]; grounded and named (every turn)
+
+**Query 1:** Mojakin's results by mode: results, wins, medals, top 8s, best
+
+```sql
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 77046 GROUP BY mode
+```
+
+| player_id | mode | results | wins | medals | top8s | best |
+|---|---|---|---|---|---|---|
+| 77046 | 1v1 | 9 | 0 | 0 | 0 | 65 |
+| 77046 | 2v2 | 17 | 0 | 0 | 0 | 25 |
+
+**Query 2:** Mojakin's results in all
+
+```sql
+SELECT player_id, COUNT(*) AS results FROM v_results WHERE player_id = 77046
+```
+
+| player_id | results |
+|---|---|
+| 77046 | 26 |
+
+**Query 3:** Mojakin's latest result
+
+```sql
+SELECT start_date, tournament_name, event_name, mode, placement FROM v_results WHERE player_id = 77046
+ORDER BY start_time DESC LIMIT 1
+```
+
+| start_date | tournament_name | event_name | mode | placement |
+|---|---|---|---|---|
+| 2026-09-27 | Autumn Championship - North America 2026 - 2v2 | NULL | 2v2 | 65 |
+
+**Verified:** not yet
+
+<a id="c10"></a>
+
+## c10. megD's partners, then the count disputed
+
+From 20261120T050251Z-003, turns 4-5 (turn 1 is q06, word for word).
+
+### Turn 1: Who has megd played with in 2v2 tournaments, and how did they place?
+
+**Expected:** As q06's verified answer in questions.toml. Live, a join on v_entries counted 8,218 events with Raydish.
+
+**q06's verified answer:** megD has had 17 partners at official 2v2 events. The most frequent: - Raydish: 20 events, best 2nd - hardymj: 4 events, best 9th - Winged_Shell: 3 events, best 17th - bestjava and buko pandan: 2 events each, best 5th - Walshy and Moni-: 2 events each, best 7th - JuicyDiaper: 2 events, best 25th and nine more with one event each: Snowy!! (7th), Anon Alex, Cody Travis and flowerVS (9th), Ultra and warmsink26 (13th), wubz (17th), iLLu and .kira (25th).
+
+**Checks:** check "q06"; grounded and named (every turn)
+
+### Turn 2: there are not that many events
+
+**Expected:** The user disputes the answer, so it's checked again: megD's 46 2v2 results were with 17 partners, most with Raydish (20 events, best 2nd), then hardymj (4) and Winged_Shell (3). If turn 1 had them right, the answer says so. Live, this turn called no tool and repeated the 8,218.
+
+**Checks:** rows [[[160000, "Raydish"], 20, 2]]; says_numbers [20]; grounded and named (every turn)
+
+**Query 1:** megD's 2v2 partners: events together, best placement, wins
+
+```sql
+SELECT t.partner_id, p.name, COUNT(*) AS events, MIN(t.placement) AS best, SUM(t.placement = 1) AS wins
+FROM v_team_results t JOIN players p ON p.player_id = t.partner_id
+WHERE t.player_id = 142100 GROUP BY t.partner_id ORDER BY events DESC, best
+```
+
+| partner_id | name | events | best | wins |
+|---|---|---|---|---|
+| 160000 | Raydish | 20 | 2 | 0 |
+| 145900 | hardymj | 4 | 9 | 0 |
+| 143709 | Winged_Shell | 3 | 17 | 0 |
+| 145913 | bestjava | 2 | 5 | 0 |
+| 169120 | buko pandan | 2 | 5 | 0 |
+| 147620 | Walshy | 2 | 7 | 0 |
+| 152572 | Moni- | 2 | 7 | 0 |
+| 101340 | JuicyDiaper | 2 | 25 | 0 |
+| 145915 | Snowy!! | 1 | 7 | 0 |
+| 111756 | Anon Alex | 1 | 9 | 0 |
+| 117179 | Cody Travis | 1 | 9 | 0 |
+| 169119 | flowerVS | 1 | 9 | 0 |
+| 111613 | Ultra | 1 | 13 | 0 |
+| 162683 | warmsink26 | 1 | 13 | 0 |
+| 158492 | wubz | 1 | 17 | 0 |
+| 113714 | iLLu | 1 | 25 | 0 |
+| 162681 | .kira | 1 | 25 | 0 |
+
+**Verified:** not yet
+
+<a id="c11"></a>
+
+## c11. volst's stats
+
+From 20261120T050251Z-003 turn 6 and -004 turn 1: the same question, two wrong answers.
+
+### Turn 1: volst stats
+
+**Expected:** volst's record at official events: 72 results, 47 in 1v1 and 25 in 2v2; no wins or medals; 1 top 8, 5th at the Autumn Championship - North America 2026 - 1v1 (2026-09-20); best 9th in 2v2; the latest the Autumn Championship - North America 2026 - 2v2 (2026-09-27, 13th). Live, one answer said he has no 2v2 results, and another, from event="all", no top 8s.
+
+**Checks:** calls ["player_results"]; players [162675]; says_numbers [72, 47, 25]; says_any ["Autumn Championship"]; rows [[[162675, "volst"], 72]]; grounded and named (every turn)
+
+**Query 1:** volst's results by mode: results, wins, medals, top 8s, best
+
+```sql
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 162675 GROUP BY mode
+```
+
+| player_id | mode | results | wins | medals | top8s | best |
+|---|---|---|---|---|---|---|
+| 162675 | 1v1 | 47 | 0 | 0 | 1 | 5 |
+| 162675 | 2v2 | 25 | 0 | 0 | 0 | 9 |
+
+**Query 2:** volst's results in all
+
+```sql
+SELECT player_id, COUNT(*) AS results FROM v_results WHERE player_id = 162675
+```
+
+| player_id | results |
+|---|---|
+| 162675 | 72 |
+
+**Query 3:** his top 8, and his latest result
+
+```sql
+SELECT 'top 8' AS what, start_date, tournament_name, mode, placement FROM v_results WHERE player_id = 162675 AND placement <= 8
+UNION ALL
+SELECT * FROM (SELECT 'latest', start_date, tournament_name, mode, placement FROM v_results WHERE player_id = 162675
+               ORDER BY start_time DESC LIMIT 1)
+```
+
+| what | start_date | tournament_name | mode | placement |
+|---|---|---|---|---|
+| top 8 | 2026-09-20 | Autumn Championship - North America 2026 - 1v1 | 1v1 | 5 |
+| latest | 2026-09-27 | Autumn Championship - North America 2026 - 2v2 | 2v2 | 13 |
+
+**Verified:** not yet
+
+<a id="c12"></a>
+
+## c12. kyna vs yuz, the biggest head-to-head, then kyna vs yuz again
+
+From 20261120T050251Z-004, turns 5-7.
+
+### Turn 1: kyna vs yuz head to head
+
+**Expected:** Kyna is whoiskyna (formerly Kyna), and yuz is yüz: 17-17 in 34 1v1 sets (games 65-63 for whoiskyna). In 2v2 their teams met in 22 sets, whoiskyna's side 11-11. Live, the number check replaced the right 11-11 with "I couldn't confirm the record from the data."
+
+**Checks:** rows [[[135748, "whoiskyna"], [73254, "yüz"], 34, 17]]; says_record {"record": [11, 11], "about": ["2v2", "team", "side"]}; unconfirmed_at_most 0; grounded and named (every turn)
+
+**Query 1:** whoiskyna's 1v1 record against yüz
+
+```sql
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 135748 AND opponent_id = 73254
+```
+
+| player_id | opponent_id | matches | wins | losses | games_won | games_lost |
+|---|---|---|---|---|---|---|
+| 135748 | 73254 | 34 | 17 | 17 | 65 | 63 |
+
+**Query 2:** their teams' 2v2 sets: how many, and how many whoiskyna's side won
+
+```sql
+SELECT COUNT(*) AS sets, SUM(a.won) AS whoiskyna_side_won FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side
+WHERE a.player_id = 135748 AND b.player_id = 73254 AND a.mode = '2v2'
+```
+
+| sets | whoiskyna_side_won |
+|---|---|
+| 22 | 11 |
+
+### Turn 2: which two players have the biggest head to head record
+
+**Expected:** The most 1v1 sets between two players at official events: 34, a tie between SiB | Wess and lFiend (15-19) and yüz and whoiskyna (17-17). Live, the loop looked "two" up as a player (plewchi, formerly two). Another reading of "biggest" is right if the answer says which it took (the most wins against one opponent: gdsandstorm's 19 against Boomie).
+
+**Checks:** not_looked_up ["two"]; says ["lFiend"]; says_numbers [34]; grounded and named (every turn)
+
+**Query 1:** the pairs with the most 1v1 sets between them, each pair once
+
+```sql
+SELECT h.player_id, a.name, h.opponent_id, b.name, h.matches, h.wins, h.losses
+FROM v_head_to_head_1v1 h JOIN players a ON a.player_id = h.player_id JOIN players b ON b.player_id = h.opponent_id
+WHERE h.player_id < h.opponent_id ORDER BY h.matches DESC LIMIT 5
+```
+
+| player_id | name | opponent_id | name | matches | wins | losses |
+|---|---|---|---|---|---|---|
+| 37977 | SiB \| Wess | 148891 | lFiend | 34 | 15 | 19 |
+| 73254 | yüz | 135748 | whoiskyna | 34 | 17 | 17 |
+| 74433 | gdsandstorm | 146606 | Boomie | 28 | 19 | 9 |
+| 79652 | Remmy | 115723 | noeL | 25 | 10 | 15 |
+| 37977 | SiB \| Wess | 73254 | yüz | 24 | 9 | 15 |
+
+### Turn 3: whats kyna vs yuz head to head in only 1v1
+
+**Expected:** 17-17 in 34 1v1 sets, as in turn 1, for whoiskyna and yüz. Live, the turn called head_to_head with plewchi's ID, from the previous turn's lookup of "two", for kyna, and answered "0 sets".
+
+**Checks:** players [135748, 73254]; not_players [168011]; rows [[[135748, "whoiskyna"], [73254, "yüz"], 34, 17]]; grounded and named (every turn)
+
+**Query 1:** whoiskyna's 1v1 record against yüz
+
+```sql
+SELECT player_id, opponent_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_1v1 WHERE player_id = 135748 AND opponent_id = 73254
+```
+
+| player_id | opponent_id | matches | wins | losses | games_won | games_lost |
+|---|---|---|---|---|---|---|
+| 135748 | 73254 | 34 | 17 | 17 | 65 | 63 |
+
+**Verified:** not yet
+
+<a id="c13"></a>
+
+## c13. the most medals, then dragon
+
+From 20261120T050251Z-005, turns 1-3.
+
+### Turn 1: top 5 players with the most medals
+
+**Expected:** By medals (top 3s) at official events, 1v1 and 2v2 together: Boomie 80, gdsandstorm 69, acno? 66, SiB | Wess 65, and whoiskyna and Zivai tied 5th with 52.
+
+**Checks:** rows [[[146606, "Boomie"], 80], [[74433, "gdsandstorm"], 69], [[144399, "acno?"], 66], [[37977, "SiB | Wess"], 65], [[135748, "whoiskyna"], 52], [[147982, "Zivai"], 52]]; grounded and named (every turn)
+
+**Query 1:** the top 5 by medals, ties included
+
+```sql
+WITH counted AS (SELECT player_id, COUNT(*) AS medals FROM v_results WHERE placement <= 3 GROUP BY player_id),
+ranked AS (SELECT player_id, medals, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_id) WHERE rank <= 5 ORDER BY rank, p.name
+```
+
+| rank | player_id | name | medals |
+|---|---|---|---|
+| 1 | 146606 | Boomie | 80 |
+| 2 | 74433 | gdsandstorm | 69 |
+| 3 | 144399 | acno? | 66 |
+| 4 | 37977 | SiB \| Wess | 65 |
+| 5 | 147982 | Zivai | 52 |
+| 5 | 135748 | whoiskyna | 52 |
+
+### Turn 2: dragon stats
+
+**Expected:** Suggestions, Dragon! (88841) first: 33 players match "dragon" exactly, the first three Dragon! (41 official results), Parz (formerly Dragon, 10) and Dragon (9), with no clear cut. Live, the turn didn't ask: it wrote SQL for the user to run, and guessed at a character called Dragon.
+
+**Checks:** suggests 88841; grounded and named (every turn)
+
+**Query 1:** the players whose names are 'dragon' as aliases compare them, by official results
+
+```sql
+SELECT a.player_id, p.name, a.shown_as, a.kind, (SELECT COUNT(*) FROM v_results r WHERE r.player_id = a.player_id) AS results
+FROM player_aliases a JOIN players p ON p.player_id = a.player_id WHERE a.alias = 'dragon' ORDER BY results DESC LIMIT 5
+```
+
+| player_id | name | shown_as | kind | results |
+|---|---|---|---|---|
+| 88841 | Dragon! | Dragon! | display_name | 41 |
+| 48834 | Parz | Frost \| Dragon | former_name | 10 |
+| 1421 | Dragon | Dragon | display_name | 9 |
+| 18240 | Dragon | Dragon | display_name | 9 |
+| 24525 | DBZERO | SMG\| \| dragon | former_name | 6 |
+
+### Turn 3: Dragon!
+
+**Expected:** A reply to the suggestions, by name: Dragon!'s record at official events: 41 results, 24 in 1v1 and 17 in 2v2; no wins or medals; 9 top 8s, 6 in 1v1 and 3 in 2v2; best 4th in both modes; the latest the Autumn Championship - North America 2026 - 2v2 (2026-09-27, 5th). Live, the answer gave medals only, and said he "may have reached top 8".
+
+**Checks:** players [88841]; says_numbers [41, 9]; rows [[[88841, "Dragon!"], 41]]; grounded and named (every turn)
+
+**Query 1:** Dragon!'s results by mode: results, wins, medals, top 8s, best
+
+```sql
+SELECT player_id, mode, COUNT(*) AS results, SUM(placement = 1) AS wins, SUM(placement <= 3) AS medals,
+       SUM(placement <= 8) AS top8s, MIN(placement) AS best
+FROM v_results WHERE player_id = 88841 GROUP BY mode
+```
+
+| player_id | mode | results | wins | medals | top8s | best |
+|---|---|---|---|---|---|---|
+| 88841 | 1v1 | 24 | 0 | 0 | 6 | 4 |
+| 88841 | 2v2 | 17 | 0 | 0 | 3 | 4 |
+
+**Query 2:** Dragon!'s results in all, and top 8s
+
+```sql
+SELECT player_id, COUNT(*) AS results, SUM(placement <= 8) AS top8s FROM v_results WHERE player_id = 88841
+```
+
+| player_id | results | top8s |
+|---|---|---|
+| 88841 | 41 | 9 |
+
+**Verified:** not yet

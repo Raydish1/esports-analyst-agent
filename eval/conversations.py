@@ -74,7 +74,7 @@ def problems(data):
             where = f"{name} turn {n}"
             out += [f"{where}: no {field}" for field in ("say", "expect") if not str(turn.get(field, "")).strip()]
             out += [f"{where}: no check named {key!r}" for key in turn if key not in CHECKS and key not in
-                    ("say", "expect", "query")]
+                    ("say", "expect", "query", "shown")]
             if turn.get("check") and QUESTION_CHECKS.get(turn["check"]) is None:
                 out.append(f"{where}: check names {turn['check']!r}, which has no stage 2 check")
             out += [f"{where}: a query has no sql" for q in turn.get("query", []) if not q.get("sql")]
@@ -183,6 +183,20 @@ def missing_texts(turn, texts, where):
     return not found, f"missing {', '.join(map(repr, found))}" if found else ""
 
 
+def not_looked_up(turn, words):
+    """Whether no resolve_player or resolve_event call of the turn, the loop's own lookups included, was given a name
+    holding one of these words: live, the loop looked up "two" as a player and "say cody travis 24" as an event
+    (docs/web-app-testing-notes.md, findings 10 and 14)."""
+    bad = []
+    for step in turn.trace["steps"]:
+        for c in step["tool_calls"]:
+            arguments = c["arguments"] if isinstance(c["arguments"], dict) else {}
+            name = str(arguments.get("name") or arguments.get("event") or "")
+            if c["name"] in ("resolve_player", "resolve_event") and {folded(w) for w in words} & set(folded(name).split()):
+                bad.append(f"{c['name']}({name!r})")
+    return not bad, f"looked up {', '.join(bad)}" if bad else ""
+
+
 WON_LOST = re.compile(r"\b(?:w[oi]n(?:s|ning)?|lost|los(?:s|ses|ing))\b")
 
 
@@ -210,6 +224,9 @@ CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what eac
     "check": lambda t, qid: (bool(QUESTION_CHECKS[qid](t.results)), f"{qid}'s stage 2 check"),
     "calls": lambda t, names: (lambda bad: (not bad, f"didn't call {', '.join(bad)}" if bad else ""))(
         [n for n in names if n not in harness.tool_calls(t.trace)]),
+    "not_calls": lambda t, names: (lambda bad: (not bad, f"called {', '.join(bad)}" if bad else ""))(
+        [n for n in names if n in harness.tool_calls(t.trace)]),
+    "not_looked_up": not_looked_up,
     "players": lambda t, ids: (lambda bad: (not bad, f"didn't use {bad}" if bad else ""))(
         [i for i in ids if i not in t.used]),
     "not_players": lambda t, ids: (lambda bad: (not bad, f"used {bad}" if bad else ""))([i for i in ids if i in t.used]),
@@ -221,6 +238,8 @@ CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what eac
     "says_numbers": lambda t, ns: (lambda bad: (not bad, f"doesn't state {bad}" if bad else ""))(
         [n for n in ns if n not in stated_numbers(t.answer)]),
     "says_record": says_record,
+    "unconfirmed_at_most": lambda t, n: (lambda k: (k <= n, f"{k} claims replaced" if k > n else ""))(
+        len(t.trace.get("unconfirmed") or [])),
     "grounded": grounded,
     "named": lambda t, on: (lambda m: (not (on and m), f"names {m[0]!r}" if on and m else ""))(LONE_ID.search(t.answer)),
 }
@@ -369,7 +388,7 @@ def review(data, path):
         answers = {q["id"]: q["answer"] for q in tomllib.load(f)["question"]}
     conversations = data["conversation"]
     verified = [c for c in conversations if str(c.get("verified", "")).strip()]
-    out = ["# Test conversations v1: review", "",
+    out = ["# Test conversations: review", "",
            "Made by `python eval/conversations.py review` from [`conversations.toml`](conversations.toml), which is the"
            " file to edit.", "",
            f"{len(conversations)} conversations, {sum(len(c['turn']) for c in conversations)} turns, with expected facts"
@@ -391,6 +410,8 @@ def review(data, path):
                 out += [f"**{turn['check']}'s verified answer:** {flat(answers[turn['check']])}", ""]
             out += ["**Checks:** " + "; ".join(f"{k} {json.dumps(v, ensure_ascii=False)}" for k, v in checks.items())
                     + ("; " if checks else "") + "grounded and named (every turn)", ""]
+            if turn.get("shown"):
+                out += [f"**Shown on the page after this turn:** {flat(turn['shown'])}", ""]
             results = []
             for m, query in enumerate(turn.get("query", []), 1):
                 sql = query["sql"].strip()
