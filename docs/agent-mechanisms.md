@@ -66,6 +66,19 @@ Built so far:
     runs, and the live web sessions): 7 flagged. All 7 are claims the check is for. They include finding 22's SQL
     for the user, finding 26's "further analysis ... would be needed" and finding 27's "likely a data anomaly". One
     of the 7 is an offer ("I can query the database for entries"), which a send-back turns into a lookup.
+- **Agreement in the number check** (`number_check.Window.unsupported`). Each row of the evidence keeps its texts.
+  A count, an ordinal or a record in a sentence that names one player in view, or one mode, is supported only by a
+  row that doesn't name only other players, or only the other mode. A row naming neither fits anything. Such a claim
+  goes back once with whom and which mode it's about ("'12' about Phazon in 1v1"), then it's left out.
+  - Years aren't checked this way, and neither are sentences about both modes together: "12 in all" can mean all of
+    the question's one mode, so checking it could drop a right fact.
+  - Replayed on 759 recorded answers: 5 flagged. Four are wrong figures. In q39 seed 0, gdsandstorm's "34 in 1v1" was
+    Boomie's figure, which is the open miss. c4 seed 1 said "out of 16 players", a 16 that came from a date of a 2v2
+    event. c6 seed 2 gave "11 top 8s" in 2v2, held only by 1v1 rows. c1 seed 0 said "10 games to 8", a 10 from a
+    date. The fifth is a sentence about tied positions in q14 seed 2 that names STING RAY. The first replay
+    flagged two more, years in event names, which is why years are left out.
+  - Its limit: a note that names several players and both modes fits nearly any claim, so a figure from a note can
+    still pass for the wrong player.
 
 ## M2: tools that can't express the natural reading
 

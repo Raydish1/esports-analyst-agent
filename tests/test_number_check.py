@@ -151,6 +151,42 @@ class EvidenceTest(unittest.TestCase):
         self.assertEqual(flagged(found, "BCX 2023 and Season 4, not BCX 2022."), ["2022"])
 
 
+CARD = [{"shown": clause} for clause in [  # the page's line, a clause a row, as Conversation.shown observes it (finding 22)
+    "Phazon in 1v1 only 76 results, GOLD 0, SILVER 3, BRONZE 9, TOP 8 28",
+    "Phazon in 2v2 only 63 results, GOLD 12, SILVER 15, BRONZE 6, TOP 8 51",
+    "Phazon in both modes together 139 results, GOLD 12, SILVER 18, BRONZE 15, TOP 8 79",
+    "Cody Travis in both modes together 122 results, GOLD 10, SILVER 19, BRONZE 11, TOP 8 71"]]
+COUNTED = {"template": "player_results", "tables": [{"what": "Boomie's results, counted by mode",
+           "columns": ["player", "mode", "results", "wins"], "rows": [["Boomie", "1v1", 40, 12], ["Boomie", "2v2", 30, 9],
+                                                                      ["Boomie", "1v1 and 2v2", 70, 21]]}]}
+NAMES = {"phazon": "Phazon", "cody travis": "Cody Travis", "boomie": "Boomie", "impala": "Impala",
+         "bbballoonboy": "BBBalloonBoy"}
+
+
+class AgreementTest(unittest.TestCase):
+    def unsupported(self, answer, *observations):
+        window = number_check.Window(evidence(*observations), names=NAMES)
+        return [(c.text, c.about) for c in window.unsupported(answer)]
+
+    def test_a_figure_about_one_mode_needs_a_row_about_that_mode(self):
+        self.assertEqual(self.unsupported("Phazon has 12 gold medals in 1v1.", *CARD), [("12", "Phazon in 1v1")])  # live
+        self.assertEqual(self.unsupported("Phazon has 12 golds in 2v2, and 12 in both modes together.", *CARD), [])
+        self.assertEqual(self.unsupported("In 1v1, Phazon has 0 golds and 76 results.", *CARD), [])
+        self.assertEqual(self.unsupported("Boomie has 21 wins in 1v1.", COUNTED), [("21", "Boomie in 1v1")])
+        self.assertEqual(self.unsupported("Boomie has 12 1v1 wins, and 21 in 1v1 and 2v2.", COUNTED), [])
+
+    def test_a_figure_about_one_player_needs_a_row_about_that_player(self):
+        self.assertEqual(self.unsupported("Phazon's card shows 10 golds.", *CARD), [("10", "Phazon")])  # live: Cody's 10
+        self.assertEqual(self.unsupported("Cody Travis's card shows 10 golds.", *CARD), [])
+        self.assertEqual(self.unsupported("Cody Travis has 10 golds and Phazon 12.", *CARD), [])  # two players: either row
+
+    def test_a_row_naming_no_player_or_mode_fits_any_claim_and_a_record_needs_a_fitting_row(self):
+        self.assertEqual(self.unsupported("Phazon has 12 wins in 1v1.", *CARD, {"wins": 12}), [])
+        self.assertEqual(self.unsupported("Impala is 2-1 against BBBalloonBoy in 1v1.", RECORD), [])
+        self.assertEqual(self.unsupported("In 2v2, Phazon is 15-6.", *CARD), [])
+        self.assertEqual(self.unsupported("In 1v1, Phazon is 15-6.", *CARD), [("15-6", "Phazon in 1v1")])
+
+
 class ReplacementTest(unittest.TestCase):
     def replaced(self, answer, *observations):
         found = evidence(*observations)

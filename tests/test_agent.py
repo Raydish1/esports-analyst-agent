@@ -704,6 +704,21 @@ class LoopTest(Fixture):
         self.assertEqual(ask.sent[2][-2], {"role": "assistant", "content": conversation.previous[-1]["content"]})
         self.assertIn("[The page showed beside this answer: Card: Raydish", ask.sent[2][-2]["content"])  # the model reads it
 
+    def test_a_card_figure_about_another_mode_goes_back_saying_whose_it_is(self):
+        lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
+        ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("Raydish has 4 wins in 1v1."),
+                       reply("Raydish has 4 wins in 2v2."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        conversation.shown("Raydish in 1v1 only 3 results, GOLD 0; Raydish in 2v2 only 3 results, GOLD 4.")
+        trace = conversation.ask("and raydish's wins on the card?")
+        check = trace["steps"][1]["number_check"]
+        self.assertEqual((check["numbers"], check["action"]), (["4"], "sent back"))
+        self.assertTrue(check["message"].startswith("Before this answer is final: it states '4' about Raydish in 1v1,"
+                                                    " though the results in view hold each only for another player or"
+                                                    " mode"), check["message"])
+        self.assertEqual(trace["answer"], "Raydish has 4 wins in 2v2.")
+
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
                        reply("The answer is correct: both are players."))

@@ -291,6 +291,9 @@ NUMBERS = ("Before this answer is final: it states {numbers}, which no tool resu
            " row (5-4), a date or a UTC time of a result, or a percentage of two numbers in one row. Don't add, subtract"
            " or count rows yourself: get the number from a template or run_sql, or leave it out. A number no tool"
            " returned is removed from the final answer.")
+MISATTRIBUTED = ("though the results in view hold each only for another player or mode than its sentence is about."
+                 " Take each figure from the row for the player and the mode its sentence names: the cards and the"
+                 " templates give each mode a row of its own, and both modes together another.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
@@ -502,7 +505,12 @@ class Shown:
     @property
     def window(self):
         """What the number check may cite: this question's and the previous one's results and questions."""
-        return Window(self.evidence, self.earlier)
+        names = {}
+        for pid in self.returned_now | self.returned_before:
+            name = " ".join((self.resolver.names.get(pid) or "").split())
+            if len(name) >= 3:
+                names[name.casefold()] = name
+        return Window(self.evidence, self.earlier, names=names)
 
     @property
     def seen(self):
@@ -812,6 +820,18 @@ def no_tool(gap):
                                      them="it" if len(gap["words"]) == 1 else "them")
     facts = [f"{kind} ({', '.join(gap[kind])})" for kind in ("players", "numbers") if gap.get(kind)]
     return NO_TOOL_FACTS.format(facts=listed(facts))
+
+
+def numbers_message(flagged):
+    """The number check's message: the numbers no tool result in view holds (NUMBERS), then those it holds only for
+    another player or mode (MISATTRIBUTED), each with whom and which mode its sentence is about."""
+    plain = [repr(c.text) for c in flagged if not c.about]
+    other = [f"{c.text!r} about {c.about}" for c in flagged if c.about]
+    other = listed(other) if other else ""
+    if not plain:
+        return f"Before this answer is final: it states {other}, {MISATTRIBUTED}"
+    message = NUMBERS.format(numbers=listed(plain))
+    return f"{message} It also states {other}, {MISATTRIBUTED}" if other else message
 
 
 def claimed_wrong(found):
@@ -1203,7 +1223,7 @@ class Conversation:
                     flagged = sorted(flagged + self.view.player_claims(content, question), key=lambda c: c.start)
                 flagged_texts = [c.text for c in flagged]
                 if flagged and outcome == "answered" and not numbered and not strict and number < max_steps:
-                    numbered, message = True, NUMBERS.format(numbers=listed([repr(n) for n in flagged_texts]))
+                    numbered, message = True, numbers_message(flagged)
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
                     step["number_check"] = {"numbers": flagged_texts, "action": "sent back", "message": message}

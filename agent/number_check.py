@@ -41,12 +41,20 @@ prompt asks for the data reduced in SQL (decided 2026-11-17).
 What it can't tell is what a number means: q20's answers on 2026-11-17 dated a set July 7, 2023, which a result held
 as the event's start, though the set was played on July 9. And a wrong small number usually passes, since small
 numbers are in nearly every result.
+
+But a number about one player, or one mode, needs a row about them (Window.unsupported, decided 2026-11-20): each row
+keeps its texts (Row), and a count, an ordinal or a record in a sentence naming one player in view, or one mode (1v1
+or 2v2, not both together), is supported only by a row that doesn't name only other players, or only another mode
+(fits). A row naming neither fits anything, and a year isn't checked so. Live, "Phazon's 12 gold medals in 1v1"
+passed, as 12 was in the card line, though only as his 2v2 and both-modes figure (docs/web-app-testing-notes.md,
+finding 22). A sentence about both modes together isn't checked against the modes: "12 in all" can mean all of a
+question's one mode.
 """
 
 import json
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
@@ -79,6 +87,19 @@ class Claim:
     start: int
     end: int
     value: tuple  # what the kind's rule reads
+    about: str = ""  # for a claim a tool result holds only for another player or mode: whom and which mode it's about
+
+
+class Row(list):
+    """A result's row: its numbers, and the texts beside them, which say whom and which mode they're about."""
+
+    def __init__(self):
+        super().__init__()
+        self.texts = []
+
+    @property
+    def text(self):
+        return " ".join(self.texts).casefold()
 
 
 def amount(text):
@@ -189,7 +210,7 @@ class Evidence:
         """A question from the user: anything it writes is supported as written, and its numbers, dates and place
         words count as a result's."""
         self.questions.append(squeeze(question))
-        row = []
+        row = Row()
         self.rows.append(row)
         self.text(re.sub(r"\b\d+v\d+\b", " ", question), row)  # a format names a mode, not a number: '2v2' holds no 2
         for c in claims(question):
@@ -213,12 +234,12 @@ class Evidence:
     def walk(self, value, row):
         """A result's values: each dict, and each of a table's rows, is a row of its own."""
         if isinstance(value, dict):
-            own = []
+            own = Row()
             self.rows.append(own)
             for key, item in value.items():
                 if key == "rows" and isinstance(item, list):
                     for cells in item:
-                        listed = []
+                        listed = Row()
                         self.rows.append(listed)
                         self.walk(cells, listed)
                 else:
@@ -245,6 +266,8 @@ class Evidence:
         """A text's numbers, each as many times as it's written, so a note's "won 11 and lost 11" holds 11 twice, as a
         row of 11 and 11 does: live, the right 11-11 was replaced (docs/web-app-testing-notes.md, finding 19). The
         parts of a number with a comma (1 and 350 of 1,350) count once."""
+        if row is not None:
+            row.texts.append(text)
         written = re.findall(NUM, text)
         for found in written + [n for n in dict.fromkeys(re.findall(r"\d+(?:\.\d+)?", text)) if n not in written]:
             self.number(amount(found)[0], row)
@@ -261,10 +284,18 @@ class Evidence:
         self.months.add((year, month))
         self.days.add((month, day))
 
-    def supports(self, claim):
-        """Whether the claim is what a tool returned, or the question wrote, as such or by its kind's derivation."""
+    def supports(self, claim, about=None):
+        """Whether the claim is what a tool returned, or the question wrote, as such or by its kind's derivation.
+        With about, (mode, player, names) for a claim of a kind in AGREES, only a row that fits it counts (fits)."""
         written = re.compile(rf"(?<!\w){re.escape(squeeze(claim.text))}(?!\w)")
-        return any(written.search(q) for q in self.questions) or RULES[claim.kind](claim.value, self)
+        if any(written.search(q) for q in self.questions):
+            return True
+        if about and claim.kind in AGREES:
+            rows = [r for r in self.rows if fits(r, *about)]
+            if claim.kind == "record":
+                return record(claim.value, rows)
+            return any(claim.value[0] in r for r in rows)
+        return RULES[claim.kind](claim.value, self)
 
     def unsupported(self, answer):
         """The claims an answer states (stated) that nothing in the conversation supports."""
@@ -277,14 +308,41 @@ class Window:
     results, and every earlier answer, don't count (decided 2026-11-19): in the web app's live testing, an answer's
     small numbers stood because some tool result many turns back held them."""
 
-    def __init__(self, *evidence):
+    def __init__(self, *evidence, names=None):
         self.evidence = evidence
+        self.names = names or {}  # the players in view, casefolded name -> as written, for about
 
-    def supports(self, claim):
-        return any(e.supports(claim) for e in self.evidence)
+    def supports(self, claim, about=None):
+        return any(e.supports(claim, about) for e in self.evidence)
 
     def unsupported(self, answer):
-        return [c for c in claims(stated(answer)) if not self.supports(c)]
+        """The claims nothing in view supports, then those only a row about another player or mode supports, each
+        with whom and which mode it's about (decided 2026-11-20): live, "Phazon's 12 gold medals in 1v1" passed, as
+        12 was in the card line, though only as his 2v2 and both-modes figure (docs/web-app-testing-notes.md, finding
+        22)."""
+        said, out = stated(answer), []
+        spans = units(said)
+        for c in claims(said):
+            if not self.supports(c):
+                out.append(c)
+                continue
+            year = all(isinstance(v, (int, float)) and 1990 <= v <= 2100 for v in c.value[:1 + (c.kind == "record")])
+            about = (self.about(said, c, spans) or None) if c.kind in AGREES and not year else None
+            if about and not self.supports(c, about):
+                mode, player, _ = about
+                out.append(replace(c, about=" in ".join(x for x in (self.names.get(player), mode) if x)))
+        return out
+
+    def about(self, said, claim, spans):
+        """(mode, player, names) for the claim's sentence, or (): the one mode it names, 1v1 or 2v2 and not both
+        together, and the one player in view it names, either None if it names none or several."""
+        a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
+        text = said[a:b].casefold()
+        named = modes(text)
+        mode = next(iter(named)) if len(named) == 1 and "both" not in named else None
+        players = [n for n in self.names if re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text)]
+        player = players[0] if len(players) == 1 else None
+        return (mode, player, tuple(self.names)) if mode or player else ()
 
 
 def rounded(value, target, precision):
@@ -324,10 +382,42 @@ def dollars(value, evidence):
 
 
 def record(value, evidence):
+    """Both numbers in one row (evidence, or a list of rows), in either order; for a range of years, each year."""
     a, b = value
+    rows = evidence if isinstance(evidence, list) else evidence.rows
     if all(1900 <= n <= 2100 for n in value):  # a range of years
-        return a in evidence.values and b in evidence.values
-    return any(a in row and b in row and (a != b or row.count(a) > 1) for row in evidence.rows)
+        return any(a in row for row in rows) and any(b in row for row in rows)
+    return any(a in row and b in row and (a != b or row.count(a) > 1) for row in rows)
+
+
+# A claim of these kinds about one player or one mode needs a row about them (Window.unsupported)
+AGREES = {"number", "word", "ordinal", "record"}
+BOTH_MODES = re.compile(r"\b1v1s?\s*(?:and|&|/|\+|or)\s*2v2s?\b|\b2v2s?\s*(?:and|&|/|\+|or)\s*1v1s?\b|\bboth\s+modes\b"
+                        r"|\ball\s+modes\b|\bcombined\b|\boverall\b|\bin\s+total\b|\bin\s+all\b")
+ONE_MODE = {"1v1": re.compile(r"\b1v1s?\b|\bsingles\b"), "2v2": re.compile(r"\b2v2s?\b|\bdoubles\b")}
+
+
+def modes(text):
+    """The modes a casefolded text names: '1v1', '2v2', and 'both' for both together ('1v1 and 2v2', 'both modes',
+    'in all'), whose words don't also count as each mode."""
+    found = {"both"} if BOTH_MODES.search(text) else set()
+    text = BOTH_MODES.sub(" ", text)
+    return found | {m for m, pattern in ONE_MODE.items() if pattern.search(text)}
+
+
+def fits(row, mode, player, names):
+    """Whether a row may support a claim about one mode and one player (either None): unless it names modes and not
+    that one, or names players in view and not that one. A row naming neither fits anything."""
+    text = row.text
+    if mode:
+        named = modes(text)
+        if named and mode not in named:
+            return False
+    if player:
+        named = [n for n in names if n in text and re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text)]
+        if named and player not in named:
+            return False
+    return True
 
 
 RULES = {
