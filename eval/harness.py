@@ -367,17 +367,19 @@ def kept(entry, fresh, record):
 
 # Running
 
-def run(questions, seeds, examples_on, run_id=None, log=print):
-    """Ask every question once per seed, appending each trace as it finishes; a rerun with the same run_id resumes."""
+def run(questions, seeds, examples_on, run_id=None, log=print, model=None):
+    """Ask every question once per seed, appending each trace as it finishes; a rerun with the same run_id resumes.
+    model is react.MODEL unless given: everything else stays as the agent has it, for a model comparison."""
     import react
     react.load_env()
+    model = model or react.MODEL
     retriever = react.retriever_or_exit(examples_on, lambda message: sys.exit(message))
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = RAW / run_id
     out.mkdir(parents=True, exist_ok=True)
     path = out / "traces.jsonl"
     done = {(t["id"], t["seed"]) for t in map(json.loads, path.read_text(encoding="utf-8").splitlines())} if path.exists() else set()
-    header = react.run_header(run_id, seeds=seeds, title=f"Evaluation harness: run {run_id}",
+    header = react.run_header(run_id, model=model, seeds=seeds, title=f"Evaluation harness: run {run_id}",
                               examples=react.examples_header(examples_on))
     header["arm"] = "on" if examples_on else "off"
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -386,7 +388,7 @@ def run(questions, seeds, examples_on, run_id=None, log=print):
     for n, (seed, q) in enumerate(todo, 1):
         for attempt in range(1, TRIES + 1):  # a run that fails isn't written, so the retry starts it afresh
             try:
-                trace = react.run(q["question"], tools, retriever=retriever, log=lambda *_: None, model=react.MODEL,
+                trace = react.run(q["question"], tools, retriever=retriever, log=lambda *_: None, model=model,
                                   think=True, seed=seed)
                 break
             # the server unreachable or timed out, or a reply cut off
@@ -707,6 +709,7 @@ def main():
     go.add_argument("--seeds", nargs="+", type=int, default=[0])
     go.add_argument("--examples", choices=["on", "off"], default="on")
     go.add_argument("--run", help="a run id to resume")
+    go.add_argument("--model", help="the Ollama model to run (default: the agent's, react.MODEL)")
     for name in ("score", "report"):
         p = commands.add_parser(name)
         p.add_argument("runs", nargs="+")
@@ -741,7 +744,7 @@ def main():
             chosen = [q for q in questions if q["set"] == "heldout" or q["id"] in NEAR_CLEAN]
         else:
             chosen = questions
-        print(run(chosen, args.seeds, args.examples == "on", args.run))
+        print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model))
         return
     db = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     add_views(db)  # as the agent's connections have them: a resolve_event condition can be on v_event_series
