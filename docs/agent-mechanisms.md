@@ -269,6 +269,13 @@ Built in round five:
     no such clause is kept.
   - Replayed on 89 recorded answers given after a send-back: only finding 34's has draft talk ("**Corrected
     Answer:**", and "The previous answer incorrectly stated a 2-1 record against experiencedoa;"), and both go.
+- **A player's best records** (finding 34, M2 and M1). With `player_id`, `rank_pairs(by="record")` ranks that
+  player's opponents by the player's wins against them, then the fewest losses. An optional `min_sets` applies only
+  when the question sets a minimum, and a note asks the answer to say how it read "best record", and the minimum.
+  Without a player it's refused, since a record is one player's. "Choosing a tool" maps a player's best records to
+  it. "Who has the best record against a player" keeps the decided counting rule (win rate, at least 5 matches,
+  `run_sql`), which q08's verified answer rests on. On eval-v1, volst's best records are woolala 3-0, then nine
+  opponents at 2-0, in 0.37 s, which is finding 33's truth.
 
 ## Decisions
 

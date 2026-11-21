@@ -275,7 +275,16 @@ class RankPairsTest(Fixture):
         self.assertIn("2v2 opponents are ranked for one player only", self.call("rank_pairs", mode="2v2")["error"])
         self.assertIn("of is 'opponents' or 'teammates'", self.call("rank_pairs", of="enemies")["error"])
         self.assertIn("teammates play 2v2 together", self.call("rank_pairs", of="teammates", mode="1v1")["error"])
-        self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="wins")["error"])
+        self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="medals")["error"])
+        self.assertIn("give player_id", self.call("rank_pairs", by="record")["error"])
+
+    def test_one_players_opponents_by_record_the_most_wins_then_the_fewest_losses(self):
+        out = self.call("rank_pairs", player_id=A, by="record")  # live, finding 34: "best record" as most sets
+        self.assertEqual([r[3] for r in self.rows(out, "A's records against opponents")], ["B", "D", "C"])
+        self.assertIn("with no minimum of sets: say how the answer reads 'best record', and the minimum.",
+                      " ".join(out["notes"]))
+        least = self.call("rank_pairs", player_id=A, by="record", min_sets=2)
+        self.assertEqual([r[3] for r in self.rows(least, "A's records")], ["B"])
 
 
 class PowerRankingsTest(Fixture):
