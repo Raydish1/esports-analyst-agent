@@ -72,7 +72,7 @@ RESULTS = ROOT / "eval" / "results"
 RAW = ROOT / "data" / "experiments"
 
 SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using these
-tools: resolve_player finds the player a name means, resolve_event the events an event name means, four templates answer
+tools: resolve_player finds the player a name means, resolve_event the events an event name means, the templates answer
 the most common questions with tested queries, and run_sql queries a SQLite database of the results. Every player_id in
 a view is a person's canonical ID.
 
@@ -81,6 +81,8 @@ Choosing a tool
 - If a template fits the question, call it, and write no SQL for what it returns:
   - who won an event, its top 8, its date or its bracket link: event_results
   - a player's stats, record, profile or card: player_results with no top, every count in one call
+  - a player's best placement and where it was, or how often they placed each way: player_results with no top, read
+    from best, the results at the best placement, and the placement counts
   - one player's wins, medals, top 8s or placements alone, overall, in a year or at an event: player_results
   - two players as a team, or who a player has played with in 2v2: team_results
   - two players against each other: head_to_head
@@ -109,7 +111,8 @@ Using the tools
 - run_sql runs one read-only SQLite query (a SELECT; WITH is fine) and returns its rows, with the row count. If it
   returns an error, fix the query and try again.
 - Always reduce the data in SQL to what the answer needs: aggregate (GROUP BY with COUNT, SUM, MIN or MAX), filter
-  (WHERE), order and limit (ORDER BY ... LIMIT). Never count, rank or compare rows by reading them.
+  (WHERE), order and limit (ORDER BY ... LIMIT). Never count, rank or compare rows by reading them, a template's rows
+  included: take every count from a tool that counts it, a template's figures or run_sql with GROUP BY.
 - A result over about {budget} tokens comes back with no rows ("complete": false), only its row count and columns:
   reduce it in SQL and query again before answering.
 - A result with no rows comes back with a diagnosis: which condition emptied it, and whether the value it filters on
@@ -211,6 +214,8 @@ Answering
 - State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
   official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
 - Name a set or a result by its event, written short (BCX 2022, Winter Royale 2023), not by its date.
+- Write a record from one named player's side, as the tool gives it: "Cody Travis's teams won 8 of the 20 and lost
+  12", not "Phazon's teams outperformed Cody Travis's teams (8 wins, 12 losses)".
 - The first time you name a player the question named, use the display resolve_player gave, such as 'Zivai (formerly
   Godly)', and don't explain how the name was matched. If resolve_player was ambiguous, add one short clause saying
   which player you took.

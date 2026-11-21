@@ -31,6 +31,7 @@ The rules they share:
 import json
 import re
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass
 from typing import Callable
 
@@ -67,6 +68,7 @@ COUNTS = [("results", "COUNT(*)", lambda top: False),
 # "no 2v2 results" for a player with 25 (docs/web-app-testing-notes.md, finding 16). The web app's cards read the
 # summary without a top, by these names: results, first, second, third, top8
 COUNTED = {1: "wins", 3: "medals", 8: "top8s"}
+BEST_LISTED = 10  # the results at a player's best placement, newest first: a champion's 1st places are their wins
 # An event, mode or year argument that asks for no filter: live, event="all" matched Adaptation: Win-ter Takes All,
 # and volst's top 8 vanished (finding 17)
 NO_FILTER = {"", "all", "any", "every", "everything", "both", "overall", "total", "none", "*", "all events", "every event",
@@ -471,11 +473,26 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
     ends = [[which, m, r[0], event_name(r[1], r[2]), r[5]] for m in modes
             for which, r in first_and_latest([r for r in listed if r[3] == m], lambda r: r[6])]
     each = [[r[0], event_name(r[1], r[2]), f"{r[3]} (crew battle)" if r[4] == "crew_battle" else r[3], r[5]] for r in listed]
+    tally, bests = [], []  # the whole record's: how often each placement happened, and where the best was
+    if top is None and listed:
+        tally = [[m, p, n] for (m, p), n in sorted(Counter((r[3], r[5]) for r in listed).items())]
+        for m in modes:
+            placed = [r for r in listed if r[3] == m]
+            best = min((r[5] for r in placed), default=None)
+            at = [r for r in reversed(placed) if r[5] == best]
+            bests += [[m, best, r[0], event_name(r[1], r[2])] for r in at[:BEST_LISTED]]
+            if len(at) > BEST_LISTED:
+                notes.append(f"{name} placed {ordinal(best)} {len(at)} times in {m}: the latest {BEST_LISTED} are listed"
+                             " at the best placement.")
     return observation("player_results", scope, notes, [
         table(f"{name}'s {cut(top)}, counted by mode",
               ["player", "mode", *(counted_as(top) if column == "results" else column for column, _ in shown)], summary),
         table("the first and the latest of them in each mode", ["which", "mode", "date", "event", "placement"], ends)
         if ends else None,
+        table("how many times each placement happened, by mode: counted, so don't count the list's rows",
+              ["mode", "placement", "times"], tally) if tally else None,
+        table("the results at the best placement in each mode, newest first, ties included",
+              ["mode", "placement", "date", "event"], bests) if bests else None,
         table("each of them, oldest first", ["date", "event", "mode", "placement"], each, optional=True)
         if each else None], query.ran, player={"player_id": player, "name": name}, event=found and found.about)
 
@@ -554,9 +571,14 @@ def head_to_head(query, tools, player_id, opponent_id):
     if unscored:
         notes.append(f"{unscored} of the {sets} sets {'has' if unscored == 1 else 'have'} no recorded score, so the games"
                      f" leave {'it' if unscored == 1 else 'them'} out: say the record includes sets with no recorded score.")
+    if sets:  # each record from both sides, so an answer can name whose it is (finding 24)
+        notes.append(f"In 1v1, {name} won {wins} and lost {losses} of their {sets} set{'' if sets == 1 else 's'} against"
+                     f" {other}; {other} won"
+                     f" {losses} and lost {wins}.")
     notes.append(f"In 2v2, {name} and {other} never met on opposite teams." if not met else
                  f"In 2v2, {name}'s teams and {other}'s teams met in {met} set{'' if met == 1 else 's'}: {name}'s side won"
-                 f" {won} and lost {met - won}. Those aren't in the 1v1 record.")
+                 f" {won} and lost {met - won}, and {other}'s side won {met - won} and lost {won}. Those aren't in the 1v1"
+                 " record.")
     record = table(f"{name}'s 1v1 record against {other}, in sets",
                    ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets", "games_won", "games_lost",
                     "unscored_sets"], [[name, player, other, opponent, wins, losses, sets, games_won, games_lost, unscored]])
@@ -661,8 +683,10 @@ TEMPLATES = {t.name: t for t in (
     Template(
         "player_results",
         "One player's results at official events: how many, by mode (1st, 2nd and 3rd places, medals, top 8s, the"
-        " best), the first and the latest, and the list. With no top it's the player's whole record in one call: use it"
-        " so for a player's stats, record, profile or card. Use top for their wins, titles or majors alone (top 1),"
+        " best), the first and the latest, and the list. With no top it's the player's whole record in one call, with"
+        " how many times each placement happened and the results at their best placement (ties included): use it so"
+        " for a player's stats, record, profile or card, their best placement and where, or how often they placed"
+        " each way. Use top for their wins, titles or majors alone (top 1),"
         " medals (top 3) or top 8s (top 8), and narrow it to a mode, a year, or an event or series ('worlds', 'bcx"
         " 2024') when the question does. With top, it counts only those results, not the player's whole record.",
         {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},

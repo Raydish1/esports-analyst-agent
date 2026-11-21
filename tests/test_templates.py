@@ -206,6 +206,19 @@ class PlayerResultsTest(Fixture):
         self.assertEqual(len(out["ran"]), 3)
         self.assertIn(f"WHERE r.player_id = {A} GROUP BY r.mode", out["ran"][0])
 
+    def test_the_whole_record_counts_each_placement_and_lists_where_the_best_was(self):
+        out = self.call("player_results", player_id=A)  # live, placement counts made up from the list (finding 27)
+        self.assertEqual(self.rows(out, "how many times each placement happened"),
+                         [["1v1", 1, 2], ["1v1", 2, 1], ["2v2", 1, 1], ["2v2", 3, 1]])
+        self.assertEqual(self.rows(out, "the results at the best placement"), [  # finding 26: the best, and where
+            ["1v1", 1, "1970-01-01", "Crew Battle 3v3"], ["1v1", 1, "1970-01-01", "Cup"], ["2v2", 1, "1970-01-01", "Duos"]])
+        with patch.object(templates, "BEST_LISTED", 1):
+            capped = self.call("player_results", player_id=A)
+        self.assertEqual(len(self.rows(capped, "the results at the best placement")), 2)
+        self.assertIn("A placed 1st 2 times in 1v1: the latest 1 are listed at the best placement.", capped["notes"])
+        narrowed = self.call("player_results", player_id=A, top=8)
+        self.assertFalse(any(t["what"].startswith(("how many times", "the results at the best")) for t in narrowed["tables"]))
+
     def test_top_mode_year_and_event_narrow_the_results_and_the_scope_says_so(self):
         wins = self.call("player_results", player_id=A, top=1, mode="doubles")
         self.assertEqual((wins["scope"], self.rows(wins, "A's wins (1st places)")),
@@ -350,8 +363,9 @@ class HeadToHeadTest(Fixture):
                       self.call("head_to_head", player_id=A, opponent_id=B)["notes"])
         out = self.call("head_to_head", player_id=A, opponent_id=C)
         self.assertEqual(self.rows(out, "A's 1v1 record"), [["A", A, "C", C, 0, 1, 1, 0, 3, 0]])  # the DQ doesn't count
-        self.assertIn("In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0. Those aren't in the 1v1"
-                      " record.", out["notes"])
+        self.assertIn("In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0, and C's side won 0 and"
+                      " lost 1. Those aren't in the 1v1 record.", out["notes"])  # both sides, so it reads as whose
+        self.assertIn("In 1v1, A won 0 and lost 1 of their 1 set against C; C won 1 and lost 0.", out["notes"])
 
     def test_unscored_sets_are_flagged_and_players_who_never_met_get_a_record_of_zero(self):
         out = self.call("head_to_head", player_id=A, opponent_id=D)

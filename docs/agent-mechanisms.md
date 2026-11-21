@@ -79,6 +79,16 @@ Built so far:
     flagged two more, years in event names, which is why years are left out.
   - Its limit: a note that names several players and both modes fits nearly any claim, so a figure from a note can
     still pass for the wrong player.
+- **The templates count what answers need.** `player_results` with no `top` now adds two tables. One counts how many
+  times each placement happened in each mode, for finding 27. The other lists the results at the best placement in
+  each mode, newest first with ties included, for finding 26. It shows at most 10 per mode, with a note when there are
+  more, since a champion's 1st places are their wins. On eval-v1, Renivic's 2v2 now reads 17th twice (Winter NA 2026,
+  Autumn NA 2025), 25th 4 times and 33rd 6 times, which is the truth the finding gives. gdsandstorm's whole record
+  stays at 2,256 tokens.
+  - `head_to_head` states each record from both sides ("A won 0 and lost 1 of their 1 set against C; C won 1 and lost
+    0", and the same for the 2v2 meetings), for finding 24.
+  - The prompt says a best placement comes from `player_results` with no `top`, that a record is written from one
+    named player's side, and that the rule never to count rows by reading them covers a template's rows too.
 
 ## M2: tools that can't express the natural reading
 

@@ -1250,7 +1250,7 @@ class PromptTest(unittest.TestCase):
         self.assertIn("\nCounting rules" + rules + "\n", react.SYSTEM)
 
     def test_the_prompt_says_to_reduce_data_in_sql_always_not_on_trigger_words(self):
-        self.assertIn("Never count, rank or compare rows by reading them.", react.SYSTEM)
+        self.assertIn("Never count, rank or compare rows by reading them, a template's rows\n  included", react.SYSTEM)
         self.assertNotIn("how many, how often, the most, the best", react.SYSTEM)
 
     def test_the_prompt_says_to_state_relaxing_only_a_condition_from_the_question(self):
