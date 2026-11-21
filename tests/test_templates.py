@@ -316,6 +316,30 @@ class PowerRankingsTest(Fixture):
                       self.call("power_rankings", region="oce")["error"])
 
 
+class UpsetsTest(Fixture):
+    """Seeds at every event with a set: A the lowest seed (4), then D (3), C (2), and B the top seed (1)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        db = sqlite3.connect(cls.path)
+        events = [e for (e,) in db.execute("SELECT DISTINCT event_id FROM matches")]
+        db.executemany("INSERT OR IGNORE INTO standings VALUES (?, ?, ?, ?, NULL, NULL, NULL, 9, NULL, ?, 0, 'startgg', 't')",
+                       [(e, f"{e}-{pid}", str(pid), pid, seed) for e in events for pid, seed in ((A, 4), (B, 1), (C, 2), (D, 3))])
+        db.commit()
+        db.close()
+
+    def test_sets_the_lower_seed_won_the_biggest_difference_first_ties_whole(self):
+        out = self.call("upsets", top=1)  # the user's definition, 2026-11-21
+        rows = self.rows(out, "upsets, the biggest seed difference first")
+        self.assertEqual({(r[0], r[3], r[5], r[6], r[8], r[9]) for r in rows}, {(1, "A", 4, "B", 1, 3)})
+        self.assertEqual(len(rows), 3)  # A beat B in three sets, all tied at a difference of 3
+        self.assertIn("An upset is a set the lower seed won: the higher initial seed number at that event", out["notes"][-2])
+        mine = self.call("upsets", player_id=C)  # C, seed 2, beat A (4) and D (3): no upsets
+        self.assertEqual(mine["tables"], [])
+        self.assertIn("2v2 upsets need an event or a player_id", self.call("upsets", mode="2v2")["error"])
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)

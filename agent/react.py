@@ -93,6 +93,7 @@ Choosing a tool
   - a player's best records against their opponents: rank_pairs with player_id and by="record" (min_sets only for a
     minimum the question sets). Who has the best record against a player is the counting rule below, with run_sql
   - the official Power Rankings, a player's PR, or who is ranked #1 in a region: power_rankings
+  - the biggest upsets, an event's upsets, or a player's biggest upset wins: upsets
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.

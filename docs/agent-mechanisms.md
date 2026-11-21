@@ -276,6 +276,21 @@ Built in round five:
   it. "Who has the best record against a player" keeps the decided counting rule (win rate, at least 5 matches,
   `run_sql`), which q08's verified answer rests on. On eval-v1, volst's best records are woolala 3-0, then nine
   opponents at 2-0, in 0.37 s, which is finding 33's truth.
+- **Upsets** (the user's definition, 2026-11-21). `upsets` lists the sets the lower seed won, meaning the higher
+  `initial_seed` at that event from its standings, the biggest seed difference first, ties whole, with both seeds and
+  the score. A set without both seeds isn't judged, and the note says how many sets were and weren't. With
+  `player_id` it gives that player's upset wins. It works in 1v1 over every event or narrowed to a year, window,
+  region or event, and in 2v2 for an event or a player, since the 2v2 sets view takes more than a minute over every
+  event.
+  - Seeds and sets are read separately and joined in memory. The same join in SQL ran past 300 s. The full seed table
+    (about 8 s) is kept on the tools object after the first read.
+  - On eval-v1: BCX 2023's biggest 1v1 upset is irqqzz (seed 665) over Nomm999 (89), 576 apart. BBBalloonBoy's
+    biggest upset win came as seed 1,712 over seed 337, at LTC Midseason Online 2020. Over every event it's Commanda
+    Doggo (7,233) over Phoza (192), at the NA SteelSeries Championship's 7,240 entrants, which takes 22.5 s under the
+    agent's x64 Python, within the 30 s limit.
+  - The scope check reads its default mode as 1v1. ex35 shows the call for the Brawlhalla Japan Invitational. The
+    audit's kind 16 now has a template, a32 checks for `upsets`, and a50 and a51 ask a player's best record and
+    biggest upsets.
 
 ## Decisions
 

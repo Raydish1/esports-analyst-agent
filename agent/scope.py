@@ -88,7 +88,7 @@ def lacking(asked, name, arguments, parameters, events):
         given = str(arguments.get("mode") or "").strip().casefold()
         teams = name == "rank_pairs" and str(arguments.get("of", "")).casefold() in ("teammates", "partners", "teams", "duos")
         mode = ({"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}.get(given)
-                or ("2v2" if teams else "1v1" if name in ("rank_pairs", "power_rankings") else None))
+                or ("2v2" if teams else "1v1" if name in ("rank_pairs", "power_rankings", "upsets") else None))
         if mode != asked.mode and asked.mode not in text:
             out.append((f"names {asked.mode}", f'mode="{asked.mode}"'))
     if len(asked.years) == 1 and ("year" in takes or name == "event_results"):
