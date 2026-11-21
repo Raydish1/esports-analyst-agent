@@ -2,6 +2,39 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-20: the failure mechanisms, replayed offline on the recorded runs
+
+**What it asked.** The fourth round of the web app's testing notes (findings 21-29) came with a new direction from the
+user: fix the mechanism behind each failure, not the question. Would the new checks catch the failures they're built
+for, and would they disturb answers that were right? The design, the grouping of failures by mechanism and every
+decision are in [`agent-mechanisms.md`](agent-mechanisms.md). This entry has only the replays, which were the only
+measurements possible while the user tested live on the Ollama server.
+
+**Setup.** Each check was run, without the model, on the final answers and tool calls of the recorded runs with no
+held-out trace. Those are `20261117-templates`, `20261117-grounding-before`, `20261118-grounding`,
+`20261119-webfixes`, the three conversation runs of 2026-11-19, and the live web sessions to 2026-11-20 (784 answers,
+545 template calls). Turns were replayed as the loop sees them: this turn's and the previous turn's tool results,
+with a page's line added after its turn.
+
+**Results.**
+
+| Check | Flagged | What they were |
+|---|---|---|
+| The claim check: referrals and judgments | 7 of 784 answers | All claims of its kind. Among them are finding 22's SQL for the user, finding 26's "further analysis would be needed", finding 27's "likely a data anomaly", a SQL block given to the user in "dragon stats", and one offer to query ("I can query the database for entries"). |
+| The number check's agreement: a figure needs a row about its player and mode | 5 of 759 answers (7 before years were exempted) | Four wrong figures. q39 seed 0 gave Boomie's 34 to gdsandstorm. c4 seed 1's "out of 16 players" took its 16 from a 2v2 event's date. c6 seed 2's 2v2 top 8s were held only by 1v1 rows. c1 seed 0's "10 games to 8" took its 10 from a date. The fifth is a sentence about tied positions (q14 seed 2). |
+| The scope check | 1 of 545 template calls | Finding 29's `rank_players(by="wins", top=5)` for "the strongest 1v1 player right now". |
+| The page and dispute cues | 4 messages | The three earlier live disputes and finding 23's question about the card. |
+| The possessive retry | 2 of 98 questions | "renivics" (finding 25), and "mojakins", which is c9 turn 1's and conflicts with its verified suggestions. Two event terms were misread first ("winters", "springs"); curated terms now count as event words. |
+
+The new tools were checked on eval-v1 against the findings' truths. Renivic's best 2v2 placement is 17th, twice, with
+25th 4 times and 33rd 6. The 1v1 #1s of the Power Rankings are BBBalloonBoy, Zivai, lopesbrawlhalla, marker_bh1 and
+keiththepoopoo. megD's most-played opponent is luna (18 sets). The pairs with the most 1v1 sets are SiB | Wess and
+lFiend, and yüz and whoiskyna (34 each).
+
+**What it decided.** All of it was built (commits 1d2c4f1 to 5620824), with 490 unit tests passing. Nothing is
+measured with the model yet. The runs wanted, asked for together, are the before run of c8-c13 at 3d42613, all 17
+conversations, the 45 questions, the audit set and `retrieval.py measure`. They're in the design note.
+
 ## 2026-11-19: the fixes for the web app testing notes, on the test conversations and the 45 questions
 
 **Change**, approved 2026-11-19 from the user's live test of the web app that day (`docs/web-app-testing-notes.md` on `claude/web-app`), one commit each:

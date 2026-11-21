@@ -194,18 +194,49 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
 
 ## Decisions
 
-Each decision is listed with its date and its reason. The user said to make the design calls and take the simpler or
-more cautious option when unsure (2026-11-20).
+All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
+
+| Decision | Why |
+|---|---|
+| A referral goes silently, and a judgment goes with the left-out line. | A referral states no fact. A judgment is a claim no tool made, like an unconfirmed number. |
+| Judgments aren't checked with a data-status marker in view, a question about errors, or a dispute. | In each of those, talking about errors is legitimate. |
+| The agreement check covers one-player and one-mode sentences only, not "both modes" and not years. | "12 in all" can mean all of the question's one mode, and years in event names flagged falsely in the first replay. |
+| The placement counts and the best results come only with no `top`. | Those are whole-record questions. Under a `top`, the counts it fixes stay out, as decided on 2026-11-17. |
+| The best results show at most 10 per mode. | A champion's 1st places are their wins, and the list is newest first with a count note. |
+| The filters live in one `Narrowing` structure. | Every template then applies and states a year, a window, a region and an event the same way. |
+| A region means where an event was held, read from event names. | The data has no region per event. Players by region come from the Power Rankings. |
+| 2v2 meetings are ranked for one player only. | Over every player the view takes 84 to 92 s, over `run_sql`'s 30 s. A fast view in the next build would lift this. |
+| `power_rankings` maps Brazil to SA and refuses AUS and JPN. | The 2026 Power Rankings have five regions, and Brazil plays in SA from 2020. |
+| The scope check is a refusal once, and the same call made again runs. | A scope word may not apply to one step of a question about several things. Nothing on the record was refused falsely. |
+| A year next to an event word is the event's, and events and `run_sql` aren't scope-checked. | Pushing 2022 into a worlds lookup would make a right call wrong. Events reach the calls already. |
+| No definition for current-form words, only the general rule. | The user said that definition is theirs. |
+| Page questions are settled as disputes, which require a re-check with a tool. | The user's direction: a question about what the page showed is one about the agent's own answer. |
+| The possessive retry is built and c9 is left as verified. | The user asked for the retry. c9's change is theirs to make, so it's listed below. |
+| Streaks, upsets and rankings with a condition aren't built. | Streaks and upsets need a definition, and conditions have `run_sql`. They're listed in the audit. |
 
 ## Waiting on the user
 
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
-  model picks a reading and says which one it took.
+  model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - c9 turn 1 against the possessive retry. The retry (finding 25) reads "mojakins" as Mojakin, confident, where c9's
   verified answer expects suggestions. There are two ways to settle it. One is to keep the retry and write c9 turn 1
   with a loose spelling that isn't a possessive (for example "what are mojakn stats"), so turns 1 and 2 still test
   suggestions and "the first one". The other is to drop the retry. Until then, c9 turn 1 fails its checks by design.
+- Verifying c14 to c17 (`eval/questions/conversations-review.md`).
+- Definitions for streaks (events in a row? in one mode?) and upsets (by placement at the event? by Power Ranking?),
+  if those kinds should get templates.
 
 ## Runs wanted
 
-None has been made. They wait for the end of the user's live test, and are asked for once, together.
+None has been made. They wait for the end of the user's live test, and are asked for once, together. Each is
+resumable, and they're listed in the order they're worth:
+
+1. The before run of c8-c13 at 3d42613, as agreed on 2026-11-20 (`py -3.14 eval/conversations.py run --seeds 0 1 2
+   --ids c8 c9 c10 c11 c12 c13`, from a checkout of 3d42613).
+2. The conversations at the latest commit, all 17, seeds 0-2. This measures findings 7-29's fixes on c8-c17, and
+   checks c1-c7 for regressions.
+3. The 45 questions at the latest commit, seeds 0-2 (`py -3.14 eval/harness.py run --ids q01 ... q45 --seeds 0 1 2`,
+   never `--all`). This checks for regressions against `20261119-webfixes`.
+4. The audit set, seeds 0-2 (`py -3.14 eval/audit.py run --seeds 0 1 2`), then `python eval/audit.py report RUN`.
+   This gives the failures by mechanism on questions nothing was tuned on.
+5. `py -3.14 agent/retrieval.py measure`, for the two new examples' effect on retrieval.
