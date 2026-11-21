@@ -282,6 +282,47 @@ right: the failures are in how the answers read.
 - **Proposed:** a question about the page gets its own note (explain the figure asked about, from the card's line and
   the tools), separate from the dispute note, and the answer guidance says not to list tool calls.
 
+### 33. An answer of placeholders: "[Opponent Name]", "[X]" wins
+
+- **Seen:** `20261121T053752Z-002`, turn 1, "whats volst best records vs an opponent": `run_sql` on
+  `v_head_to_head_1v1` with `h.matches >= 5`, empty; the diagnosis said that without it the query returns rows. The
+  model answered that it had removed the condition, then gave a template: "**Opponent**: [Opponent Name] ...
+  **Wins**: [X]", "the exact opponent and stats depend on the full dataset". It never ran the query again.
+- **Right (eval-v1):** volst has 1v1 sets against 223 opponents, at most 4 against one (Bunny meow, 0-4). The best
+  record is woolala, 3-0, then nine opponents at 2-0 (blazey., Mr. Schmitty, ...).
+- **The mechanism (M3):** no check reads a placeholder as a claim, and nothing checks an answer that says it relaxed
+  a condition against the queries actually run. The minimum of 5 was the model's own, not the question's.
+- **Proposed:** an answer with placeholder slots (square-bracketed words, "X", "[Name]") goes back once, then is
+  replaced as an unconfirmed claim; an answer saying a condition was removed, with no later query without it, goes
+  back.
+
+### 34. "Best record" read as most sets played, and two records written backwards
+
+- **Seen:** the same session, turn 3, "whats volsts best records vs an opponent without the 5 set minimum":
+  `rank_pairs(of="opponents", player_id=162675)`, which ranks by sets played, so only the 10 opponents with 3 or 4
+  sets came back. The answer:
+  - wrote volst 2-1 against Raydish and against antireplay, where the rows say 1 win and 2 losses (turn 4's
+    `head_to_head` then gave volst 1-2 against Raydish, contradicting it);
+  - left out woolala, 3-0, the best record in the very rows it had, and called the 2-1s the best;
+  - opened "**Corrected Answer:**" and said "the previous answer incorrectly stated a 2-1 record against
+    experiencedoa": a draft the number check sent back, which the user never saw.
+- **The mechanisms:** M2, no tool ranks a player's opponents by record (win rate, or wins with a minimum), so "best
+  record" fell back to "most sets"; M3, the number check takes "2-1" from a row holding 1 and 2 in either order (it
+  checks provenance, not which number is whose), so a reversed record passes; M4, the check's message is answered
+  as if the user had sent it.
+- **Proposed:** `rank_pairs` takes `by="record"` (wins, then fewest losses, with an optional minimum of sets, stated
+  in the answer); a record "W-L" about a player must match that player's wins and losses in that order, as the
+  row's columns name them; a reply to a check is written as the answer to the user's question, never as a
+  correction of a draft (the prompt's line for checks, and a strip of "corrected answer" and "the previous answer"
+  when no answer was sent).
+
+### 35. "Raydish dominates" a 2-1 series, and an ordering the user didn't ask for
+
+- **Seen:** turn 4, "what are the three sets that volst vs'd raydish": the right three sets, but listed "most recent
+  first ... as requested" (nobody asked) and summed up as "Raydish dominates the head-to-head series" at 2-1.
+- **Proposed:** answer guidance: keep the tool's order unless asked, and no judgment words ("dominates") stronger
+  than the record supports.
+
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
 
 - **Seen:** megD's biggest records (`20261119T233544Z-002`, turns 15–17). No turn called a tool. Turn 15 wrote a
