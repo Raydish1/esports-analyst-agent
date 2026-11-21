@@ -28,11 +28,13 @@ The rules they share:
   as suggestions. Events are given by name and resolved here, as resolve_event resolves them.
 """
 
+import calendar
 import json
 import re
 import sqlite3
 from collections import Counter
 from dataclasses import dataclass
+from datetime import date
 from typing import Callable
 
 from tools import (ABOUT_ALIAS, EVENT_SCORES, IDS_IN_SQL, MODE_WORDS, SQL_SECONDS, TOKEN_BUDGET, cell, connect, quoted,
@@ -74,7 +76,7 @@ BEST_LISTED = 10  # the results at a player's best placement, newest first: a ch
 NO_FILTER = {"", "all", "any", "every", "everything", "both", "overall", "total", "none", "*", "all events", "every event",
              "any event", "all modes", "both modes", "all years", "any year", "1v1 and 2v2", "1v1 & 2v2", "all time",
              "lifetime", "career"}
-FILTERS = ("event", "mode", "year")
+FILTERS = ("event", "mode", "year", "since", "until", "region")
 
 
 class Refused(ValueError):
@@ -195,12 +197,9 @@ def counted_as(top):
     return "results" if top is None else COUNTED.get(top, f"top{top}s")
 
 
-def narrowed(top, mode, year, found):
+def narrowed(top, mode, narrow):
     """What a narrowed player_results counts, as its note says it: 'the wins (1st places) in 2v2'."""
-    said = [f"the {cut(top)}" if top else "the results"] + ([f"in {mode}"] if mode else []) + (
-        [f"in {year}"] if year else []) + ([f"at the event{'' if len(found.events) == 1 else 's'} the name means"]
-                                         if found else [])
-    return " ".join(said)
+    return " ".join([f"the {cut(top)}" if top else "the results"] + ([f"in {mode}"] if mode else []) + narrow.said)
 
 
 def table(what, columns, rows, optional=False):
@@ -314,18 +313,61 @@ def status_notes(query, events):
     return [note for note in (status_note(e, reasons.get(e["event_id"])) for e in marked) if note]
 
 
-def conditions(mode=None, year=None, events=None):
-    """The conditions on a result r that a mode, a year and a set of events make, and the scope they leave."""
-    where, said = [], [mode or "1v1 and 2v2"]
-    if mode:
-        where.append(f"r.mode = '{mode}'")
-    if year:
-        where.append(f"substr(r.start_date, 1, 4) = '{year}'")
-        said.append(f"in {year}")
-    if events is not None:
-        where.append(f"r.event_id IN ({in_ids(events)})")
-        said.append(f"at the {len(events)} event{'' if len(events) == 1 else 's'} the name means")
-    return where, f"{SCOPE}, {', '.join(said)}"
+def day(value, name, last=False):
+    """A since or until argument as an ISO date: '2025-10-01', '2025-10' or '2025' (or 2025), a month or a year
+    starting on its first day for since and ending on its last for until."""
+    text = str(value).strip() if isinstance(value, (str, int)) and not isinstance(value, bool) else ""
+    m = re.fullmatch(r"(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?", text)
+    try:
+        year, month, d = int(m[1]), int(m[2] or (12 if last else 1)), m[3] and int(m[3])
+        return date(year, month, d or (calendar.monthrange(year, month)[1] if last else 1)).isoformat()
+    except (TypeError, ValueError):
+        raise Refused(f"{name} is a date, as 2025-10-01, 2025-10 or 2025, not {value!r}") from None
+
+
+@dataclass
+class Narrowing:
+    """What a call narrows the results to besides its players and mode: a calendar year, a time window (since and
+    until, each day included), and the events an event name means, as the conditions on a result (where) and the
+    words its scope says them in (said)."""
+    year: int | None = None
+    since: str | None = None
+    until: str | None = None
+    found: "Matched | None" = None
+
+    def where(self, alias="r"):
+        out = [f"substr({alias}.start_date, 1, 4) = '{self.year}'"] if self.year else []
+        out += [f"{alias}.start_date >= '{self.since}'"] if self.since else []
+        out += [f"{alias}.start_date <= '{self.until}'"] if self.until else []
+        return out + ([f"{alias}.event_id IN ({in_ids(self.found.events)})"] if self.found else [])
+
+    @property
+    def said(self):
+        window = (f"from {self.since} to {self.until}" if self.since and self.until else
+                  f"since {self.since}" if self.since else f"until {self.until}" if self.until else None)
+        n = len(self.found.events) if self.found else 0
+        return ([f"in {self.year}"] if self.year else []) + ([window] if window else []) + (
+            [f"at the event the name means" if n == 1 else f"at the {n} events the name means"] if self.found else [])
+
+    def __bool__(self):
+        return bool(self.year or self.since or self.until or self.found)
+
+
+def narrowing(tools, year=None, since=None, until=None, event=None):
+    """A call's Narrowing from its arguments, each checked as the model wrote it."""
+    year = None if year is None else whole(year, "year")
+    since = None if since is None else day(since, "since")
+    until = None if until is None else day(until, "until", last=True)
+    if since and until and since > until:
+        raise Refused(f"since ({since}) is after until ({until}): the window would be empty")
+    return Narrowing(year, since, until, None if event is None else match_events(tools, event))
+
+
+def conditions(mode=None, narrow=None):
+    """The conditions on a result r that a mode and a Narrowing make, and the scope they leave."""
+    narrow = narrow or Narrowing()
+    where = ([f"r.mode = '{mode}'"] if mode else []) + narrow.where("r")
+    return where, f"{SCOPE}, {', '.join([mode or '1v1 and 2v2'] + narrow.said)}"
 
 
 # event_results
@@ -430,15 +472,15 @@ def both(column, values):
     return sum(values)
 
 
-def player_results(query, tools, player_id, top=None, mode=None, year=None, event=None):
+def player_results(query, tools, player_id, top=None, mode=None, year=None, event=None, since=None, until=None):
     player, name, given = person(tools, player_id)
     top = None if top is None else whole(top, "top")
     mode = None if mode is None else one_mode(mode)
-    year = None if year is None else whole(year, "year")
-    found = None if event is None else match_events(tools, event)
+    narrow = narrowing(tools, year, since, until, event)
+    found = narrow.found
     if found and not found.usable:
         return unanswered("player_results", found, query)
-    where, scope = conditions(mode, year, found.events if found else None)
+    where, scope = conditions(mode, narrow)
     where = " AND ".join([f"r.player_id = {player}"] + ([f"r.placement <= {top}"] if top else []) + where)
     shown = [(column, sql) for column, sql, fixed in COUNTS if not fixed(top)]
     counted = {m: figures for m, *figures in query.rows(  # the shown counts, then the crew battles
@@ -462,10 +504,10 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
         notes.append(f"{name} has no official 1v1 or 2v2 results in the data." if not every else
                      f"None of {name}'s {sum(every.values())} official results ({split}) is among these: the count is 0,"
                      " which isn't the same as never having played.")
-    elif top or mode or year or found:  # what the counts leave out, so a 0 isn't read as never having played
+    elif top or mode or narrow:  # what the counts leave out, so a 0 isn't read as never having played
         total = sum(every.values())
         notes.append(f"{name} has {total} official result{'' if total == 1 else 's'} in all ({split}): the counts here"
-                     f" are only {narrowed(top, mode, year, found)}.")
+                     f" are only {narrowed(top, mode, narrow)}.")
     crews = sum(figures[-1] or 0 for figures in counted.values())
     if crews:
         notes.append(f"{crews} of the 1v1 {cut(top)} {'is a crew battle: a team result' if crews == 1 else 'are crew battles: team results'},"
@@ -499,24 +541,19 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
 
 # team_results
 
-def team_results(query, tools, player_id, partner_id=None, year=None, event=None):
+def team_results(query, tools, player_id, partner_id=None, year=None, event=None, since=None, until=None):
     player, name, given = person(tools, player_id)
     partner, other, given_partner = person(tools, partner_id, "partner_id") if partner_id is not None else (None, None, None)
     if partner == player:
         raise Refused(f"player_id and partner_id are both {name}: pass the two players' player_ids, or leave partner_id"
                       " out for every partner")
-    year = None if year is None else whole(year, "year")
-    found = None if event is None else match_events(tools, event)
+    narrow = narrowing(tools, year, since, until, event)
+    found = narrow.found
     if found and not found.usable:
         return unanswered("team_results", found, query)
-    where, said = [f"t.player_id = {player}"] + ([f"t.partner_id = {partner}"] if partner else []), ["2v2"]
-    if year:
-        where.append(f"substr(t.start_date, 1, 4) = '{year}'")
-        said.append(f"in {year}")
-    if found:
-        where.append(f"t.event_id IN ({in_ids(found.events)})")
-        said.append(f"at the {len(found.events)} event{'' if len(found.events) == 1 else 's'} the name means")
-    scope, cond = f"{SCOPE}, {', '.join(said)}", " AND ".join(where)
+    where = [f"t.player_id = {player}"] + ([f"t.partner_id = {partner}"] if partner else []) + narrow.where("t")
+    scope, cond = f"{SCOPE}, {', '.join(['2v2'] + narrow.said)}", " AND ".join(where)
+    here = " here" if narrow else ""
     notes = (found.notes + status_notes(query, found.events) if found else []) + [
         note for note in (merged(given, player, name), partner and merged(given_partner, partner, other)) if note]
     counts = "COUNT(*), SUM(t.placement = 1), SUM(t.placement <= 3), SUM(t.placement <= 8), MIN(t.placement)"
@@ -526,8 +563,8 @@ def team_results(query, tools, player_id, partner_id=None, year=None, event=None
                               f" p.player_id = t.partner_id WHERE {cond} GROUP BY t.partner_id ORDER BY 3 DESC, 7, p.name")
         results = sum(r[2] for r in partners)
         notes.append(f"{name} has {results} official 2v2 result{'' if results == 1 else 's'} with {len(partners)}"
-                     f" partner{'' if len(partners) == 1 else 's'}{' here' if year or found else ''}." if partners else
-                     f"{name} has no official 2v2 results{' here' if year or found else ''}.")
+                     f" partner{'' if len(partners) == 1 else 's'}{here}." if partners else
+                     f"{name} has no official 2v2 results{here}.")
         return observation("team_results", scope, notes, [
             table(f"{name}'s 2v2 partners, the most events together first",
                   ["partner", "partner_id", "events", "wins", "medals", "top8s", "best"], partners, optional=True)
@@ -536,7 +573,7 @@ def team_results(query, tools, player_id, partner_id=None, year=None, event=None
     listed = query.rows(f"SELECT t.start_date, t.tournament_name, t.event_name, t.placement FROM v_team_results t"
                         f" WHERE {cond} ORDER BY t.start_date, t.event_id")
     if not listed:
-        notes.append(f"{name} and {other} have no official 2v2 results together{' here' if year or found else ''}.")
+        notes.append(f"{name} and {other} have no official 2v2 results together{here}.")
     ends = [[which, r[0], event_name(r[1], r[2]), r[3]] for which, r in first_and_latest(listed, lambda r: r[0])]
     return observation("team_results", scope, notes, [
         table(f"{name} and {other}'s 2v2 results together", ["player", "partner", "events", "wins", "medals", "top8s",
@@ -549,25 +586,40 @@ def team_results(query, tools, player_id, partner_id=None, year=None, event=None
 
 # head_to_head
 
-def head_to_head(query, tools, player_id, opponent_id):
+def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, until=None, event=None):
     player, name, given = person(tools, player_id)
     opponent, other, given_other = person(tools, opponent_id, "opponent_id")
     if player == opponent:
         raise Refused(f"player_id and opponent_id are both {name}: pass the two players' player_ids")
-    (wins, losses, sets, games_won, games_lost, unscored), = query.rows(
-        "SELECT wins, losses, matches, games_won, games_lost, unscored_matches FROM v_head_to_head_1v1"
-        f" WHERE player_id = {player} AND opponent_id = {opponent}") or [(0, 0, 0, None, None, 0)]
-    side = ("SELECT start_date, start_time, event_id, match_id, tournament_name, event_name, winner_name, winner_id,"
-            " winner_games, loser_games FROM v_sets_1v1 WHERE winner_id = {} AND loser_id = {}")
+    narrow = narrowing(tools, year, since, until, event)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("head_to_head", narrow.found, query)
+    within = "".join(f" AND {c}" for c in narrow.where("s"))
+    side = ("SELECT s.start_date, s.start_time, s.event_id, s.match_id, s.tournament_name, s.event_name, s.winner_name,"
+            " s.winner_id, s.winner_games, s.loser_games, s.is_scored FROM v_sets_1v1 s"
+            " WHERE s.winner_id = {} AND s.loser_id = {}" + within)
     listed = query.rows(f"{side.format(player, opponent)} UNION ALL {side.format(opponent, player)}"
                         " ORDER BY start_date, start_time, event_id, match_id")  # each side alone: an OR reads every set
+    if narrow:  # the record of the sets in the window, as the view has no dates
+        scored = [r for r in listed if r[10]]
+        wins, sets = sum(r[7] == player for r in listed), len(listed)
+        losses, unscored = sets - wins, sets - len(scored)
+        games_won = sum(r[8] if r[7] == player else r[9] for r in scored) if scored else None
+        games_lost = sum(r[9] if r[7] == player else r[8] for r in scored) if scored else None
+    else:
+        (wins, losses, sets, games_won, games_lost, unscored), = query.rows(
+            "SELECT wins, losses, matches, games_won, games_lost, unscored_matches FROM v_head_to_head_1v1"
+            f" WHERE player_id = {player} AND opponent_id = {opponent}") or [(0, 0, 0, None, None, 0)]
     (met, won), = query.rows(
         "SELECT COUNT(*), COALESCE(SUM(a.won), 0) FROM v_match_results a JOIN v_match_results b ON b.match_id = a.match_id"
-        f" AND b.side <> a.side WHERE a.player_id = {player} AND b.player_id = {opponent} AND a.mode = '2v2'")
+        f" AND b.side <> a.side WHERE a.player_id = {player} AND b.player_id = {opponent} AND a.mode = '2v2'"
+        + "".join(f" AND {c}" for c in narrow.where("a")))
     notes = [n for n in (merged(given, player, name), merged(given_other, opponent, other)) if n]
+    notes += (narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []
+    here = f" {', '.join(narrow.said)}" if narrow else ""
     if not sets:
-        notes.append(f"{name} and {other} have no counted 1v1 sets against each other at official events (DQs, forfeits"
-                     " and ties aren't counted).")
+        notes.append(f"{name} and {other} have no counted 1v1 sets against each other at official events{here} (DQs,"
+                     " forfeits and ties aren't counted).")
     if unscored:
         notes.append(f"{unscored} of the {sets} sets {'has' if unscored == 1 else 'have'} no recorded score, so the games"
                      f" leave {'it' if unscored == 1 else 'them'} out: say the record includes sets with no recorded score.")
@@ -575,18 +627,19 @@ def head_to_head(query, tools, player_id, opponent_id):
         notes.append(f"In 1v1, {name} won {wins} and lost {losses} of their {sets} set{'' if sets == 1 else 's'} against"
                      f" {other}; {other} won"
                      f" {losses} and lost {wins}.")
-    notes.append(f"In 2v2, {name} and {other} never met on opposite teams." if not met else
+    notes.append(f"In 2v2, {name} and {other} never met on opposite teams{here}." if not met else
                  f"In 2v2, {name}'s teams and {other}'s teams met in {met} set{'' if met == 1 else 's'}: {name}'s side won"
                  f" {won} and lost {met - won}, and {other}'s side won {met - won} and lost {won}. Those aren't in the 1v1"
                  " record.")
-    record = table(f"{name}'s 1v1 record against {other}, in sets",
+    record = table(f"{name}'s 1v1 record against {other}, in sets{here}",
                    ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets", "games_won", "games_lost",
                     "unscored_sets"], [[name, player, other, opponent, wins, losses, sets, games_won, games_lost, unscored]])
     each = table("each 1v1 set between them, oldest first", ["event", "date", "winner", "winner_id", "winner_games",
                                                               "loser_games"],
-                 [[set_event(r[4], r[5]), r[0], *r[6:]] for r in listed], optional=True) if listed else None
-    return observation("head_to_head", SETS_SCOPE, notes, [record, each], query.ran,
-                       player={"player_id": player, "name": name}, opponent={"player_id": opponent, "name": other})
+                 [[set_event(r[4], r[5]), r[0], *r[6:10]] for r in listed], optional=True) if listed else None
+    return observation("head_to_head", ", ".join([SETS_SCOPE, *narrow.said]), notes, [record, each], query.ran,
+                       player={"player_id": player, "name": name}, opponent={"player_id": opponent, "name": other},
+                       event=narrow.found and narrow.found.about)
 
 
 # rank_players
@@ -611,14 +664,14 @@ def tie_groups(rows):
     return groups
 
 
-def rank_players(query, tools, by, top=5, mode=None, year=None, event=None):
+def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, since=None, until=None):
     by, top = one_by(by), whole(top, "top")
     mode = None if mode is None else one_mode(mode)
-    year = None if year is None else whole(year, "year")
-    found = None if event is None else match_events(tools, event)
+    narrow = narrowing(tools, year, since, until, event)
+    found = narrow.found
     if found and not found.usable:
         return unanswered("rank_players", found, query)
-    where, scope = conditions(mode, year, found.events if found else None)
+    where, scope = conditions(mode, narrow)
     regional = query.rows("SELECT DISTINCT event_id, series || ' ' || year FROM v_event_series WHERE regional = 1 AND"
                           f" event_id IN ({in_ids(found.events)}) ORDER BY 2") if found else []
     counts = {by: "COUNT(*)"}  # each column after the player's, with how it's counted
@@ -694,6 +747,8 @@ TEMPLATES = {t.name: t for t in (
                                                    " top 8s; leave out for every result"},
          "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "one mode only; leave out for both"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), player_results),
     Template(
@@ -707,6 +762,8 @@ TEMPLATES = {t.name: t for t in (
          "partner_id": {"type": "integer", "description": "the partner's player_id, from resolve_player; leave out for"
                                                           " every partner"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), team_results),
     Template(
@@ -715,10 +772,15 @@ TEMPLATES = {t.name: t for t in (
         " (wins, losses, games), each 1v1 set between them with its winner and score, and whether they met in 2v2. It"
         " counts sets, not placements: for where they placed at the same events, such as how often one finished behind"
         " the other, use run_sql on v_results. Use it for a head-to-head, a rivalry, or one player's record or history"
-        " against another, with the player the question asks about first.",
+        " against another, with the player the question asks about first, narrowed to a year, a time window or an event"
+        " when the question is.",
         {"player_id": {"type": "integer", "description": "the first player's player_id, from resolve_player: the record"
                                                          " is theirs"},
-         "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"}},
+         "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id", "opponent_id"), head_to_head),
     Template(
         "rank_players",
@@ -732,6 +794,8 @@ TEMPLATES = {t.name: t for t in (
                                                    " better"},
          "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "one mode only; leave out for both"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("by",), rank_players),
 )}

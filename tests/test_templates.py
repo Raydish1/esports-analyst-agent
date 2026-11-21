@@ -190,6 +190,41 @@ class EventResultsTest(Fixture):
         self.assertIn("event is the event's name", self.call("event_results", event=7)["error"])
 
 
+class WindowTest(Fixture):
+    def test_since_and_until_read_a_day_a_month_or_a_year_each_included(self):
+        self.assertEqual([templates.day(v, "since") for v in ("2025-10-01", "2025-10", "2025", 2025)],
+                         ["2025-10-01", "2025-10-01", "2025-01-01", "2025-01-01"])
+        self.assertEqual([templates.day(v, "until", last=True) for v in ("2024-02", "2024", "2024-12-31")],
+                         ["2024-02-29", "2024-12-31", "2024-12-31"])
+        for bad in ("last year", "2025-13", "10/01/2025", True):
+            with self.assertRaises(templates.Refused):
+                templates.day(bad, "since")
+        self.assertIn("since (1971-01-01) is after until (1970-12-31)",
+                      self.call("player_results", player_id=A, since="1971", until="1970")["error"])
+
+    def test_a_window_narrows_every_template_that_takes_a_year_and_the_scope_says_so(self):
+        every = self.call("player_results", player_id=A, since="1970-01-01")  # the fixture's events are all 1970-01-01
+        self.assertEqual((every["scope"], self.rows(every, "A's results")[-1][2]),
+                         ("official events, 1v1 and 2v2, since 1970-01-01", 5))
+        none = self.call("player_results", player_id=A, since="1971")
+        self.assertEqual(self.rows(none, "A's results")[-1][2], 0)
+        self.assertIn("None of A's 5 official results (3 in 1v1, 2 in 2v2) is among these", " ".join(none["notes"]))
+        ranked = self.call("rank_players", by="wins", until="1969")
+        self.assertEqual((ranked["scope"], ranked["tables"][0]["rows"]), ("official events, 1v1 and 2v2, until 1969-12-31", []))
+        teams = self.call("team_results", player_id=A, since="1970", until="1970")
+        self.assertEqual(teams["scope"], "official events, 2v2, from 1970-01-01 to 1970-12-31")
+
+    def test_a_head_to_head_in_a_window_counts_the_sets_in_it(self):
+        every = self.call("head_to_head", player_id=A, opponent_id=B)
+        within = self.call("head_to_head", player_id=A, opponent_id=B, year=1970)
+        self.assertEqual(self.rows(within, "A's 1v1 record")[0][4:7], self.rows(every, "A's 1v1 record")[0][4:7])
+        self.assertEqual(within["scope"], f"{templates.SETS_SCOPE}, in 1970")
+        later = self.call("head_to_head", player_id=A, opponent_id=B, since="1971")
+        self.assertEqual(self.rows(later, "A's 1v1 record")[0][4:7], [0, 0, 0])
+        self.assertIn("A and B have no counted 1v1 sets against each other at official events since 1971-01-01",
+                      " ".join(later["notes"]))
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)
@@ -355,7 +390,7 @@ class HeadToHeadTest(Fixture):
 
     def test_each_side_of_the_sets_is_its_own_filter_since_an_or_reads_every_set(self):
         ran = " ".join(self.call("head_to_head", player_id=A, opponent_id=B)["ran"])
-        self.assertIn(f"WHERE winner_id = {A} AND loser_id = {B} UNION ALL", ran)
+        self.assertIn(f"WHERE s.winner_id = {A} AND s.loser_id = {B} UNION ALL", ran)
         self.assertNotIn(" OR ", ran)
 
     def test_2v2_meetings_are_counted_apart_from_the_1v1_record(self):
@@ -387,7 +422,8 @@ class HeadToHeadTest(Fixture):
         self.assertIn("opponent_id is the number resolve_player returns, not a name: call resolve_player with 'B'",
                       self.call("head_to_head", player_id=A, opponent_id="B")["error"])
         self.assertEqual(self.call("head_to_head", player_id=A)["error"],
-                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id")
+                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, year, since, until,"
+                         " event")
 
 
 class RankPlayersTest(Fixture):
@@ -443,7 +479,7 @@ class RankPlayersTest(Fixture):
         self.assertEqual(self.rows(self.call("rank_players", by="Top 8s"), "players ranked by top 8s")[0][:2], [1, "A"])
         self.assertEqual(self.rows(self.call("rank_players", by="titles"), "players ranked by wins")[0][:2], [1, "A"])
         self.assertEqual(self.call("rank_players")["error"],
-                         "rank_players needs by: rank_players takes by, top, mode, year, event")
+                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, event")
         self.assertEqual(self.call("rank_players", by="wins", mode="crew")["error"], "mode is '1v1' or '2v2', not 'crew'")
         out = self.call("rank_players", by="wins", event="league")
         self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))

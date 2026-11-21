@@ -92,7 +92,16 @@ Built so far:
 
 ## M2: tools that can't express the natural reading
 
-Status: not built yet.
+The audit ([`question-audit.md`](question-audit.md)) lists the kinds no template could answer in one or two calls.
+The general gaps are a time window, a region, ranked pairs and the Power Rankings.
+
+- **A time window.** `since` and `until` work on every template that takes a year (`player_results`,
+  `team_results`, `rank_players`), and on `head_to_head`, which now takes a year, a window and an event too. Each is
+  a day, a month or a year ("2025-10-01", "2025-10", "2025"), and each end is included. The filters live in one
+  structure (`templates.Narrowing`), so every template reads them, and says them in its scope, the same way. A
+  head-to-head in a window counts the sets in it, since `v_head_to_head_1v1` has no dates. On eval-v1,
+  `rank_players(by="wins", mode="1v1", since="2025-10-01")` gives Marckiem00 and Zivai on 3, then six players on 2,
+  in 1.0 s.
 
 ## M1: reading the question
 
