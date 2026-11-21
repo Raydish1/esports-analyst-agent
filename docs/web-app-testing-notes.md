@@ -190,6 +190,45 @@ Truth: Phazon's 12 GOLD is 2v2 (12 1st places in 2v2, 0 in 1v1, so 12 in both mo
 - **Proposed:** the answer guidance says a record is written from one named player's side ("Cody Travis's teams won 8
   of the 20, lost 12").
 
+### 25. "renivics" went to suggestions
+
+- **Seen:** "what is renivics best placement in 2v2" (`20261120T175642Z-003`, turn 1): `resolve_player("Renivics")`
+  matched Renivic only by a similar spelling (0.79), so the turn asked the user which player.
+- **Why:** a possessive written without its apostrophe keeps its "s", and no tier drops it.
+- **Proposed:** a name with no exact match is tried once more without a trailing "s" (and "'s"); if that matches exactly,
+  it's that player, as confident.
+
+### 26. "best placement" was asked with `top=1`, and the answer gave none
+
+- **Seen:** turn 2 ("the first one"): `player_results(49489, mode="2v2", top=1)` returned 0 wins, and the answer was
+  "Renivic's best placement in 2v2 is **no 1st places** … To confirm their highest placement, further analysis … would
+  be needed." Turn 3 ("analyze all of renivic's 2v2 placements") called it with no `top` and got `best` = 17.
+- **Truth (eval-v1):** 17th, twice: Autumn Championship - North America 2025 - 2v2 (2025-09-21) and Winter
+  Championship - North America 2026 - 2v2 (2026-03-01).
+- **Proposed:** the description and the prompt's "Choosing a tool" say a player's best placement is `player_results`
+  with no `top`, read from `best`; and the template lists the results at the best placement, ties included, so the
+  answer can say where.
+
+### 27. Placement counts made up from the list, and a real placement called an anomaly
+
+- **Seen:** turn 3's answer: "Most frequent placements: 25th (5 times) and 33rd (5 times)" (really 4 and 6), best 17th
+  given once (it was twice), and the 513th at Combo Breaker Online 2020 "likely a data anomaly" (it's real: 2,296
+  players placed there).
+- **Why no check caught it:** the counts are the model's own, of rows it read, and 5 occurs in the results; the number
+  check checks where a number came from.
+- **Proposed:** the rule that counts come from SQL, never from reading rows, applies to template results too: a
+  question about how often each placement happened is a `run_sql` GROUP BY. And the answer guidance says not to call a
+  result an anomaly without a tool result that says so.
+
+### 28. No template ranks pairs of players
+
+- **Seen (asked, 2026-11-20):** "who has the biggest head-to-head record" is answered only by the model writing SQL
+  from ex32. `v_head_to_head_1v1` unfiltered takes 73 s, over `run_sql`'s 30 s, while ex32's `v_sets_1v1` grouping
+  takes 4.9 s. A model that picks the view by name times out.
+- **Proposed:** a template `rank_pairs(by="sets", mode, top)`: the pairs with the most 1v1 sets (or 2v2 meetings
+  between their teams), each pair once, ties whole, both players named, with each one's wins. And a line in
+  `v_head_to_head_1v1`'s definition (or the prompt) saying it's for one player or pair at a time.
+
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
 
 - **Seen:** megD's biggest records (`20261119T233544Z-002`, turns 15–17). No turn called a tool. Turn 15 wrote a
