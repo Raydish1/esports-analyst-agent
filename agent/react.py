@@ -231,6 +231,11 @@ Answering
 - State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
   official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
 - Name a set or a result by its event, written short (BCX 2022, Winter Royale 2023), not by its date.
+- Show a player_id only when the user asks for one, or to tell apart two players with the same name.
+- Never name the tools or the calls you used: the user sees the answer, not the steps.
+- Keep the order a tool returned unless the question asks for another, and never say an order was requested when it
+  wasn't.
+- Describe a record by its numbers: a word like "dominates" only for a lopsided record, never for a 2-1 or a 3-2.
 - Write a record from one named player's side, as the tool gives it: "Cody Travis's teams won 8 of the 20 and lost
   12", not "Phazon's teams outperformed Cody Travis's teams (8 wins, 12 losses)".
 - The first time you name a player the question named, use the display resolve_player gave, such as 'Zivai (formerly
@@ -882,6 +887,35 @@ def is_page_note(message):
     return message.get("role") == "user" and str(message.get("content", "")).startswith(PAGE_NOTE.split("{")[0])
 
 
+ASKS_IDS = re.compile(r"\b(?:ids?|player[ _]?ids?)\b", re.I)
+WRITTEN_ID = re.compile(r"[ \t]*\((?:player[ _]?id[:\s]*|id[:\s]*)?(-?\d{2,7})\)")
+
+
+def unasked_ids(answer, question, resolver):
+    """An answer with each player_id written in parentheses after that player's name taken out ('SiB | Wess (37977)'
+    is 'SiB | Wess'), and the IDs taken out: unless the question asks for IDs, or two players in the answer share the
+    name, whom the IDs tell apart (decided 2026-11-21: live, every name in a ranking had its ID beside it,
+    docs/web-app-testing-notes.md, finding 31)."""
+    if ASKS_IDS.search(question):
+        return answer, []
+    def name_before(m):
+        pid = int(m[1])
+        name = resolver.names.get(resolver.canonical.get(pid, pid)) or ""
+        before = re.sub(r"[*_`\s]+$", "", answer[:m.start()]).casefold()
+        return name if name and before.endswith(name.casefold()) else None
+    hits = [(m, name_before(m)) for m in WRITTEN_ID.finditer(answer)]
+    hits = [(m, n) for m, n in hits if n]
+    by_name = {}
+    for m, n in hits:
+        by_name.setdefault(n.casefold(), set()).add(int(m[1]))
+    out, removed = answer, []
+    for m, n in reversed(hits):
+        if len(by_name[n.casefold()]) == 1:
+            out = out[:m.start()] + out[m.end():]
+            removed.append(int(m[1]))
+    return out, removed[::-1]
+
+
 def claimed_wrong(found):
     """The claim check's message (claim_check.py): what the answer claims that no tool does, and what to do instead."""
     parts = []
@@ -890,6 +924,8 @@ def claimed_wrong(found):
     slots = [repr(short(c.text, 80)) for c in found if c.kind == "placeholder"]
     relaxations = [repr(short(c.text, 80)) for c in found if c.kind == "relaxed"]
     strong = [repr(short(c.text, 80)) for c in found if c.kind == "characterization"]
+    tools = [repr(short(c.text.strip(), 60)) for c in found if c.kind == "tool"]
+    orders = [repr(short(c.text, 60)) for c in found if c.kind == "unasked"]
     if referrals:
         parts.append(f"it sends the user to the database ({listed(referrals)}), and the user can't run queries. Run"
                      " what the answer needs with the tools yourself, and answer from what they return")
@@ -906,6 +942,12 @@ def claimed_wrong(found):
     if strong:
         parts.append(f"it characterizes a result ({listed(strong)}) beyond what its record says: give the record by"
                      " its numbers, without words like 'dominates'")
+    if tools:
+        parts.append(f"it names the tools or calls it used ({listed(tools)}): the user sees the answer, not the steps,"
+                     " so leave them out")
+    if orders:
+        parts.append(f"it says {listed(orders)} of something the question didn't ask for: keep the order the tool gave,"
+                     " and don't say it was requested")
     return "Before this answer is final: " + "; and ".join(parts) + "."
 
 
@@ -1285,11 +1327,12 @@ class Conversation:
                 judgments = []
                 if wrong:  # left out of whatever text is final; a claim that states nothing with no line saying so
                     plain = claim_check.without_code(content)
+                    plain = claim_check.without_tool_talk(plain, self.view.states_facts)
                     silent = [c for c in self.wrong(plain, said or question, disputed, emptied)
                               if c.kind in claim_check.SILENT]
                     content, dropped = without(plain, silent)
                     judgments = [c for c in self.wrong(content, said or question, disputed, emptied)
-                                 if c.kind not in claim_check.SILENT]
+                                 if c.kind not in claim_check.SILENT and c.kind != "tool"]
                     step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "left out: " + (
                         "sent back once already" if judged else "the turn looked nothing up" if strict
                         else "no steps left" if outcome == "answered" else "not an answer"),
@@ -1328,6 +1371,10 @@ class Conversation:
                         content = f"{content}\n\n{left_out(unconfirmed)}"
                     log(f"  {listed(flagged_texts + [c.text for c in judgments])} left out, since no tool result in"
                         " view holds them or says so")
+                if outcome == "answered":  # an ID beside each name, unasked (finding 31)
+                    content, stripped = unasked_ids(content, said or question, self.tools.resolver)
+                    if stripped:
+                        step["ids_removed"] = stripped
                 trace["answer"], trace["outcome"], trace["name_swaps"] = content.strip() or None, outcome, swaps
                 trace["unreturned_names"], trace["unreturned_ids"], trace["unconfirmed"] = names, ids, unconfirmed
                 log(f"  {trace['outcome']}: {short(content, 300)}")
@@ -1407,7 +1454,8 @@ class Conversation:
         its judgments that a result is wrong, unless the question is about the previous answer, whose re-check may
         say an answer was wrong; and, after a last query that found no rows (emptied), its claims to have removed a
         condition."""
-        found = claim_check.referrals(answer) + claim_check.placeholders(answer)
+        found = claim_check.referrals(answer) + claim_check.placeholders(answer) + claim_check.tool_talk(answer)
+        found += claim_check.unasked(answer, question)
         window = self.view.window  # a characterization goes back only when the record behind it is close
         found += [c for c in claim_check.characterizations(answer, question) if window.lopsided(answer, c) is False]
         if not disputed:

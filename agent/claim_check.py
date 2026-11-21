@@ -21,8 +21,12 @@ Three more kinds since 2026-11-21 (round five):
   was "Raydish dominates the head-to-head" (finding 35). Not checked when the question uses such a word itself ("the
   most dominant win" is a defined measure, and "dominant" isn't one of the words).
 
-A referral or a relaxation states nothing, so it's left out with no line saying so (SILENT); the other kinds go with
-the left-out line, as an unconfirmed number does.
+And two about the answer's writing (M5, round five): tool talk, a call or a tool the answer names
+("`player_results(player_id=147522)`"), which live listed a reply's calls in backticks (finding 32); and an order
+said to be requested when the question asked for none ("most recent first ... as requested", finding 35).
+
+A referral, a relaxation or an unasked "as requested" states nothing, so it's left out with no line saying so (SILENT);
+tool talk loses only its own words; the other kinds go with the left-out line, as an unconfirmed number does.
 
 Each found claim is a number_check.Claim, so number_check.without can leave it out of a final text."""
 
@@ -75,7 +79,15 @@ ASKS_STRONG = re.compile(r"\b(?:dominan\w*|dominat\w*|crush\w*|destroy\w*|one-si
 # overall record isn't the yardstick for a characterization of it
 PART = re.compile(r"\b(?:early|earlier|recent|recently|lately|last|latest|first|later|since|before|after)\b|\b(?:19|20)\d\d\b",
                   re.I)
-SILENT = {"referral", "relaxed"}  # kinds that state nothing: left out with no line saying so
+SILENT = {"referral", "relaxed", "unasked"}  # kinds that state nothing: left out with no line saying so
+TOOL_NAMES = ("resolve_player", "resolve_event", "run_sql", "event_results", "player_results", "team_results",
+              "head_to_head", "rank_players", "rank_pairs", "power_rankings", "upsets")
+TOOL_TALK = re.compile(r"\s*\(?\s*(?:(?:checked|confirmed|found|looked\s+up|computed|counted)\s+)?(?:(?:using|via|with|by"
+                       r"\s+calling|calling|called|from)\s+(?:the\s+)?)?`?\b(?:" + "|".join(TOOL_NAMES)
+                       + r")\b(?:\s*\([^)\n]*\))?`?(?:\s+(?:tool|template|call|query))?\s*\)?")
+AS_ASKED = re.compile(r"\b(?:as\s+(?:you\s+)?(?:requested|asked(?:\s+for)?)|per\s+your\s+request|as\s+you\s+wanted)\b", re.I)
+ASKS_ORDER = re.compile(r"\b(?:order|sort|sorted|first|newest|oldest|latest|recent|chronolog\w*|earliest|ranked|rank)\b",
+                        re.I)
 NEGATION = re.compile(r"\b(?:no|not|isn't|isn’t|wasn't|wasn’t|aren't|aren’t|without|nor|never|neither)\b(?:\s+\S+){0,3}\s*$",
                       re.I)
 # A tool result in view that says the data is wrong somewhere: a status, or sets with no recorded score
@@ -136,6 +148,29 @@ def characterizations(answer, question):
         return bool(PART.search(answer[a:b]))
     return [c for c in found([("characterization", CHARACTERIZATIONS)], answer)
             if not NEGATION.search(answer[max(0, c.start - 40):c.start]) and not part(c)]
+
+
+def tool_talk(answer):
+    """The answer's words naming a tool or a call ('using `player_results(player_id=147522)`')."""
+    return [Claim("tool", m[0], m.start(), m.end(), ()) for m in TOOL_TALK.finditer(answer) if m[0].strip()]
+
+
+def unasked(answer, question):
+    """The answer's 'as requested' about an order or a form, when the question asked for none."""
+    return [] if ASKS_ORDER.search(question) else found([("unasked", AS_ASKED)], answer)
+
+
+def without_tool_talk(answer, states_facts):
+    """The answer without its tool talk: a sentence that states nothing else (states_facts, on what's left of it)
+    goes whole, as 'I used rank_pairs to rank them.'; any other loses only the words naming the tool, with a lead-in
+    such as 'checked with' ('... 1st places (checked with `player_results(...)`).' keeps its fact)."""
+    spans = units(answer)
+    dropped = [Claim("tool", answer[a:b], a, b, ()) for a, b in spans
+               if TOOL_TALK.search(answer[a:b]) and not states_facts(TOOL_TALK.sub(" ", answer[a:b]))]
+    from number_check import without
+    out, _ = without(answer, dropped)
+    out = TOOL_TALK.sub("", out)
+    return re.sub(r"[ \t]+([.,;:!?])", r"\1", re.sub(r"[ \t]{2,}", " ", out)).strip()
 
 
 def without_code(answer):

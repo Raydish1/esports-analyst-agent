@@ -244,6 +244,19 @@ Built in round five:
     dominates" a 2-1 series. Checking every "dominates" would have flagged 15. The record yardstick left out "Phazon
     dominates" at 5-1 and "bestjava dominated, winning 7 of 10". The part-of-a-series rule left out "dominated the
     early matches" and "dominated in 2025".
+- **M5, answer writing** (findings 31, 32 and 35):
+  - A player_id in parentheses right after that player's name ("**SiB | Wess (37977)**") is taken out of the final
+    answer, which the trace keeps as `ids_removed`. It stays when the question asks for IDs, or when two players in
+    the answer share the name, since the ID tells them apart. A number after a name that isn't that player's ID (a
+    year) isn't touched.
+  - Tool talk, a tool or a call the answer names ("checked with `player_results(player_id=147522)`"), goes back once.
+    After that, a sentence that states nothing else goes whole, and any other loses only those words.
+  - "As requested" about an order, when the question asked for none, goes back once, then its sentence goes.
+  - The prompt says to show IDs only when asked or needed, never to name the tools, to keep the tool's order unless
+    asked, and to describe a record by its numbers.
+  - Replayed on 747 recorded answers: 167 had IDs beside names (279 IDs). Tool talk appears 40 times, all of the
+    kind (`resolve_player(name="Ahmet")`, "using the `resolve_player` tool"). "As requested" appears once, in finding
+    35.
 
 ## Decisions
 

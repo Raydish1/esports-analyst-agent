@@ -193,6 +193,15 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("7th"), ("confident", [16]))
 
 
+class UnaskedIdsTest(Fixture):
+    def test_an_id_beside_its_players_name_is_taken_out_unless_asked_for_or_needed(self):
+        out, removed = react.unasked_ids("1. **Raydish (11)** vs **tike36 (14)**: 3 sets", "biggest rivalry", self.resolver)
+        self.assertEqual((out, removed), ("1. **Raydish** vs **tike36**: 3 sets", [11, 14]))  # live, finding 31
+        kept = "1. **Raydish (11)** vs **tike36 (14)**: 3 sets"
+        self.assertEqual(react.unasked_ids(kept, "what are their player ids", self.resolver), (kept, []))
+        self.assertEqual(react.unasked_ids("BCX (2023) had 3 sets.", "q", self.resolver)[1], [])  # no player's name
+
+
 class PossessiveTest(Fixture):
     def test_a_name_with_no_exact_match_is_read_without_its_possessive_ending(self):
         for written in ("raydishs", "raydish's", "Raydish’s", "raydishs'"):  # live: "renivics best placement" (25)
@@ -597,7 +606,7 @@ class LoopTest(Fixture):
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT 19 AS player_id, 3 AS winner_games, 0 AS loser_games"})]),
                        reply("The grand final was won by **Lucky** (player_id 19), 3-0."))
         trace = react.run("who won the grand final?", self.tools, ask=ask, log=lambda *_: None)
-        self.assertEqual(trace["answer"], "The grand final was won by **Zivai** (player_id 19), 3-0.")
+        self.assertEqual(trace["answer"], "The grand final was won by **Zivai**, 3-0.")  # renamed, then its ID taken out
         self.assertEqual(trace["name_swaps"], [{"kind": "the name for a player ID", "from": "Lucky", "to": "Zivai",
                                                 "player_id": 19}])
         self.assertNotIn("answer_check", trace["steps"][1])  # corrected, so nothing went back
@@ -612,7 +621,8 @@ class LoopTest(Fixture):
                                                                             "belongs_to": "tike36", "name_is": 11}]))
         self.assertIn("Raydish with player_id 14, which is tike36's (resolve_player gives Raydish as player_id 11)",
                       check["message"])
-        self.assertEqual(trace["answer"], "**Raydish** (player_id 11) has 6 official results.")
+        self.assertEqual(trace["answer"], "**Raydish** has 6 official results.")  # the ID, unasked, taken out
+        self.assertEqual(trace["steps"][-1]["ids_removed"], [11])
         trace = react.run("how many results has raydish?", self.tools, ask=Scripted(lookups, reply(wrong)), max_steps=2,
                           log=lambda *_: None)
         self.assertEqual((trace["answer"], trace["name_swaps"], trace["steps"][1]["pairing_check"]["action"]),
@@ -781,7 +791,7 @@ class LoopTest(Fixture):
 
     def test_a_clarifying_question_states_nothing_but_a_word_no_result_holds_still_needs_a_lookup(self):
         asking = ('Do you mean a player\'s 2v2 record (e.g., "top 8 of the Europe Summer 2022 2v2")?\n'
-                  "- Use `event_results(event=\"...\", top=8)` for an event. Let me know!")
+                  "- Or an event's top 8? Let me know!")
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
                        reply(asking))
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)

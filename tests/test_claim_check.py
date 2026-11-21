@@ -1,3 +1,4 @@
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -65,6 +66,24 @@ class RoundFiveTest(unittest.TestCase):
         self.assertEqual(claim_check.characterizations("It was dominated by Zivai.", "the most dominant win"), [])
         self.assertEqual(claim_check.characterizations("Neither player dominated.", "q"), [])
         self.assertEqual(claim_check.characterizations("Zivai's most dominant win was BCX 2023.", "q"), [])
+
+
+class WritingTest(unittest.TestCase):
+    def test_tool_talk_is_found_and_a_sentence_keeps_its_facts_without_it(self):
+        said = "Phazon's 12 golds are 2v2 1st places (checked with `player_results(player_id=147522)`)."  # finding 32
+        self.assertEqual([c.text.strip() for c in claim_check.tool_talk(said)],
+                         ["(checked with `player_results(player_id=147522)`)"])
+        facts = lambda text: bool(re.search(r"\d", text))  # noqa: E731
+        self.assertEqual(claim_check.without_tool_talk(said, facts), "Phazon's 12 golds are 2v2 1st places.")
+        self.assertEqual(claim_check.without_tool_talk("I used `rank_pairs` to rank them. Wess leads, 34 sets.", facts),
+                         "Wess leads, 34 sets.")
+        self.assertEqual(claim_check.tool_talk("The player results are below."), [])
+
+    def test_an_order_said_to_be_requested_is_found_only_when_the_question_asked_for_none(self):
+        said = "Here are the three sets, most recent first as requested:"  # live, finding 35
+        self.assertEqual(texts(claim_check.unasked(said, "what are the three sets that volst vs'd raydish")),
+                         ["as requested"])
+        self.assertEqual(claim_check.unasked(said, "list them newest first"), [])
 
 
 if __name__ == "__main__":
