@@ -468,3 +468,33 @@ SELECT pairs.player_id, a.name AS player, pairs.opponent_id, b.name AS opponent,
 FROM pairs JOIN players a ON a.player_id = pairs.player_id JOIN players b ON b.player_id = pairs.opponent_id
 ORDER BY sets DESC
 '''
+
+[[example]]
+id = "ex33"
+shape = "power_rankings"
+question = "Who is ranked first in each region's 2v2 Power Rankings right now?"
+note = "Right now by the official ranking: pr_snapshots holds the Power Rankings of one date, per region and mode. Say the date, and that it's the official ranking, not a count of results."
+call = 'power_rankings(mode="2v2", top=1)'
+call_note = "Each region's top of the official 2v2 Power Rankings, ties included, with the snapshot's date: say it's the ranking of that date."
+sql = '''
+SELECT region, power_ranking, player_id, points FROM pr_snapshots
+WHERE mode = '2v2' AND power_ranking = 1
+ORDER BY region
+'''
+
+[[example]]
+id = "ex34"
+shape = "ranking_in_window"
+question = "Who has won the most 2v2 medals since the start of 2025?"
+note = "A time window, not all time: count medals in SQL from the window's first day, with RANK() so ties stay whole, and say the window in the answer."
+call = 'rank_players(by="medals", mode="2v2", since="2025-01-01")'
+call_note = "since narrows every template that takes a year to a window, each end included; the scope says it, and so should the answer."
+sql = '''
+WITH counted AS (
+  SELECT player_id, COUNT(*) AS medals FROM v_results
+  WHERE mode = '2v2' AND placement <= 3 AND start_date >= '2025-01-01'
+  GROUP BY player_id)
+SELECT rank, player_id, medals FROM (SELECT *, RANK() OVER (ORDER BY medals DESC) AS rank FROM counted)
+WHERE rank <= 5
+ORDER BY rank, player_id
+'''

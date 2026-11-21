@@ -155,6 +155,12 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
     `rank_players(by="wins", top=5)` for "the strongest 1v1 player right now". No false refusals.
 - **Finding 26** ("best placement" asked as `top=1`) is covered from two sides. The prompt and the description say a
   best placement is `player_results` with no `top`, and the template lists where it was (M3).
+- **Worked examples for the present.** Finding 29's retrieved examples were about pairs, an event's winner and a
+  record against one player, and none was about current form. Two new examples cover it. ex33 asks who is ranked
+  first in each region "right now" and shows `power_rankings(mode="2v2", top=1)`. ex34 asks for the most 2v2 medals
+  since the start of 2025 and shows `rank_players(..., since=...)`. Neither names a player. `retrieval.py check`:
+  34 examples, 0 problems. Retrieval quality (`retrieval.py measure`) needs the embedding server, so it waits for
+  the runs.
 
 ## M4: the conversation
 
