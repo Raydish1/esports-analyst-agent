@@ -2,6 +2,85 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: the mechanism rounds measured: conversations, the 45 questions, the audit set and retrieval
+
+**What it asked.** How do rounds four and five, and findings 7-20's four commits, do with the model? Rounds four and
+five are the failure mechanisms and the fixes for findings 21-35. The user approved five runs after their live test.
+
+**Setup.** qwen3:8b with thinking, retrieval on, seeds 0-2. The runs went one after another so they didn't compete
+for the server.
+- **The before run.** c8-c13 at 3d42613, the commit before findings 7-20's fixes, as agreed on 2026-11-20. It ran
+  in a temporary worktree with that commit's conversation set. That set has c9 turn 1 as "mojakins" and no card
+  line for c8.
+- **The other runs.** All at 8b59815: all 19 conversations (`20261121-conversations`), the 45 questions
+  (`20261121-questions`, by id), the audit set (`20261121-audit`), and `retrieval.py measure`.
+- **Scoring.** Every run was scored with the latest checks. The scorers' grounded check reads count words as the
+  agent does since 444cb82, a fix found in this measurement. It moved c18 seed 0 to a pass.
+- **The example store.** The first try of the before run failed. Chroma's example store is shared by every process
+  that opens it, and the web app's two servers were still running from their worktree with another bank of examples.
+  Each run then got its own store in its own worktree, linked to the rest of `data/`. The web app's store in the
+  main checkout was partly deleted in the process, and restarting the web app rebuilds it.
+
+**Results.**
+
+| Run | Result | Against |
+|---|---|---|
+| Retrieval, the agent's settings | a helpful shape in the top 3 for 31 of 39 questions; 34 of 39 without the threshold | 32 and 35 on 2026-10-25. The same without ex33-ex35, so the new examples don't move it, and the drop predates them |
+| The before run, c8-c13 at 3d42613 | 24 of 48 turns pass every check | |
+| All 19 conversations | 103 of 144 turns (71%); 31 of 57 conversation runs pass every turn | |
+| c1-c7 | 51 of 60 turns | 47 in `20261119-conversations-cues` |
+| c8-c13 | 29 of 48 turns | 24 before |
+| c14-c19 | 23 of 36 turns | new |
+| The 45 questions, automatic stages | 123 of 135 runs | 130 in `20261119-webfixes` |
+| The audit set | 137 of 162 turns (85%); 128 of 153 runs pass every turn | new |
+
+- **The conversations.**
+  - c13 went from 3 to 9 of 9 turns ("dragon" gets suggestions, and "Dragon!" picks him). c9 went from 3 to 5 of 6
+    ("the first one" gets Mojakin's stats), and c12 from 4 to 5 of 9.
+  - c17 passes every turn in every seed: "the strongest 1v1 player right now" is read as now, in 1v1, and the
+    follow-up in 2v2 in NA works too.
+  - c8 fell from 8 to 3 of 15. Its turns 3 and 5 give the right answers ("4 tournaments", "24 is the events")
+    from the previous turn's `team_results` result, without a fresh call, which its verified `players` check counts
+    as a failure.
+  - Its turn 4 is a real regression. "are you sure? ... in the graphic" asks about the card shown two turns
+    back, but the page cue keeps only the last turn's card, so it's read as a dispute and the model defends "4
+    tournaments". The before run gave the medals in 2 of 3 seeds.
+  - c15 is still weak (2 of 6). "best placement" was asked with `top=1` in 2 seeds, and the placement counts were
+    misread (33rd "5 times", the table says 6).
+  - c18 seed 1 read "biggest head to head record" as `by="record"`, was refused without a player, and answered
+    about Cody Travis.
+- **The 45 questions.** 9 runs were lost and 2 won (q05 seed 1, q44 seed 0).
+  - q08 lost all 3 seeds and q40 lost 2. "Who has the best record against marckiemoo" and "who has raydish lost
+    to the most" ask for the opponents' side. Each was asked as round five's `rank_pairs(by="record")` with that
+    player's ID, which ranks the player's own records. That's a regression of round five.
+  - q05 lost 2: the model said no tool covers earnings and never queried `v_career_earnings`, though the prompt names
+    it.
+  - q23 seed 2 resolved "kingdom" alone, and q44 seed 2 is a flaky question.
+  - Model time per run went from 22.1 s to 18.9 s. The checks fired: the no-tool check 25 times, the event check 10,
+    the number check sent back 4 and left out 7 claims, the scope check refused 3 calls, and the claim check fired
+    2.
+- **The audit, by mechanism.** The tools fail 20 of 120 tagged turns, reading 7 of 51, facts 7 of 45 and the
+  conversation 2 of 21. By kind:
+  - Rankings with a condition (kind 7) fail 6 of 6, as "the most top 8s without ever winning" is asked as a plain
+    ranking.
+  - "best placement" is asked with `top=1` (kind 2, a03 3 of 3).
+  - The best record against a player is the `by="record"` regression (kind 14, a28 2 of 3).
+  - Whom a player lost to at an event has no tool (kind 19, a39 3 of 3): `head_to_head` is called without an
+    opponent.
+  - "Without dropping a game" is looked up as an event name (kind 17, a35 3 of 3).
+  - The top earners (a43) miss `run_sql` once.
+  - Streaks, upsets, current form, regions, the Power Rankings, teams and rivalries (kinds 3-6, 8-10, 12, 15, 16,
+    18, 20) pass in every run.
+
+**What it decided.** Nothing yet: the next fixes are for the user to approve. The ones the runs point to are:
+- the opponents' side for `rank_pairs` records (q08, q40, a28);
+- a refusal of `top` for a best placement (a03, c15);
+- a condition for `rank_players` (kind 7);
+- a player's sets at an event (a39);
+- a flawless-run question (a35);
+- earnings named in "Choosing a tool" (q05);
+- the card kept in the settling context while its note is in the history (c8 turn 4).
+
 ## 2026-11-21: round five's fixes, replayed offline on the recorded runs
 
 **What it asked.** Would the fixes for findings 30-35 catch their failures without disturbing right answers? Every

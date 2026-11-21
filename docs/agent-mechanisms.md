@@ -329,10 +329,10 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 - A definition for streaks (events in a row? in one mode?), if that kind should get a template. Upsets were defined
   on 2026-11-21 (round five).
 
-## Runs wanted
+## Runs
 
-None has been made. They wait for the end of the user's live test, and are asked for once, together. Each is
-resumable, and they're listed in the order they're worth:
+All five were made on 2026-11-21, at the user's go-ahead after their live test. The results and the fixes they
+point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured). They were:
 
 1. The before run of c8-c13 at 3d42613, as agreed on 2026-11-20 (`py -3.14 eval/conversations.py run --seeds 0 1 2
    --ids c8 c9 c10 c11 c12 c13`, from a checkout of 3d42613).
