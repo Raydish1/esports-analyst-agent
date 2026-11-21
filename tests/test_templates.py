@@ -411,9 +411,18 @@ class PlayerResultsTest(Fixture):
     def test_the_model_reads_that_a_cutoff_counts_only_its_results_and_a_ranking_takes_no_condition(self):
         self.assertTrue(templates.TEMPLATES["player_results"].description.endswith(
             "With top, it counts only those results, not the player's whole record."))
-        self.assertTrue(templates.TEMPLATES["rank_players"].description.endswith(
-            "It can't leave players out or take another condition, such as never having won: use run_sql."))
-        self.assertIn("  - who has the most wins, medals or top 8s, with no other condition: rank_players\n", react.SYSTEM)
+        self.assertTrue(templates.TEMPLATES["rank_players"].description.endswith("Any other condition: use run_sql."))
+        self.assertIn("  - who has the most wins, medals or top 8s, or the most among players who never won (never_won):"
+                      " rank_players\n", react.SYSTEM)
+
+    def test_never_won_leaves_out_every_player_who_won(self):
+        out = self.call("rank_players", by="top8s", never_won="any", top=10)  # audit kind 7: rank_players had no condition
+        names = [r[1] for r in self.rows(out, "players ranked by top 8s")]
+        winners = {r[1] for r in self.rows(self.call("rank_players", by="wins", top=10), "players ranked by wins")}
+        self.assertFalse(set(names) & winners)
+        self.assertIn("players who never won an official event", out["scope"])
+        cup = self.call("rank_players", by="top8s", never_won="cup 2020", top=10)
+        self.assertIn("players who never won at the events 'cup 2020' means", cup["scope"])
 
     def test_a_narrowed_count_says_how_many_results_the_player_has_in_all(self):
         top8 = self.call("player_results", player_id=A, top=8)  # live, volst's 25 2v2 results read as none
@@ -607,7 +616,8 @@ class RankPlayersTest(Fixture):
         self.assertEqual(self.rows(self.call("rank_players", by="Top 8s"), "players ranked by top 8s")[0][:2], [1, "A"])
         self.assertEqual(self.rows(self.call("rank_players", by="titles"), "players ranked by wins")[0][:2], [1, "A"])
         self.assertEqual(self.call("rank_players")["error"],
-                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, region, event")
+                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, region, event,"
+                         " never_won")
         self.assertEqual(self.call("rank_players", by="wins", mode="crew")["error"], "mode is '1v1' or '2v2', not 'crew'")
         out = self.call("rank_players", by="wins", event="league")
         self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))

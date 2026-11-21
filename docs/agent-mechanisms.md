@@ -320,6 +320,11 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   check refuses once a `player_results` call with a `top` when the question asks for a best or highest placement,
   finish or result. It skips counts such as "top 8 finishes", which need their `top`. Replayed on the 85 distinct
   recorded `player_results` calls, it refuses exactly the two (a03's and c15's `top=1`).
+- **A ranking with a condition** (audit kind 7, 6 of 6). `rank_players` takes `never_won`. It leaves out the players
+  who ever won an official event ("any"), or the events a name means ("worlds"), in the ranking's mode when it has
+  one, and the scope says so. Any other condition stays with `run_sql`. On eval-v1 the most top 8s without a win are
+  sphynx. 36, Goddess 33 and hermisen 32. The most 1v1 wins among players who never won a 1v1 Worlds go to Zivai,
+  with 23, then acno? and whoiskyna with 13. Each takes 0.3 s.
 
 ## Decisions
 

@@ -679,7 +679,12 @@ def tie_groups(rows):
     return groups
 
 
-def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, since=None, until=None, region=None):
+ANY_WIN = {"any", "anything", "all", "ever", "yes", "true", "event", "events", "an event", "any event",
+           "official events", "a title", "titles"}  # never_won: an official win anywhere
+
+
+def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, since=None, until=None, region=None,
+                 never_won=None):
     by, top = one_by(by), whole(top, "top")
     mode = None if mode is None else one_mode(mode)
     narrow = narrowing(tools, year, since, until, event, region)
@@ -687,6 +692,20 @@ def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, sinc
     if found and not found.usable:
         return unanswered("rank_players", found, query)
     where, scope = conditions(mode, narrow)
+    condition = None  # never_won: the players left out, who won an official event or the events a name means
+    if never_won is not None:
+        word = " ".join(str(never_won).split()).casefold()
+        within = "" if not mode else f" AND w.mode = '{mode}'"
+        if word in ANY_WIN or isinstance(never_won, bool):
+            condition = f"an official event{f' in {mode}' if mode else ''}"
+        else:
+            won = match_events(tools, never_won, several=True)
+            if not won.usable:
+                return unanswered("rank_players", won, query)
+            within += f" AND w.event_id IN ({in_ids(won.events)})"
+            condition = f"at the events '{never_won}' means{f', in {mode}' if mode else ''}"
+        where.append(f"r.player_id NOT IN (SELECT w.player_id FROM v_results w WHERE w.placement = 1{within})")
+        scope += f", players who never won {condition}"
     regional = query.rows("SELECT DISTINCT event_id, series || ' ' || year FROM v_event_series WHERE regional = 1 AND"
                           f" event_id IN ({in_ids(found.events)}) ORDER BY 2") if found else []
     counts = {by: "COUNT(*)"}  # each column after the player's, with how it's counted
@@ -1087,8 +1106,9 @@ TEMPLATES = {t.name: t for t in (
         "Players ranked by their wins (1st places), medals (top 3) or top 8s at official events, every tie included:"
         " the top 5 is everyone ranked 5th or better. Each row has the player's count, its 1v1 and 2v2 split and its"
         " crew battles. Use it for who has the most wins, titles, majors, medals or top 8s, overall or in a mode, a"
-        " year, a time window (since, until), a region, or an event or series ('worlds', 'bcx'). It can't leave players out or take another condition, such"
-        " as never having won: use run_sql.",
+        " year, a time window (since, until), a region, or an event or series ('worlds', 'bcx'). never_won leaves out"
+        " the players who ever won an official event ('any'), or the events a name means ('worlds'): for the most top 8s"
+        " without a win, or the best player who never won worlds. Any other condition: use run_sql.",
         {"by": {"type": "string", "enum": list(BY), "description": "what to count: wins, medals or top8s"},
          "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is everyone ranked 5th or"
                                                    " better"},
@@ -1097,7 +1117,9 @@ TEMPLATES = {t.name: t for t in (
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
-         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"},
+         "never_won": {"type": "string", "description": "leave out the players who ever won: 'any' for an official"
+                                                        " event, or an event or series name such as 'worlds'"}},
         ("by",), rank_players),
     Template(
         "rank_pairs",
