@@ -137,6 +137,13 @@ QUALIFIER = {"qualifier", "qualifiers", "lcq"}
 YEAR = re.compile(r"20\d\d")
 EVENTS_LISTED = 10
 IDS_IN_SQL = 12  # a set this small is given by its IDs; a bigger alias set by a subquery on event_aliases
+# The regions, by the codes curation/event_terms.csv spells their events' names with, and other names for them; an
+# event is a region's when its name names it (EventResolver.region). Global events, such as Worlds, are in none
+REGIONS = {"na": "North America", "eu": "Europe", "sa": "South America", "brz": "Brazil", "sea": "Southeast Asia",
+           "aus": "Australia", "mena": "the Middle East", "jpn": "Japan"}
+REGION_NAMES = {"br": "brz", "oce": "aus", "oceania": "aus", "jp": "jpn", "usa": "na", "north american": "na",
+                "european": "eu", "south american": "sa", "brazilian": "brz", "middle east and north africa": "mena",
+                "japanese": "jpn", "australian": "aus"}
 IDS_AT_MOST = 40  # a bigger set of name matches gets no sql: too many IDs to copy into a query
 ABOUT_ALIAS = " About this alias: "  # before an alias's own note, at the end of resolve_event's note
 
@@ -401,6 +408,16 @@ class EventResolver:
         return {**out, "status": status, "note": note, "matched": what + (f", {mode} only" if mode else ""),
                 "score": round(EVENT_SCORES[tier] * share, 2), "event_count": len(found),
                 "tournament_count": len(tournaments), "sql": sql, "events": [self.listed(e) for e in ranked[:listed]]}
+
+    def region(self, name):
+        """(code, event_ids) for a region's name ('na', 'north america', 'oce'): the events whose names name it, by its
+        code or a curated term's meaning for it, as resolve_event reads a region word; or None for no region."""
+        text = normalize_words(str(name))
+        code = (text if text in REGIONS else REGION_NAMES.get(text)
+                or next((c for c in REGIONS if text in self.terms.get(c, ())), None))
+        if code is None:
+            return None
+        return code, {e for e, event in self.events.items() if self.phrase(code, event["words"])}
 
     def by_alias(self, text):
         """(events, tier, aliases, closeness, share) for an alias or a series of yearly aliases, or nothing."""

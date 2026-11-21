@@ -37,8 +37,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
-from tools import (ABOUT_ALIAS, EVENT_SCORES, IDS_IN_SQL, MODE_WORDS, SQL_SECONDS, TOKEN_BUDGET, cell, connect, quoted,
-                   tokens)
+from tools import (ABOUT_ALIAS, EVENT_SCORES, IDS_IN_SQL, MODE_WORDS, REGIONS, SQL_SECONDS, TOKEN_BUDGET, cell, connect,
+                   quoted, tokens)
 
 EVENTS_AT_MOST = 60  # a name matching more events gets no results, only the closest few to choose from
 CANDIDATES = 10
@@ -328,17 +328,19 @@ def day(value, name, last=False):
 @dataclass
 class Narrowing:
     """What a call narrows the results to besides its players and mode: a calendar year, a time window (since and
-    until, each day included), and the events an event name means, as the conditions on a result (where) and the
-    words its scope says them in (said)."""
+    until, each day included), a region (its code and event_ids), and the events an event name means, as the
+    conditions on a result (where) and the words its scope says them in (said)."""
     year: int | None = None
     since: str | None = None
     until: str | None = None
     found: "Matched | None" = None
+    region: tuple | None = None
 
     def where(self, alias="r"):
         out = [f"substr({alias}.start_date, 1, 4) = '{self.year}'"] if self.year else []
         out += [f"{alias}.start_date >= '{self.since}'"] if self.since else []
         out += [f"{alias}.start_date <= '{self.until}'"] if self.until else []
+        out += [f"{alias}.event_id IN ({', '.join(quoted(e) for e in sorted(self.region[1])) or 'NULL'})"] if self.region else []
         return out + ([f"{alias}.event_id IN ({in_ids(self.found.events)})"] if self.found else [])
 
     @property
@@ -347,20 +349,31 @@ class Narrowing:
                   f"since {self.since}" if self.since else f"until {self.until}" if self.until else None)
         n = len(self.found.events) if self.found else 0
         return ([f"in {self.year}"] if self.year else []) + ([window] if window else []) + (
+            [f"at {REGIONS[self.region[0]]}'s events"] if self.region else []) + (
             [f"at the event the name means" if n == 1 else f"at the {n} events the name means"] if self.found else [])
 
+    @property
+    def notes(self):
+        """What an answer must say about the narrowing: a region counts only the events whose names name it."""
+        return [f"region counts the {len(self.region[1])} events whose names name {REGIONS[self.region[0]]}: global"
+                " events, such as Worlds and the BCX finals, are in no region. Say so."] if self.region else []
+
     def __bool__(self):
-        return bool(self.year or self.since or self.until or self.found)
+        return bool(self.year or self.since or self.until or self.found or self.region)
 
 
-def narrowing(tools, year=None, since=None, until=None, event=None):
+def narrowing(tools, year=None, since=None, until=None, event=None, region=None):
     """A call's Narrowing from its arguments, each checked as the model wrote it."""
     year = None if year is None else whole(year, "year")
     since = None if since is None else day(since, "since")
     until = None if until is None else day(until, "until", last=True)
     if since and until and since > until:
         raise Refused(f"since ({since}) is after until ({until}): the window would be empty")
-    return Narrowing(year, since, until, None if event is None else match_events(tools, event))
+    place = None if region is None else tools.events.region(region)
+    if region is not None and place is None:
+        raise Refused(f"region is one of {', '.join(REGIONS)}, or a name for one ('north america', 'oce'), not"
+                      f" {region!r}")
+    return Narrowing(year, since, until, None if event is None else match_events(tools, event), place)
 
 
 def conditions(mode=None, narrow=None):
@@ -472,11 +485,12 @@ def both(column, values):
     return sum(values)
 
 
-def player_results(query, tools, player_id, top=None, mode=None, year=None, event=None, since=None, until=None):
+def player_results(query, tools, player_id, top=None, mode=None, year=None, event=None, since=None, until=None,
+                   region=None):
     player, name, given = person(tools, player_id)
     top = None if top is None else whole(top, "top")
     mode = None if mode is None else one_mode(mode)
-    narrow = narrowing(tools, year, since, until, event)
+    narrow = narrowing(tools, year, since, until, event, region)
     found = narrow.found
     if found and not found.usable:
         return unanswered("player_results", found, query)
@@ -490,7 +504,7 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
         "SELECT r.start_date, r.tournament_name, r.event_name, r.mode, r.format, r.placement, r.start_time"
         f" FROM v_results r WHERE {where} ORDER BY r.start_time, r.mode")
     every = dict(query.rows(f"SELECT r.mode, COUNT(*) FROM v_results r WHERE r.player_id = {player} GROUP BY r.mode"))
-    notes = found.notes + status_notes(query, found.events) if found else []
+    notes = (found.notes + status_notes(query, found.events) if found else []) + narrow.notes
     if given != player:
         notes.append(merged(given, player, name))
     modes = [mode] if mode else ["1v1", "2v2"]  # a mode has its row even with nothing in it: a 0 to read, not a gap
@@ -541,20 +555,21 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
 
 # team_results
 
-def team_results(query, tools, player_id, partner_id=None, year=None, event=None, since=None, until=None):
+def team_results(query, tools, player_id, partner_id=None, year=None, event=None, since=None, until=None,
+                 region=None):
     player, name, given = person(tools, player_id)
     partner, other, given_partner = person(tools, partner_id, "partner_id") if partner_id is not None else (None, None, None)
     if partner == player:
         raise Refused(f"player_id and partner_id are both {name}: pass the two players' player_ids, or leave partner_id"
                       " out for every partner")
-    narrow = narrowing(tools, year, since, until, event)
+    narrow = narrowing(tools, year, since, until, event, region)
     found = narrow.found
     if found and not found.usable:
         return unanswered("team_results", found, query)
     where = [f"t.player_id = {player}"] + ([f"t.partner_id = {partner}"] if partner else []) + narrow.where("t")
     scope, cond = f"{SCOPE}, {', '.join(['2v2'] + narrow.said)}", " AND ".join(where)
     here = " here" if narrow else ""
-    notes = (found.notes + status_notes(query, found.events) if found else []) + [
+    notes = (found.notes + status_notes(query, found.events) if found else []) + narrow.notes + [
         note for note in (merged(given, player, name), partner and merged(given_partner, partner, other)) if note]
     counts = "COUNT(*), SUM(t.placement = 1), SUM(t.placement <= 3), SUM(t.placement <= 8), MIN(t.placement)"
     about = {"player": {"player_id": player, "name": name}, "event": found and found.about}
@@ -586,12 +601,12 @@ def team_results(query, tools, player_id, partner_id=None, year=None, event=None
 
 # head_to_head
 
-def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, until=None, event=None):
+def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, until=None, event=None, region=None):
     player, name, given = person(tools, player_id)
     opponent, other, given_other = person(tools, opponent_id, "opponent_id")
     if player == opponent:
         raise Refused(f"player_id and opponent_id are both {name}: pass the two players' player_ids")
-    narrow = narrowing(tools, year, since, until, event)
+    narrow = narrowing(tools, year, since, until, event, region)
     if narrow.found and not narrow.found.usable:
         return unanswered("head_to_head", narrow.found, query)
     within = "".join(f" AND {c}" for c in narrow.where("s"))
@@ -615,7 +630,7 @@ def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, un
         f" AND b.side <> a.side WHERE a.player_id = {player} AND b.player_id = {opponent} AND a.mode = '2v2'"
         + "".join(f" AND {c}" for c in narrow.where("a")))
     notes = [n for n in (merged(given, player, name), merged(given_other, opponent, other)) if n]
-    notes += (narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []
+    notes += ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
     here = f" {', '.join(narrow.said)}" if narrow else ""
     if not sets:
         notes.append(f"{name} and {other} have no counted 1v1 sets against each other at official events{here} (DQs,"
@@ -664,10 +679,10 @@ def tie_groups(rows):
     return groups
 
 
-def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, since=None, until=None):
+def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, since=None, until=None, region=None):
     by, top = one_by(by), whole(top, "top")
     mode = None if mode is None else one_mode(mode)
-    narrow = narrowing(tools, year, since, until, event)
+    narrow = narrowing(tools, year, since, until, event, region)
     found = narrow.found
     if found and not found.usable:
         return unanswered("rank_players", found, query)
@@ -693,7 +708,7 @@ def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, sinc
             left.append(members)
         else:
             listed += members
-    notes = found.notes + status_notes(query, found.events) if found else []
+    notes = (found.notes + status_notes(query, found.events) if found else []) + narrow.notes
     if not rows:
         notes.append(f"No player has any {CUTS[BY[by]]} here ({scope}), so the ranking is empty.")
     if left:
@@ -740,8 +755,8 @@ TEMPLATES = {t.name: t for t in (
         " how many times each placement happened and the results at their best placement (ties included): use it so"
         " for a player's stats, record, profile or card, their best placement and where, or how often they placed"
         " each way. Use top for their wins, titles or majors alone (top 1),"
-        " medals (top 3) or top 8s (top 8), and narrow it to a mode, a year, or an event or series ('worlds', 'bcx"
-        " 2024') when the question does. With top, it counts only those results, not the player's whole record.",
+        " medals (top 3) or top 8s (top 8), and narrow it to a mode, a year, a time window (since, until), a region, or"
+        " an event or series ('worlds', 'bcx 2024') when the question does. With top, it counts only those results, not the player's whole record.",
         {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
          "top": {"type": "integer", "description": "keep results placed this or better: 1 for wins, 3 for medals, 8 for"
                                                    " top 8s; leave out for every result"},
@@ -749,6 +764,7 @@ TEMPLATES = {t.name: t for t in (
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), player_results),
     Template(
@@ -757,13 +773,14 @@ TEMPLATES = {t.name: t for t in (
         " how many, their wins, medals, top 8s and best placement together, the first and the latest, and each event."
         " Without it, each partner the player has had, with those figures, the most events together first. Use it for"
         " how two players did as a team, how many events they won together, or who a player has played with in 2v2,"
-        " and narrow it to a year, or an event or series, when the question does.",
+        " and narrow it to a year, a time window, a region, or an event or series, when the question does.",
         {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
          "partner_id": {"type": "integer", "description": "the partner's player_id, from resolve_player; leave out for"
                                                           " every partner"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), team_results),
     Template(
@@ -772,14 +789,15 @@ TEMPLATES = {t.name: t for t in (
         " (wins, losses, games), each 1v1 set between them with its winner and score, and whether they met in 2v2. It"
         " counts sets, not placements: for where they placed at the same events, such as how often one finished behind"
         " the other, use run_sql on v_results. Use it for a head-to-head, a rivalry, or one player's record or history"
-        " against another, with the player the question asks about first, narrowed to a year, a time window or an event"
-        " when the question is.",
+        " against another, with the player the question asks about first, narrowed to a year, a time window, a region"
+        " or an event when the question is.",
         {"player_id": {"type": "integer", "description": "the first player's player_id, from resolve_player: the record"
                                                          " is theirs"},
          "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id", "opponent_id"), head_to_head),
     Template(
@@ -787,7 +805,7 @@ TEMPLATES = {t.name: t for t in (
         "Players ranked by their wins (1st places), medals (top 3) or top 8s at official events, every tie included:"
         " the top 5 is everyone ranked 5th or better. Each row has the player's count, its 1v1 and 2v2 split and its"
         " crew battles. Use it for who has the most wins, titles, majors, medals or top 8s, overall or in a mode, a"
-        " year, or an event or series ('worlds', 'bcx'). It can't leave players out or take another condition, such"
+        " year, a time window (since, until), a region, or an event or series ('worlds', 'bcx'). It can't leave players out or take another condition, such"
         " as never having won: use run_sql.",
         {"by": {"type": "string", "enum": list(BY), "description": "what to count: wins, medals or top8s"},
          "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is everyone ranked 5th or"
@@ -796,6 +814,7 @@ TEMPLATES = {t.name: t for t in (
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("by",), rank_players),
 )}

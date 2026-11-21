@@ -102,6 +102,13 @@ The general gaps are a time window, a region, ranked pairs and the Power Ranking
   head-to-head in a window counts the sets in it, since `v_head_to_head_1v1` has no dates. On eval-v1,
   `rank_players(by="wins", mode="1v1", since="2025-10-01")` gives Marckiem00 and Zivai on 3, then six players on 2,
   in 1.0 s.
+- **A region.** `region` works on the same four templates. It takes a code (na, eu, sa, brz, sea, aus, mena, jpn) or a
+  name for one ("north america", "oce"). Its events are those whose names name it, through the curated terms that
+  `resolve_event` reads: "na" covers NA, North America and 2017's US. A region alone used to be an event name that
+  matched 131 events, too many to filter. A note tells the answer that global events such as Worlds are in no
+  region. On eval-v1 the counts are NA 141 events, EU 144, SA 80, SEA 83, AUS 55, MENA 18, BRZ 11 and JPN 1. Qualifiers
+  are included. Region means where an event was held, not where a player is from. For players by region, the Power
+  Rankings are the source.
 
 ## M1: reading the question
 

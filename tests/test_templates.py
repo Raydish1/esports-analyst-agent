@@ -225,6 +225,32 @@ class WindowTest(Fixture):
                       " ".join(later["notes"]))
 
 
+class RegionTest(Fixture):
+    def test_a_region_is_its_code_or_a_name_for_it_and_its_events_are_those_whose_names_name_it(self):
+        events = self.tools.events
+        events.events["e-na"] = {**events.events["e1"], "name": "Winter Championship - North America", "words":
+                                 "winter championship north america".split()}
+        events.events["e-us"] = {**events.events["e1"], "name": "US Open", "words": ["us", "open"]}
+        events.terms["na"] = ["north america", "us"]
+        try:
+            for name in ("na", "NA", "north america", "North American"):
+                self.assertEqual(events.region(name), ("na", {"e-na", "e-us"}), name)
+            self.assertEqual(events.region("oce"), ("aus", set()))
+            self.assertIsNone(events.region("mars"))
+        finally:
+            del events.events["e-na"], events.events["e-us"]
+
+    def test_a_region_narrows_the_results_and_its_note_says_global_events_are_in_none(self):
+        out = self.call("player_results", player_id=A, region="eu")  # the fixture's events name no region
+        self.assertEqual((out["scope"], self.rows(out, "A's results")[-1][2]), ("official events, 1v1 and 2v2, at"
+                                                                                " Europe's events", 0))
+        self.assertIn("region counts the 0 events whose names name Europe: global events, such as Worlds and the BCX"
+                      " finals, are in no region. Say so.", out["notes"])
+        self.assertIn("region is one of na, eu, sa, brz, sea, aus, mena, jpn",
+                      self.call("rank_players", by="wins", region="mars")["error"])
+        self.assertEqual(self.call("rank_players", by="wins", region="all")["scope"], "official events, 1v1 and 2v2")
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)
@@ -423,7 +449,7 @@ class HeadToHeadTest(Fixture):
                       self.call("head_to_head", player_id=A, opponent_id="B")["error"])
         self.assertEqual(self.call("head_to_head", player_id=A)["error"],
                          "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, year, since, until,"
-                         " event")
+                         " region, event")
 
 
 class RankPlayersTest(Fixture):
@@ -479,7 +505,7 @@ class RankPlayersTest(Fixture):
         self.assertEqual(self.rows(self.call("rank_players", by="Top 8s"), "players ranked by top 8s")[0][:2], [1, "A"])
         self.assertEqual(self.rows(self.call("rank_players", by="titles"), "players ranked by wins")[0][:2], [1, "A"])
         self.assertEqual(self.call("rank_players")["error"],
-                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, event")
+                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, region, event")
         self.assertEqual(self.call("rank_players", by="wins", mode="crew")["error"], "mode is '1v1' or '2v2', not 'crew'")
         out = self.call("rank_players", by="wins", event="league")
         self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))
