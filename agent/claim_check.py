@@ -86,7 +86,7 @@ DRAFT_LABEL = re.compile(r"^[ \t>#*_]*(?:corrected|revised|updated|final|amended
 DRAFT_TALK = re.compile(r"\b(?:the|my|this)\s+(?:previous|earlier|initial|original|first|prior)\s+(?:answer|response|reply|"
                         r"draft)\b|\bI\s+(?:previously|earlier|initially)\s+(?:stated|said|wrote|listed|gave)\b", re.I)
 TOOL_NAMES = ("resolve_player", "resolve_event", "run_sql", "event_results", "player_results", "team_results",
-              "head_to_head", "rank_players", "rank_pairs", "power_rankings", "upsets")
+              "head_to_head", "rank_players", "rank_pairs", "power_rankings", "upsets", "player_sets", "dominant_wins")
 # A tool's name: bare when it has an underscore, which no word of an answer does; a plain word ('upsets') only in
 # backticks or as a call, as "the biggest upsets" is no tool talk
 NAMED_TOOL = (r"(?:`(?:" + "|".join(TOOL_NAMES) + r")(?:\s*\([^)\n]*\))?`|\b(?:"

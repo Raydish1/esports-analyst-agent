@@ -1037,6 +1037,66 @@ def upsets(query, tools, mode="1v1", top=5, player_id=None, year=None, since=Non
                        player=player and {"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
 
 
+# player_sets
+
+def player_sets(query, tools, player_id, result=None, mode="1v1", year=None, since=None, until=None, event=None,
+                region=None):
+    """One player's sets, from their side: each with its event, date, opponents, result and score, oldest first, and
+    how many they won and lost. Live, "who did zivai lose to at bcx 2023" had no tool: head_to_head was called
+    without an opponent (the 2026-11-21 audit, a39)."""
+    player, name, given = person(tools, player_id)
+    mode = one_mode(mode)
+    word = str(result or "").strip().casefold()
+    keep = {"": None, "all": None, "won": 1, "wins": 1, "win": 1, "lost": 0, "losses": 0, "loss": 0}.get(word, "?")
+    if keep == "?":
+        raise Refused(f"result is 'won' or 'lost', or left out for every set, not {result!r}")
+    narrow = narrowing(tools, year, since, until, event, region)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("player_sets", narrow.found, query)
+    names = tools.resolver.names
+    if mode == "1v1":
+        within = "".join(f" AND {c}" for c in narrow.where("s"))
+        side = ("SELECT s.start_date, s.start_time, s.event_id, s.match_id, s.tournament_name, s.event_name, {other},"
+                " {won}, {mine}, {theirs} FROM v_sets_1v1 s WHERE s.{me} = " + str(player) + within)
+        sets = query.rows(f"{side.format(other='s.loser_id', won=1, mine='s.winner_games', theirs='s.loser_games', me='winner_id')}"
+                          f" UNION ALL {side.format(other='s.winner_id', won=0, mine='s.loser_games', theirs='s.winner_games', me='loser_id')}"
+                          " ORDER BY start_date, start_time, event_id, match_id")
+        rows = [[set_event(r[4], r[5]), r[0], names.get(r[6], r[6]), r[6], "won" if r[7] else "lost", r[8], r[9]]
+                for r in sets]
+    else:
+        within = "".join(f" AND {c}" for c in narrow.where("m"))
+        mine = query.rows("SELECT m.match_id, m.event_id, m.start_date, m.side, m.won, m.games_won, m.games_lost FROM"
+                          f" v_match_results m WHERE m.player_id = {player} AND m.mode = '2v2'{within}"
+                          " ORDER BY m.start_date, m.match_id")
+        ids = ", ".join(quoted(r[0]) for r in mine) or "NULL"
+        sides = {}
+        for match_id, side_no, pid in query.rows(f"SELECT match_id, side, player_id FROM v_match_results WHERE match_id"
+                                                 f" IN ({ids})"):
+            sides.setdefault(match_id, {}).setdefault(side_no, []).append(pid)
+        rows = []
+        for match_id, event_id, date, side_no, won, gw, gl in mine:
+            partners = [names.get(p, p) for p in sides.get(match_id, {}).get(side_no, []) if p != player]
+            others = [p for s_no, ps in sides.get(match_id, {}).items() if s_no != side_no for p in ps]
+            rows.append([tools.events.events.get(event_id, {}).get("name", event_id), date,
+                         " / ".join(str(names.get(p, p)) for p in others), others, "won" if won else "lost", gw, gl,
+                         " / ".join(map(str, partners))])
+    wins = sum(r[4] == "won" for r in rows)
+    shown = [r for r in rows if keep is None or (r[4] == "won") == bool(keep)]
+    notes = ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
+    if given != player:
+        notes.append(merged(given, player, name))
+    notes.append(f"Each set is from {name}'s side: player_games are {name}'s, opponent_games the other side's."
+                 + ("" if rows else f" {name} has no counted {mode} sets here."))
+    columns = ["event", "date", "opponent", "opponent_id", "result", "player_games", "opponent_games"] + (
+        ["partner"] if mode == "2v2" else [])
+    what = {None: "sets", 1: "sets won", 0: "sets lost"}[keep]
+    return observation("player_sets", ", ".join([SETS_SCOPE if mode == "1v1" else f"{SCOPE}, 2v2 sets", *narrow.said]),
+                       notes, [table(f"{name}'s {mode} sets here", ["player", "sets", "won", "lost"],
+                                     [[name, len(rows), wins, len(rows) - wins]]),
+                               table(f"{name}'s {what}, oldest first", columns, shown, optional=True) if shown else None],
+                       query.ran, player={"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
+
+
 TEMPLATES = {t.name: t for t in (
     Template(
         "event_results",
@@ -1182,4 +1242,20 @@ TEMPLATES = {t.name: t for t in (
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         (), upsets),
+    Template(
+        "player_sets",
+        "One player's sets at official events, from their side: each set's event, date, opponent, result and score,"
+        " oldest first, and how many they won and lost. result='lost' keeps the sets they lost, 'won' those they won."
+        " In 1v1 (the default) or 2v2, narrowed to an event, a year, a time window or a region. Use it for whom a"
+        " player beat or lost to at an event, or a player's sets there.",
+        {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
+         "result": {"type": "string", "enum": ["won", "lost"], "description": "only the sets won, or lost; leave out"
+                                                                            " for every set"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "1v1 (the default) or 2v2"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        ("player_id",), player_sets),
 )}

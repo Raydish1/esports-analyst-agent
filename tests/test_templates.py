@@ -353,6 +353,16 @@ class UpsetsTest(Fixture):
         self.assertIn("2v2 upsets need an event or a player_id", self.call("upsets", mode="2v2")["error"])
 
 
+class PlayerSetsTest(Fixture):
+    def test_one_players_sets_from_their_side_and_the_losses_alone(self):
+        out = self.call("player_sets", player_id=A)  # audit a39: whom a player lost to at an event had no tool
+        self.assertEqual(self.rows(out, "A's 1v1 sets here"), [["A", 5, 4, 1]])  # 3 over B, 1 over D, 1 lost to C
+        lost = self.call("player_sets", player_id=A, result="lost")
+        self.assertEqual([r[2:5] for r in self.rows(lost, "A's sets lost")], [["C", C, "lost"]])
+        self.assertIn("Each set is from A's side", lost["notes"][-1])
+        self.assertIn("result is 'won' or 'lost'", self.call("player_sets", player_id=A, result="draws")["error"])
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)

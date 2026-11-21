@@ -325,6 +325,12 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   one, and the scope says so. Any other condition stays with `run_sql`. On eval-v1 the most top 8s without a win are
   sphynx. 36, Goddess 33 and hermisen 32. The most 1v1 wins among players who never won a 1v1 Worlds go to Zivai,
   with 23, then acno? and whoiskyna with 13. Each takes 0.3 s.
+- **A player's sets at an event** (audit a39, 3 of 3). "who did zivai lose to at bcx 2023" had no tool, so the model
+  called `head_to_head` without an opponent. The new `player_sets` gives one player's sets from their side, each with
+  its event, date, opponent, result and score, oldest first, and a summary of wins and losses. It takes
+  `result="won"` or `"lost"`, 1v1 or 2v2, and the year, window, region and event filters. A long list is left out
+  with its count. On eval-v1, Zivai at BCX 2023 in 1v1 played 10 sets, won 8 and lost 2, both 1-3, to yüz and
+  whoiskyna. The live answer had named Kuroyuri. In 2v2 he won all 8 with Pink | Zen.
 
 ## Decisions
 
