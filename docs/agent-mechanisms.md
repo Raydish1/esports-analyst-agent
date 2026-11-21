@@ -175,6 +175,16 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
     "means", "shown" and "showed" are function words now.
   - Replayed on every recorded message: the cues catch the three earlier live disputes and finding 23's question,
     and nothing else.
+- **Possessives** (finding 25). A name with no exact match is tried once without a possessive ending ("renivic's",
+  "renivics'", "renivics"). If an alias is the base exactly, the base's result stands, with a note and `read_as`.
+  Otherwise nothing changes, so "renivics" is Renivic, confident. The curated event terms ("winters", "springs", "cb")
+  now count as event words, as the words of event names do. Read as possessives, "winters" had named the player Winter
+  and "springs" named NurptheDerp.
+  - Replayed on the 98 recorded and test questions, two names are now read as possessives: "renivics" (finding 25)
+    and "mojakins", which is c9 turn 1's. The 45 questions still give the same 31 names.
+  - **This conflicts with a verified answer.** c9 turn 1 ("what are mojakins stats") expects suggestions with Mojakin
+    first, and now gets Mojakin's stats. That conversation's turn 2 ("the first one") then answers no suggestions.
+    c9 is left as verified, and the conflict is listed for the user below.
 
 ## Decisions
 
@@ -185,6 +195,10 @@ more cautious option when unsure (2026-11-20).
 
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took.
+- c9 turn 1 against the possessive retry. The retry (finding 25) reads "mojakins" as Mojakin, confident, where c9's
+  verified answer expects suggestions. There are two ways to settle it. One is to keep the retry and write c9 turn 1
+  with a loose spelling that isn't a possessive (for example "what are mojakn stats"), so turns 1 and 2 still test
+  suggestions and "the first one". The other is to drop the retry. Until then, c9 turn 1 fails its checks by design.
 
 ## Runs wanted
 

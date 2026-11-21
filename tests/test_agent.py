@@ -193,6 +193,21 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("7th"), ("confident", [16]))
 
 
+class PossessiveTest(Fixture):
+    def test_a_name_with_no_exact_match_is_read_without_its_possessive_ending(self):
+        for written in ("raydishs", "raydish's", "Raydish’s", "raydishs'"):  # live: "renivics best placement" (25)
+            out = self.resolver.resolve(written)
+            self.assertEqual((out["status"], [c["player_id"] for c in out["candidates"]], out["read_as"].casefold()),
+                             ("confident", [11], "raydish"), written)
+            self.assertTrue(out["note"].startswith(f"No player has exactly the name {written!r}: it's read as"))
+        self.assertTrue(self.resolver.known("raydishs"))
+
+    def test_only_an_exact_base_counts_and_a_name_ending_in_s_keeps_its_own_match(self):
+        self.assertNotIn("read_as", self.resolver.resolve("raydixs"))  # no alias is 'raydix'
+        self.assertIsNone(tools.possessive("abs"))  # too short to have an ending
+        self.assertEqual(tools.possessive("megds"), "megd")
+
+
 class EventResolverTest(Fixture):
     def setUp(self):
         super().setUp()
