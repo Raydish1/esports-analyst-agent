@@ -104,6 +104,18 @@ class CuesTest(Fixture):
             self.assertEqual(self.settle(message, partners).how, settling.DISPUTED, message)
         self.assertEqual(settling.by_cues("are you sure", Context(), self.resolver).how, "as asked")  # nothing before
 
+    def test_a_question_about_what_the_page_showed_is_one_about_the_answer(self):
+        card = Context("cody travis vs phazon head to head", players=[("Raydish", 11)],
+                       shown="Stat cards: Raydish in 2v2 only 3 results, GOLD 4.")
+        settled = self.settle("on the card, where does raydish's 4 gold come from? is that medals?", card)  # finding 23
+        self.assertEqual(settled.how, settling.DISPUTED)
+        self.assertIn("This asks about what the page showed beside your answer to the previous question", settled.text)
+        self.assertIn("player_results with no top gives each mode, and both together, at once", settled.text)
+        self.assertEqual(self.settle("what does the graphic show for raydish", card).how, settling.DISPUTED)
+        plain = Context("cody travis vs phazon head to head", players=[("Raydish", 11)])  # the page showed nothing
+        self.assertEqual(self.settle("show me raydish on a card", plain).how, "as asked")
+        self.assertEqual(self.settle("where does that 4 come from?", plain).how, settling.DISPUTED)  # any answer's
+
     def test_a_message_that_names_a_player_or_refers_to_nothing_is_as_asked(self):
         for message in ["rank the top 5 players by official 1v1 wins", "has raydish won worlds", "thanks"]:
             self.assertEqual((self.settle(message).how, self.settle(message).text), ("as asked", message), message)

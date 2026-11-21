@@ -690,8 +690,9 @@ class LoopTest(Fixture):
         self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
 
     def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
-        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
-                       reply("The card shows 4 wins."), reply("You're welcome."))
+        lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
+        ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("The card shows 4 wins."),
+                       reply("You're welcome."))  # a question about the card is one about the answer: looked up again
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
         first = conversation.ask("how many results has raydish")
         conversation.shown("Card: Raydish, lifetime at official events: 6 results, 4 wins.")  # as the web app gives it
@@ -703,10 +704,24 @@ class LoopTest(Fixture):
         trace = conversation.ask("what did the card say about his wins")  # 4 is the card's, so it stands
         self.assertEqual((trace["answer"], trace["unconfirmed"]), ("The card shows 4 wins.", []))
         self.assertEqual(ask.sent[2][-3:-1], [{"role": "assistant", "content": "Raydish has 6 official results."}, note])
+        self.assertEqual(trace["settled"]["how"], settling.DISPUTED)
+        self.assertIn("This asks about what the page showed beside your answer", trace["settled"]["text"])
         conversation.ask("thanks")  # older turns keep their question, answer and the page's note
         self.assertEqual(conversation.earlier[:3], [{"role": "user", "content": "how many results has raydish"},
                                                     {"role": "assistant", "content": "Raydish has 6 official results."},
                                                     note])
+
+    def test_a_question_about_the_card_looks_up_its_players_only(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply("It comes from his 2v2 wins."), reply("It comes from his 2v2 wins."),
+                       reply("It comes from his 2v2 wins."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        conversation.shown("Raydish in 2v2 only 3 results, GOLD 4.")
+        trace = conversation.ask("on the card, where does raydish's 4 gold come from, the tab?")  # live: "come" an event
+        self.assertEqual(trace["steps"][0]["no_tool_check"]["action"], "sent back")  # about the answer: check again
+        forced = [c for s in trace["steps"] for c in s["tool_calls"] if c.get("forced")]
+        self.assertEqual(forced, [])  # 'tab', which no result holds, is no event to look up
 
     def test_a_copy_of_the_pages_note_is_taken_out_of_an_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),

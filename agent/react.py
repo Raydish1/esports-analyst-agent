@@ -990,6 +990,7 @@ class Conversation:
                                                    or is_page_note(self.current[-1])):
             return
         self.current.append({"role": "user", "content": PAGE_NOTE.format(summary=summary)})
+        self.context.shown = f"{self.context.shown} {summary}".strip()  # a question about it is about the answer
         self.view.read(summary)
         self.view.seen_now |= mentions.seen([summary])
         for part in re.split(r"(?<=[.;:])\s+", summary):
@@ -1197,6 +1198,8 @@ class Conversation:
                     continue
                 lookups = (mentions.lookups(question, gap["words"], self.tools.resolver, self.tools.events.words)
                            if gap.get("words") and not forced and number < max_steps else [])
+                if disputed:  # about the answer or the page: its players only, never its other words as an event
+                    lookups = [c for c in lookups if c[0] == "resolve_player"]
                 if lookups:
                     forced = called = True
                     asked = self.look_up(question, lookups, step, resolved, number == max_steps - 1)

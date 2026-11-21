@@ -164,6 +164,17 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
   keeps the note with its turn after the turn moves to the older ones. A final answer has any copy of the tag taken
   out, which the trace marks (`page_tag_removed`). The prompt says such a message is the page's, to answer from and
   never to write. The web app's call is unchanged.
+- **A question about the page is one about the answer** (finding 23). After the page showed something, a message
+  about it ("on the card", "the graphic shows") is settled as a question about the previous answer, as "are you sure"
+  is. Its note says to answer from the page's message and check its figures with `player_results` with no `top`,
+  which gives each mode, and both together, at once. That's the run-2 failure of finding 22, which asked one mode with
+  `top=1`.
+  - "where does ... come from" and "where did you get" join the cues for questions about an answer, with or without a
+    page.
+  - A forced lookup for such a question looks up its named players only, never its other words as an event. "come",
+    "means", "shown" and "showed" are function words now.
+  - Replayed on every recorded message: the cues catch the three earlier live disputes and finding 23's question,
+    and nothing else.
 
 ## Decisions
 
