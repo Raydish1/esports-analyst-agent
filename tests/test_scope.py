@@ -52,12 +52,13 @@ class ScopeTest(Fixture):
 
     def test_the_opponents_side_of_a_players_records_reaches_rank_pairs(self):
         for question in ("Who has the best record against marckiemoo?", "who has raydish lost to the most in 1v1",
-                         "who has beaten zivai the most"):  # q08 and q40: the player's own side was asked
+                         "who has beaten zivai the most", "Who's got the best 1v1 record against Phazon?"):  # q08, q40
             self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record")[0][:30],
                              "asks for the other players' re", question)
             self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="rate", side="opponents"), [])
         for question in ("whats volst's best record against anyone", "who does megd beat the most",
-                         "volst's best records vs an opponent"):
+                         "volst's best records vs an opponent", "whats bbballoonboy's 1v1 record vs impala",
+                         "he doesnt have big records vs raydish or java or guichabou etc?"):  # q27, c1 turn 3: X's own
             self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record"), [], question)
 
     def test_a_best_placement_is_asked_with_no_top(self):

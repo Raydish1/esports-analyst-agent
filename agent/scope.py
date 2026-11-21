@@ -33,11 +33,14 @@ SINCE = re.compile(rf"\b(?:since|after|from|starting(?:\s+in)?)\s+(?:the\s+(?:st
 UNTIL = re.compile(rf"\b(?:before|until|till|through|thru|up\s+to)\s+(?:the\s+end\s+of\s+)?{YEAR}\b", re.I)
 BETWEEN = re.compile(rf"\bbetween\s+{YEAR}\s+and\s+{YEAR}\b|\b{YEAR}\s*(?:-|–|to)\s*{YEAR}\b", re.I)
 ANY_YEAR = re.compile(rf"\b{YEAR}\b")
-# The opponents' side of one player's records: who did best against them, beat them, or whom they lost to. Not "X's
-# best record against anyone", which is X's own (finding: q08 and q40 asked rank_pairs for the player's own side)
-AGAINST = re.compile(r"\b(?:record|records|win\s*rate)\s+(?:against|vs\.?|versus|over)\s+(?!any|every|an?\s+opponent|opponents|"
-                     r"other|them\b|their\b)\w|\b(?:lost|loses|lose|losing)\s+(?:to|against)\b|\bbeaten\s+by\b|\bwho\s+(?:has\s+|"
-                     r"have\s+|had\s+)?(?:beat|beats|beaten|defeated)\s+\w", re.I)
+# The opponents' side of one player's records: who did best against them, beat them, or whom they lost to (q08 and
+# q40 asked rank_pairs for the player's own side). A record against them is one nobody owns yet ("who has the best
+# record against X", "the best 1v1 record against X"), not X's own: "X's best record against anyone", "X's record
+# vs Y" (q27) and "he doesnt have big records vs raydish" (c1 turn 3) are X's side
+AGAINST = re.compile(r"\b(?:who\s+(?:has|have|had)\s+|the\s+)(?:[\w-]+\s+){0,2}?(?:record|records|win\s*rate)\s+(?:against"
+                     r"|vs\.?|versus|over)\s+(?!any|every|an?\s+opponent|opponents|other|them\b|their\b)\w|\b(?:lost|loses"
+                     r"|lose|losing)\s+(?:to|against)\b|\bbeaten\s+by\b|\bwho\s+(?:has\s+|have\s+|had\s+)?(?:beat|beats|beaten"
+                     r"|defeated)\s+\w", re.I)
 # A player's best placement: player_results with no top, whose best column and results at the best placement answer
 # it. Live, "best placement" was asked with top=1 and answered "no 1st places" (finding 26; c15, audit a03). Not a
 # count such as "top 8 finishes", which needs its top

@@ -311,6 +311,10 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   - The prompt maps those questions to it. Its line telling the model to use `run_sql` for them hadn't held, so the
     scope check also refuses a `rank_pairs` call with a player and no `side="opponents"`, once, when the question
     asks for that side. That's "record against X", "lost to" or "who beat X", but not "against anyone".
+  - A record against X counts only when nobody owns it yet: "who has the best record against X", "the best 1v1
+    record against X". "X's record vs Y" (q27) and "he doesnt have big records vs raydish" (c1 turn 3) are X's own,
+    so they aren't refused. This was found while choosing the reruns. On the 59 recorded `rank_pairs` calls, the
+    2026-11-21 runs included, both versions refuse the same 6.
   - On eval-v1 both match their verified answers. Against Marckiem00 by rate it's V3M_T4NQUIL0 3-2 (60%), Raydish 6-7
     (46%) and gdsandstorm 4-7 (36%). Whom Raydish lost to most is gdsandstorm 10, luna 8, then Marckiem00 7.
   - Replayed on the 44 distinct recorded `rank_pairs` calls: the rule refuses the 6 of q08, q40 and a28, and nothing
