@@ -278,6 +278,35 @@ class RankPairsTest(Fixture):
         self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="wins")["error"])
 
 
+class PowerRankingsTest(Fixture):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        db = sqlite3.connect(cls.path)
+        db.executemany("INSERT INTO pr_snapshots VALUES (?, ?, '2026-10-02', ?, ?, ?, 5, 9, 2, 1, 0, 'stats_api')",
+                       [(A, "1v1", "NA", 1, 500.0), (B, "1v1", "NA", 2, 400.0), (C, "1v1", "EU", 1, 450.0),
+                        (A, "2v2", "NA", 3, 300.0)])
+        db.commit()
+        db.close()
+
+    def test_a_regions_top_or_every_regions_and_a_players_rankings(self):
+        out = self.call("power_rankings", region="north america", top=1)
+        self.assertEqual(self.rows(out, "the 1v1 Power Rankings of NA"),
+                         [["NA", "1v1", 1, "A", A, 500.0, 2, 1, 0, 5, 9]])
+        self.assertEqual(out["scope"], "official Power Rankings as of 2026-10-02")
+        self.assertIn("not this data's counts of official results", out["notes"][-1])
+        each = self.call("power_rankings", top=1)
+        self.assertEqual([r[:4] for r in self.rows(each, "the 1v1 Power Rankings, each region")],
+                         [["EU", "1v1", 1, "C"], ["NA", "1v1", 1, "A"]])
+        mine = self.call("power_rankings", player_id=A)
+        self.assertEqual([r[:3] for r in self.rows(mine, "A's Power Rankings")], [["NA", "1v1", 1], ["NA", "2v2", 3]])
+        self.assertIn("D isn't in the Power Rankings of 2026-10-02.", self.call("power_rankings", player_id=D)["notes"])
+
+    def test_a_region_the_rankings_dont_have_is_refused(self):
+        self.assertIn("the Power Rankings' regions are NA, EU, SA (Brazil's too), SEA and MENA",
+                      self.call("power_rankings", region="oce")["error"])
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)

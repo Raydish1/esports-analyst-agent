@@ -88,6 +88,7 @@ Choosing a tool
   - two players against each other: head_to_head
   - who has the most wins, medals or top 8s, with no other condition: rank_players
   - who has played whom the most, a player's most-played opponents, or the best duos: rank_pairs
+  - the official Power Rankings, a player's PR, or who is ranked #1 in a region: power_rankings
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.

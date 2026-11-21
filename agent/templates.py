@@ -844,6 +844,50 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
                        player=player and {"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
 
 
+# power_rankings
+
+PR_REGIONS = {"na": "NA", "eu": "EU", "sa": "SA", "brz": "SA", "sea": "SEA", "mena": "MENA"}  # Brazil plays in SA
+
+
+def power_rankings(query, tools, region=None, mode="1v1", top=10, player_id=None):
+    """The official Power Rankings in pr_snapshots: a region's top N in a mode, every region's without one, or with
+    player_id each ranking the player is in."""
+    mode, top = one_mode(mode), whole(top, "top")
+    code = None
+    if region is not None:
+        found = tools.events.region(region)
+        code = PR_REGIONS.get(found[0]) if found else None
+        if code is None:
+            raise Refused(f"the Power Rankings' regions are NA, EU, SA (Brazil's too), SEA and MENA, not {region!r}")
+    (as_of,), = query.rows("SELECT MAX(as_of) FROM pr_snapshots")
+    columns = ["region", "mode", "rank", "player", "player_id", "points", "gold", "silver", "bronze", "top8", "top32"]
+    select = ("SELECT pr.region, pr.mode, pr.power_ranking, pr.player_id, pr.points, pr.gold, pr.silver, pr.bronze,"
+              f" pr.top8, pr.top32 FROM pr_snapshots pr WHERE pr.as_of = '{as_of}'")
+    canonical, names = tools.resolver.canonical, tools.resolver.names
+    about = {}
+    if player_id is not None:
+        player, name, given = person(tools, player_id)
+        records = [pid for pid, c in canonical.items() if c == player]
+        rows = query.rows(f"{select} AND pr.player_id IN ({', '.join(map(str, records))})"
+                          " ORDER BY pr.mode, pr.power_ranking")
+        about["player"] = {"player_id": player, "name": name}
+        title = f"{name}'s Power Rankings"
+        notes = [f"{name} isn't in the Power Rankings of {as_of}." if not rows else
+                 f"{name} is ranked in {len(rows)} of the Power Rankings of {as_of}."]
+    else:
+        rows = query.rows(f"{select} AND pr.mode = '{mode}' AND pr.power_ranking <= {top}"
+                          + (f" AND pr.region = '{code}'" if code else "") + " ORDER BY pr.region, pr.power_ranking")
+        title = f"the {mode} Power Rankings{f' of {code}' if code else ', each region'}, everyone ranked {ordinal(top)} or better"
+        notes = [] if rows else [f"No player is ranked here ({mode}{f', {code}' if code else ''})."]
+    notes.append(f"These are the official Power Rankings as of {as_of}, the only snapshot: the Stats API's ranking by"
+                 " points, region by region and mode by mode. Their gold, silver, bronze, top8 and top32 are the Stats"
+                 " API's own counts behind the ranking, not this data's counts of official results: say so if you give"
+                 " them.")
+    listed = [[r[0], r[1], r[2], names.get(canonical.get(r[3], r[3])), canonical.get(r[3], r[3]), *r[4:]] for r in rows]
+    return observation("power_rankings", f"official Power Rankings as of {as_of}", notes,
+                       [table(title, columns, listed) if listed else None], query.ran, **about)
+
+
 TEMPLATES = {t.name: t for t in (
     Template(
         "event_results",
@@ -949,4 +993,15 @@ TEMPLATES = {t.name: t for t in (
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         (), rank_pairs),
+    Template(
+        "power_rankings",
+        "The official Power Rankings (the Stats API's ranking by points, one snapshot, per region and mode): a region's"
+        " top N in a mode, or each region's without region; with player_id, each ranking the player is in. Use it for"
+        " who is ranked #1 or in the top 10 of a region, a player's PR or ranking, or who is best right now by the"
+        " official ranking. Its regions are NA, EU, SA, SEA and MENA.",
+        {"region": {"type": "string", "description": "na, eu, sa, sea or mena; leave out for every region"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "1v1 (the default) or 2v2"},
+         "top": {"type": "integer", "description": "how many ranks to return: 10 (the default)"},
+         "player_id": {"type": "integer", "description": "one player's rankings: their player_id, from resolve_player"}},
+        (), power_rankings),
 )}

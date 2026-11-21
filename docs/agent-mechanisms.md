@@ -122,6 +122,15 @@ The general gaps are a time window, a region, ranked pairs and the Power Ranking
     is refused with the reason. A fast 2v2 sets view in the next build would lift this.
   - The prompt and `ingest/views.sql` now say the head-to-head views are for one player or one pair at a time. ex32
     shows the call (`rank_pairs()`) in place of its SQL.
+- **The Power Rankings** (`power_rankings`, audit kind 8, and half of "right now"). It gives a region's top N in a
+  mode, or each region's top N without a region. With `player_id`, it gives each ranking the player is in. A note says
+  this is the only snapshot (2026-10-02), and that its medal and top-8 counts are the Stats API's own. Its regions are
+  NA, EU, SA (Brazil's too), SEA and MENA, and any other region is refused. On eval-v1, `power_rankings(top=1)` gives
+  the 1v1 #1s that finding 29 lists: BBBalloonBoy (NA), Zivai (EU), lopesbrawlhalla (SA), marker_bh1 (MENA) and
+  keiththepoopoo (SEA).
+
+The audit's other gaps are listed for the user rather than built: streaks, upsets, and rankings with a condition
+(kinds 15, 16 and 7). Streaks and upsets need a definition first.
 
 ## M1: reading the question
 
