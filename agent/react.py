@@ -292,6 +292,10 @@ NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
           " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
+# After each check's message: live, a reply to the number check opened "**Corrected Answer:**" and said "the previous
+# answer incorrectly stated ...", a draft the user never saw (docs/web-app-testing-notes.md, finding 34)
+DRAFT = (" The user hasn't seen the draft above: write the reply as the answer to their question, never as a correction"
+         " of a draft.")
 # What the page showed beside an answer, in a message of its own after it (Conversation.shown), and any copy of the
 # tag in an answer, which is taken out: live, an answer ended with such a tag it wrote itself, as the answers in its
 # history ended with one (docs/web-app-testing-notes.md, finding 21)
@@ -1153,6 +1157,7 @@ class Conversation:
         emptied = False  # whether the last query that ran found no rows (its result has a diagnosis)
         respelled = False  # whether the event check sent an answer back, to look an event up with another spelling
         disputed = bool(settled and settled.how == settling.DISPUTED)  # a question about the previous answer
+        paged = bool(settled and settled.how == settling.PAGED)  # one about what the page showed
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
         resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
         sent_back = None
@@ -1215,7 +1220,7 @@ class Conversation:
                         missed, message = True, LOOKUP_MISS.format(conditions=" and ".join(missing))
                         step["lookup_check"] = {"conditions": missing, "action": "sent back", "message": message}
                         self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                         {"role": "user", "content": message}]
+                                         {"role": "user", "content": message + DRAFT}]
                         log(f"  lookup check: answered right after no row had {' and '.join(missing)}; sent back")
                         sent_back = (content, swaps, message)
                         self.finished(step)
@@ -1230,7 +1235,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["event_check"] = {"event": event, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  event check: no event matched {event!r}, and no other spelling was tried; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1244,7 +1249,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["no_tool_check"] = {"disputed": True, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log("  no-tool check: a question about the previous answer, answered with no tool; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1256,14 +1261,14 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["no_tool_check"] = {**gap, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  no-tool check: no tool was called, and nothing in view holds {gapped(gap)}; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
                 lookups = (mentions.lookups(question, gap["words"], self.tools.resolver, self.tools.events.words)
                            if gap.get("words") and not forced and number < max_steps else [])
-                if disputed:  # about the answer or the page: its players only, never its other words as an event
+                if disputed or paged:  # about the answer or the page: its players only, never its other words
                     lookups = [c for c in lookups if c[0] == "resolve_player"]
                 if lookups:
                     forced = called = True
@@ -1287,7 +1292,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["pairing_check"] = {"pairs": pairings, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  pairing check: it pairs {listed([paired_as(p) for p in pairings])}; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1303,7 +1308,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["answer_check"] = {"names": names, "ids": ids, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  answer check: it {unreturned(names, ids)}, which no tool returned; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1319,7 +1324,7 @@ class Conversation:
                     step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "sent back",
                                            "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  claim check: {listed([repr(short(c.text, 60)) for c in wrong])}; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1349,7 +1354,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["number_check"] = {"numbers": flagged_texts, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  number check: it states {listed(flagged_texts)}, which no tool result holds; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1371,6 +1376,14 @@ class Conversation:
                         content = f"{content}\n\n{left_out(unconfirmed)}"
                     log(f"  {listed(flagged_texts + [c.text for c in judgments])} left out, since no tool result in"
                         " view holds them or says so")
+                drafted = any(isinstance(v, dict) and v.get("action") == "sent back" for s in trace["steps"]
+                              for v in s.values())
+                if outcome == "answered" and drafted and not disputed:  # a correction of a draft the user never saw
+                    labelled = claim_check.without_draft_label(content)
+                    unlabelled, talk = claim_check.without_draft_talk(labelled, self.view.states_facts)
+                    if talk or labelled != content.strip():
+                        step["draft_talk_removed"] = talk + ([] if labelled == content.strip() else ["the label"])
+                    content = unlabelled or content
                 if outcome == "answered":  # an ID beside each name, unasked (finding 31)
                     content, stripped = unasked_ids(content, said or question, self.tools.resolver)
                     if stripped:

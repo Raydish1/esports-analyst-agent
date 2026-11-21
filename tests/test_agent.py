@@ -711,7 +711,7 @@ class LoopTest(Fixture):
         trace = conversation.ask("are you sure? that's too many")  # live: "there are not that many events"
         self.assertEqual((trace["settled"]["how"], trace["steps"][0]["no_tool_check"]["disputed"],
                           trace["steps"][0]["no_tool_check"]["action"]), (settling.DISPUTED, True, "sent back"))
-        self.assertEqual(ask.sent[3][-1]["content"], react.RECHECK)
+        self.assertEqual(ask.sent[3][-1]["content"], react.RECHECK + react.DRAFT)
         self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
 
     def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
@@ -729,8 +729,8 @@ class LoopTest(Fixture):
         trace = conversation.ask("what did the card say about his wins")  # 4 is the card's, so it stands
         self.assertEqual((trace["answer"], trace["unconfirmed"]), ("The card shows 4 wins.", []))
         self.assertEqual(ask.sent[2][-3:-1], [{"role": "assistant", "content": "Raydish has 6 official results."}, note])
-        self.assertEqual(trace["settled"]["how"], settling.DISPUTED)
-        self.assertIn("This asks about what the page showed beside your answer", trace["settled"]["text"])
+        self.assertEqual(trace["settled"]["how"], settling.PAGED)
+        self.assertIn("This asks what the page showed beside your answer", trace["settled"]["text"])
         conversation.ask("thanks")  # older turns keep their question, answer and the page's note
         self.assertEqual(conversation.earlier[:3], [{"role": "user", "content": "how many results has raydish"},
                                                     {"role": "assistant", "content": "Raydish has 6 official results."},
@@ -830,7 +830,8 @@ class LoopTest(Fixture):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"}), ("run_sql", {"query": "SELECT 7 AS wins"})]),
                        reply("**Raydish** and **tike36** won 6."), reply("The previous answer missed one: **Raydish** won 7."))
         trace = react.run("who won with raydish?", self.tools, ask=ask, log=lambda *_: None)
-        self.assertEqual(trace["answer"], "The previous answer missed one: **Raydish** won 7.")
+        self.assertEqual(trace["answer"], "**Raydish** won 7.")  # its draft talk cut, its fact kept (finding 34)
+        self.assertEqual(trace["steps"][-1]["draft_talk_removed"], ["The previous answer missed one:"])
         self.assertNotIn("meta_reply", trace["steps"][2])
 
     def test_an_answer_citing_a_player_id_no_tool_returned_goes_back_once(self):

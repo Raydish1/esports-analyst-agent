@@ -86,5 +86,18 @@ class WritingTest(unittest.TestCase):
         self.assertEqual(claim_check.unasked(said, "list them newest first"), [])
 
 
+class DraftTest(unittest.TestCase):
+    def test_draft_talk_loses_its_clause_or_its_sentence_and_a_correction_label_goes(self):
+        facts = lambda text: bool(re.search(r"[0-9]", text))  # noqa: E731
+        said = ("The previous answer incorrectly stated a 2-1 record against experiencedoa; the actual record is 0-3."
+                " The best is woolala, 3-0.")  # live, finding 34
+        self.assertEqual(claim_check.without_draft_talk(said, facts),
+                         ("the actual record is 0-3. The best is woolala, 3-0.",
+                          ["The previous answer incorrectly stated a 2-1 record against experiencedoa;"]))
+        self.assertEqual(claim_check.without_draft_talk("My previous answer was wrong. Zivai leads, 5-2.", facts)[0],
+                         "Zivai leads, 5-2.")
+        self.assertEqual(claim_check.without_draft_label("**Corrected Answer:**\nZivai leads, 5-2."), "Zivai leads, 5-2.")
+
+
 if __name__ == "__main__":
     unittest.main()

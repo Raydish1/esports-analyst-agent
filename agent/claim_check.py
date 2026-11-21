@@ -79,7 +79,12 @@ ASKS_STRONG = re.compile(r"\b(?:dominan\w*|dominat\w*|crush\w*|destroy\w*|one-si
 # overall record isn't the yardstick for a characterization of it
 PART = re.compile(r"\b(?:early|earlier|recent|recently|lately|last|latest|first|later|since|before|after)\b|\b(?:19|20)\d\d\b",
                   re.I)
-SILENT = {"referral", "relaxed", "unasked"}  # kinds that state nothing: left out with no line saying so
+SILENT = {"referral", "relaxed", "unasked", "draft"}  # kinds that state nothing: left out with no line saying so
+# A reply to a check written as a correction of the draft the check sent back, which the user never saw (finding 34)
+DRAFT_LABEL = re.compile(r"^[ \t>#*_]*(?:corrected|revised|updated|final|amended)\s+(?:answer|response|reply)[*_]*\s*:?[*_]*"
+                         r"[ \t]*\n?", re.I | re.M)
+DRAFT_TALK = re.compile(r"\b(?:the|my|this)\s+(?:previous|earlier|initial|original|first|prior)\s+(?:answer|response|reply|"
+                        r"draft)\b|\bI\s+(?:previously|earlier|initially)\s+(?:stated|said|wrote|listed|gave)\b", re.I)
 TOOL_NAMES = ("resolve_player", "resolve_event", "run_sql", "event_results", "player_results", "team_results",
               "head_to_head", "rank_players", "rank_pairs", "power_rankings", "upsets")
 TOOL_TALK = re.compile(r"\s*\(?\s*(?:(?:checked|confirmed|found|looked\s+up|computed|counted)\s+)?(?:(?:using|via|with|by"
@@ -171,6 +176,38 @@ def without_tool_talk(answer, states_facts):
     out, _ = without(answer, dropped)
     out = TOOL_TALK.sub("", out)
     return re.sub(r"[ \t]+([.,;:!?])", r"\1", re.sub(r"[ \t]{2,}", " ", out)).strip()
+
+
+def draft_talk(answer):
+    """The answer's sentences about its own draft ('the previous answer incorrectly stated ...'), for a turn whose
+    answer a check sent back and whose question isn't about the previous answer (react.py)."""
+    return found([("draft", DRAFT_TALK)], answer)
+
+
+def without_draft_talk(answer, states_facts):
+    """The answer without its talk about its own draft: the clause up to a colon or semicolon after it ('The previous
+    answer missed one: Raydish won 7.' keeps 'Raydish won 7.'), else the sentence, when nothing else in it states a
+    fact (states_facts); a sentence with facts and no such clause is kept. Returns (text, what was taken out)."""
+    out, cut = answer, []
+    for a, b in sorted(units(answer), reverse=True):
+        unit = out[a:b]
+        m = DRAFT_TALK.search(unit)
+        if not m:
+            continue
+        stop = re.search(r"[:;]", unit[m.end():])
+        if stop:
+            end = m.end() + stop.end()
+            cut.append(unit[:end].strip())
+            out = out[:a] + unit[end:].lstrip() + out[b:]
+        elif not states_facts(unit[:m.start()] + unit[m.end():]):
+            cut.append(unit.strip())
+            out = out[:a] + out[b:]
+    return re.sub(r"\n{3,}", "\n\n", out).strip(), cut[::-1]
+
+
+def without_draft_label(answer):
+    """The answer without a heading that calls it a correction ('**Corrected Answer:**')."""
+    return DRAFT_LABEL.sub("", answer).strip()
 
 
 def without_code(answer):

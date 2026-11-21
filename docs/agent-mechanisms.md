@@ -257,6 +257,18 @@ Built in round five:
   - Replayed on 747 recorded answers: 167 had IDs beside names (279 IDs). Tool talk appears 40 times, all of the
     kind (`resolve_player(name="Ahmet")`, "using the `resolve_player` tool"). "As requested" appears once, in finding
     35.
+- **M4, the conversation** (findings 32 and 34):
+  - A question about what the page showed has its own kind (`settling.PAGED`) and note: explain the figure it asks
+    about, from the page's message and the tools, and don't say whether the answer was right. It's settled before
+    the dispute cues, so "where does the card's 12 come from?" isn't a dispute. Like a dispute, its forced lookups
+    are its players only. Unlike one, it needs no re-check, and its judgments are checked.
+  - Every check's message ends with `DRAFT`: the user hasn't seen the draft, so the reply answers their question and
+    never corrects a draft. After a turn whose answer a check sent back, unless the question is about the previous
+    answer, the final answer loses a "Corrected Answer:" heading and its talk about its own draft. That's the clause
+    up to a colon or semicolon, or the whole sentence when nothing else in it states a fact. A sentence with facts and
+    no such clause is kept.
+  - Replayed on 89 recorded answers given after a send-back: only finding 34's has draft talk ("**Corrected
+    Answer:**", and "The previous answer incorrectly stated a 2-1 record against experiencedoa;"), and both go.
 
 ## Decisions
 
