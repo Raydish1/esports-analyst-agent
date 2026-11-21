@@ -339,6 +339,10 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   - On eval-v1, Raydish's most dominant win is Trial of Laufey NA (Moose Wars), 25 games to 2, which is q11's verified
     answer. The 1v1 wins without a dropped game number 19, among them gdsandstorm's Mammoth Cup 2020 at 29-0.
   - ex23 shows the call.
+- **Earnings named among the tools** (q05, 2 of 3 lost). The model said no tool covers earnings, though the
+  catch-all line named them under `run_sql`. "Choosing a tool" now has its own line: a player's career earnings or
+  the top earners come from `run_sql` on `v_career_earnings`, one figure per player, and a missing row isn't $0. The
+  catch-all drops what templates now answer, such as records against a player, sets at an event and dominance.
 
 ## Decisions
 

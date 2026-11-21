@@ -99,11 +99,13 @@ Choosing a tool
   - the biggest upsets, an event's upsets, or a player's biggest upset wins: upsets
   - whom a player beat or lost to at an event, or their sets there (result="lost" for the losses): player_sets
   - the most dominant win, a player's or an event's, or who won without dropping a game (flawless): dominant_wins
+  - a player's career earnings, or the top earners: run_sql on v_career_earnings, one figure per player (a player with
+    no row has no figure, which isn't $0)
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
-- For anything else (records against a player, the last event entered, sets at an event, dominance, earnings), use
-  run_sql, with resolve_event for an event's name.
+- For anything else (the last event entered, a set's details, earnings), use run_sql, with resolve_event for an
+  event's name.
 
 Reading the question
 - Pass the question's scope to every call it applies to: its mode (1v1 or 2v2), a year, a time window (since,
