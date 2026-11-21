@@ -318,15 +318,14 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 | Page questions are settled as disputes, which require a re-check with a tool. | The user's direction: a question about what the page showed is one about the agent's own answer. |
 | The possessive retry is built and c9 is left as verified. | The user asked for the retry. c9's change is theirs to make, so it's listed below. |
 | Streaks, upsets and rankings with a condition aren't built. | Streaks and upsets need a definition, and conditions have `run_sql`. They're listed in the audit. |
+| A characterization such as "dominates" is supported when the record behind it has at least twice as many wins as losses and is at least 2 wins ahead (2026-11-21). | Proposed as the reading of finding 35's "stronger than the record supports", and accepted by the user on 2026-11-21. |
 
 ## Waiting on the user
 
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
-- One design call of round five to look at: a characterization such as "dominates" is supported when the record has
-  at least twice the losses in wins and is 2 wins ahead. That's my reading of the finding's "stronger than the record
-  supports", not a definition you gave.
+
 - A definition for streaks (events in a row? in one mode?), if that kind should get a template. Upsets were defined
   on 2026-11-21 (round five).
 
