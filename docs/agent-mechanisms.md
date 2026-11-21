@@ -356,6 +356,16 @@ right answer taken from the previous turn's results for c8. Built offline, and t
     (`settling.DOUBTS`) are now apart from those that ask for a source ("where does ... come from", "why did you
     say").
   - Replayed on the 144 recorded turns of the 2026-11-21 run, only c8 turn 4's note changes, in all three seeds.
+- **c8's check reads the window** (the user's decision, 2026-11-21). c8 turns 3 and 5 answered right in every seed
+  ("4 tournaments", "24 is the events") from the previous turn's `team_results`, with no new call. Their `players`
+  check reads only the turn's own calls, so it failed them. The user accepted a right answer taken from the previous
+  turn's results.
+  - Both turns now have a `rows` check, which reads the window: a row holding either player with their 24 events
+    together and 4 wins. A `players` check on the window would still have failed seed 1, whose row came from Cody
+    Travis's list of every partner, a call that never names Phazon.
+  - Turn 4 keeps `players`: its verified answer checks the card's figures again with a tool.
+  - Rescored offline, the 2026-11-21 run gives 109 of 144 turns, from 103: c8 turns 3 and 5 in all three seeds, and
+    no other turn.
 
 ## Decisions
 

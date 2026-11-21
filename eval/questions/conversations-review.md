@@ -577,7 +577,7 @@ FROM v_results WHERE player_id IN (117179, 147522) GROUP BY player_id, mode
 
 **Expected:** 4, as partners at official events, of the 24 2v2 events they entered together: the North America - Summer Championship 2020 (2020-06-27), the North America - SteelSeries Championship (2020-08-15), the North America - Autumn Championship 2020 (2020-09-19) and the North America - Winter Championship 2021 (2021-03-13). Live, a run_sql query with an unparenthesized OR counted all 24 events as wins.
 
-**Checks:** says_numbers [4]; players [117179, 147522]; grounded and named (every turn)
+**Checks:** says_numbers [4]; rows [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]; grounded and named (every turn)
 
 **Query 1:** their 2v2 events together: how many, and their wins, medals and top 8s together
 
@@ -628,7 +628,7 @@ FROM v_results WHERE player_id IN (117179, 147522) AND mode = '2v2' GROUP BY pla
 
 **Expected:** About the agent's own earlier answer, checked again: they won 4 2v2 events together, of the 24 they entered together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). Live, the loop looked up "say cody travis 24" as an event.
 
-**Checks:** says_numbers [4]; not_looked_up ["say", "24"]; players [117179, 147522]; grounded and named (every turn)
+**Checks:** says_numbers [4]; not_looked_up ["say", "24"]; rows [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]; grounded and named (every turn)
 
 **Query 1:** their 2v2 events together, and their wins together
 

@@ -518,7 +518,9 @@ Championship 2020 (2020-09-19) and the North America - Winter Championship 2021 
 with an unparenthesized OR counted all 24 events as wins.
 """
 says_numbers = [4]
-players = [117179, 147522]
+# a right answer may be taken from the previous turn's results (decided by the user 2026-11-21): the window holds
+# their 24 events together and 4 wins, from either player's side
+rows = [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]
 
 [[conversation.turn.query]]
 purpose = "their 2v2 events together: how many, and their wins, medals and top 8s together"
@@ -562,7 +564,7 @@ loop looked up "say cody travis 24" as an event.
 """
 says_numbers = [4]
 not_looked_up = ["say", "24"]
-players = [117179, 147522]
+rows = [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]  # from the window, as turn 3's (2026-11-21)
 
 [[conversation.turn.query]]
 purpose = "their 2v2 events together, and their wins together"
