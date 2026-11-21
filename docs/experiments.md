@@ -2,6 +2,85 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: round six's reruns, 1-3
+
+**What it asked.** Do round six's seven fixes work with the model, and do the controls hold? These are reruns 1-3 of
+the design note's list. If they looked right, the model comparison was to run at the same commit instead of rerun 4,
+as the user decided.
+
+**Setup.** qwen3:8b with thinking, retrieval on, seeds 0-2, at 2aecbc7, in a worktree with its own `data/rag`. The
+runs are `20261121-r6-conversations` (c1, c8, c14, c15, c16, c18, c19), `20261121-r6-questions` (13 questions, by id)
+and `20261121-r6-audit` (16 questions). Each is compared with the same items of the 2026-11-21 runs, both scored with
+today's checks. The audit's checks on a14, a15, a28, a34, a35 and a39 ask for `run_sql`, written before round six
+gave those kinds templates, so those answers were read by hand.
+
+**Results.**
+
+| Run | Pass every check | Before |
+|---|---|---|
+| The 7 conversations | 34 of 60 turns | 37 |
+| The 13 questions, automatic stages | 35 of 39 runs | 30 |
+| The 16 audit questions | 27 of 48 turns | 29 |
+
+- **What worked**, by hand:
+  - q08 is right in 3 of 3 (0 before), a03 in 3 of 3 (0), c15 turn 1 in 3 of 3 (1) and c8 turn 4 in 2 of 3 (0).
+  - The new templates' answers: a39 (`player_sets`), a14 (sphynx. with 36, checked in SQL), a15 (each reading
+    named) and a34 (the same win as the old `run_sql` answers) in 3 of 3.
+  - Every q05 run lists the top 10 earners, against 1 of 3 before. Seed 0 fails stage 2 only because its query
+    selected no names.
+  - c18 turn 1 3 of 3 (1), c1 turn 3 2 of 3 (0); q11 and the upsets held.
+- **What didn't**, by mechanism:
+  1. "best record" read as `by="rate"` with a 5-set minimum (M2, M1). volst has at most 4 sets against any
+     opponent.
+     - c19 turn 1 and a50: all 6 runs gave a minimum of 5 and answered that no opponent qualifies (3 of 6 before).
+     - c16 turn 1 ("who has the biggest head to head record"): all 3 runs called `by="rate"` with no player, which is
+       refused. 2 runs then asked the user instead of answering (3 of 3 right before, with `by="sets"`).
+     - The cause is the prompt's new line, which ties "best record" to `by="rate"` for the opponents' side, and the
+       tool's "at least 5 sets unless min_sets".
+  2. The opponents' side misread (M2, M3). In `side="opponents"` rows the `player` column is the other player and
+     `opponent` is the player asked about.
+     - q40 passes the automatic stages 3 of 3, but only seed 2 is right. Seeds 0 and 1 read Raydish's wins as his
+       losses and named Marckiem00.
+     - a28 seeds 0 and 1: the record check reads a list headed "against Zivai" as Zivai's own records. It sent the
+       right records (Marckiem00 6-1) back as reversed, then left them out, so the answers start at 4th place.
+  3. `dominant_wins` with no narrowing is too slow (M2): 22 s with the ARM64 Python, over the 30-s limit with the
+     agent's x64 Python. Round six's offline check used the ARM64 one.
+     - a35 seeds 0 and 1 were stopped, narrowed to events no word of the question names (bcx 2023, worlds 2023),
+       and answered that nobody won without dropping a game.
+     - Seed 2 asked for 1v1 and got the 19 wins.
+  4. c8 turn 5, 3 → 0 of 3 (M4). Turn 4 now calls `player_results`, which is its fix, so turn 2's `team_results`
+     row is no longer in turn 5's window.
+     - Turn 5 called no tool in any seed, even after the recheck sent it back. Before, 2 of 3 seeds did the same,
+       and turn 4's `team_results` call covered them.
+     - The figures are right in seed 0 and partly in seed 1. Seed 2 made up "8 solo" and "2 solo" wins.
+  5. c15 turn 2, 1 → 0 of 3 (M4, M3). Turn 1 now gives the placement counts, so turn 2 answered from them without a
+     call.
+     - The no-tool check took "analyze" for a content word and looked it up as an event, and seed 2's answer then
+       said "analyze" is no event.
+     - The counts were misread in all 3 (25th "2 times", where the table says 4), as before.
+- **Variance and known misses:**
+  - c14 turn 1, 2 → 1: the 2v2 meetings were left out.
+  - c1 turn 5, 3 → 1. Seed 2's first call passed region na and since 2023-01-01, which no word of the question
+    gives, and kept them for four turns. Seed 1 called no tool for "in a graphic".
+  - q44, 2 → 1: `head_to_head` for a placements question, the known miss.
+  - q45, 3 → 2: scoring, since the query filters on the player without selecting it. Right by hand.
+- Model time per run on the 13 questions: 22.7 s, from 24.3 s.
+
+**What it decided.** The reruns don't look right, so the model comparison didn't run. The fixes they point to are for
+the user to approve:
+1. `rank_pairs`:
+   - no minimum on a player's own records unless the question sets one, `by="rate"` included;
+   - a note giving the most sets with one opponent when a minimum empties the ranking;
+   - the prompt's "best record" line kept to the opponents' side (c19, a50, c16).
+2. The opponents' side:
+   - columns named for their roles (each opponent's wins against the player and losses to them);
+   - the record check reading a list's records from the side its rows give (q40, a28).
+3. `dominant_wins` under 30 s with no narrowing, and its timeout suggesting a mode before an event (a35).
+4. A recheck that still calls no tool: the loop makes the calls the disputed answer rested on, as the no-tool
+   check's lookups do (c8 turn 5).
+5. "analyze" and other request words not taken as content words (c15 turn 2).
+6. The audit's six `run_sql` checks moved to round six's templates.
+
 ## 2026-11-21: round six's fixes, checked offline
 
 **What it asked.** The user approved all seven fixes the measured runs point to, the `rank_pairs` regression first.

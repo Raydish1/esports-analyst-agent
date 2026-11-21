@@ -398,7 +398,9 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 ## Waiting on the user
 
-- The go-ahead for round six's reruns (under Runs).
+- The fixes from round six's reruns 1-3 (2026-11-21, in the log): they don't look right, so the model comparison
+  waits. Five failures were found: "best record" read with a 5-set minimum, the opponents' side misread and its
+  records sent back, `dominant_wins` over 30 s unnarrowed, c8 turn 5's recheck with no call, and "analyze" looked up.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
@@ -421,7 +423,10 @@ point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured
    This gives the failures by mechanism on questions nothing was tuned on.
 5. `py -3.14 agent/retrieval.py measure`, for the two new examples' effect on retrieval.
 
-### Round six's reruns (waiting on the user)
+### Round six's reruns
+
+Reruns 1-3 ran on 2026-11-21 at 2aecbc7. They don't look right (in the log), so neither rerun 4 nor the model
+comparison that was to replace it has run.
 
 Each runs at the latest commit, seeds 0-2, in a worktree with its own `data/rag`, since the example bank changed
 (ex23). The minutes are estimated from the 2026-11-21 runs' pace.

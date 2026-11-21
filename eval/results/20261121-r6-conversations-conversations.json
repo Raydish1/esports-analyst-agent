@@ -1,0 +1,1616 @@
+[
+ {
+  "id": "c1",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c8",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147522]"
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [33, 27]"
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[147522, 'Phazon', 117179, 'Cody Travis'], 24, 4]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c14",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about '1v1' or 'sets' states 1-5"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c15",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": false,
+      "detail": "didn't call player_results"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [6]"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c16",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [34]"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c18",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c19",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about 'woolala' states 3-0"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c1",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": false,
+      "detail": "didn't call head_to_head"
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [142100, 160000]"
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c8",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147522]"
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[147522, 'Phazon', 117179, 'Cody Travis'], 24, 4]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c14",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147522]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c15",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": false,
+      "detail": "didn't call player_results"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [6]"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c16",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [34]"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c18",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c19",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about 'woolala' states 3-0"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": false,
+      "detail": "no call matches rank_pairs(player_id=162675, by=record)"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about 'woolala' states 3-0"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c1",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[160000, 'Raydish'], 4, 2], [[145913, 'bestjava'], 10, 3, 7]]"
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[142100, 'megD'], [160000, 'Raydish'], 4, 2]]"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[142100, 'megD'], [160000, 'Raydish'], 4, 2]]"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c8",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[147522, 'Phazon', 117179, 'Cody Travis'], 24, 4]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c14",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about '1v1' or 'sets' states 1-5"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147522]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c15",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": false,
+      "detail": "didn't call player_results"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [6]"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c16",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c18",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c19",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about 'woolala' states 3-0"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": false,
+      "detail": "no call matches rank_pairs(player_id=162675, by=record)"
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about 'woolala' states 3-0"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ }
+]
