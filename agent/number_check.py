@@ -306,8 +306,11 @@ class Evidence:
         return RULES[claim.kind](claim.value, self)
 
     def unsupported(self, answer):
-        """The claims an answer states (stated) that nothing in the conversation supports."""
-        return [c for c in claims(stated(answer)) if not self.supports(c)]
+        """The claims an answer states (stated) that nothing in the conversation supports, a count word counting a
+        result's rows supported as Window.unsupported supports it (counted)."""
+        said = stated(answer)
+        spans, found = units(said), claims(said)
+        return [c for c in found if not self.supports(c) and not counted(c, said, spans, found, [self])]
 
     def counts(self, n, values=(), top=False):
         """Whether a count word n counts rows of one result: n rows sharing one of the values (a tie, 'the two tied
@@ -417,15 +420,7 @@ class Window:
         return name, (others[0] if others else None)
 
     def counted(self, claim, said, spans, found):
-        """Whether a count word counts a result's rows (Evidence.counts): after 'top', a ranking of that many rows or
-        more; else that many rows of one result sharing a number its sentence states. Live, "the top two tied at 34
-        sets" was cut for its "two", under a right list (docs/web-app-testing-notes.md, finding 30)."""
-        if claim.kind != "word" or not 2 <= claim.value[0] <= 10:
-            return False
-        top = said[max(0, claim.start - 4):claim.start].casefold() == "top "
-        a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
-        values = [c.value[0] for c in found if a <= c.start < b and c is not claim and c.kind in ("number", "ordinal")]
-        return any(e.counts(claim.value[0], values, top) for e in self.evidence)
+        return counted(claim, said, spans, found, self.evidence)
 
     def about(self, said, claim, spans):
         """(mode, player, names) for the claim's sentence, or (): the one mode it names, 1v1 or 2v2 and not both
@@ -650,6 +645,19 @@ def without(answer, flagged):
         replaced.append({"claim": answer[a:b], "replacement": new, "numbers": [c.text for c in found]})
         out = out[:cut[0]] + new + out[cut[1]:]
     return re.sub(r"\n{3,}", "\n\n", out).strip(), replaced[::-1]
+
+
+def counted(claim, said, spans, found, evidence):
+    """Whether a count word counts a result's rows (Evidence.counts) in any of the evidence: after 'top', a ranking of
+    that many rows or more; else that many rows of one result sharing a number its sentence states. Live, "the top two
+    tied at 34 sets" was cut for its "two", under a right list (docs/web-app-testing-notes.md, finding 30). The
+    agent's check (Window) and the scorers' (Evidence) both read it so."""
+    if claim.kind != "word" or not 2 <= claim.value[0] <= 10:
+        return False
+    top = said[max(0, claim.start - 4):claim.start].casefold() == "top "
+    a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
+    values = [c.value[0] for c in found if a <= c.start < b and c is not claim and c.kind in ("number", "ordinal")]
+    return any(e.counts(claim.value[0], values, top) for e in evidence)
 
 
 def restates(replaced, kept):
