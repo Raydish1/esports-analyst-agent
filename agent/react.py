@@ -318,6 +318,8 @@ NUMBERS = ("Before this answer is final: it states {numbers}, which no tool resu
            " row (5-4), a date or a UTC time of a result, or a percentage of two numbers in one row. Don't add, subtract"
            " or count rows yourself: get the number from a template or run_sql, or leave it out. A number no tool"
            " returned is removed from the final answer.")
+REVERSED = ("written the other way round. Write each record from the side of the player its sentence names, their wins"
+            " first, as the tool gives it.")
 MISATTRIBUTED = ("though the results in view hold each only for another player or mode than its sentence is about."
                  " Take each figure from the row for the player and the mode its sentence names: the cards and the"
                  " templates give each mode a row of its own, and both modes together another.")
@@ -514,6 +516,7 @@ class Shown:
         self.evidence, self.earlier = Evidence(), Evidence()  # this question's, and the previous one's
         self.seen_now, self.seen_before, self.returned_now, self.returned_before = set(), set(), set(), set()
         self.text_now, self.text_before = "", ""  # the tool results' text, for the claim check's markers
+        self.about_now, self.about_before = set(), set()  # the players templates' results are about, by name
         for text in texts:
             self.read(text)
 
@@ -527,6 +530,7 @@ class Shown:
         self.seen_before, self.seen_now = self.seen_now, set()
         self.returned_before, self.returned_now = self.returned_now, set()
         self.text_before, self.text_now = self.text_now, ""
+        self.about_before, self.about_now = self.about_now, set()
         self.evidence.ask(question)
 
     @property
@@ -537,7 +541,8 @@ class Shown:
             name = " ".join((self.resolver.names.get(pid) or "").split())
             if len(name) >= 3:
                 names[name.casefold()] = name
-        return Window(self.evidence, self.earlier, names=names)
+        about = self.about_now or self.about_before  # this question's subject, else the previous one's
+        return Window(self.evidence, self.earlier, names=names, subject=next(iter(about)) if len(about) == 1 else None)
 
     @property
     def seen(self):
@@ -568,6 +573,9 @@ class Shown:
         if "error" not in observation:  # an error repeats what the call asked for, so it shows nothing
             self.seen_now |= mentions.seen([text])
             self.text_now += " " + text
+            player = observation.get("player")
+            if isinstance(player, dict) and player.get("name"):
+                self.about_now.add(" ".join(player["name"].split()).casefold())
             if arguments is not None:
                 self.evidence.call(arguments)
         returned = {c["player_id"] for c in observation.get("candidates", ())} if name == "resolve_player" else set()
@@ -853,12 +861,13 @@ def numbers_message(flagged):
     """The number check's message: the numbers no tool result in view holds (NUMBERS), then those it holds only for
     another player or mode (MISATTRIBUTED), each with whom and which mode its sentence is about."""
     plain = [repr(c.text) for c in flagged if not c.about]
-    other = [f"{c.text!r} about {c.about}" for c in flagged if c.about]
-    other = listed(other) if other else ""
-    if not plain:
-        return f"Before this answer is final: it states {other}, {MISATTRIBUTED}"
-    message = NUMBERS.format(numbers=listed(plain))
-    return f"{message} It also states {other}, {MISATTRIBUTED}" if other else message
+    other = [f"{c.text!r} about {c.about}" for c in flagged if c.about and not c.reversed]
+    backwards = [f"{c.text!r} as the record of {c.about}" for c in flagged if c.reversed]
+    parts = ([NUMBERS.format(numbers=listed(plain))] if plain else []) + (
+        [f"it states {listed(other)}, {MISATTRIBUTED}"] if other else []) + (
+        [f"it states {listed(backwards)}, {REVERSED}"] if backwards else [])
+    first = parts[0] if plain else f"Before this answer is final: {parts[0]}"
+    return " ".join([first] + [p[0].upper() + p[1:] for p in parts[1:]])
 
 
 def scoped(lacks):

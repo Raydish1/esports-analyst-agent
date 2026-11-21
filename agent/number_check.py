@@ -88,6 +88,7 @@ class Claim:
     end: int
     value: tuple  # what the kind's rule reads
     about: str = ""  # for a claim a tool result holds only for another player or mode: whom and which mode it's about
+    reversed: bool = False  # a record the results give the other way round for the player it's written about
 
 
 class Row(list):
@@ -321,9 +322,10 @@ class Window:
     results, and every earlier answer, don't count (decided 2026-11-19): in the web app's live testing, an answer's
     small numbers stood because some tool result many turns back held them."""
 
-    def __init__(self, *evidence, names=None):
+    def __init__(self, *evidence, names=None, subject=None):
         self.evidence = evidence
         self.names = names or {}  # the players in view, casefolded name -> as written, for about
+        self.subject = subject  # the one player the turn's results are about, casefolded, for a record's owner
 
     def supports(self, claim, about=None):
         return any(e.supports(claim, about) for e in self.evidence)
@@ -347,7 +349,56 @@ class Window:
             if about and not self.supports(c, about):
                 mode, player, _ = about
                 out.append(replace(c, about=" in ".join(x for x in (self.names.get(player), mode) if x)))
+                continue
+            pair = self.owner(said, c, spans) if c.kind == "record" and not year else None
+            if pair:
+                owner, other = pair
+                given = {(w, l) for e in self.evidence for row in e.rows for who, against, w, l in sides(row, self.names)
+                         if who == owner and (other is None or against in (other, None))}
+                won, lost = c.value
+                if (lost, won) in given and (won, lost) not in given:  # live, volst 2-1 where the rows say 1-2
+                    against = f" against {self.names[other]}" if other else ""
+                    out.append(replace(c, about=f"{self.names[owner]}{against}, whose record the results give as"
+                                                f" {lost}-{won}", reversed=True))
         return out
+
+    def owner(self, said, claim, spans):
+        """(whose record a record claim is, against whom or None), as its sentence writes it; or None.
+        - The nearest player in view named before it who isn't an object ('Impala holds a 2-1 lead', 'Raydish beat
+          volst 2-1': 'beat volst' is an object, and so is a name joined to one, 'against A and B'), or the first of
+          names joined by 'and' ('A and B have a 2-1 record'), against the other player named.
+        - But a player a list writes the record right after ('**Raydish** (3 sets, 2-1 record)', 'Raydish: 2-1'), in
+          an answer about one subject who isn't named before it: the subject's record against them, unless the line
+          names the player a winner ('Winner: Raydish (2-0)'). Live, volst's list of opponents had his 1-2 against
+          Raydish as 2-1 (docs/web-app-testing-notes.md, finding 34).
+        - None if no player is named before it, or a word for losing comes between ('lost 1-2 to'), as people write a
+          loss in either order."""
+        a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
+        before, after = said[a:claim.start].casefold(), said[claim.end:b].casefold()
+        found = sorted((m.start(), m.end(), n) for n in self.names
+                       for m in re.finditer(rf"(?<!\w){re.escape(n)}(?!\w)", before))
+        subjects, objects, last = [], set(), None  # an object's coordinated names are objects too ('against A and B')
+        for start, end, n in found:
+            joined = last is not None and JOINED.search(before[max(0, start - 10):start])
+            if OBJECT.search(before[max(0, start - 12):start]) or (joined and last in objects):
+                objects.add(n)
+            else:
+                subjects.append((start, end, n, bool(joined)))
+            last = n
+        if not subjects:
+            return None
+        while len(subjects) > 1 and subjects[-1][3]:  # 'A and B have a 2-1 record' is A's, the first of them
+            subjects.pop()
+        start, end, name, _ = subjects[-1]
+        between = before[end:]
+        if LOSING.search(between):
+            return None
+        others = [n for _, _, n in found if n != name] + [n for n in self.names if n != name and n in after
+                                                          and re.search(rf"(?<!\w){re.escape(n)}(?!\w)", after)]
+        if (self.subject and name != self.subject and self.subject not in before and LISTED.match(between)
+                and not WINNER.search(before[max(0, start - 20):start])):
+            return self.subject, name  # a list of the subject's opponents
+        return name, (others[0] if others else None)
 
     def counted(self, claim, said, spans, found):
         """Whether a count word counts a result's rows (Evidence.counts): after 'top', a ranking of that many rows or
@@ -415,6 +466,53 @@ def record(value, evidence):
     if all(1900 <= n <= 2100 for n in value):  # a range of years
         return any(a in row for row in rows) and any(b in row for row in rows)
     return any(a in row and b in row and (a != b or row.count(a) > 1) for row in rows)
+
+
+# A record's owner (Window.owner): a name after one of these is the record's object, and a word for losing between
+# the owner and the record leaves the record unread, as people write a loss in either order
+OBJECT = re.compile(r"\b(?:against|vs\.?|versus|over|to|with|from|beat|beats|beating|defeated|defeats)\W*$")
+JOINED = re.compile(r"\b(?:and|or|&)\W*$|,\W*$")
+WINNER = re.compile(r"\b(?:winner|winners|won|wins|champion|beat|beats)\b")
+LISTED = re.compile(r"[\s*_\"'`]*(?:\(|:|-|–|—|\|)")  # a name a list writes a record right after: 'X (2-1)', 'X: 2-1'
+LOSING = re.compile(r"\b(?:lost|loses|lose|losing|loss|fell|falls|beaten|defeated by|trails|trailing|behind)\b")
+WON_LOST = re.compile(r"([^.;:()]+?)\s+won\s+(\d+)\s+and\s+lost\s+(\d+)([^;.]*)")
+AGAINST = re.compile(r"([^.;:()]+?)\s+(\d+)\s*-\s*(\d+)\s+against\s+([^.;:()]+)")
+SIDES = [(("player", "name", "player_name"), "wins", "losses", ("opponent", "opponent_name")),
+         (("player",), "player_wins", "opponent_wins", ("opponent",)),
+         (("winner", "winner_name"), "winner_games", "loser_games", ("loser", "loser_name"))]
+
+
+def named(text, names, last=False):
+    """The player in view a text fragment names, the last one in it with last, else the first; or None."""
+    found = sorted((m.start(), n) for n in names for m in re.finditer(rf"(?<!\w){re.escape(n)}(?!\w)", text))
+    return (found[-1] if last else found[0])[1] if found else None
+
+
+def sides(row, names):
+    """Each (player, against whom or None, wins, losses) a row gives from one player's side: a table's columns (a
+    player's wins and losses, player_wins and opponent_wins, a set's winner_games and loser_games), and its texts'
+    "X won 1 and lost 2 ... against Y" and "X 1-5 against Y", each for both players it names. Names are the
+    casefolded names in view."""
+    out = []
+    if row.columns and row.cells and len(row.columns) == len(row.cells):
+        cell = dict(zip(row.columns, row.cells))
+        def who(keys):
+            return next((v.casefold() for k in keys for v in [cell.get(k)] if isinstance(v, str) and v.casefold() in names),
+                        None)
+        for subject, w, l, other in SIDES:
+            if all(isinstance(cell.get(k), (int, float)) and not isinstance(cell.get(k), bool) for k in (w, l)):
+                a, b = who(subject), who(other)
+                out += ([(a, b, cell[w], cell[l])] if a else []) + ([(b, a, cell[l], cell[w])] if b else [])
+    for text in row.texts:
+        t = text.casefold()
+        for m in WON_LOST.finditer(t):
+            a = named(m[1], names, last=True)
+            b = named(m[4].split("against", 1)[1], names) if "against" in m[4] else None
+            out += [(a, b, int(m[2]), int(m[3]))] if a else []
+        for m in AGAINST.finditer(t):
+            a, b = named(m[1], names, last=True), named(m[4], names)
+            out += ([(a, b, int(m[2]), int(m[3]))] if a else []) + ([(b, a, int(m[3]), int(m[2]))] if b else [])
+    return out
 
 
 # A claim of these kinds about one player or one mode needs a row about them (Window.unsupported)

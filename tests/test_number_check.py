@@ -211,6 +211,40 @@ class CountWordTest(unittest.TestCase):
         self.assertFalse(number_check.restates([{"claim": "Both tied.", "numbers": ["Both"], "replacement": ""}], "34"))
 
 
+VOLST = {"template": "rank_pairs", "tables": [{"what": "volst's opponents", "columns": ["rank", "player", "player_id",
+         "opponent", "opponent_id", "sets", "player_wins", "opponent_wins"],
+         "rows": [[1, "volst", 162675, "Raydish", 160000, 3, 1, 2], [1, "volst", 162675, "woolala", 170001, 3, 3, 0]]}]}
+SIDE_NAMES = {"volst": "volst", "raydish": "Raydish", "woolala": "woolala"}
+
+
+class RecordSideTest(unittest.TestCase):
+    def flagged(self, answer, *observations, subject=None):
+        window = number_check.Window(evidence(*observations), names=SIDE_NAMES, subject=subject)
+        return [(c.text, c.reversed) for c in window.unsupported(answer)]
+
+    def test_a_list_of_one_players_opponents_is_read_from_that_players_side(self):
+        listed = "1. **woolala** (3 sets, 3-0 record)\n2. **Raydish** (3 sets, 2-1 record)"  # live, finding 34
+        self.assertEqual(self.flagged(listed, VOLST, subject="volst"), [("2-1", True)])
+        self.assertEqual(self.flagged("1. **Raydish** (3 sets, 1-2 record)", VOLST, subject="volst"), [])
+        self.assertEqual(self.flagged("Raydish holds a 2-1 lead over volst.", VOLST, subject="volst"), [])
+        self.assertEqual(self.flagged("volst and Raydish have a 1-2 record.", VOLST), [])  # the first of them
+        self.assertEqual(self.flagged("volst does best against **woolala** (3-0) and **Raydish** (1-2).", VOLST), [])
+        self.assertEqual(self.flagged("- **Winner**: Raydish (2-1)", VOLST, subject="volst"), [])  # his own score
+
+    def test_a_record_written_the_other_way_round_for_its_player_goes_back(self):
+        self.assertEqual(self.flagged("volst is 2-1 against Raydish.", VOLST), [("2-1", True)])  # live, finding 34
+        self.assertEqual(self.flagged("volst is 1-2 against Raydish, and 3-0 against woolala.", VOLST), [])
+        note = {"notes": ["In 1v1, volst won 1 and lost 2 of their 3 sets against Raydish; Raydish won 2 and lost 1."]}
+        self.assertEqual(self.flagged("volst went 2-1 against Raydish.", note), [("2-1", True)])
+        self.assertEqual(self.flagged("Raydish went 2-1 against volst.", note), [])
+
+    def test_the_owner_is_the_first_player_named_who_isnt_the_object_and_a_loss_is_left_unread(self):
+        self.assertEqual(self.flagged("Raydish beat volst 2-1.", VOLST), [])  # Raydish's record
+        self.assertEqual(self.flagged("Against Raydish, volst is 1-2.", VOLST), [])
+        self.assertEqual(self.flagged("volst lost 2-1 to Raydish.", VOLST), [])  # a loss, written either way
+        self.assertEqual(self.flagged("The series was 2-1.", VOLST), [])  # no one's record
+
+
 class ReplacementTest(unittest.TestCase):
     def replaced(self, answer, *observations):
         found = evidence(*observations)

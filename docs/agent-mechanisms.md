@@ -216,6 +216,19 @@ Built in round five:
   when a result has that many rows or more ("the top three"). Such a count is about no one player or mode, so the
   agreement check skips it. When everything left out only restates numbers the answer keeps, no left-out line is
   added. Replayed on finding 30's live turn, its draft now passes with nothing flagged.
+- **A record is checked from its owner's side** (finding 34). The number check took "2-1" from any row holding a 1
+  and a 2, in either order. Now the evidence reads each row's sides as (player, against whom, wins, losses). That
+  covers a table's wins and losses, `player_wins` and `opponent_wins`, a set's winner and loser games, and the notes'
+  "X won 1 and lost 2 ... against Y" and the card's "X 1-5 against Y". A record claim's owner is the nearest player
+  named before it who isn't an object ("Raydish beat volst 2-1" is Raydish's), or the first of names joined by "and".
+  A player a list writes the record right after ("**Raydish** (3 sets, 2-1 record)") is the opponent of the answer's
+  subject, the one player the turn's results are about, unless the line calls them a winner. A record that matches
+  that pair's sides only the other way round goes back once, saying whose it is and how the results give it, then
+  it's left out. A loss ("lost 1-2 to"), whose order people write either way, isn't read.
+  - Replayed on 883 recorded drafts and answers: it flags only finding 34's two reversed records (volst against
+    Raydish and against antireplay, 2-1 where the results give 1-2), in both drafts. The first version of the owner
+    rule flagged five right records, from "A and B have a 2-1 record", "against A (2-2) and B (2-1)", "Winner: Raydish
+    (2-0)", "Impala dominates ... (2-1 record)" and the list lines. Each one shaped the rule above.
 
 ## Decisions
 
