@@ -120,7 +120,7 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - New: `rank_players(never_won)`, `player_sets` (one player's sets at an event or in a window), `dominant_wins` (the dominance rule, and `flawless`; q11's verified answer), and earnings named in "Choosing a tool" (q05).
   - The page's card is kept in the settling context, with the question it was shown beside, until a newer one; doubt in a page question ("are you sure? ... in the graphic") is a dispute about the card's figures (c8 turn 4). A question asking where a figure comes from keeps the page's note (`settling.DOUBTS` apart from the source cues).
   - c8 turns 3 and 5 check the window's rows (24 events together, 4 wins), so a right answer taken from the previous turn's results passes (the user's decision): the 2026-11-21 run rescores to 109 of 144 turns, from 103.
-- **Round six's reruns 1-3** (2026-11-21, at 2aecbc7, in the log): they don't look right, so the model comparison (qwen3:8b seeds 0-2, qwen3:14b and qwen3:30b seed 0, the 45 questions by id; `harness.py run --model`, f7aadf8) hasn't run.
+- **Round six's reruns 1-3** (2026-11-21, at 2aecbc7, in the log): they don't look right, so the model comparison didn't run then. The user had it run anyway, before the fixes (next bullet).
   - The conversations: 34 of 60 turns, from 37. The 13 questions: 35 of 39 runs pass the automatic stages, from 30. The audit: 27 of 48 turns, from 29, with six of its checks asking for `run_sql` where round six added templates.
   - Worked: q08 (3 of 3 by hand), a03, c15 turn 1, c8 turn 4 (2 of 3), and the new templates' audit answers (a14, a15, a34, a39). Every q05 run gives the top earners.
   - Not right:
@@ -129,6 +129,15 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
     - `dominant_wins` unnarrowed takes over 30 s with the agent's x64 Python (a35);
     - c8 turn 5's recheck made no call;
     - c15 turn 2 looked up "analyze" as an event.
+- **The model comparison** (2026-11-21, at 87ea61e, whose agent code is 2aecbc7's, in the log; asked for by the user before round six's fixes): qwen3:8b on seeds 0-2 and qwen3:14b and qwen3:30b on seed 0, the 45 questions by id and all 19 conversations at seed 0 (`--model` on `harness.py` and `conversations.py`, f7aadf8 and 87ea61e). Every seed-0 answer was drafted by hand ("needs review").
+  - The 45 questions, seed 0 by hand: qwen3:8b 36 right, 7 partly and 2 wrong; qwen3:14b 32, 6 and 7; qwen3:30b 36, 6 and 3. Automatic stages: 130 of 135 (8b), 44 and 42 of 45.
+  - The conversations at seed 0: 34, 38 and 37 of 48 turns. Counting the checks' misreadings as right: 34, 39 and 38.
+  - Model time per question: 18.4 s, 25.1 s and 17.6 s; per turn 24.1 s, 31.3 s and 19.2 s.
+  - `ollama ps`: 10.0, 14 and 21 GB, each at 100% GPU with a context of 32768, nomic-embed-text beside it, no reloads.
+  - qwen3:14b wrote the answer inside its thinking with an empty reply in 6 of 45 answers and one turn. The loop ends with no answer, though each thinking held a right one.
+  - qwen3:30b answered q15 from its training cutoff ("the data only goes up to 2025"): the prompt says when the data starts, not when it ends.
+  - The bigger models avoid qwen3:8b's records read from the wrong side (q23, q27, q40), its `mode` arguments that `head_to_head` and `team_results` refuse (17 calls, and a thinking loop to the output cap in c2 turn 2), and q44. No model avoids c19 turn 1's 5-set minimum (14b and 30b set it themselves), a recheck that makes no call (8b c8 t5, 14b c10 t2, 30b c8 t4-5), or c8 turn 2 read as the partnership. qwen3:14b still looks up "analyze" (c15 turn 2).
+  - Found in scoring: the conversation scorer's grounded check leaves out the page's card line, which the agent counts; `says_record` reads a list item without its lead-in; c19 turn 2's `calls_with` refuses a right `by="rate"` call.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -396,15 +405,13 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's decision on the fixes round six's reruns point to** (the log's 2026-11-21 entry, "round six's reruns, 1-3"):
-- `rank_pairs` with no minimum the question doesn't set;
-- the opponents' side's columns, and the record check's reading of them;
-- `dominant_wins` under 30 s;
-- a recheck that makes its calls;
-- request words like "analyze";
-- the audit's six `run_sql` checks.
+Next step: **the user's approval of the fixes the model comparison proposes** (the log's 2026-11-21 entry, "the model comparison"):
+- the tool and scoring fixes the user named: `rank_pairs`' minimum and empty-ranking note, the opponents' side's columns by role and the record check's side, `dominant_wins` under 30 s, the audit's six `run_sql` checks moved to the templates;
+- found in the comparison: `head_to_head` and `team_results` taking `mode`, the grounded check counting the card line, `says_record` reading a list item with its lead-in, c19 turn 2's `calls_with`;
+- the behavior fixes the bigger models still need: the recheck making its calls, and "analyze";
+- for the user to weigh: an empty reply sent back (14b only), the data's end date in the prompt (30b's q15), c8 turn 2's reading.
 
-Then the same three reruns, and the model comparison if they look right. The web app's servers share `data/rag/chroma`, so a run of a different example bank gets a store of its own (a worktree with its own `data/rag`), and a restart of the web app rebuilds its store. Time templates with the agent's x64 Python (`py -3.14`), which is slower than the ARM64 one.
+Then the reruns, and the choice of model. The web app's servers share `data/rag/chroma`, so a run of a different example bank gets a store of its own (a worktree with its own `data/rag`), and a restart of the web app rebuilds its store. Time templates with the agent's x64 Python (`py -3.14`), which is slower than the ARM64 one.
 - From the number check's measurement (2026-11-18), still open: whether the prompt's own facts count as claims (q36 seed 0's "from 2017"; seed 1's `top=1` is settled by fix 3, as inline code), the replacement's wording, stage 2 for a query that filters on a player without selecting it (q45 seed 0), and whether q15's and q44's gains hold in another run. From the held-out set's final measurement, still not acted on: long set lists misread (h04) and h13's Pro Series finals. The user's review of the drafted verdicts (`eval/results/202611*-judgments.toml`) is still pending.
 - Still open from before the templates: step 3 of the fixes, `resolve_event` leading with a cancelled or unreliable status, for `run_sql` questions; step 4's answer-check wording (q03), its worked example for a set's two players being ex29 now; step 5, an answer verifier replayed on the recorded runs first; and a `format` filter holding a mode in a COUNT, which no diagnosis catches (q44 seed 2 in step 2; h09 and h11 with retrieval off).
 - For the harness: draft the retrieval-off arm's 16 runs left (q14 seed 1 is automatic since the name fix) and read its 11 unread machine verdicts.

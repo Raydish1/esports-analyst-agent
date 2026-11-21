@@ -2,6 +2,126 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: the model comparison, qwen3:8b, qwen3:14b and qwen3:30b in the agent
+
+**What it asked.** Which failures does a bigger model not make? The user asked for it before round six's proposed
+fixes, since those bugs don't depend on the model and are mostly outside the 45 questions. The point was to know this
+before tuning further for qwen3:8b.
+
+**Setup.**
+- **The commit.** 87ea61e, whose agent code is 2aecbc7's, in a worktree with its own `data/rag`.
+- **The models.** Each ran with the other chat models unloaded, retrieval on, everything else as the agent has it
+  (`--model`):
+  - qwen3:8b on seeds 0-2: the regression check (`20261121-cmp-8b`);
+  - qwen3:14b and qwen3:30b (the 30B-A3B mixture of experts) on seed 0 (`20261121-cmp-14b`, `20261121-cmp-30b`).
+- **The questions.** The 45 questions, by id. Then all 19 conversations at seed 0 for each model
+  (`...-conversations`).
+- **`ollama ps`.** Sampled every minute into `data/experiments/<run>-ps.log`.
+- **The hand drafts.** Every seed-0 answer was read by hand, and q08, q40, q42 and q44 at qwen3:8b's other seeds.
+  They're in each run's judgments file as "needs review".
+
+**Results.**
+
+| | qwen3:8b | qwen3:14b | qwen3:30b |
+|---|---|---|---|
+| The 45 questions, automatic stages | 130 of 135 (43, 43, 44) | 44 of 45 | 42 of 45 |
+| By hand, seed 0: right, partly, wrong | 36, 7, 2 | 32, 6, 7 | 36, 6, 3 |
+| The 19 conversations, seed 0: turns passing every check | 34 of 48 | 38 of 48 | 37 of 48 |
+| The same, with the checks' misreadings counted right | 34 | 39 | 38 |
+| Model time per question (median) | 18.4 s (17.1) | 25.1 s (23.8) | 17.6 s (16.0) |
+| Model time per conversation turn (median) | 24.1 s (18.6) | 31.3 s (28.3) | 19.2 s (16.6) |
+| Output tokens per question; tokens a second | 1,311; 71 | 1,144; 46 | 1,761; 100 |
+| Tool calls refused (an argument a template doesn't take, a missing one, the player and scope checks) | 30 of 328, every seed | 10 of 164 | 2 of 156 |
+| `ollama ps` | 10.0 GB, 100% GPU | 14 GB, 100% GPU | 21 GB, 100% GPU |
+
+- **`ollama ps`.** Every model had a context of 32768, with nomic-embed-text (335 MB, 100% GPU) loaded beside it, and
+  no sample showed a reload or a CPU share. The largest context was 19,183 tokens. One step hit the 8,192-token output
+  cap, qwen3:8b's c2 turn 2.
+- **qwen3:14b's empty replies.**
+  - In 6 of its 45 answers and 1 conversation turn, it wrote the answer inside its thinking and left the reply empty,
+    so the loop ended with none: q01, q02, q20, q25, q33, q43 and c12 turn 3.
+  - The automatic stages pass these runs, so the hand drafts count them as "no answer".
+  - Each thinking held a right answer. Sent back once, 14b would likely be at 37-38 right.
+- **What qwen3:14b and qwen3:30b avoid**, among qwen3:8b's misses at seed 0:
+  - records read from the wrong side (q23's games, q27's set scores);
+  - the opponents' side's columns misread (q40: BBBalloonBoy's "4 losses" were Raydish's wins);
+  - a tool's note misread (q37: "crew battles not included");
+  - `head_to_head` for a placements question (q44: 8b is right in 1 of 3);
+  - and arguments the templates don't take. qwen3:8b passed `mode` to `head_to_head` or `team_results` 17 times,
+    which they refuse; in c2 turn 2 that sent it into a thinking loop to the output cap, with no answer. qwen3:14b
+    did it 3 times, qwen3:30b never.
+  - qwen3:30b alone avoids the missing figure taken as $0 (q45: "the higher recorded figure").
+- **What the bigger models miss that 8b doesn't**:
+  - qwen3:14b: the empty replies; invented Challengermode player links in q19; q39 narrowed to 1v1 itself, then "the
+    data only shows 1v1"; q05 without "only the players with a figure".
+  - qwen3:30b: half an event pair (q10's 2v2 bracket, q19's 2v2 winners, q12's earlier 2v2 top 8); "yüz" spelled
+    "yüx" and "ünl", which the answer check doesn't catch; and q15, where "EU Summers 2026 hasn't happened yet: the
+    data only goes up to 2025". That is its training cutoff: the prompt says the data starts in 2017, not when it
+    ends. The number check then left out the claim holding 2025, and the answer became the bare "Therefore, Zivai
+    could not have won it".
+- **Today's open failures, model by model** (questions and conversations, seed 0):
+
+| Open failure | qwen3:8b | qwen3:14b | qwen3:30b |
+|---|---|---|---|
+| "best record" with a 5-set minimum: c19 turn 1 | fails (`by="rate"`) | fails (`min_sets=5`, its own) | fails (`min_sets=5`, its own) |
+| c19 turn 2, "without the 5 set minimum" | fails | right | right (the check asks for `by="record"`) |
+| c16 turn 1 and c1 turn 2, the biggest records | both fail | both right | c16 right, c1 fails (`by="record"` for "like set/game count") |
+| The opponents' side misread (q40) | partly, wrong, right | right | right |
+| A recheck with no call | c8 turn 5 | c10 turn 2 | c8 turns 4 and 5 |
+| "analyze" looked up as an event (c15 turn 2) | right | fails | right |
+| q44, `head_to_head` for placements | 1 of 3 right | right | right |
+| c1 turn 5, no call for "in a graphic" | fails | right | right |
+| `dominant_wins` unnarrowed (a35) | not run (audit set) | not run | not run |
+
+- **Failures by mechanism**, the seed-0 questions not right and the conversation turns failing a check:
+
+| Mechanism | qwen3:8b | qwen3:14b | qwen3:30b |
+|---|---|---|---|
+| M1, reading the question | 3: c3 t2, c8 t2, c16 t1 | 3: c3 t1, c8 t2, q39 | 4: c1 t2, c4 t3, c6 t1, c8 t2 |
+| M2, the tools | 10: c1 t2, c1 t3, c2 t2, c4 t1, c12 t3, c19 t1, c19 t2, q40, q42, q44 | 3: c12 t3, c19 t1, q42 | 3: c19 t1, q20, q42 |
+| M3, facts the model makes | 6: q06, q23, q27, q34, q37, q45 | 6: c16 t2, c18 t1, q06, q19, q34, q45 | 3: q06, q15, q34 |
+| M4, the conversation | 3: c1 t5, c8 t5, c14 t2 | 3: c10 t2, c14 t2, c15 t2 | 3: c8 t4, c8 t5, c14 t2 |
+| M5, answer writing | 1: c11 t1 | 1: q05 | 6: c12 t1, c18 t1, q10, q12, q17, q19 |
+| No answer (empty reply) | 0 | 6 | 0 |
+| The checks' misreadings | 0 | 1: c14 t1 (and c14 t2's grounded, a turn that fails a real check too) | 1: c19 t2 |
+| All | 23 | 23 | 20 |
+
+  - M1 common to all three: c8 turn 2, "what about cody travis and phazon?" after a ranking, read as their
+    partnership instead of their place in the ranking. "X's record with Y" and "X and Y's record" are read as
+    partners by 14b (c3 turn 1) and 30b (c6 turn 1).
+- **The checks' misreadings, found here.**
+  - The conversation scorer's grounded check leaves out the page's card line, which the agent counts as evidence
+    (`Conversation.shown`). Counting it changes one turn in the recorded runs, 14b's c14 turn 2 ("51" from the
+    card).
+  - `says_record` reads a list item without the line that introduces it. Reading it with that line passes three
+    right records it now fails, all c14 turn 1: 14b seed 0, and seed 2 of `20261121-conversations` and of
+    `20261121-r6-conversations`.
+  - c19 turn 2's `calls_with` asks for `by="record"`, but 30b's `by="rate"` with `min_sets=1` gives woolala 3-0,
+    the right answer.
+  - c18 turn 1 asks for 28, the third pair, which an answer naming only the tied top two leaves out.
+- **The checks that fired**, per question run: the no-tool check in 10%, 7% and 4%; the number check sent back 4%,
+  4% and 4%. The scope check refused 1, 1 and 0 calls.
+
+**What it decided.** Nothing yet: the fixes are for the user to approve. The bigger models avoid most of qwen3:8b's
+misreadings of records and tools, but no model fixes the "best record" minimum, the recheck with no call, or c8 turn
+2's reading. qwen3:14b's empty replies cost it more than it gains. qwen3:30b is the fastest per question, with the most
+right on its seed alongside qwen3:8b's. The proposals:
+1. The tool and scoring fixes the user named: `rank_pairs`' minimum and its empty-ranking note; the opponents'
+   side's columns by role and the record check's side; `dominant_wins` under 30 s; the audit's six `run_sql` checks
+   moved to the templates.
+2. Found here, model-independent:
+   - `head_to_head` and `team_results` take `mode`;
+   - the scorer's grounded check counts the card line;
+   - `says_record` reads a list item with its lead-in;
+   - c19 turn 2's `calls_with` accepts the `by="rate"` call.
+3. The behavior fixes the bigger models still need:
+   - the recheck making its calls (14b and 30b);
+   - "analyze" (14b).
+4. Found here, for the user to weigh:
+   - an empty reply with an answer in its thinking goes back once (14b only);
+   - the prompt saying when the data ends (30b's q15);
+   - c8 turn 2's reading, which every model misses.
+
 ## 2026-11-21: round six's reruns, 1-3
 
 **What it asked.** Do round six's seven fixes work with the model, and do the controls hold? These are reruns 1-3 of

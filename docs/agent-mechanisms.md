@@ -398,9 +398,14 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 ## Waiting on the user
 
-- The fixes from round six's reruns 1-3 (2026-11-21, in the log): they don't look right, so the model comparison
-  waits. Five failures were found: "best record" read with a 5-set minimum, the opponents' side misread and its
-  records sent back, `dominant_wins` over 30 s unnarrowed, c8 turn 5's recheck with no call, and "analyze" looked up.
+- The fixes from round six's reruns 1-3 and the model comparison (2026-11-21, both in the log). The user had the
+  comparison run before the fixes, to see which failures a bigger model doesn't make. It found:
+  - none of the three models avoids c19 turn 1's 5-set minimum, a recheck that makes no call, or c8 turn 2's reading;
+  - qwen3:14b and qwen3:30b avoid qwen3:8b's records read from the wrong side and its `mode` arguments;
+  - qwen3:14b's empty replies (the answer in its thinking);
+  - qwen3:30b's answer from its training cutoff (q15);
+  - three of the conversation scorer's misreadings.
+  The proposals wait for the user's approval.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
@@ -425,8 +430,9 @@ point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured
 
 ### Round six's reruns
 
-Reruns 1-3 ran on 2026-11-21 at 2aecbc7. They don't look right (in the log), so neither rerun 4 nor the model
-comparison that was to replace it has run.
+Reruns 1-3 ran on 2026-11-21 at 2aecbc7. They don't look right (in the log), so rerun 4 hasn't run. The user had
+the model comparison that was to replace it run anyway at the same agent code, before the fixes (in the log, "the
+model comparison").
 
 Each runs at the latest commit, seeds 0-2, in a worktree with its own `data/rag`, since the example bank changed
 (ex23). The minutes are estimated from the 2026-11-21 runs' pace.
