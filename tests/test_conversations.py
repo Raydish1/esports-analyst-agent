@@ -33,6 +33,21 @@ def checked(turn, **spec):
     return {name: c["passed"] for name, c in score_turn(turn, spec).items()}
 
 
+class CallsWithTest(unittest.TestCase):
+    def test_a_call_that_ran_must_match_one_of_the_wanted_calls(self):
+        ranked = call("rank_players", {"by": "wins", "mode": "1v1", "since": "2025-10-01"}, {"template": "rank_players"})
+        turn = Turn(trace("who is the strongest 1v1 player right now", "Zivai.", ranked), None, NAMES)
+        wanted = [{"tool": "power_rankings"}, {"tool": "rank_players", "mode": "1v1", "since": "*"}]
+        self.assertEqual(checked(turn, grounded=False, calls_with=wanted)["calls_with"], True)
+        bare = call("rank_players", {"by": "wins"}, {"template": "rank_players"})  # finding 29's call
+        turn = Turn(trace("who is the strongest 1v1 player right now", "Zivai.", bare), None, NAMES)
+        passed, detail = conversations.CHECKS["calls_with"](turn, wanted)
+        self.assertEqual((passed, detail), (False, "no call matches power_rankings() or rank_players(mode=1v1, since=*)"))
+        refused = call("power_rankings", {}, {"error": "x"}, scope=["names 1v1"])
+        turn = Turn(trace("q", "a", refused), None, NAMES)
+        self.assertFalse(checked(turn, grounded=False, calls_with=wanted)["calls_with"])  # a refused call didn't run
+
+
 class SetTest(unittest.TestCase):
     def test_the_set_has_no_problems(self):
         self.assertEqual(conversations.problems(conversations.load()), [])

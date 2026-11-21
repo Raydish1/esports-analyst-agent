@@ -218,6 +218,24 @@ def says_record(turn, spec):
     return False, f"no sentence about {' or '.join(map(repr, spec['about']))} states {a}-{b}"
 
 
+def called_with(turn, wanted):
+    """Whether a call of the turn that ran matches one of the wanted calls, each {tool, argument: value}: a value
+    matches as written (any case), "*" matches any value given, and "-" an argument left out. For a scope the calls
+    must carry, such as a mode or a time window, or one they must not, such as a top (decided 2026-11-20, the question
+    audit)."""
+    def matches(call, want):
+        arguments = react.parsed(call["arguments"])
+        given = {k: arguments.get(k) not in (None, "") for k in want}
+        return call["name"] == want["tool"] and all(
+            given[k] if v == "*" else not given[k] if v == "-" else str(arguments.get(k, "")).casefold() == str(v).casefold()
+            for k, v in want.items() if k != "tool")
+    calls = [c for step in turn.trace["steps"] for c in step["tool_calls"] if ran(c)]
+    if any(matches(c, w) for c in calls for w in wanted):
+        return True, ""
+    return False, "no call matches " + " or ".join(
+        w["tool"] + "(" + ", ".join(f"{k}={v}" for k, v in w.items() if k != "tool") + ")" for w in wanted)
+
+
 CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what each checks is in conversations.toml
     "rows": lambda t, ps: (lambda bad: (not bad, f"no row holds {bad}" if bad else ""))(held(t, ps)),
     "rows_any": lambda t, ps: (len(held(t, ps)) < len(ps), "no row holds any of them"),
@@ -228,6 +246,7 @@ CHECKS = {  # name -> (turn, the value in the set) -> (passed, detail): what eac
     "not_calls": lambda t, names: (lambda bad: (not bad, f"called {', '.join(bad)}" if bad else ""))(
         [n for n in names if n in harness.tool_calls(t.trace)]),
     "not_looked_up": not_looked_up,
+    "calls_with": called_with,
     "players": lambda t, ids: (lambda bad: (not bad, f"didn't use {bad}" if bad else ""))(
         [i for i in ids if i not in t.used]),
     "not_players": lambda t, ids: (lambda bad: (not bad, f"used {bad}" if bad else ""))([i for i in ids if i in t.used]),
