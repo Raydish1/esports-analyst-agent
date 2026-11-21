@@ -216,7 +216,9 @@ Answering
   included: never answer from memory.
 - When the user asks whether an answer was right ("are you sure", "why did you say"), check it again with the tools,
   then say plainly whether it was right: never defend it, or explain it away, from memory.
-- A note "[The page showed beside this answer: ...]" is what the user saw beside an answer, such as its stat cards.
+- A message "[The page showed the user beside the answer above: ...]" is from the page, not the user: what the user
+  saw beside that answer, such as its stat cards. Answer a question about it from it, and never write such a note
+  yourself.
 - Run every query the answer needs yourself: never tell the user to query the data, a view or a table, or that
   further analysis would be needed.
 - Report results as the data has them. Call a result wrong (an anomaly, an error, a conflict) only where a tool result
@@ -284,6 +286,11 @@ NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
           " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
+# What the page showed beside an answer, in a message of its own after it (Conversation.shown), and any copy of the
+# tag in an answer, which is taken out: live, an answer ended with such a tag it wrote itself, as the answers in its
+# history ended with one (docs/web-app-testing-notes.md, finding 21)
+PAGE_NOTE = "[The page showed the user beside the answer above: {summary}]"
+PAGE_TAG = re.compile(r"\s*\[The page showed\b[^\]]*\]", re.I)
 NOT_CONFIRMED = "I couldn't confirm this from the data, so I won't guess."  # when leaving claims out leaves no fact
 FACT_KINDS = {"number", "word", "ordinal", "record", "date", "datetime", "month", "day", "time", "money", "percent"}
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
@@ -860,6 +867,11 @@ def scoped(lacks):
             " step of a question about several things, make the same call again unchanged and it runs.")
 
 
+def is_page_note(message):
+    """Whether a history message is what the page showed beside an answer (PAGE_NOTE)."""
+    return message.get("role") == "user" and str(message.get("content", "")).startswith(PAGE_NOTE.split("{")[0])
+
+
 def claimed_wrong(found):
     """The claim check's message (claim_check.py): what the answer claims that no tool does, and what to do instead."""
     parts = []
@@ -944,8 +956,9 @@ class Conversation:
 
     def ask(self, question):
         """Answer a question (turn), and keep it in the conversation with its answer."""
-        if self.previous:
-            self.earlier += [self.previous[0], self.previous[-1]]
+        if self.previous:  # its question and answer, and what the page showed beside the answer
+            answer = next(m for m in reversed(self.previous) if m["role"] == "assistant")
+            self.earlier += [self.previous[0], answer, *[m for m in self.previous if is_page_note(m)]]
         settled = self.settle(question)
         found = self.examples(settled.retrieve)
         self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(settled.text, found)}]
@@ -964,16 +977,19 @@ class Conversation:
         which never sees the cards, invented where they came from (docs/web-app-testing-notes.md, finding 9).
         Call it after ask() returns and the page has built what it shows, before the next ask(); not at all when it
         shows nothing. A second call adds a second line.
-        - The history: the last answer's message gains "[The page showed beside this answer: <summary>]", and keeps
-          it as the conversation goes on, so a later question can refer to what the user saw.
+        - The history: a message of its own after the answer, from the user's side, "[The page showed the user
+          beside the answer above: <summary>]" (PAGE_NOTE), kept with that answer as the conversation goes on, so a
+          later question can refer to what the user saw. Not in the answer's own message: live, an answer copied the
+          tag its history's answers ended with (finding 21). A final answer has any such tag taken out (PAGE_TAG).
         - The evidence: the summary counts as the last question's tool results do, for the next question's answer
           (the number check's window, and the words in view): each sentence or clause of it is a row of its own, so a
           record needs both its numbers in one clause.
         - The trace ask() returned gets it as `shown`."""
         summary = " ".join(str(summary).split())
-        if not summary or not self.current or self.current[-1]["role"] != "assistant":
+        if not summary or not self.current or not (self.current[-1]["role"] == "assistant"
+                                                   or is_page_note(self.current[-1])):
             return
-        self.current[-1]["content"] += f"\n\n[The page showed beside this answer: {summary}]"
+        self.current.append({"role": "user", "content": PAGE_NOTE.format(summary=summary)})
         self.view.read(summary)
         self.view.seen_now |= mentions.seen([summary])
         for part in re.split(r"(?<=[.;:])\s+", summary):
@@ -1101,6 +1117,10 @@ class Conversation:
             trace["steps"].append(step)
             log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
             if not calls:
+                if PAGE_TAG.search(content):  # the page's note, copied: it's the page's, not the answer's
+                    content = PAGE_TAG.sub("", content).strip()
+                    step["page_tag_removed"] = True
+                    log("  the page's note, copied into the answer, was taken out")
                 outcome = ending(content, step["done_reason"])
                 swaps, pairings = [], []
                 if outcome == "answered" and sent_back and is_meta(content, *sent_back[::2]):

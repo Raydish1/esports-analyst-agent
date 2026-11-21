@@ -691,18 +691,28 @@ class LoopTest(Fixture):
 
     def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
-                       reply("The card shows 4 wins."))
+                       reply("The card shows 4 wins."), reply("You're welcome."))
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
         first = conversation.ask("how many results has raydish")
         conversation.shown("Card: Raydish, lifetime at official events: 6 results, 4 wins.")  # as the web app gives it
         self.assertEqual(first["shown"], "Card: Raydish, lifetime at official events: 6 results, 4 wins.")
-        self.assertEqual(conversation.current[-1]["content"], "Raydish has 6 official results.\n\n[The page showed beside"
-                                                              " this answer: Card: Raydish, lifetime at official events: 6"
-                                                              " results, 4 wins.]")
+        note = {"role": "user", "content": "[The page showed the user beside the answer above: Card: Raydish, lifetime at"
+                                           " official events: 6 results, 4 wins.]"}
+        self.assertEqual(conversation.current[-2:], [{"role": "assistant", "content": "Raydish has 6 official results."},
+                                                     note])  # its own message, not the answer's (finding 21)
         trace = conversation.ask("what did the card say about his wins")  # 4 is the card's, so it stands
         self.assertEqual((trace["answer"], trace["unconfirmed"]), ("The card shows 4 wins.", []))
-        self.assertEqual(ask.sent[2][-2], {"role": "assistant", "content": conversation.previous[-1]["content"]})
-        self.assertIn("[The page showed beside this answer: Card: Raydish", ask.sent[2][-2]["content"])  # the model reads it
+        self.assertEqual(ask.sent[2][-3:-1], [{"role": "assistant", "content": "Raydish has 6 official results."}, note])
+        conversation.ask("thanks")  # older turns keep their question, answer and the page's note
+        self.assertEqual(conversation.earlier[:3], [{"role": "user", "content": "how many results has raydish"},
+                                                    {"role": "assistant", "content": "Raydish has 6 official results."},
+                                                    note])
+
+    def test_a_copy_of_the_pages_note_is_taken_out_of_an_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),
+                       reply("Raydish has 6 official results.\n\n[The page showed beside this answer: Raydish's 6 results]"))
+        trace = react.run("how many results has raydish", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["steps"][1]["page_tag_removed"]), ("Raydish has 6 official results.", True))
 
     def test_a_card_figure_about_another_mode_goes_back_saying_whose_it_is(self):
         lookup = reply(calls=[("resolve_player", {"name": "raydish"})])

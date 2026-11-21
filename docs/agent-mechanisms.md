@@ -158,7 +158,12 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
 
 ## M4: the conversation
 
-Status: not built yet.
+- **The page's note in a message of its own** (finding 21). `Conversation.shown(summary)` adds a user-role message
+  after the answer: "[The page showed the user beside the answer above: ...]". It used to append the tag to the
+  answer's own message, so the history showed answers ending in such a tag, and the model copied it. The history
+  keeps the note with its turn after the turn moves to the older ones. A final answer has any copy of the tag taken
+  out, which the trace marks (`page_tag_removed`). The prompt says such a message is the page's, to answer from and
+  never to write. The web app's call is unchanged.
 
 ## Decisions
 
