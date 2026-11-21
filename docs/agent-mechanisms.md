@@ -134,7 +134,27 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
 
 ## M1: reading the question
 
-Status: not built yet.
+- **The general rule for open words**, a prompt section "Reading the question". A word the question leaves open
+  (best, strongest, top, greatest, most successful, right now, recently) gets the reading the data supports best,
+  passed in the calls. The answer says which reading it took ("by official 1v1 wins since 2025-10-01", "by the official
+  Power Rankings of 2026-10-02"). A defined word keeps its definition. Words about the present never mean all time:
+  they read as the Power Rankings or a recent window, and the answer says which. No current-form word has a
+  definition of its own, since that is the user's to decide.
+- **The scope check** (`agent/scope.py`), before each template call runs. It reads the scope words from what the
+  user wrote, or, for a reply to suggestions, from the question that reply answers. It reads one mode, a year
+  standing alone, a window (since, after, before, until, between), a region and the present. A call that could take a
+  word but leaves it out is refused with what to pass. An event argument that names it counts ("winters 2023 na
+  1v1").
+  - Cautious choices. A year next to a word of official event names ("bcx 2022") is the event's, so "did the winner
+    of bcx 2022 win worlds" doesn't push 2022 into the worlds lookup. A question naming both modes has no mode. A
+    template that can't take a word isn't checked for it: `head_to_head` takes no mode, and `power_rankings` is the
+    present itself. Events aren't checked, since they reach the calls already.
+  - A refused call made again unchanged runs. The words may not apply to one step of a question about several
+    things, and the error says so. `run_sql` isn't checked, since a query may be one step that needs no mode.
+  - Replayed on the 545 recorded template calls: 1 would have been refused, finding 29's
+    `rank_players(by="wins", top=5)` for "the strongest 1v1 player right now". No false refusals.
+- **Finding 26** ("best placement" asked as `top=1`) is covered from two sides. The prompt and the description say a
+  best placement is `player_results` with no `top`, and the template lists where it was (M3).
 
 ## M4: the conversation
 

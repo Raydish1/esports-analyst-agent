@@ -57,6 +57,7 @@ import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
 import claim_check  # noqa: E402
 import mentions  # noqa: E402
+import scope  # noqa: E402
 import settling  # noqa: E402
 from number_check import Claim, Evidence, Window, claims as number_claims, left_out, stated, without  # noqa: E402
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
@@ -94,6 +95,16 @@ Choosing a tool
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
 - For anything else (records against a player, the last event entered, sets at an event, dominance, earnings), use
   run_sql, with resolve_event for an event's name.
+
+Reading the question
+- Pass the question's scope to every call it applies to: its mode (1v1 or 2v2), a year, a time window (since,
+  until) and a region. A template call that leaves out one the question names isn't run, and its error says why.
+- A word the question leaves open (best, strongest, top, greatest, most successful, right now, recently): take the
+  reading the data supports best, pass it in the calls, and say in the answer which reading you took, such as "by
+  official 1v1 wins since 2025-10-01" or "by the official Power Rankings of 2026-10-02". A word with a definition
+  keeps it: a major is an official event, a medal a 1st, 2nd or 3rd place.
+- Words about the present (right now, currently, these days, lately) never mean all time: read them as the official
+  Power Rankings (power_rankings) or as results in a recent window (since), and say which.
 
 Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
@@ -842,6 +853,13 @@ def numbers_message(flagged):
     return f"{message} It also states {other}, {MISATTRIBUTED}" if other else message
 
 
+def scoped(lacks):
+    """The scope check's error (scope.py): what the question names that the call leaves out, and what to pass."""
+    return (f"This call wasn't run: the question {listed([said for said, _ in lacks])}, and the call leaves it out."
+            f" Pass {listed([fix for _, fix in lacks])}. If the question's words don't apply to this call, as in one"
+            " step of a question about several things, make the same call again unchanged and it runs.")
+
+
 def claimed_wrong(found):
     """The claim check's message (claim_check.py): what the answer claims that no tool does, and what to do instead."""
     parts = []
@@ -1063,6 +1081,9 @@ class Conversation:
                  if out.get("status") == "confident" for c in out["candidates"][:1]}
         shared_names = [text for text, out in found if shared(out)]
         given = {int(n) for n in re.findall(r"-?\d+", question)}  # a note's player_id, or one the user writes
+        # the question's scope words, from what the user wrote, or from the question a choice from suggestions answers
+        wanted = scope.scope(question if settled and settled.chosen else said or question, self.tools.events)
+        rescoped = set()  # the calls the scope check refused, which run when the model makes them again unchanged
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
@@ -1288,11 +1309,16 @@ class Conversation:
                 query = parsed(arguments).get("query")
                 filters = name_filters(query) if name == "run_sql" and isinstance(query, str) else []
                 mixed = mixed_conditions(query) if name == "run_sql" and isinstance(query, str) else []
+                given_args = parsed(arguments)
+                key = (name, json.dumps(given_args, sort_keys=True, ensure_ascii=False))
+                lacks = (scope.lacking(wanted, name, given_args, TEMPLATES[name].parameters, self.tools.events)
+                         if name in TEMPLATES and key not in rescoped else [])
+                rescoped |= {key} if lacks else set()
                 observation = ({"error": unreturned_players(unknown)} if unknown else
                                {"error": unnamed_players(unnamed, named, shared_names, self.tools.resolver)} if unnamed else
                                {"error": looked_up_by_name(filters)} if filters else
                                {"error": AND_OR.format(clauses=listed(mixed) + (" mixes" if len(mixed) == 1 else " mix"))}
-                               if mixed else self.call(name, arguments))
+                               if mixed else {"error": scoped(lacks)} if lacks else self.call(name, arguments))
                 refused = unknown or unnamed or filters
                 seconds = time.monotonic() - begun
                 ran = observation.pop("ran", None)  # the SQL a template executed: for the trace, not for the model
@@ -1310,7 +1336,9 @@ class Conversation:
                                            **({"unnamed_players": unnamed} if unnamed else {}),
                                            **({"name_filters": filters} if filters and not unknown and not unnamed
                                               else {}),
-                                           **({"and_or": mixed} if mixed and not refused else {})})
+                                           **({"and_or": mixed} if mixed and not refused else {}),
+                                           **({"scope": [said for said, _ in lacks]}
+                                              if lacks and not refused and not mixed else {})})
                 self.current.append({"role": "tool", "tool_name": name, "content": text})
                 log(f"    {name}({short(json.dumps(arguments, ensure_ascii=False), 160)}) -> {short(text, 200)}")
             if asked:
