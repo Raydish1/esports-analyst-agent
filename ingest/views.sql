@@ -177,6 +177,8 @@ CREATE VIEW v_head_to_head_1v1 AS
 --   games_won and games_lost count scored sets only. unscored_matches counts those with no game score,
 --   so a game-based figure built on them is flagged.
 --   When ranking records against someone, name the metric and any minimum number of matches.
+--   For one player or one pair at a time, filtered by a literal player_id: over every player it takes more than
+--   a minute. The pairs with the most sets between them come from v_sets_1v1 (MIN and MAX of the two IDs).
 SELECT a.player_id, b.player_id AS opponent_id,
        SUM(a.won) AS wins, SUM(1 - a.won) AS losses, COUNT(*) AS matches,
        SUM(a.games_won) AS games_won, SUM(a.games_lost) AS games_lost,

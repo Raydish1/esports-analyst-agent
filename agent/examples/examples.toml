@@ -457,6 +457,8 @@ id = "ex32"
 shape = "most_played_pair"
 question = "Which two players have played each other the most in 1v1?"
 note = "Count the 1v1 sets between each pair once: v_sets_1v1 has one row per set, and MIN and MAX of the two IDs name the pair whichever won. Order by the count, then name both players."
+call = 'rank_pairs()'
+call_note = "The pairs with the most 1v1 sets between them, each pair once, with each one's wins and every tie included. Never v_head_to_head_1v1 for this: over every player it takes more than a minute."
 sql = '''
 WITH pairs AS (
   SELECT MIN(winner_id, loser_id) AS player_id, MAX(winner_id, loser_id) AS opponent_id, COUNT(*) AS sets,

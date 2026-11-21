@@ -109,6 +109,19 @@ The general gaps are a time window, a region, ranked pairs and the Power Ranking
   region. On eval-v1 the counts are NA 141 events, EU 144, SA 80, SEA 83, AUS 55, MENA 18, BRZ 11 and JPN 1. Qualifiers
   are included. Region means where an event was held, not where a player is from. For players by region, the Power
   Rankings are the source.
+- **Ranked pairs** (`rank_pairs`, for finding 28 and audit kinds 10 and 11). It ranks each pair once, every tie
+  included. With `of="opponents"`, the default, it ranks the pairs with the most 1v1 sets between them, with each
+  one's wins. With `player_id`, it gives that player's most-played opponents, in 1v1 or, with mode 2v2, in 2v2
+  meetings. With `of="teammates"`, it ranks partners by events, wins, medals or top 8s together. It takes the year, the
+  window, the region and the event.
+  - On eval-v1: SiB | Wess and lFiend, and yüz and whoiskyna, share the most 1v1 sets (34), in 12 s. megD's most-played
+    opponent is luna, 18 sets (megD 6-12), in 0.3 s; the 2026-11-19 log had no tool for that. The best duo by wins
+    is acno? and Blaze (21), in 3.8 s.
+  - Decided: 2v2 meetings are ranked for one player only. Over every player they take 92 s, and 84 s within one
+    year, because `v_match_results` counts each side's players row by row, which is over `run_sql`'s 30 s. The call
+    is refused with the reason. A fast 2v2 sets view in the next build would lift this.
+  - The prompt and `ingest/views.sql` now say the head-to-head views are for one player or one pair at a time. ex32
+    shows the call (`rank_pairs()`) in place of its SQL.
 
 ## M1: reading the question
 

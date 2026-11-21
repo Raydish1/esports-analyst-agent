@@ -251,6 +251,33 @@ class RegionTest(Fixture):
         self.assertEqual(self.call("rank_players", by="wins", region="all")["scope"], "official events, 1v1 and 2v2")
 
 
+class RankPairsTest(Fixture):
+    def test_opponents_are_ranked_by_the_sets_between_them_each_pair_once_with_each_ones_wins(self):
+        out = self.call("rank_pairs")  # finding 28: the biggest head-to-head, which only hand-written SQL answered
+        self.assertEqual(self.rows(out, "pairs of opponents, the most sets first"), [
+            [1, "A", A, "B", B, 3, 3, 0], [2, "A", A, "C", C, 1, 0, 1], [2, "A", A, "D", D, 1, 1, 0],
+            [2, "B", B, "C", C, 1, 1, 0], [2, "C", C, "D", D, 1, 1, 0]])
+        self.assertIn("Pairs on the same rank are tied: give them the same place.", out["notes"])
+        mine = self.call("rank_pairs", of="rivals", player_id=A, top=1)  # live: megD's most-played opponent
+        self.assertEqual(self.rows(mine, "A's opponents"), [[1, "A", A, "B", B, 3, 3, 0]])
+        met = self.call("rank_pairs", player_id=A, mode="2v2")
+        self.assertEqual(self.rows(met, "A's opponents, the most meetings first"),
+                         [[1, "A", A, "C", C, 1, 1, 0], [1, "A", A, "D", D, 1, 1, 0]])
+
+    def test_teammates_are_ranked_by_their_results_together(self):
+        out = self.call("rank_pairs", of="partners")
+        self.assertEqual(self.rows(out, "pairs of teammates, the most events together first"),
+                         [[1, "A", A, "B", B, 2, 1, 2, 2], [2, "C", C, "D", D, 1, 0, 1, 1]])
+        self.assertEqual(self.rows(self.call("rank_pairs", of="teammates", by="wins", top=1), "pairs of teammates"),
+                         [[1, "A", A, "B", B, 2, 1, 2, 2]])
+
+    def test_what_it_cant_rank_is_refused_with_the_reason(self):
+        self.assertIn("2v2 opponents are ranked for one player only", self.call("rank_pairs", mode="2v2")["error"])
+        self.assertIn("of is 'opponents' or 'teammates'", self.call("rank_pairs", of="enemies")["error"])
+        self.assertIn("teammates play 2v2 together", self.call("rank_pairs", of="teammates", mode="1v1")["error"])
+        self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="wins")["error"])
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)

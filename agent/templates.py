@@ -736,6 +736,114 @@ def rank_players(query, tools, by, top=5, mode=None, year=None, event=None, sinc
               ["rank", "player", "player_id", *counts], listed)], query.ran, event=found and found.about)
 
 
+# rank_pairs
+
+PAIR_WORDS = {"opponents": {"opponents", "opponent", "rivals", "rival", "rivalries", "rivalry", "matchups", "versus", "vs"},
+              "teammates": {"teammates", "teammate", "partners", "partner", "teams", "team", "duos", "duo"}}
+PAIR_BY = {"events": "COUNT(*)", "wins": "SUM(t.placement = 1)", "medals": "SUM(t.placement <= 3)",
+           "top8s": "SUM(t.placement <= 8)"}  # what teammates are ranked by; opponents by the sets between them
+
+
+def one_of(value):
+    """An of argument as 'opponents' or 'teammates', as a model may write them ('rivals', 'partners')."""
+    word = re.sub(r"[^a-z]", "", value.lower()) if isinstance(value, str) else ""
+    of = next((of for of, words in PAIR_WORDS.items() if word in words), None)
+    if of is None:
+        raise Refused(f"of is 'opponents' or 'teammates', not {value!r}")
+    return of
+
+
+def ties(rows):
+    """Ranked rows (rank first) as (listed, left): whole tie groups, past RANKED_AT_MOST rows counted, not listed."""
+    listed, left = [], []
+    for members in tie_groups(rows):
+        if left or len(listed) + len(members) > RANKED_AT_MOST:
+            left.append(members)
+        else:
+            listed += members
+    return listed, left
+
+
+def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_id=None, year=None, since=None,
+               until=None, event=None, region=None):
+    """Pairs of players ranked: opponents by the 1v1 sets between them, or for one player their 2v2 meetings too;
+    teammates by their 2v2 events, wins, medals or top 8s together. Each pair once, every tie included."""
+    of, top = one_of(of), whole(top, "top")
+    narrow = narrowing(tools, year, since, until, event, region)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("rank_pairs", narrow.found, query)
+    player, name, given = person(tools, player_id) if player_id is not None else (None, None, None)
+    notes = ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
+    if given != player:
+        notes.append(merged(given, player, name))
+    if of == "opponents":
+        mode = "1v1" if mode is None else one_mode(mode)
+        if by is not None and str(by).strip().lower() not in ("sets", "meetings", "matches", "played", "most"):
+            raise Refused(f"opponents are ranked by the sets between them, not {by!r}: leave by out")
+        if mode == "2v2" and player is None:
+            raise Refused("2v2 opponents are ranked for one player only: give player_id. Over every player the 2v2"
+                          " meetings take more than a minute; for the most-played pairs overall, use mode 1v1")
+        within = "".join(f" AND {c}" for c in narrow.where("s"))
+        if player is None:
+            ranked = (f"WITH pairs AS (SELECT MIN(s.winner_id, s.loser_id) AS a, MAX(s.winner_id, s.loser_id) AS b,"
+                      f" COUNT(*) AS n, SUM(s.winner_id < s.loser_id) AS a_wins FROM v_sets_1v1 s WHERE 1{within}"
+                      " GROUP BY 1, 2)")
+        elif mode == "1v1":
+            ranked = (f"WITH sides AS (SELECT s.loser_id AS b, 1 AS won FROM v_sets_1v1 s WHERE s.winner_id = {player}"
+                      f"{within} UNION ALL SELECT s.winner_id, 0 FROM v_sets_1v1 s WHERE s.loser_id = {player}{within}),"
+                      f" pairs AS (SELECT {player} AS a, b, COUNT(*) AS n, SUM(won) AS a_wins FROM sides GROUP BY b)")
+        else:
+            met = "".join(f" AND {c}" for c in narrow.where("m"))
+            ranked = ("WITH pairs AS (SELECT m.player_id AS a, o.player_id AS b, COUNT(*) AS n, SUM(m.won) AS a_wins"
+                      " FROM v_match_results m JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side"
+                      f" WHERE m.player_id = {player} AND m.mode = '2v2'{met} GROUP BY 2)")
+        rows = query.rows(
+            f"{ranked}, ranked AS (SELECT *, RANK() OVER (ORDER BY n DESC) AS rank FROM pairs)"
+            " SELECT ranked.rank, pa.name, ranked.a, pb.name, ranked.b, ranked.n, ranked.a_wins, ranked.n - ranked.a_wins"
+            " FROM ranked JOIN players pa ON pa.player_id = ranked.a JOIN players pb ON pb.player_id = ranked.b"
+            f" WHERE ranked.rank <= {top} ORDER BY ranked.rank, pa.name, pb.name")
+        what = "sets" if mode == "1v1" else "meetings"
+        columns = ["rank", "player", "player_id", "opponent", "opponent_id", what, "player_wins", "opponent_wins"]
+        title = (f"{name}'s opponents, the most {what} first" if player else "pairs of opponents, the most sets first")
+        notes.append("Each pair is on one row, with each player's wins in their 1v1 sets against the other; DQs, forfeits"
+                     " and ties are left out." if mode == "1v1" else
+                     f"A meeting is a 2v2 set with {name} and the other player on opposite teams; player_wins are"
+                     f" {name}'s side's wins.")
+        scope = ", ".join([SETS_SCOPE if mode == "1v1" else f"{SCOPE}, 2v2 sets", *narrow.said])
+    else:
+        if mode is not None and one_mode(mode) != "2v2":
+            raise Refused("teammates play 2v2 together: leave mode out")
+        by = "events" if by is None else re.sub(r"[^a-z0-9]", "", str(by).lower()).replace("top8", "top8s").replace(
+            "top8ss", "top8s")
+        if by not in PAIR_BY:
+            raise Refused(f"teammates are ranked by events, wins, medals or top8s, not {by!r}")
+        where = ([f"t.player_id = {player}"] if player else ["t.player_id < t.partner_id"]) + narrow.where("t")
+        rows = query.rows(
+            "WITH pairs AS (SELECT t.player_id AS a, t.partner_id AS b, " + ", ".join(
+                f"{sql} AS {column}" for column, sql in PAIR_BY.items()) +
+            f" FROM v_team_results t WHERE {' AND '.join(where)} GROUP BY 1, 2),"
+            f" ranked AS (SELECT *, RANK() OVER (ORDER BY {by} DESC) AS rank FROM pairs)"
+            " SELECT ranked.rank, pa.name, ranked.a, pb.name, ranked.b, events, wins, medals, top8s FROM ranked"
+            " JOIN players pa ON pa.player_id = ranked.a JOIN players pb ON pb.player_id = ranked.b"
+            f" WHERE ranked.rank <= {top} ORDER BY ranked.rank, pa.name, pb.name")
+        columns = ["rank", "player", "player_id", "partner", "partner_id", "events", "wins", "medals", "top8s"]
+        title = f"{name}'s partners" if player else f"pairs of teammates, the most {by} together first"
+        notes.append("Each pair is on one row, with their 2v2 results together: events, wins (1st places), medals (top"
+                     " 3) and top 8s.")
+        scope = ", ".join([f"{SCOPE}, 2v2", *narrow.said])
+    listed, left = ties(rows)
+    if not rows:
+        notes.append(f"No pair has any here ({scope}), so the ranking is empty.")
+    if left:
+        notes.append(f"Past {RANKED_AT_MOST} rows a tie isn't split, so {sum(len(g) for g in left)} more pairs are"
+                     " counted but not listed: ask for fewer ranks, or narrow the question.")
+    if len({row[0] for row in listed}) < len(listed):
+        notes.append("Pairs on the same rank are tied: give them the same place.")
+    return observation("rank_pairs", scope, notes, [table(f"{title}, everyone ranked {ordinal(top)} or better", columns,
+                                                          listed) if listed else None], query.ran,
+                       player=player and {"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
+
+
 TEMPLATES = {t.name: t for t in (
     Template(
         "event_results",
@@ -817,4 +925,28 @@ TEMPLATES = {t.name: t for t in (
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("by",), rank_players),
+    Template(
+        "rank_pairs",
+        "Pairs of players ranked at official events, each pair once, every tie included. of='opponents' (the default):"
+        " the pairs with the most 1v1 sets between them, with each one's wins; with player_id, that player's most-played"
+        " opponents, in 1v1 or, with mode 2v2, in 2v2 meetings between their teams. of='teammates': 2v2 partners ranked"
+        " by their events together (by='events', the default), wins, medals or top8s together; with player_id, that"
+        " player's partners. Use it for the biggest rivalries, who has played whom the most, a player's most-played"
+        " opponents, or the best duos, and narrow it to a year, a time window, a region or an event when the question"
+        " does. Don't query v_head_to_head_1v1 for pairs: over every player it takes more than a minute.",
+        {"of": {"type": "string", "enum": ["opponents", "teammates"], "description": "opponents (the default) or"
+                                                                                     " teammates"},
+         "by": {"type": "string", "enum": ["events", "wins", "medals", "top8s"], "description": "for teammates only:"
+                                                                                               " what to rank by"},
+         "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is every pair ranked 5th"
+                                                   " or better"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "for opponents: 1v1 sets (the default), or"
+                                                                           " 2v2 meetings, with player_id"},
+         "player_id": {"type": "integer", "description": "one player's pairs only: their player_id, from resolve_player"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        (), rank_pairs),
 )}
