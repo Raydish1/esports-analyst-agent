@@ -87,9 +87,14 @@ DRAFT_TALK = re.compile(r"\b(?:the|my|this)\s+(?:previous|earlier|initial|origin
                         r"draft)\b|\bI\s+(?:previously|earlier|initially)\s+(?:stated|said|wrote|listed|gave)\b", re.I)
 TOOL_NAMES = ("resolve_player", "resolve_event", "run_sql", "event_results", "player_results", "team_results",
               "head_to_head", "rank_players", "rank_pairs", "power_rankings", "upsets")
+# A tool's name: bare when it has an underscore, which no word of an answer does; a plain word ('upsets') only in
+# backticks or as a call, as "the biggest upsets" is no tool talk
+NAMED_TOOL = (r"(?:`(?:" + "|".join(TOOL_NAMES) + r")(?:\s*\([^)\n]*\))?`|\b(?:"
+              + "|".join(n for n in TOOL_NAMES if "_" in n) + r")\b(?:\s*\([^)\n]*\))?|\b(?:"
+              + "|".join(n for n in TOOL_NAMES if "_" not in n) + r")\s*\([^)\n]*\))")
 TOOL_TALK = re.compile(r"\s*\(?\s*(?:(?:checked|confirmed|found|looked\s+up|computed|counted)\s+)?(?:(?:using|via|with|by"
-                       r"\s+calling|calling|called|from)\s+(?:the\s+)?)?`?\b(?:" + "|".join(TOOL_NAMES)
-                       + r")\b(?:\s*\([^)\n]*\))?`?(?:\s+(?:tool|template|call|query))?\s*\)?")
+                       r"\s+calling|calling|called|from)\s+(?:the\s+)?)?" + NAMED_TOOL
+                       + r"(?:\s+(?:tool|template|call|query))?\s*\)?")
 AS_ASKED = re.compile(r"\b(?:as\s+(?:you\s+)?(?:requested|asked(?:\s+for)?)|per\s+your\s+request|as\s+you\s+wanted)\b", re.I)
 ASKS_ORDER = re.compile(r"\b(?:order|sort|sorted|first|newest|oldest|latest|recent|chronolog\w*|earliest|ranked|rank)\b",
                         re.I)

@@ -2,6 +2,35 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: round five's fixes, replayed offline on the recorded runs
+
+**What it asked.** Would the fixes for findings 30-35 catch their failures without disturbing right answers? Every
+figure in the fifth round was right, and its failures were in how the answers read. The design is in
+[`agent-mechanisms.md`](agent-mechanisms.md), under round five.
+
+**Setup.** As on 2026-11-20: the recorded runs with no held-out trace, plus the fifth round's live sessions
+(20261121T045117Z-002 and 20261121T053752Z-002). Drafts, the replies a check sent back, were replayed as well as
+final answers.
+
+**Results.**
+
+| Check | Flagged | What they were |
+|---|---|---|
+| A count word counting a result's rows | finding 30's live draft | It passes clean now: "the top two tied at 34 sets" isn't cut. |
+| A record checked from its owner's side | 2 records in 883 drafts and answers | Finding 34's two, volst against Raydish and antireplay, 2-1 where the results give 1-2, in both drafts. The rule's first version also flagged five right records, each of which shaped the final rule. |
+| Placeholders, relaxations, characterizations | 14 claims in 751 answers | 7 placeholders (finding 33's five, and q30 seed 1's "[Player Name]" and "[Team Name]"), finding 33's "Removing that condition", and 6 "dominates" on 2-1 records, finding 35's among them. Flagging every "dominates" would have made 15. |
+| IDs beside names | 167 of 747 answers (279 IDs) | Taken out of the final answer unless asked for. |
+| Tool talk, "as requested" | 40 and 1 | Every tool or call named to the user, and finding 35's "as requested". |
+| Draft talk after a send-back | 1 of 89 answers | Finding 34's "**Corrected Answer:**" and its clause about the previous answer. |
+
+The new tools were checked on eval-v1 against the findings' truths. volst's best records are woolala 3-0, then nine
+opponents at 2-0. The upsets are BCX 2023's irqqzz (seed 665) over Nomm999 (89), and over every event Commanda Doggo
+(7,233) over Phoza (192). Scored on their live transcripts, c18's and c19's turns fail exactly the checks written for
+their findings.
+
+**What it decided.** All of it was built, with 503 unit tests passing. Nothing is measured with the model yet. The
+runs are listed in the design note.
+
 ## 2026-11-20: the failure mechanisms, replayed offline on the recorded runs
 
 **What it asked.** The fourth round of the web app's testing notes (findings 21-29) came with a new direction from the

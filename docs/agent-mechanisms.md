@@ -291,6 +291,11 @@ Built in round five:
   - The scope check reads its default mode as 1v1. ex35 shows the call for the Brawlhalla Japan Invitational. The
     audit's kind 16 now has a template, a32 checks for `upsets`, and a50 and a51 ask a player's best record and
     biggest upsets.
+- **The conversation set.** c18 (findings 30 and 31) and c19 (33 to 35) come from the fifth round's sessions, and
+  c14 turn 2 now also checks that the card question isn't answered as a dispute (32). None is verified yet. Scored
+  on the live transcripts they come from, each turn fails exactly the checks written for its finding: IDs and the
+  left-out line (c18); placeholders and woolala's 3-0 (c19 turn 1); `by="record"`, "Corrected Answer" and the
+  record (turn 2); "dominates" and "as requested" (turn 3).
 
 ## Decisions
 
@@ -318,7 +323,10 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
-- Verifying c14 to c17 (`eval/questions/conversations-review.md`).
+- Verifying c14 to c19 (`eval/questions/conversations-review.md`).
+- One design call of round five to look at: a characterization such as "dominates" is supported when the record has
+  at least twice the losses in wins and is 2 wins ahead. That's my reading of the finding's "stronger than the record
+  supports", not a definition you gave.
 - A definition for streaks (events in a row? in one mode?), if that kind should get a template. Upsets were defined
   on 2026-11-21 (round five).
 
@@ -329,7 +337,7 @@ resumable, and they're listed in the order they're worth:
 
 1. The before run of c8-c13 at 3d42613, as agreed on 2026-11-20 (`py -3.14 eval/conversations.py run --seeds 0 1 2
    --ids c8 c9 c10 c11 c12 c13`, from a checkout of 3d42613).
-2. The conversations at the latest commit, all 17, seeds 0-2. This measures findings 7-29's fixes on c8-c17, and
+2. The conversations at the latest commit, all 19, seeds 0-2. This measures findings 7-35's fixes on c8-c19, and
    checks c1-c7 for regressions.
 3. The 45 questions at the latest commit, seeds 0-2 (`py -3.14 eval/harness.py run --ids q01 ... q45 --seeds 0 1 2`,
    never `--all`). This checks for regressions against `20261119-webfixes`.

@@ -2,11 +2,11 @@
 
 Made by `python eval/conversations.py review` from [`conversations.toml`](conversations.toml), which is the file to edit.
 
-17 conversations, 44 turns, with expected facts computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each turn shows what a right answer says, the automatic checks scoring it, and the queries behind them with their results.
+19 conversations, 48 turns, with expected facts computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each turn shows what a right answer says, the automatic checks scoring it, and the queries behind them with their results.
 
 **To verify:** check each turn's expected answer against what you know, then fill in `verified` for its conversation in `conversations.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the command to update this page.
 
-**Verified:** 13 of 17.
+**Verified:** 13 of 19.
 
 | Id | Conversation | Turns | Measures | Verified |
 |---|---|---|---|---|
@@ -23,10 +23,12 @@ Made by `python eval/conversations.py review` from [`conversations.toml`](conver
 | [c11](#c11) | volst's stats | 1 | finding 16: a player's stats from one call; finding 17: event 'all' is no filter | yes |
 | [c12](#c12) | kyna vs yuz, the biggest head-to-head, then kyna vs yuz again | 3 | finding 19: a note's 'won 11 and lost 11' supports 11-11; finding 14: 'two' isn't looked up as a player; finding 13: the players the question names, not the previous turn's | yes |
 | [c13](#c13) | the most medals, then dragon | 3 | turn 1: control; finding 18: a name several players share exactly, with no clear cut, ends in suggestions; turn 3: a candidate picked by its name, punctuation and all | yes |
-| [c14](#c14) | Cody Travis vs Phazon, then a question about the card | 2 | finding 24: a record written from one named player's side; finding 21: the page's tag never copied into an answer; finding 22: a card's figure read for its own mode and player; finding 23: a question about the card is one about the answer, its words never looked up |  |
+| [c14](#c14) | Cody Travis vs Phazon, then a question about the card | 2 | finding 24: a record written from one named player's side; finding 21: the page's tag never copied into an answer; finding 22: a card's figure read for its own mode and player; finding 23: a question about the card, its words never looked up; finding 32: the card's figure explained, not the answer defended |  |
 | [c15](#c15) | Renivic's best 2v2 placement, written as a possessive, then all his placements | 2 | finding 25: a possessive without its apostrophe is the player; finding 26: a best placement is the best one, with where; finding 27: placement counts from a tool, and a real placement not called an anomaly |  |
 | [c16](#c16) | The biggest rivalry, then megD's most-played opponent | 2 | finding 28: pairs ranked by a template, each pair once; a player's most-played opponent, which no tool ranked before |  |
 | [c17](#c17) | The strongest 1v1 player right now, then in 2v2 in NA | 2 | finding 29: the mode word reaches the call, and 'right now' is read as now, with the reading said |  |
+| [c18](#c18) | The biggest 1v1 head-to-head, with no IDs and nothing left out | 1 | finding 30: a count of tied rows ('the top two tied at 34 sets') isn't cut; finding 31: no player IDs unasked |  |
+| [c19](#c19) | volst's best records, without the minimum, then his sets against Raydish | 3 | finding 33: no placeholders, and no condition said removed without a query run without it; finding 34: 'best record' ranked by record, each record from volst's side, no correction of a draft; finding 35: the tool's order, and no 'dominates' for a 2-1 |  |
 
 <a id="c1"></a>
 
@@ -647,9 +649,9 @@ FROM v_team_results WHERE player_id = 117179 AND partner_id = 147522
 
 From 20261120T050251Z-001, turns 8-9.
 
-### Turn 1: what are mojakins stats
+### Turn 1: what are mojakn stats
 
-**Expected:** Suggestions, Mojakin (77046) first: 'mojakins' matches no name exactly, Mojakin only by a similar spelling.
+**Expected:** Suggestions, Mojakin (77046) first: 'mojakn' matches no name exactly, Mojakin only by a similar spelling. (Live and until 2026-11-21 the turn said 'mojakins', which the possessive retry now reads as Mojakin; the user had the spelling changed to one that isn't a possessive.)
 
 **Checks:** suggests 77046; grounded and named (every turn)
 
@@ -991,7 +993,7 @@ SELECT wins, losses, matches, games_won, games_lost FROM v_head_to_head_1v1 WHER
 
 **Expected:** From the card: Phazon's GOLD 12 counts 1st places, all 12 in 2v2 (0 in 1v1), so 12 in both modes together too. A gold is a 1st place, and a medal a 1st, 2nd or 3rd place: his 2v2 medals are 33 (12, 15 and 6). Checked with a tool, as a question about the answer. The answer has no "[The page showed ...]" tag of its own, and no word of the message is looked up as an event. Live, one run copied the tag, one read the 12 as 1v1, and one looked up "come".
 
-**Checks:** not_says ["[The page showed", "conflict", "anomal"]; not_looked_up ["come"]; says_numbers [12]; players [147522]; grounded and named (every turn)
+**Checks:** not_says ["[The page showed", "conflict", "anomal", "previous answer", "was correct"]; not_looked_up ["come"]; says_numbers [12]; players [147522]; grounded and named (every turn)
 
 **Query 1:** Phazon's 1st, 2nd and 3rd places in each mode
 
@@ -1151,5 +1153,95 @@ ORDER BY power_ranking
 | 1 | 141522 | 356.829 |
 | 1 | 142042 | 356.829 |
 | 3 | 149305 | 347.863 |
+
+**Verified:** not yet
+
+<a id="c18"></a>
+
+## c18. The biggest 1v1 head-to-head, with no IDs and nothing left out
+
+From 20261121T045117Z-002, turn 1.
+
+### Turn 1: whats the biggest head to head record in 1v1
+
+**Expected:** By the 1v1 sets between two players at official events: SiB | Wess and lFiend, and yüz and whoiskyna, tied at 34 sets (Wess 15-19, yüz 17-17), then gdsandstorm and Boomie, 28 (gdsandstorm 19-9), and Remmy and noeL, 25 (Remmy 10-15). No player IDs beside the names, and no closing line saying something was left out. Live, "the top two tied at 34 sets" was cut for its "two", and every name had its ID.
+
+**Checks:** calls ["rank_pairs"]; says_numbers [34, 28]; not_says ["(37977)", "(148891)", "I left out"]; grounded and named (every turn)
+
+**Query 1:** the pairs with the most 1v1 sets between them
+
+```sql
+SELECT MIN(winner_id, loser_id) AS a, MAX(winner_id, loser_id) AS b, COUNT(*) AS sets, SUM(winner_id < loser_id) AS a_wins
+FROM v_sets_1v1 GROUP BY 1, 2 ORDER BY sets DESC LIMIT 4
+```
+
+| a | b | sets | a_wins |
+|---|---|---|---|
+| 37977 | 148891 | 34 | 15 |
+| 73254 | 135748 | 34 | 17 |
+| 74433 | 146606 | 28 | 19 |
+| 79652 | 115723 | 25 | 10 |
+
+**Verified:** not yet
+
+<a id="c19"></a>
+
+## c19. volst's best records, without the minimum, then his sets against Raydish
+
+From 20261121T053752Z-002, turns 1, 3 and 4.
+
+### Turn 1: whats volst best records vs an opponent
+
+**Expected:** volst has 1v1 sets against 223 opponents at official events, at most 4 against one (Bunny meow, 0-4), so no opponent has 5. The best record is woolala, 3-0, then nine opponents at 2-0 (among them blazey. and Mr. Schmitty), with the reading of "best record" said (the most wins, then the fewest losses). No placeholders. Live, the 5-set minimum emptied the query, and the answer gave "[Opponent Name]" and "[X]" wins after saying it had removed the minimum.
+
+**Checks:** not_says ["[Opponent", "[X]"]; says_record {"record": [3, 0], "about": ["woolala"]}; grounded and named (every turn)
+
+**Query 1:** volst's best records: the most wins, then the fewest losses
+
+```sql
+SELECT opponent, SUM(won) AS wins, COUNT(*) - SUM(won) AS losses FROM (
+  SELECT loser_id AS opponent, 1 AS won FROM v_sets_1v1 WHERE winner_id = 162675
+  UNION ALL SELECT winner_id, 0 FROM v_sets_1v1 WHERE loser_id = 162675)
+GROUP BY opponent ORDER BY wins DESC, losses ASC LIMIT 11
+```
+
+| opponent | wins | losses |
+|---|---|---|
+| 69915 | 3 | 0 |
+| 70177 | 2 | 0 |
+| 71749 | 2 | 0 |
+| 97087 | 2 | 0 |
+| 145852 | 2 | 0 |
+| 156361 | 2 | 0 |
+| 158663 | 2 | 0 |
+| 162797 | 2 | 0 |
+| 169720 | 2 | 0 |
+| 627992 | 2 | 0 |
+| 124 | 2 | 1 |
+
+### Turn 2: whats volsts best records vs an opponent without the 5 set minimum
+
+**Expected:** The same ranking, with no minimum: woolala 3-0, then the nine at 2-0. Any other record it gives is volst's side: 1-2 against Raydish and against antireplay, 0-4 against Bunny meow. No "Corrected Answer" and no talk of a previous answer. Live, it ranked by sets played, wrote volst 2-1 against Raydish and antireplay, and opened "**Corrected Answer:**".
+
+**Checks:** calls_with [{"tool": "rank_pairs", "player_id": 162675, "by": "record"}]; not_says ["Corrected Answer", "previous answer", "[Opponent"]; says_record {"record": [3, 0], "about": ["woolala"]}; grounded and named (every turn)
+
+### Turn 3: what are the three sets that volst vs'd raydish
+
+**Expected:** The three 1v1 sets, in the tool's order (oldest first): North America - Spring Championship 2021 (2021-05-09), Raydish won 2-0; Trial of Freya - North America (2024-09-15), volst won 3-x; Summer Championship - North America 2026 (2026-07-19), Raydish won 3-x. volst 1-2 against Raydish. No "as requested" and no "dominates" for a 2-1. Live, they were listed "most recent first ... as requested" and summed up as "Raydish dominates".
+
+**Checks:** calls ["head_to_head"]; players [162675, 160000]; not_says ["dominat", "as requested"]; grounded and named (every turn)
+
+**Query 1:** the sets between volst and Raydish
+
+```sql
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games FROM v_sets_1v1
+WHERE (winner_id = 162675 AND loser_id = 160000) OR (winner_id = 160000 AND loser_id = 162675) ORDER BY start_date
+```
+
+| start_date | tournament_name | winner_name | winner_games | loser_games |
+|---|---|---|---|---|
+| 2021-05-09 | North America - Spring Championship 2021 | Raydish | 2 | 0 |
+| 2024-09-15 | Trial of Freya - North America | volst | 3 | 2 |
+| 2026-07-19 | Summer Championship - North America 2026 - 1v1 | Raydish | 3 | 1 |
 
 **Verified:** not yet
