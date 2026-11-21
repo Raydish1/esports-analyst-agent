@@ -307,16 +307,18 @@ def play(spec, conversation):
     return out
 
 
-def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
-    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes."""
+def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print, model=None):
+    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes.
+    model is react.MODEL unless given: everything else stays as the agent has it, for a model comparison."""
     react.load_env()
+    model = model or react.MODEL
     retriever = react.retriever_or_exit(examples_on, lambda message: sys.exit(message))
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = harness.RAW / run_id
     out.mkdir(parents=True, exist_ok=True)
     path = out / "conversations.jsonl"
     done = {(r["id"], r["seed"]) for r in map(json.loads, path.read_text(encoding="utf-8").splitlines())} if path.exists() else set()
-    header = react.run_header(run_id, seeds=seeds, title=f"Conversations: run {run_id}",
+    header = react.run_header(run_id, model=model, seeds=seeds, title=f"Conversations: run {run_id}",
                               examples=react.examples_header(examples_on))
     where = Path(set_path).resolve()
     header.update(arm="on" if examples_on else "off", heldout=bool(data.get("heldout")),
@@ -329,7 +331,7 @@ def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
     for n, (seed, spec) in enumerate(todo, 1):
         for attempt in range(1, harness.TRIES + 1):  # a conversation that fails isn't written, so it starts afresh
             try:
-                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, model=react.MODEL,
+                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, model=model,
                                                   think=True, seed=seed)
                 turns = play(spec, conversation)
                 break
@@ -469,6 +471,7 @@ def main():
     go.add_argument("--examples", choices=["on", "off"], default="on")
     go.add_argument("--ids", nargs="+", help="conversation ids, such as c1 c3")
     go.add_argument("--run", help="a run id to resume")
+    go.add_argument("--model", help="the Ollama model to run (default: the agent's, react.MODEL)")
     scoring = commands.add_parser("score", help="score each turn of a run")
     scoring.add_argument("run")
     reporting = commands.add_parser("report", help="each turn's result per seed, a column per run")
@@ -490,7 +493,7 @@ def main():
             sys.exit(1)
         return
     if args.command == "run":
-        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids))
+        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids, model=args.model))
         return
     db = sqlite3.connect(harness.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     names = dict(db.execute("SELECT player_id, name FROM players"))
