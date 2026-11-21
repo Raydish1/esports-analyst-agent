@@ -116,6 +116,10 @@ class CuesTest(Fixture):
         plain = Context("cody travis vs phazon head to head", players=[("Raydish", 11)])  # the page showed nothing
         self.assertEqual(self.settle("show me raydish on a card", plain).how, "as asked")
         self.assertEqual(self.settle("where does that 4 come from?", plain).how, settling.DISPUTED)  # any answer's
+        doubted = self.settle("are you sure? you just said raydish has 4 medals in the graphic", card)  # c8 turn 4
+        self.assertEqual(doubted.how, settling.DISPUTED)  # checked again with the tools, about the page's figures
+        self.assertIn('This questions what the page showed beside your answer to the previous question, "cody travis vs'
+                      ' phazon head to head"', doubted.text)
 
     def test_a_message_that_names_a_player_or_refers_to_nothing_is_as_asked(self):
         for message in ["rank the top 5 players by official 1v1 wins", "has raydish won worlds", "thanks"]:

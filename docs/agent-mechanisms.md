@@ -343,6 +343,19 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   catch-all line named them under `run_sql`. "Choosing a tool" now has its own line: a player's career earnings or
   the top earners come from `run_sql` on `v_career_earnings`, one figure per player, and a missing row isn't $0. The
   catch-all drops what templates now answer, such as records against a player, sets at an event and dominance.
+- **The card kept as long as its note** (c8 turn 4, 3 of 3). The history keeps the page's note with its answer for the
+  rest of the conversation, but the settling context forgot the card after one turn. "are you sure? you just said
+  phazon has 12 medals and cody travis has 6 medals in 2v2 in the graphic" came two turns after the card, so it was
+  settled as a dispute of the previous answer (their 4 wins together), and every seed checked that instead of the
+  card's figures.
+  - The context now keeps the card, and the question it was shown beside, until a newer card. A page question names
+    that question ("beside your answer to an earlier question, ...").
+  - Doubt in a page question ("are you sure", "you just said", "that's wrong") makes it a dispute about the card's
+    figures: checked again with the tools, as every dispute is, then stated plainly, with whether the user reads them
+    right. A question asking where a figure comes from keeps the page's own note (finding 32). So the cues that doubt
+    (`settling.DOUBTS`) are now apart from those that ask for a source ("where does ... come from", "why did you
+    say").
+  - Replayed on the 144 recorded turns of the 2026-11-21 run, only c8 turn 4's note changes, in all three seeds.
 
 ## Decisions
 
@@ -366,6 +379,8 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 | The possessive retry is built and c9 is left as verified. | The user asked for the retry. c9's change is theirs to make, so it's listed below. |
 | Streaks, upsets and rankings with a condition aren't built. | Streaks and upsets need a definition, and conditions have `run_sql`. They're listed in the audit. |
 | A characterization such as "dominates" is supported when the record behind it has at least twice as many wins as losses and is at least 2 wins ahead (2026-11-21). | Proposed as the reading of finding 35's "stronger than the record supports", and accepted by the user on 2026-11-21. |
+| A page question with words of doubt is a dispute about the card's figures, and one asking where a figure comes from keeps the page's note (2026-11-21). | c8 turn 4's verified answer checks the figures again with a tool. Finding 32's asks for an explanation, not a defense of the answer. |
+| The scope check, not only the prompt, enforces the opponents' side and a best placement (2026-11-21). | The prompt already said both, and the model didn't follow it. A refusal once is the existing mechanism, and it can't block a call made again. |
 
 ## Waiting on the user
 

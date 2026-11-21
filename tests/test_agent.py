@@ -748,6 +748,20 @@ class LoopTest(Fixture):
         forced = [c for s in trace["steps"] for c in s["tool_calls"] if c.get("forced")]
         self.assertEqual(forced, [])  # 'tab', which no result holds, is no event to look up
 
+    def test_the_pages_card_is_kept_until_a_newer_one_while_its_note_is_in_the_history(self):
+        lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
+        ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("He has 6."), lookup,
+                       reply("The card's 4 is his 2v2 1st places."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        conversation.shown("Raydish in 2v2 only 3 results, GOLD 4.")
+        conversation.ask("and how many does raydish have overall")  # no card beside this one
+        self.assertEqual(conversation.context.shown, "Raydish in 2v2 only 3 results, GOLD 4.")  # live, c8 turn 4
+        trace = conversation.ask("what is the 4 in the graphic for raydish?")
+        self.assertEqual(trace["settled"]["how"], settling.PAGED)
+        self.assertIn('beside your answer to an earlier question, "how many results has raydish"',
+                      trace["settled"]["text"])  # the answer it was shown beside, two questions back
+
     def test_a_copy_of_the_pages_note_is_taken_out_of_an_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),
                        reply("Raydish has 6 official results.\n\n[The page showed beside this answer: Raydish's 6 results]"))

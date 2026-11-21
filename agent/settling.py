@@ -43,12 +43,16 @@ MANY = {"they", "them", "their", "theirs"}
 # A message questioning the previous answer: live, "so why did you say cody travis and phazon have won 24 2v2
 # tournaments" was looked up as an event, and "there are not that many events" repeated the answer's numbers without
 # a lookup (docs/web-app-testing-notes.md, findings 10 and 12)
-DISPUTES = re.compile(r"\b(?:are you sure|you sure|why did you (?:say|write|tell|think|claim|put|count)|you (?:just )?"
-                      r"(?:said|wrote|told)|that(?:'s|s| is| was) (?:not right|not true|not correct|wrong|incorrect|false)"
-                      r"|you(?:'re| are) wrong|(?:is|was) that (?:right|true|correct)|not that many|(?:can'?t|cannot)"
-                      r" be right|doesn'?t (?:sound|seem|look) right|too (?:many|few)|double.?check|check (?:that|it|this)"
-                      r" again|where (?:does|do|did|is|are) (?:\S+ ){0,4}(?:come|coming) from|where did you get|how did"
-                      r" you (?:get|count|work out))\b", re.I)
+DOUBT = (r"are you sure|you sure|you (?:just )?(?:said|wrote|told)|that(?:'s|s| is| was) (?:not right|not true|not correct"
+         r"|wrong|incorrect|false)|you(?:'re| are) wrong|(?:is|was) that (?:right|true|correct)|not that many|(?:can'?t"
+         r"|cannot) be right|doesn'?t (?:sound|seem|look) right|too (?:many|few)|double.?check|check (?:that|it|this) again")
+SOURCE = (r"why did you (?:say|write|tell|think|claim|put|count)|where (?:does|do|did|is|are) (?:\S+ ){0,4}(?:come|coming)"
+          r" from|where did you get|how did you (?:get|count|work out)")
+DISPUTES = re.compile(rf"\b(?:{DOUBT}|{SOURCE})\b", re.I)
+# Of them, the cues that doubt an answer, not those asking where a figure came from: on a question about the page,
+# doubt is a dispute about its figures ("are you sure? you just said ... in the graphic", c8 turn 4), and "where does
+# the card's 12 come from?" asks to explain one (finding 32)
+DOUBTS = re.compile(rf"\b(?:{DOUBT})\b", re.I)
 # A message about what the page showed beside the last answer, when it showed something: "on the card, where does
 # phazon's 12 gold come from?" was looked up as the event "come" (docs/web-app-testing-notes.md, finding 23)
 PAGE = re.compile(r"\b(?:on|in|from|about|of) (?:the|this|that|your|those|these) (?:stat )?(?:cards?|graphics?|charts?"
@@ -88,7 +92,8 @@ class Context:
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
     asked: list = field(default_factory=list)
-    shown: str = ""  # what the page showed beside the last answer (react.Conversation.shown)
+    shown: str = ""  # what the page last showed beside an answer (react.Conversation.shown), kept until a newer one
+    beside: str = ""  # the question, as settled, whose answer that was
 
 
 def listed(items):
@@ -196,7 +201,7 @@ def by_cues(message, context, resolver, event_words=frozenset()):
     names = unique([(c.get("display") or c["name"], c["player_id"]) for _, out in found if out.get("status") == "confident"
                     for c in out["candidates"][:1]])
     if context.shown and PAGE.search(message):  # before the disputes: "where does the card's 12 come from?"
-        return about_page(message, context, names)
+        return about_page(message, context, names, disputed=bool(DOUBTS.search(message)))
     if DISPUTES.search(message):
         return about_answer(message, context, names)
     said = " ".join(words)
@@ -248,16 +253,25 @@ def about_answer(message, context, names):
     return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
 
 
-def about_page(message, context, names):
+def about_page(message, context, names, disputed=False):
     """A question about what the page showed beside the last answer ('on the card, where does phazon's 12 gold come
     from?'), with a note to explain the figure it asks about, from the page's message and the tools, and not to
     judge the answer: live, settled as a dispute, the reply opened "The previous answer was correct" and never said
     what GOLD is (docs/web-app-testing-notes.md, finding 32). Its other words are never looked up as an event, as a
-    dispute's aren't, and it needs no re-check (react.py)."""
-    previous = mentions.unnoted(context.question)
+    dispute's aren't, and it needs no re-check (react.py). The card may be an earlier answer's: the page's card stays
+    until a newer one (c8 turn 4 asks about turn 2's). Doubt about it ('are you sure? you just said ... in the
+    graphic') is a dispute about its figures, checked again with the tools."""
+    beside = context.beside or context.question
+    previous = mentions.unnoted(beside)
+    which = "the previous question" if beside == context.question else "an earlier question"
     players = unique(list(context.players) + list(names))
     about = f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else ""
-    note = (f'This asks what the page showed beside your answer to the previous question, "{previous}"{about}: explain'
+    if disputed:  # "are you sure? you just said ... in the graphic": the figures checked again, with the tools
+        note = (f'This questions what the page showed beside your answer to {which}, "{previous}"{about}: check the'
+                " figures it asks about with the tools (player_results with no top gives each mode, and both together,"
+                " at once), then say plainly what they are, and whether the user reads them right")
+        return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
+    note = (f'This asks what the page showed beside your answer to {which}, "{previous}"{about}: explain'
             " the figure it asks about, from the page's message above, and check it with the tools if needed"
             " (player_results with no top gives each mode, and both together, at once). It doesn't question your"
             " answer, so don't say whether that answer was right")

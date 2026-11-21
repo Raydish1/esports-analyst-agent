@@ -1027,6 +1027,7 @@ class Conversation:
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
         self.last = None  # the last trace ask() returned, which shown() adds to
+        self.carded = False  # whether the page showed a card beside the last answer
 
     @property
     def messages(self):
@@ -1045,7 +1046,9 @@ class Conversation:
         self.current[0] = {"role": "user", "content": settled.text}
         content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
         self.current.append({"role": "assistant", "content": content})
+        card = self.context.shown, self.context.beside  # the page's last card, kept as its note is (c8 turn 4)
         self.context = settling.after(trace, settled)
+        (self.context.shown, self.context.beside), self.carded = card, False
         self.last = trace
         return trace
 
@@ -1068,7 +1071,9 @@ class Conversation:
                                                    or is_page_note(self.current[-1])):
             return
         self.current.append({"role": "user", "content": PAGE_NOTE.format(summary=summary)})
-        self.context.shown = f"{self.context.shown} {summary}".strip()  # a question about it is about the answer
+        # a question about it is about the answer: this turn's card replaces an older one, a second line adds to it
+        self.context.shown = f"{self.context.shown} {summary}".strip() if self.carded else summary
+        self.context.beside, self.carded = self.context.question, True
         self.view.read(summary)
         self.view.seen_now |= mentions.seen([summary])
         for part in re.split(r"(?<=[.;:])\s+", summary):
