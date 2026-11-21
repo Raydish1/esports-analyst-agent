@@ -398,6 +398,7 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 ## Waiting on the user
 
+- The go-ahead for round six's reruns (under Runs).
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
@@ -419,3 +420,25 @@ point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured
 4. The audit set, seeds 0-2 (`py -3.14 eval/audit.py run --seeds 0 1 2`), then `python eval/audit.py report RUN`.
    This gives the failures by mechanism on questions nothing was tuned on.
 5. `py -3.14 agent/retrieval.py measure`, for the two new examples' effect on retrieval.
+
+### Round six's reruns (waiting on the user)
+
+Each runs at the latest commit, seeds 0-2, in a worktree with its own `data/rag`, since the example bank changed
+(ex23). The minutes are estimated from the 2026-11-21 runs' pace.
+
+1. The affected conversations, 20 turns, about 22 minutes: `py -3.14 eval/conversations.py run --seeds 0 1 2 --ids
+   c1 c8 c14 c15 c16 c18 c19`.
+   - c8 is for the card and its window check, c15 for a best placement, and c19 for records and a player's sets.
+   - c1 is for the narrowed opponents' side ("records vs raydish"), and c14 for a question about where a card's
+     figure comes from.
+   - c16 and c18 are for the most-played opponents and the biggest head-to-head, which the changed tool lines are
+     near.
+2. The targeted questions and their controls, 13, about 13 minutes: `py -3.14 eval/harness.py run --ids q05 q08 q11
+   q40 q04 q09 q20 q23 q27 q33 q37 q44 q45 --seeds 0 1 2` (never `--all`).
+   - The targets are q05, q08, q11 and q40.
+   - The controls are the earnings questions (q09, q33, q45), the head-to-heads (q04, q23, q27), q20 (a set's
+     details, near `player_sets`), q37 (a ranking with no condition) and q44.
+3. The audit's affected kinds, 16 questions, about 14 minutes: `py -3.14 eval/audit.py run --seeds 0 1 2 --ids a03
+   a04 a14 a15 a28 a29 a50 a32 a33 a51 a34 a35 a38 a39 a42 a43`. These are kinds 2, 7, 14, 16, 17, 19 and 21.
+4. If those look right, the 45 questions in full, about 43 minutes, as the regression check: every question sees
+   the prompt's changed tool lines.

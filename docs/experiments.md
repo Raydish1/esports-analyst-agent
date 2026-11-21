@@ -2,6 +2,35 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: round six's fixes, checked offline
+
+**What it asked.** The user approved all seven fixes the measured runs point to, the `rank_pairs` regression first.
+Do they catch their failures on eval-v1 and in replays of the recorded runs, without disturbing anything else? And
+what does c8 score now that a right answer from the previous turn's results counts, as the user decided? The design
+is in [`agent-mechanisms.md`](agent-mechanisms.md), under round six.
+
+**Setup.** No model. The new tools ran on eval-v1. The checks were replayed on the recorded runs, the 2026-11-21 ones
+included, with no held-out trace. `20261121-conversations` was rescored from its traces into a scratch file, so the
+logged scores stay as they were.
+
+**Results.**
+
+| Fix | Checked on | Result |
+|---|---|---|
+| The opponents' side (`rank_pairs(side="opponents")`, and the scope check) | q08 and q40 on eval-v1; the 59 recorded `rank_pairs` calls | Both give their verified answers. The check refuses q08's, q40's and a28's 6 distinct calls and no other. Narrowed so "X's record vs Y" isn't refused: c1 turn 3 and q27 stop matching, with the same 6 refused |
+| No `top` for a best placement | the 85 distinct recorded `player_results` calls | It refuses exactly the two `top=1` calls of a03 and c15 |
+| `rank_players(never_won)` | eval-v1 | The most top 8s without a win: sphynx. 36, Goddess 33, hermisen 32. The most 1v1 wins without a 1v1 Worlds: Zivai 23 |
+| `player_sets` | eval-v1, a39 | Zivai at BCX 2023 in 1v1: 10 sets, 8 won, lost 1-3 to yüz and whoiskyna |
+| `dominant_wins` | eval-v1, q11 | Raydish's most dominant win is Trial of Laufey NA (Moose Wars), 25 games to 2, q11's verified answer. 19 1v1 wins without a dropped game |
+| Earnings in "Choosing a tool" | the prompt | A line of its own, for q05's "no tool covers earnings" |
+| The card kept as long as its note | the 144 recorded conversation turns, settled again | Only c8 turn 4's settled text changes, in all three seeds: now a dispute about the card's figures |
+| c8's check on the window | `20261121-conversations` rescored | 109 of 144 turns pass every check, from 103: c8 turns 3 and 5 in all three seeds, and no other turn |
+
+`retrieval.py check` passes on the 35 examples, ex23 now showing a `dominant_wins` call, and the 510 unit tests pass.
+
+**What it decided.** All of it is built. The reruns with the model wait for the user's go-ahead. They're listed in
+the design note.
+
 ## 2026-11-21: the mechanism rounds measured: conversations, the 45 questions, the audit set and retrieval
 
 **What it asked.** How do rounds four and five, and findings 7-20's four commits, do with the model? Rounds four and
