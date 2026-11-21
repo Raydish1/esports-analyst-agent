@@ -297,6 +297,25 @@ Built in round five:
   left-out line (c18); placeholders and woolala's 3-0 (c19 turn 1); `by="record"`, "Corrected Answer" and the
   record (turn 2); "dominates" and "as requested" (turn 3).
 
+## Round six (2026-11-21): the fixes the runs pointed to
+
+The user approved the seven fixes the 2026-11-21 runs point to, the `rank_pairs` regression first, and accepted a
+right answer taken from the previous turn's results for c8. Built offline, and the reruns wait for the user.
+
+- **The opponents' side of a player's records** (q08 3 of 3 lost, q40 2 of 3, audit a28 2 of 3). Round five's
+  `rank_pairs(by="record")` ranks a player's own records, and the model used it for "who has the best record
+  against marckiemoo" and "who has raydish lost to the most", which ask for the other players' records against them.
+  - `rank_pairs` now takes `side="opponents"` with a `player_id`. Each row is another player's record against them,
+    from that player's side. `by="rate"` ranks by win rate, with at least 5 sets unless `min_sets` says otherwise,
+    which is the decided counting rule q08's verified answer rests on.
+  - The prompt maps those questions to it. Its line telling the model to use `run_sql` for them hadn't held, so the
+    scope check also refuses a `rank_pairs` call with a player and no `side="opponents"`, once, when the question
+    asks for that side. That's "record against X", "lost to" or "who beat X", but not "against anyone".
+  - On eval-v1 both match their verified answers. Against Marckiem00 by rate it's V3M_T4NQUIL0 3-2 (60%), Raydish 6-7
+    (46%) and gdsandstorm 4-7 (36%). Whom Raydish lost to most is gdsandstorm 10, luna 8, then Marckiem00 7.
+  - Replayed on the 44 distinct recorded `rank_pairs` calls: the rule refuses the 6 of q08, q40 and a28, and nothing
+    else. An empty ranking now says which minimum emptied it.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.

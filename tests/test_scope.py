@@ -50,6 +50,16 @@ class ScopeTest(Fixture):
         self.assertEqual(self.lacks("most wins in north america", "rank_players", by="wins"), ["names North America"])
         self.assertEqual(self.lacks("top 8 of winters 2023 na", "event_results", event="winters 2023 na"), [])
 
+    def test_the_opponents_side_of_a_players_records_reaches_rank_pairs(self):
+        for question in ("Who has the best record against marckiemoo?", "who has raydish lost to the most in 1v1",
+                         "who has beaten zivai the most"):  # q08 and q40: the player's own side was asked
+            self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record")[0][:30],
+                             "asks for the other players' re", question)
+            self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="rate", side="opponents"), [])
+        for question in ("whats volst's best record against anyone", "who does megd beat the most",
+                         "volst's best records vs an opponent"):
+            self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record"), [], question)
+
     def test_templates_that_cant_take_a_word_arent_checked_for_it(self):
         self.assertEqual(self.lacks("kyna vs yuz in only 1v1", "head_to_head", player_id=1, opponent_id=2), [])
         self.assertEqual(self.lacks("who did megd team with in 1v1 events", "team_results", player_id=1), [])

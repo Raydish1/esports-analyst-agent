@@ -33,6 +33,11 @@ SINCE = re.compile(rf"\b(?:since|after|from|starting(?:\s+in)?)\s+(?:the\s+(?:st
 UNTIL = re.compile(rf"\b(?:before|until|till|through|thru|up\s+to)\s+(?:the\s+end\s+of\s+)?{YEAR}\b", re.I)
 BETWEEN = re.compile(rf"\bbetween\s+{YEAR}\s+and\s+{YEAR}\b|\b{YEAR}\s*(?:-|–|to)\s*{YEAR}\b", re.I)
 ANY_YEAR = re.compile(rf"\b{YEAR}\b")
+# The opponents' side of one player's records: who did best against them, beat them, or whom they lost to. Not "X's
+# best record against anyone", which is X's own (finding: q08 and q40 asked rank_pairs for the player's own side)
+AGAINST = re.compile(r"\b(?:record|records|win\s*rate)\s+(?:against|vs\.?|versus|over)\s+(?!any|every|an?\s+opponent|opponents|"
+                     r"other|them\b|their\b)\w|\b(?:lost|loses|lose|losing)\s+(?:to|against)\b|\bbeaten\s+by\b|\bwho\s+(?:has\s+|"
+                     r"have\s+|had\s+)?(?:beat|beats|beaten|defeated)\s+\w", re.I)
 PRESENT = re.compile(r"\b(?:right\s+now|currently|these\s+days|nowadays|lately|recently|at\s+the\s+moment|this\s+season)\b",
                      re.I)
 REGION_WORDS = re.compile(r"\b(?:north\s+american?|south\s+american?|southeast\s+asian?|middle\s+east(?:ern)?|europe(?:an)?"
@@ -51,9 +56,10 @@ class Scope:
     until: str | None = None
     regions: list = field(default_factory=list)
     present: str | None = None
+    against: bool = False  # the opponents' side of one player's records (AGAINST)
 
     def __bool__(self):
-        return bool(self.mode or self.years or self.since or self.until or self.regions or self.present)
+        return bool(self.mode or self.years or self.since or self.until or self.regions or self.present or self.against)
 
 
 def scope(question, events):
@@ -75,7 +81,8 @@ def scope(question, events):
     regions = list(dict.fromkeys(found[0] for m in REGION_WORDS.finditer(text)
                                  for found in [events.region(m[0])] if found))
     present = PRESENT.search(text)
-    return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0])
+    return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0],
+                 bool(AGAINST.search(text)))
 
 
 def lacking(asked, name, arguments, parameters, events):
@@ -107,6 +114,10 @@ def lacking(asked, name, arguments, parameters, events):
         if not (given and given[0] == code) and not named:
             out.append((f"names {REGIONS[code]}", f'region="{code}"' if "region" in takes
                         else f"the region in event ('... {code}')"))
+    if (asked.against and name == "rank_pairs" and arguments.get("player_id") is not None
+            and str(arguments.get("side") or "").strip().casefold() not in ("opponents", "opponent", "against")):
+        out.append(("asks for the other players' records against that player (who did best against them, or whom they"
+                    " lost to)", 'side="opponents"'))
     if asked.present and "since" in takes and not any(arguments.get(k) for k in ("year", "since", "until")):
         out.append((f"asks about the present ('{asked.present}')", "a recent window (since) or year, or the official"
                     " Power Rankings (power_rankings)"))

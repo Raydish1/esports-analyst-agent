@@ -765,7 +765,7 @@ def ties(rows):
 
 
 def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_id=None, year=None, since=None,
-               until=None, event=None, region=None, min_sets=None):
+               until=None, event=None, region=None, min_sets=None, side=None):
     """Pairs of players ranked: opponents by the 1v1 sets between them, or for one player their 2v2 meetings too;
     teammates by their 2v2 events, wins, medals or top 8s together. Each pair once, every tie included."""
     of, top = one_of(of), whole(top, "top")
@@ -779,13 +779,21 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
         notes.append(merged(given, player, name))
     if of == "opponents":
         mode = "1v1" if mode is None else one_mode(mode)
-        record = str(by or "").strip().lower() in ("record", "records", "best record", "wins", "win rate")
-        if by is not None and not record and str(by).strip().lower() not in ("sets", "meetings", "matches", "played",
-                                                                             "most"):
-            raise Refused(f"opponents are ranked by the sets between them, or with player_id by='record', not {by!r}")
-        if record and player is None:
-            raise Refused("by='record' ranks one player's opponents by that player's record against them: give"
-                          " player_id")
+        word = str(by or "").strip().lower()
+        rate = word in ("rate", "win rate", "winrate", "win_rate", "best record")
+        record = rate or word in ("record", "records", "wins")
+        against = str(side or "").strip().lower() in ("opponents", "opponent", "against", "them")
+        if by is not None and not record and word not in ("sets", "meetings", "matches", "played", "most"):
+            raise Refused(f"opponents are ranked by the sets between them, or with player_id by 'record' or 'rate', not"
+                          f" {by!r}")
+        if side is not None and not against and str(side).strip().lower() not in ("player", "own", "theirs"):
+            raise Refused(f"side is 'player' (the player's own records, the default) or 'opponents' (the other players'"
+                          f" records against the player), not {side!r}")
+        if (record or against) and player is None:
+            raise Refused("by='record' or 'rate', and side, rank one player's opponents: give player_id. For the pairs"
+                          " with the most sets between them, leave by out")
+        if rate and least is None:
+            least = 5  # the decided rule: the highest win rate among players with at least 5 matches
         if mode == "2v2" and player is None:
             raise Refused("2v2 opponents are ranked for one player only: give player_id. Over every player the 2v2"
                           " meetings take more than a minute; for the most-played pairs overall, use mode 1v1")
@@ -803,19 +811,32 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
             ranked = ("WITH pairs AS (SELECT m.player_id AS a, o.player_id AS b, COUNT(*) AS n, SUM(m.won) AS a_wins"
                       " FROM v_match_results m JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side"
                       f" WHERE m.player_id = {player} AND m.mode = '2v2'{met} GROUP BY 2)")
-        order = "a_wins DESC, n - a_wins ASC" if record else "n DESC"  # a record: the most wins, then fewest losses
+        won, lost = ("n - a_wins", "a_wins") if against else ("a_wins", "n - a_wins")  # the side each row is from
+        order = (f"1.0 * ({won}) / n DESC, n DESC" if rate else f"{won} DESC, {lost} ASC" if record else "n DESC")
+        first = "pb.name, ranked.b, pa.name, ranked.a" if against else "pa.name, ranked.a, pb.name, ranked.b"
         rows = query.rows(
             f"{ranked}, ranked AS (SELECT *, RANK() OVER (ORDER BY {order}) AS rank FROM pairs"
             f"{f' WHERE n >= {least}' if least else ''})"
-            " SELECT ranked.rank, pa.name, ranked.a, pb.name, ranked.b, ranked.n, ranked.a_wins, ranked.n - ranked.a_wins"
+            f" SELECT ranked.rank, {first}, ranked.n, {won}, {lost}"
+            + (f", ROUND(1.0 * ({won}) / ranked.n, 3)" if rate else "") +
             " FROM ranked JOIN players pa ON pa.player_id = ranked.a JOIN players pb ON pb.player_id = ranked.b"
             f" WHERE ranked.rank <= {top} ORDER BY ranked.rank, pa.name, pb.name")
         what = "sets" if mode == "1v1" else "meetings"
-        columns = ["rank", "player", "player_id", "opponent", "opponent_id", what, "player_wins", "opponent_wins"]
-        title = (f"{name}'s records against opponents, the most wins first, then the fewest losses" if record else
+        columns = ["rank", "player", "player_id", "opponent", "opponent_id", what, "player_wins", "opponent_wins"] + (
+            ["win_rate"] if rate else [])
+        measure = (f"the best win rate first, among those with at least {least} {what} between them" if rate else
+                   "the most wins first, then the fewest losses" + (f", among those with at least {least} {what}" if least
+                                                                     else ""))
+        title = (f"records against {name}, each from its player's side, {measure}" if against else
+                 f"{name}'s records against opponents, {measure}" if record else
                  f"{name}'s opponents, the most {what} first" if player else "pairs of opponents, the most sets first")
-        if record:
-            notes.append(f"by='record' ranks {name}'s opponents by {name}'s wins against them, then the fewest losses"
+        if against:
+            notes.append(f"side='opponents': each row is another player's record against {name}, from that player's"
+                         f" side: player_wins are theirs, opponent_wins {name}'s. Say how the answer reads the question"
+                         + (", and the minimum." if least else "."))
+        elif record:
+            notes.append(f"by='{'rate' if rate else 'record'}' ranks {name}'s opponents by {name}'s"
+                         f" {'win rate' if rate else 'wins'} against them"
                          + (f", among those with at least {least} {what} between them" if least else
                             ", with no minimum of sets") + ": say how the answer reads 'best record', and the minimum.")
         notes.append("Each pair is on one row, with each player's wins in their 1v1 sets against the other; DQs, forfeits"
@@ -846,7 +867,8 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
         scope = ", ".join([f"{SCOPE}, 2v2", *narrow.said])
     listed, left = ties(rows)
     if not rows:
-        notes.append(f"No pair has any here ({scope}), so the ranking is empty.")
+        notes.append(f"No pair has any here ({scope})" + (f" with at least {least} sets or meetings between them, the"
+                     " minimum" if least else "") + ", so the ranking is empty.")
     if left:
         notes.append(f"Past {RANKED_AT_MOST} rows a tie isn't split, so {sum(len(g) for g in left)} more pairs are"
                      " counted but not listed: ask for fewer ranks, or narrow the question.")
@@ -1083,16 +1105,18 @@ TEMPLATES = {t.name: t for t in (
         " the pairs with the most 1v1 sets between them, with each one's wins; with player_id, that player's most-played"
         " opponents, in 1v1 or, with mode 2v2, in 2v2 meetings between their teams. of='teammates': 2v2 partners ranked"
         " by their events together (by='events', the default), wins, medals or top8s together; with player_id, that"
-        " player's partners. With player_id and by='record', that player's opponents ranked by the player's record"
-        " against them: the most wins, then the fewest losses (min_sets for a minimum). Use it for the biggest"
-        " rivalries, who has played whom the most, a player's most-played opponents, a player's best records against"
-        " opponents, or the best duos, and narrow it to a year, a time window, a region or an event when the question"
+        " player's partners. With player_id and by='record' (the most wins, then the fewest losses) or by='rate' (the"
+        " best win rate, at least 5 sets unless min_sets says otherwise): the player's own records against their"
+        " opponents, or with side='opponents' the other players' records against the player. Use it for the biggest"
+        " rivalries, who has played whom the most, a player's most-played opponents, a player's best records, who has"
+        " the best record against a player, whom a player lost to most, or the best duos, and narrow it to a year, a time window, a region or an event when the question"
         " does. Don't query v_head_to_head_1v1 for pairs: over every player it takes more than a minute.",
         {"of": {"type": "string", "enum": ["opponents", "teammates"], "description": "opponents (the default) or"
                                                                                      " teammates"},
-         "by": {"type": "string", "enum": ["sets", "record", "events", "wins", "medals", "top8s"],
-                "description": "opponents: sets (the default), or record with player_id; teammates: events (the"
-                               " default), wins, medals or top8s"},
+         "by": {"type": "string", "enum": ["sets", "record", "rate", "events", "wins", "medals", "top8s"],
+                "description": "opponents: sets (the default), or with player_id record (the most wins, then the"
+                               " fewest losses) or rate (the best win rate); teammates: events (the default), wins,"
+                               " medals or top8s"},
          "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is every pair ranked 5th"
                                                    " or better"},
          "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "for opponents: 1v1 sets (the default), or"
@@ -1104,7 +1128,10 @@ TEMPLATES = {t.name: t for t in (
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"},
          "min_sets": {"type": "integer", "description": "only pairs with at least this many sets between them, when the"
-                                                        " question sets a minimum"}},
+                                                        " question sets a minimum (by='rate': 5 unless given)"},
+         "side": {"type": "string", "enum": ["player", "opponents"],
+                  "description": "with player_id and by record or rate: the player's own records (the default), or"
+                                 " the opponents' records against the player"}},
         (), rank_pairs),
     Template(
         "power_rankings",

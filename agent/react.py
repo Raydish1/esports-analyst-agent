@@ -91,7 +91,10 @@ Choosing a tool
   - who has the most wins, medals or top 8s, with no other condition: rank_players
   - who has played whom the most, a player's most-played opponents, or the best duos: rank_pairs
   - a player's best records against their opponents: rank_pairs with player_id and by="record" (min_sets only for a
-    minimum the question sets). Who has the best record against a player is the counting rule below, with run_sql
+    minimum the question sets)
+  - who has the best record against a player, who beat them most, or whom they lost to most: rank_pairs with their
+    player_id and side="opponents", by="rate" for a best record (the counting rule below) or by="record" for the most
+    wins against them
   - the official Power Rankings, a player's PR, or who is ranked #1 in a region: power_rankings
   - the biggest upsets, an event's upsets, or a player's biggest upset wins: upsets
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event

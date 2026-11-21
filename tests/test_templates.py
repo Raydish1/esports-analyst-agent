@@ -278,6 +278,19 @@ class RankPairsTest(Fixture):
         self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="medals")["error"])
         self.assertIn("give player_id", self.call("rank_pairs", by="record")["error"])
 
+    def test_the_opponents_side_ranks_the_other_players_records_against_the_player(self):
+        out = self.call("rank_pairs", player_id=B, side="opponents", by="record")  # live: q08 and q40 asked B's side
+        rows = self.rows(out, "records against B")
+        self.assertEqual(rows[0][1:8], ["A", A, "B", B, 3, 3, 0])  # A beat B in 3 of 3: from A's side
+        self.assertIn("each row is another player's record against B, from that player's side", " ".join(out["notes"]))
+        rate = self.call("rank_pairs", player_id=B, side="opponents", by="rate")  # the counting rule: 5 sets at least
+        self.assertEqual(rate["tables"], [])
+        self.assertIn("with at least 5 sets or meetings between them, the minimum, so the ranking is empty.",
+                      rate["notes"][-1])
+        self.assertEqual(self.rows(self.call("rank_pairs", player_id=B, side="opponents", by="rate", min_sets=1),
+                                   "records against B")[0][-1], 1.0)
+        self.assertIn("side is 'player'", self.call("rank_pairs", player_id=B, side="enemies", by="record")["error"])
+
     def test_one_players_opponents_by_record_the_most_wins_then_the_fewest_losses(self):
         out = self.call("rank_pairs", player_id=A, by="record")  # live, finding 34: "best record" as most sets
         self.assertEqual([r[3] for r in self.rows(out, "A's records against opponents")], ["B", "D", "C"])
