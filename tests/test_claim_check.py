@@ -51,5 +51,21 @@ class JudgmentTest(unittest.TestCase):
         self.assertEqual(texts(claim_check.judgments("It is likely an error in the data.", "q", "")), ["likely an error"])
 
 
+class RoundFiveTest(unittest.TestCase):
+    def test_placeholder_slots_are_found_and_links_or_the_page_note_are_not(self):
+        slots = "**Opponent**: [Opponent Name]\n**Wins**: [X] wins, a X-Y record"  # live, finding 33
+        self.assertEqual(texts(claim_check.placeholders(slots)), ["[Opponent Name]", "[X]", "X-Y"])
+        self.assertEqual(claim_check.placeholders("See [the bracket](https://start.gg/x) and [The page showed it]"), [])
+
+    def test_a_relaxation_and_a_characterization_are_found_unless_the_question_uses_one(self):
+        self.assertEqual(texts(claim_check.relaxed("I removed the 5-set minimum, so here they are.")),
+                         ["removed the 5-set minimum"])
+        self.assertEqual(texts(claim_check.characterizations("Raydish dominates the head-to-head series.", "q")),
+                         ["dominates"])  # live, finding 35: a 2-1 series
+        self.assertEqual(claim_check.characterizations("It was dominated by Zivai.", "the most dominant win"), [])
+        self.assertEqual(claim_check.characterizations("Neither player dominated.", "q"), [])
+        self.assertEqual(claim_check.characterizations("Zivai's most dominant win was BCX 2023.", "q"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

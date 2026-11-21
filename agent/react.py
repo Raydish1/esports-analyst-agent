@@ -887,6 +887,9 @@ def claimed_wrong(found):
     parts = []
     referrals = [repr(short(c.text, 80)) for c in found if c.kind == "referral"]
     judgments = [repr(short(c.text, 80)) for c in found if c.kind == "judgment"]
+    slots = [repr(short(c.text, 80)) for c in found if c.kind == "placeholder"]
+    relaxations = [repr(short(c.text, 80)) for c in found if c.kind == "relaxed"]
+    strong = [repr(short(c.text, 80)) for c in found if c.kind == "characterization"]
     if referrals:
         parts.append(f"it sends the user to the database ({listed(referrals)}), and the user can't run queries. Run"
                      " what the answer needs with the tools yourself, and answer from what they return")
@@ -894,6 +897,15 @@ def claimed_wrong(found):
         parts.append(f"it calls a result wrong ({listed(judgments)}), though no tool result says the data is wrong"
                      " there. Report results as the data has them: if one looks surprising, say what the data shows"
                      " without judging it, or check it with another query")
+    if slots:
+        parts.append(f"it has placeholders where facts should be ({listed(slots)}): run the query that gives them and"
+                     " write the facts, or say plainly what the data doesn't have")
+    if relaxations:
+        parts.append(f"it says a condition was removed ({listed(relaxations)}), but no query ran without it: run it"
+                     " without that condition, then answer from its rows")
+    if strong:
+        parts.append(f"it characterizes a result ({listed(strong)}) beyond what its record says: give the record by"
+                     " its numbers, without words like 'dominates'")
     return "Before this answer is final: " + "; and ".join(parts) + "."
 
 
@@ -1096,6 +1108,7 @@ class Conversation:
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
         judged = False  # whether the claim check sent an answer back
+        emptied = False  # whether the last query that ran found no rows (its result has a diagnosis)
         respelled = False  # whether the event check sent an answer back, to look an event up with another spelling
         disputed = bool(settled and settled.how == settling.DISPUTED)  # a question about the previous answer
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
@@ -1256,7 +1269,7 @@ class Conversation:
                 if names or ids:
                     step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
-                wrong = self.wrong(content, said or question, disputed) if outcome == "answered" else []
+                wrong = self.wrong(content, said or question, disputed, emptied) if outcome == "answered" else []
                 if wrong and not judged and not strict and number < max_steps:
                     judged, message = True, claimed_wrong(wrong)
                     if number == max_steps - 1:
@@ -1270,10 +1283,13 @@ class Conversation:
                     self.finished(step)
                     continue
                 judgments = []
-                if wrong:  # left out of whatever text is final; a referral, which states nothing, with no line saying so
+                if wrong:  # left out of whatever text is final; a claim that states nothing with no line saying so
                     plain = claim_check.without_code(content)
-                    content, dropped = without(plain, claim_check.referrals(plain))
-                    judgments = [c for c in self.wrong(content, said or question, disputed) if c.kind == "judgment"]
+                    silent = [c for c in self.wrong(plain, said or question, disputed, emptied)
+                              if c.kind in claim_check.SILENT]
+                    content, dropped = without(plain, silent)
+                    judgments = [c for c in self.wrong(content, said or question, disputed, emptied)
+                                 if c.kind not in claim_check.SILENT]
                     step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "left out: " + (
                         "sent back once already" if judged else "the turn looked nothing up" if strict
                         else "no steps left" if outcome == "answered" else "not an answer"),
@@ -1358,6 +1374,7 @@ class Conversation:
                 self.view.observe(name, observation, arguments)
                 if name in QUERIES:  # only a new query clears a result too large to show, or a lookup miss
                     too_big = observation.get("complete") is False
+                    emptied = "diagnosis" in observation
                     missing, missed = missing_text(observation.get("diagnosis")), False
                 noted(question, name, observation, asked, resolved)
                 if number == max_steps - 1 and i == len(calls) - 1:
@@ -1385,13 +1402,24 @@ class Conversation:
         trace["largest_context"] = max(((s["prompt_tokens"] or 0) + (s["output_tokens"] or 0) for s in trace["steps"]), default=0)
         return trace
 
-    def wrong(self, answer, question, disputed):
-        """What an answer claims that no tool does (claim_check.py): its referrals, and its judgments that a result is
-        wrong, unless the question is about the previous answer, whose re-check may say an answer was wrong."""
-        found = claim_check.referrals(answer)
+    def wrong(self, answer, question, disputed, emptied=False):
+        """What an answer claims that no tool does (claim_check.py): its referrals, placeholders and characterizations;
+        its judgments that a result is wrong, unless the question is about the previous answer, whose re-check may
+        say an answer was wrong; and, after a last query that found no rows (emptied), its claims to have removed a
+        condition."""
+        found = claim_check.referrals(answer) + claim_check.placeholders(answer)
+        window = self.view.window  # a characterization goes back only when the record behind it is close
+        found += [c for c in claim_check.characterizations(answer, question) if window.lopsided(answer, c) is False]
         if not disputed:
             found += claim_check.judgments(answer, question, self.view.in_view)
-        return sorted(found, key=lambda c: c.start)
+        if emptied:
+            found += claim_check.relaxed(answer)
+        kept, end = [], -1  # overlaps dropped, as claim_check.found drops them within a kind
+        for c in sorted(found, key=lambda c: (c.start, -c.end)):
+            if c.start >= end:
+                kept.append(c)
+                end = c.end
+        return kept
 
     def look_up(self, question, lookups, step, resolved, last):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the

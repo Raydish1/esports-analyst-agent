@@ -12,11 +12,23 @@ database, and a result judged wrong.
   out) or unscored sets; with such a marker in view, or a question that asks about errors itself, judgments aren't
   checked. Nor is a judgment the answer denies ("this isn't an error").
 
+Three more kinds since 2026-11-21 (round five):
+- A placeholder: a slot where a fact should be, "[Opponent Name]", "[X]", "X wins", "X-Y". Live, an answer gave a
+  template of slots for volst's best record and never queried again (docs/web-app-testing-notes.md, finding 33).
+- A relaxation: the answer says it removed a condition (a filter, a minimum) right after a query that returned no
+  rows, when no query ran without it (finding 33: "without the 5-set minimum", then slots).
+- A characterization the record doesn't state: "dominates", "crushed", "one-sided", "far superior". Live, a 2-1 series
+  was "Raydish dominates the head-to-head" (finding 35). Not checked when the question uses such a word itself ("the
+  most dominant win" is a defined measure, and "dominant" isn't one of the words).
+
+A referral or a relaxation states nothing, so it's left out with no line saying so (SILENT); the other kinds go with
+the left-out line, as an unconfirmed number does.
+
 Each found claim is a number_check.Claim, so number_check.without can leave it out of a final text."""
 
 import re
 
-from number_check import Claim
+from number_check import Claim, units
 
 FLAGS = re.I
 REFERRALS = [re.compile(p, FLAGS) for p in [
@@ -46,6 +58,24 @@ JUDGMENTS = [re.compile(p, FLAGS) for p in [
     r"(?:to\s+be\s+)?)(?:an?\s+)?(?:error|mistake|typo|incorrect|wrong|inaccurate|misrecorded|mislabell?ed|outlier)\b",
     r"\b(?:incorrectly|wrongly)\s+(?:recorded|entered|listed|reported)\b|\bmis(?:recorded|labell?ed|reported)\b",
 ]]
+PLACEHOLDERS = [re.compile(p) for p in [
+    r"\[(?!The page showed)[A-Z][A-Za-z ]{0,30}\](?!\()",  # [Opponent Name], not a link's [text](url)
+    r"\[[XYNxyn]\]",
+    r"\b[XY]\s+(?:wins|losses|sets|games|times|events|results|medals|placements)\b",
+    r"(?<![\w-])[XY]\s*-\s*[XY](?![\w-])",
+]]
+RELAXED = re.compile(r"\b(?:removed|removing|relaxed|relaxing|dropped|dropping|lifted|lifting|ignored|ignoring|without)\s+"
+                     r"(?:the\s+|that\s+|this\s+|a\s+|an\s+)?(?:[\w-]+\s+){0,3}?(?:condition|filter|minimum|requirement"
+                     r"|threshold|restriction|limit|constraint|cutoff)s?\b", re.I)
+CHARACTERIZATIONS = re.compile(r"\bdominat(?:es|ed|ing|ion)\b|\bcrush(?:es|ed|ing)\b|\bdestroy(?:s|ed|ing)\b|\boutclass"
+                               r"(?:es|ed|ing)?\b|\bone-sided\b|\blopsided\b|\b(?:clearly|far|much|vastly|significantly)\s+"
+                               r"(?:better|superior|stronger)\b|\bsuperior\b|\bunstoppable\b|\buntouchable\b", re.I)
+ASKS_STRONG = re.compile(r"\b(?:dominan\w*|dominat\w*|crush\w*|destroy\w*|one-sided|lopsided|superior|outclass\w*)", re.I)
+# A sentence about part of a series ('dominated the early matches', 'in 2025', 'their last three meetings'), whose
+# overall record isn't the yardstick for a characterization of it
+PART = re.compile(r"\b(?:early|earlier|recent|recently|lately|last|latest|first|later|since|before|after)\b|\b(?:19|20)\d\d\b",
+                  re.I)
+SILENT = {"referral", "relaxed"}  # kinds that state nothing: left out with no line saying so
 NEGATION = re.compile(r"\b(?:no|not|isn't|isn’t|wasn't|wasn’t|aren't|aren’t|without|nor|never|neither)\b(?:\s+\S+){0,3}\s*$",
                       re.I)
 # A tool result in view that says the data is wrong somewhere: a status, or sets with no recorded score
@@ -81,6 +111,31 @@ def judgments(answer, question, in_view):
         return []
     return [c for c in found([("judgment", p) for p in JUDGMENTS], answer)
             if not NEGATION.search(answer[max(0, c.start - 40):c.start])]
+
+
+def placeholders(answer):
+    """The answer's slots where a fact should be ('[Opponent Name]', '[X] wins')."""
+    return found([("placeholder", p) for p in PLACEHOLDERS], answer)
+
+
+def relaxed(answer):
+    """The answer's claims to have removed a condition ('without the 5-set minimum'), for a turn whose last query
+    found no rows: react.py checks them only then."""
+    return found([("relaxed", RELAXED)], answer)
+
+
+def characterizations(answer, question):
+    """The answer's words for a result that its record doesn't state ('dominates'), unless the question uses one, or
+    the sentence is about part of a series (PART). react.py keeps only those whose record in view is close
+    (number_check.Window.lopsided)."""
+    if ASKS_STRONG.search(question):
+        return []
+    spans = units(answer)
+    def part(c):
+        a, b = next(((a, b) for a, b in spans if a <= c.start < b), (c.start, c.end))
+        return bool(PART.search(answer[a:b]))
+    return [c for c in found([("characterization", CHARACTERIZATIONS)], answer)
+            if not NEGATION.search(answer[max(0, c.start - 40):c.start]) and not part(c)]
 
 
 def without_code(answer):

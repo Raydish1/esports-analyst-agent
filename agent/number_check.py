@@ -353,7 +353,7 @@ class Window:
             pair = self.owner(said, c, spans) if c.kind == "record" and not year else None
             if pair:
                 owner, other = pair
-                given = {(w, l) for e in self.evidence for row in e.rows for who, against, w, l in sides(row, self.names)
+                given = {(w, l) for e in self.evidence for row in e.rows for who, against, w, l, _ in sides(row, self.names)
                          if who == owner and (other is None or against in (other, None))}
                 won, lost = c.value
                 if (lost, won) in given and (won, lost) not in given:  # live, volst 2-1 where the rows say 1-2
@@ -361,6 +361,22 @@ class Window:
                     out.append(replace(c, about=f"{self.names[owner]}{against}, whose record the results give as"
                                                 f" {lost}-{won}", reversed=True))
         return out
+
+    def lopsided(self, answer, claim):
+        """Whether the record behind a characterization ('Raydish dominates') is lopsided: its owner's record against
+        the other player, as the results give it, at least twice the losses in wins and 2 wins ahead (decided
+        2026-11-21: finding 35's 2-1 isn't; 5-1 and 7-3 are). None when no such record is in view."""
+        said = stated(answer)
+        pair = self.owner(said, claim, units(said))
+        if not pair:
+            return None
+        owner, other = pair
+        other = other or (self.subject if self.subject != owner else None)  # 'Raydish dominates the series': volst's
+        given = {(w, l) for e in self.evidence for row in e.rows for who, against, w, l, games in sides(row, self.names)
+                 if who == owner and not games and (other is None or against in (other, None))}
+        if not given:
+            return None
+        return any(w >= 2 * l and w - l >= 2 for w, l in given)
 
     def owner(self, said, claim, spans):
         """(whose record a record claim is, against whom or None), as its sentence writes it; or None.
@@ -489,10 +505,10 @@ def named(text, names, last=False):
 
 
 def sides(row, names):
-    """Each (player, against whom or None, wins, losses) a row gives from one player's side: a table's columns (a
-    player's wins and losses, player_wins and opponent_wins, a set's winner_games and loser_games), and its texts'
-    "X won 1 and lost 2 ... against Y" and "X 1-5 against Y", each for both players it names. Names are the
-    casefolded names in view."""
+    """Each (player, against whom or None, wins, losses, whether they're one set's games) a row gives from one
+    player's side: a table's columns (a player's wins and losses, player_wins and opponent_wins, a set's winner_games
+    and loser_games), and its texts' "X won 1 and lost 2 ... against Y" and "X 1-5 against Y", each for both players it
+    names. Names are the casefolded names in view."""
     out = []
     if row.columns and row.cells and len(row.columns) == len(row.cells):
         cell = dict(zip(row.columns, row.cells))
@@ -501,17 +517,17 @@ def sides(row, names):
                         None)
         for subject, w, l, other in SIDES:
             if all(isinstance(cell.get(k), (int, float)) and not isinstance(cell.get(k), bool) for k in (w, l)):
-                a, b = who(subject), who(other)
-                out += ([(a, b, cell[w], cell[l])] if a else []) + ([(b, a, cell[l], cell[w])] if b else [])
+                a, b, games = who(subject), who(other), w == "winner_games"
+                out += ([(a, b, cell[w], cell[l], games)] if a else []) + ([(b, a, cell[l], cell[w], games)] if b else [])
     for text in row.texts:
         t = text.casefold()
         for m in WON_LOST.finditer(t):
             a = named(m[1], names, last=True)
             b = named(m[4].split("against", 1)[1], names) if "against" in m[4] else None
-            out += [(a, b, int(m[2]), int(m[3]))] if a else []
+            out += [(a, b, int(m[2]), int(m[3]), False)] if a else []
         for m in AGAINST.finditer(t):
             a, b = named(m[1], names, last=True), named(m[4], names)
-            out += ([(a, b, int(m[2]), int(m[3]))] if a else []) + ([(b, a, int(m[3]), int(m[2]))] if b else [])
+            out += ([(a, b, int(m[2]), int(m[3]), False)] if a else []) + ([(b, a, int(m[3]), int(m[2]), False)] if b else [])
     return out
 
 

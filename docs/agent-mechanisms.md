@@ -229,6 +229,21 @@ Built in round five:
     Raydish and against antireplay, 2-1 where the results give 1-2), in both drafts. The first version of the owner
     rule flagged five right records, from "A and B have a 2-1 record", "against A (2-2) and B (2-1)", "Winner: Raydish
     (2-0)", "Impala dominates ... (2-1 record)" and the list lines. Each one shaped the rule above.
+- **Placeholders, removed conditions and characterizations** (findings 33 and 35), three more kinds of claim:
+  - A placeholder ("[Opponent Name]", "[X]", "X wins", "X-Y") goes back once, then is left out with the line.
+  - A claim to have removed a condition, after a last query that found no rows, goes back once with "run it without
+    that condition", then is dropped silently, since it states nothing.
+  - A characterization ("dominates", "crushed", "one-sided", "far superior") is checked against the record behind
+    it: the owner's record against the other player, from the results' sides, leaving out one set's game scores.
+    It goes back only when that record is close, meaning fewer than twice the losses in wins or fewer than 2 wins
+    ahead. A sentence about part of a series isn't checked ("the early matches", a year, "their last three
+    meetings"), and neither is a question that uses such a word itself.
+  - Replayed on 751 recorded answers: 14 claims. That's 7 placeholders (finding 33's five slots, and q30 seed 1's
+    "[Player Name]" and "[Team Name]", which nobody had seen), finding 33's "Removing that condition", and 6
+    characterizations. Five are "Impala dominates" on a 2-1 record across runs, and one is finding 35's "Raydish
+    dominates" a 2-1 series. Checking every "dominates" would have flagged 15. The record yardstick left out "Phazon
+    dominates" at 5-1 and "bestjava dominated, winning 7 of 10". The part-of-a-series rule left out "dominated the
+    early matches" and "dominated in 2025".
 
 ## Decisions
 
