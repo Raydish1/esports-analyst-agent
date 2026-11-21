@@ -334,7 +334,8 @@ kind = 16
 mechanism = ["M1", "M2"]
 [[conversation.turn]]
 say = "biggest upset at bcx 2023"
-expect = "A reading of 'upset' the answer names (a set won by the player placing lower at the event), from v_sets_1v1; the data has no seeds."
+expect = "upsets for BCX 2023: the set the lower seed won with the largest seed difference, both seeds given (the user's definition, 2026-11-21)."
+calls = ["upsets"]
 
 [[conversation]]
 id = "a33"
@@ -343,7 +344,7 @@ kind = 16
 mechanism = ["M1", "M2"]
 [[conversation.turn]]
 say = "what's bbballoonboy's best win"
-expect = "A reading the answer names: a title (the biggest event won) or a set against the best-placed opponent, from the tools."
+expect = "A reading the answer names: a title (the biggest event won), or his biggest upset win (upsets with his player_id), from the tools."
 players = [149305]
 
 [[conversation]]
@@ -525,3 +526,24 @@ calls = ["player_results"]
 say = "are you sure?"
 expect = "Checked again with a tool, then said plainly whether it was right."
 calls_with = [{ tool = "player_results", player_id = 142100 }]
+
+[[conversation]]
+id = "a50"
+title = "A player's best record against opponents"
+kind = 14
+mechanism = ["M1", "M2", "M3"]
+[[conversation.turn]]
+say = "whats volst's best record against anyone"
+expect = "rank_pairs with volst's player_id and by='record': woolala 3-0 first; the reading of 'best record' named; each record from volst's side; no placeholders."
+calls_with = [{ tool = "rank_pairs", player_id = 162675, by = "record" }]
+not_says = ["[Opponent", "[X]"]
+
+[[conversation]]
+id = "a51"
+title = "A player's biggest upset wins"
+kind = 16
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "what are bbballoonboy's biggest upsets"
+expect = "upsets with BBBalloonBoy's player_id: the sets he won as the lower seed, the biggest seed difference first, with both seeds."
+calls_with = [{ tool = "upsets", player_id = 149305 }]

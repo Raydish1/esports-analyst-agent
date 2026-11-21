@@ -22,9 +22,9 @@ mechanisms. It isn't for scoring, and its questions have no verified answers.
 | 11 | The best teams | "the best 2v2 team ever", "the most wins as a duo" | None: `team_results` takes one player | `rank_pairs` of teammates |
 | 12 | A player's partners, or a team's record | "who has X played 2v2 with", "X and Y as a team" | `team_results` | |
 | 13 | Comparisons of two players | "who has more wins, X or Y" | `player_results` twice | |
-| 14 | A record against everyone, or the best record against one player | "X's best record against anyone" | `run_sql` on `v_head_to_head_1v1`, filtered by a player | |
+| 14 | A record against everyone, or the best record against one player | "X's best record against anyone" | `run_sql` on `v_head_to_head_1v1`, filtered by a player | `rank_pairs(player_id, by="record")` for a player's own best records (2026-11-21) |
 | 15 | Streaks | "X's longest win streak", "most top 8s in a row" | None | Open: no template |
-| 16 | Upsets and best wins | "the biggest upset at worlds", "X's best win" | `run_sql` on `v_sets_1v1` (each player's placement at the event). No seeds or ranks at the time | Open |
+| 16 | Upsets and best wins | "the biggest upset at worlds", "X's best win" | `run_sql` on `v_sets_1v1` (each player's placement at the event). No seeds or ranks at the time | `upsets` (2026-11-21, the user's definition: the lower seed won; the biggest seed difference) |
 | 17 | Dominance | "the most dominant worlds win" | `run_sql` on `v_win_runs` | |
 | 18 | An event's results | "who won bcx 2022", "top 8 of winters 2023 na", "when was it", "the bracket" | `event_results` | |
 | 19 | An event's sets and final | "the grand final score", "who did X lose to at bcx" | `run_sql` on `v_sets_1v1` | |
@@ -51,7 +51,6 @@ user's live test.
 
 ## The gaps left open
 
-Kinds 7, 15 and 16 stay open. Kind 7 has `run_sql` and a template rule (h15). Streaks (15) and upsets (16) are open
-because their readings are the user's to define. A streak could count events in a row, or one mode's events. An upset
-could be judged by placement at the event, or by Power Ranking, and the data has only one snapshot of the rankings.
-They are listed for the user.
+Kinds 7 and 15 stay open. Kind 7 has `run_sql` and a template rule (h15). Streaks (15) are open because their reading
+is the user's to define: a streak could count events in a row, or one mode's events. Upsets (16) got their definition
+on 2026-11-21 and a template.

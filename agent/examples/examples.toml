@@ -498,3 +498,25 @@ SELECT rank, player_id, medals FROM (SELECT *, RANK() OVER (ORDER BY medals DESC
 WHERE rank <= 5
 ORDER BY rank, player_id
 '''
+
+[[example]]
+id = "ex35"
+shape = "upsets"
+question = "What was the biggest upset at the Brawlhalla Japan Invitational?"
+note = "An upset is a set the lower seed won: the higher initial seed number at that event, from its standings (standings.initial_seed). The biggest has the largest seed difference. Give both seeds, and say a set without both seeds isn't judged."
+call = 'upsets(event="brawlhalla japan invitational", top=1)'
+call_note = "The sets the lower seed won, the biggest seed difference first, ties whole, with both seeds and the score. With player_id, that player's upset wins; in 2v2, for an event or a player."
+sql = '''
+WITH seeds AS (
+  SELECT s.event_id, p.canonical_id AS player_id, MIN(s.initial_seed) AS seed
+  FROM standings s JOIN players p ON p.player_id = s.player_id
+  WHERE s.initial_seed IS NOT NULL AND s.event_id = 'tournament/brawlhalla-japan-invitational/event/brawlhalla-championship-1v1'
+  GROUP BY 1, 2)
+SELECT x.winner_name, w.seed AS winner_seed, x.loser_name, l.seed AS loser_seed, w.seed - l.seed AS seed_difference
+FROM v_sets_1v1 x
+JOIN seeds w ON w.event_id = x.event_id AND w.player_id = x.winner_id
+JOIN seeds l ON l.event_id = x.event_id AND l.player_id = x.loser_id
+WHERE x.event_id = 'tournament/brawlhalla-japan-invitational/event/brawlhalla-championship-1v1' AND w.seed > l.seed
+ORDER BY seed_difference DESC
+LIMIT 1
+'''

@@ -59,7 +59,8 @@ import claim_check  # noqa: E402
 import mentions  # noqa: E402
 import scope  # noqa: E402
 import settling  # noqa: E402
-from number_check import Claim, Evidence, Window, claims as number_claims, left_out, stated, without  # noqa: E402
+from number_check import (Claim, Evidence, Window, claims as number_claims, left_out, restates, stated,  # noqa: E402
+                          without)
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
                    name_filters, player_ids, run_sql, tables)
@@ -89,7 +90,10 @@ Choosing a tool
   - two players against each other: head_to_head
   - who has the most wins, medals or top 8s, with no other condition: rank_players
   - who has played whom the most, a player's most-played opponents, or the best duos: rank_pairs
+  - a player's best records against their opponents: rank_pairs with player_id and by="record" (min_sets only for a
+    minimum the question sets). Who has the best record against a player is the counting rule below, with run_sql
   - the official Power Rankings, a player's PR, or who is ranked #1 in a region: power_rankings
+  - the biggest upsets, an event's upsets, or a player's biggest upset wins: upsets
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
@@ -230,6 +234,11 @@ Answering
 - State the scope: say "official events", not "majors". Name a mode only when the query was limited to one: "at
   official events, in 1v1" for 1v1 results, and "at official events" for results of both modes.
 - Name a set or a result by its event, written short (BCX 2022, Winter Royale 2023), not by its date.
+- Show a player_id only when the user asks for one, or to tell apart two players with the same name.
+- Never name the tools or the calls you used: the user sees the answer, not the steps.
+- Keep the order a tool returned unless the question asks for another, and never say an order was requested when it
+  wasn't.
+- Describe a record by its numbers: a word like "dominates" only for a lopsided record, never for a 2-1 or a 3-2.
 - Write a record from one named player's side, as the tool gives it: "Cody Travis's teams won 8 of the 20 and lost
   12", not "Phazon's teams outperformed Cody Travis's teams (8 wins, 12 losses)".
 - The first time you name a player the question named, use the display resolve_player gave, such as 'Zivai (formerly
@@ -286,6 +295,10 @@ NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
           " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
+# After each check's message: live, a reply to the number check opened "**Corrected Answer:**" and said "the previous
+# answer incorrectly stated ...", a draft the user never saw (docs/web-app-testing-notes.md, finding 34)
+DRAFT = (" The user hasn't seen the draft above: write the reply as the answer to their question, never as a correction"
+         " of a draft.")
 # What the page showed beside an answer, in a message of its own after it (Conversation.shown), and any copy of the
 # tag in an answer, which is taken out: live, an answer ended with such a tag it wrote itself, as the answers in its
 # history ended with one (docs/web-app-testing-notes.md, finding 21)
@@ -317,6 +330,8 @@ NUMBERS = ("Before this answer is final: it states {numbers}, which no tool resu
            " row (5-4), a date or a UTC time of a result, or a percentage of two numbers in one row. Don't add, subtract"
            " or count rows yourself: get the number from a template or run_sql, or leave it out. A number no tool"
            " returned is removed from the final answer.")
+REVERSED = ("written the other way round. Write each record from the side of the player its sentence names, their wins"
+            " first, as the tool gives it.")
 MISATTRIBUTED = ("though the results in view hold each only for another player or mode than its sentence is about."
                  " Take each figure from the row for the player and the mode its sentence names: the cards and the"
                  " templates give each mode a row of its own, and both modes together another.")
@@ -513,6 +528,7 @@ class Shown:
         self.evidence, self.earlier = Evidence(), Evidence()  # this question's, and the previous one's
         self.seen_now, self.seen_before, self.returned_now, self.returned_before = set(), set(), set(), set()
         self.text_now, self.text_before = "", ""  # the tool results' text, for the claim check's markers
+        self.about_now, self.about_before = set(), set()  # the players templates' results are about, by name
         for text in texts:
             self.read(text)
 
@@ -526,6 +542,7 @@ class Shown:
         self.seen_before, self.seen_now = self.seen_now, set()
         self.returned_before, self.returned_now = self.returned_now, set()
         self.text_before, self.text_now = self.text_now, ""
+        self.about_before, self.about_now = self.about_now, set()
         self.evidence.ask(question)
 
     @property
@@ -536,7 +553,8 @@ class Shown:
             name = " ".join((self.resolver.names.get(pid) or "").split())
             if len(name) >= 3:
                 names[name.casefold()] = name
-        return Window(self.evidence, self.earlier, names=names)
+        about = self.about_now or self.about_before  # this question's subject, else the previous one's
+        return Window(self.evidence, self.earlier, names=names, subject=next(iter(about)) if len(about) == 1 else None)
 
     @property
     def seen(self):
@@ -567,6 +585,9 @@ class Shown:
         if "error" not in observation:  # an error repeats what the call asked for, so it shows nothing
             self.seen_now |= mentions.seen([text])
             self.text_now += " " + text
+            player = observation.get("player")
+            if isinstance(player, dict) and player.get("name"):
+                self.about_now.add(" ".join(player["name"].split()).casefold())
             if arguments is not None:
                 self.evidence.call(arguments)
         returned = {c["player_id"] for c in observation.get("candidates", ())} if name == "resolve_player" else set()
@@ -852,12 +873,13 @@ def numbers_message(flagged):
     """The number check's message: the numbers no tool result in view holds (NUMBERS), then those it holds only for
     another player or mode (MISATTRIBUTED), each with whom and which mode its sentence is about."""
     plain = [repr(c.text) for c in flagged if not c.about]
-    other = [f"{c.text!r} about {c.about}" for c in flagged if c.about]
-    other = listed(other) if other else ""
-    if not plain:
-        return f"Before this answer is final: it states {other}, {MISATTRIBUTED}"
-    message = NUMBERS.format(numbers=listed(plain))
-    return f"{message} It also states {other}, {MISATTRIBUTED}" if other else message
+    other = [f"{c.text!r} about {c.about}" for c in flagged if c.about and not c.reversed]
+    backwards = [f"{c.text!r} as the record of {c.about}" for c in flagged if c.reversed]
+    parts = ([NUMBERS.format(numbers=listed(plain))] if plain else []) + (
+        [f"it states {listed(other)}, {MISATTRIBUTED}"] if other else []) + (
+        [f"it states {listed(backwards)}, {REVERSED}"] if backwards else [])
+    first = parts[0] if plain else f"Before this answer is final: {parts[0]}"
+    return " ".join([first] + [p[0].upper() + p[1:] for p in parts[1:]])
 
 
 def scoped(lacks):
@@ -872,11 +894,45 @@ def is_page_note(message):
     return message.get("role") == "user" and str(message.get("content", "")).startswith(PAGE_NOTE.split("{")[0])
 
 
+ASKS_IDS = re.compile(r"\b(?:ids?|player[ _]?ids?)\b", re.I)
+WRITTEN_ID = re.compile(r"[ \t]*\((?:player[ _]?id[:\s]*|id[:\s]*)?(-?\d{2,7})\)")
+
+
+def unasked_ids(answer, question, resolver):
+    """An answer with each player_id written in parentheses after that player's name taken out ('SiB | Wess (37977)'
+    is 'SiB | Wess'), and the IDs taken out: unless the question asks for IDs, or two players in the answer share the
+    name, whom the IDs tell apart (decided 2026-11-21: live, every name in a ranking had its ID beside it,
+    docs/web-app-testing-notes.md, finding 31)."""
+    if ASKS_IDS.search(question):
+        return answer, []
+    def name_before(m):
+        pid = int(m[1])
+        name = resolver.names.get(resolver.canonical.get(pid, pid)) or ""
+        before = re.sub(r"[*_`\s]+$", "", answer[:m.start()]).casefold()
+        return name if name and before.endswith(name.casefold()) else None
+    hits = [(m, name_before(m)) for m in WRITTEN_ID.finditer(answer)]
+    hits = [(m, n) for m, n in hits if n]
+    by_name = {}
+    for m, n in hits:
+        by_name.setdefault(n.casefold(), set()).add(int(m[1]))
+    out, removed = answer, []
+    for m, n in reversed(hits):
+        if len(by_name[n.casefold()]) == 1:
+            out = out[:m.start()] + out[m.end():]
+            removed.append(int(m[1]))
+    return out, removed[::-1]
+
+
 def claimed_wrong(found):
     """The claim check's message (claim_check.py): what the answer claims that no tool does, and what to do instead."""
     parts = []
     referrals = [repr(short(c.text, 80)) for c in found if c.kind == "referral"]
     judgments = [repr(short(c.text, 80)) for c in found if c.kind == "judgment"]
+    slots = [repr(short(c.text, 80)) for c in found if c.kind == "placeholder"]
+    relaxations = [repr(short(c.text, 80)) for c in found if c.kind == "relaxed"]
+    strong = [repr(short(c.text, 80)) for c in found if c.kind == "characterization"]
+    tools = [repr(short(c.text.strip(), 60)) for c in found if c.kind == "tool"]
+    orders = [repr(short(c.text, 60)) for c in found if c.kind == "unasked"]
     if referrals:
         parts.append(f"it sends the user to the database ({listed(referrals)}), and the user can't run queries. Run"
                      " what the answer needs with the tools yourself, and answer from what they return")
@@ -884,6 +940,21 @@ def claimed_wrong(found):
         parts.append(f"it calls a result wrong ({listed(judgments)}), though no tool result says the data is wrong"
                      " there. Report results as the data has them: if one looks surprising, say what the data shows"
                      " without judging it, or check it with another query")
+    if slots:
+        parts.append(f"it has placeholders where facts should be ({listed(slots)}): run the query that gives them and"
+                     " write the facts, or say plainly what the data doesn't have")
+    if relaxations:
+        parts.append(f"it says a condition was removed ({listed(relaxations)}), but no query ran without it: run it"
+                     " without that condition, then answer from its rows")
+    if strong:
+        parts.append(f"it characterizes a result ({listed(strong)}) beyond what its record says: give the record by"
+                     " its numbers, without words like 'dominates'")
+    if tools:
+        parts.append(f"it names the tools or calls it used ({listed(tools)}): the user sees the answer, not the steps,"
+                     " so leave them out")
+    if orders:
+        parts.append(f"it says {listed(orders)} of something the question didn't ask for: keep the order the tool gave,"
+                     " and don't say it was requested")
     return "Before this answer is final: " + "; and ".join(parts) + "."
 
 
@@ -1086,8 +1157,10 @@ class Conversation:
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
         judged = False  # whether the claim check sent an answer back
+        emptied = False  # whether the last query that ran found no rows (its result has a diagnosis)
         respelled = False  # whether the event check sent an answer back, to look an event up with another spelling
         disputed = bool(settled and settled.how == settling.DISPUTED)  # a question about the previous answer
+        paged = bool(settled and settled.how == settling.PAGED)  # one about what the page showed
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
         resolved = [(s, c["player_id"], c["name"], c.get("display") or c["name"]) for s, c in (settled.chosen if settled else ())]
         sent_back = None
@@ -1150,7 +1223,7 @@ class Conversation:
                         missed, message = True, LOOKUP_MISS.format(conditions=" and ".join(missing))
                         step["lookup_check"] = {"conditions": missing, "action": "sent back", "message": message}
                         self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                         {"role": "user", "content": message}]
+                                         {"role": "user", "content": message + DRAFT}]
                         log(f"  lookup check: answered right after no row had {' and '.join(missing)}; sent back")
                         sent_back = (content, swaps, message)
                         self.finished(step)
@@ -1165,7 +1238,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["event_check"] = {"event": event, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  event check: no event matched {event!r}, and no other spelling was tried; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1179,7 +1252,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["no_tool_check"] = {"disputed": True, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log("  no-tool check: a question about the previous answer, answered with no tool; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1191,14 +1264,14 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["no_tool_check"] = {**gap, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  no-tool check: no tool was called, and nothing in view holds {gapped(gap)}; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
                 lookups = (mentions.lookups(question, gap["words"], self.tools.resolver, self.tools.events.words)
                            if gap.get("words") and not forced and number < max_steps else [])
-                if disputed:  # about the answer or the page: its players only, never its other words as an event
+                if disputed or paged:  # about the answer or the page: its players only, never its other words
                     lookups = [c for c in lookups if c[0] == "resolve_player"]
                 if lookups:
                     forced = called = True
@@ -1222,7 +1295,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["pairing_check"] = {"pairs": pairings, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  pairing check: it pairs {listed([paired_as(p) for p in pairings])}; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1238,7 +1311,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["answer_check"] = {"names": names, "ids": ids, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  answer check: it {unreturned(names, ids)}, which no tool returned; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1246,7 +1319,7 @@ class Conversation:
                 if names or ids:
                     step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
-                wrong = self.wrong(content, said or question, disputed) if outcome == "answered" else []
+                wrong = self.wrong(content, said or question, disputed, emptied) if outcome == "answered" else []
                 if wrong and not judged and not strict and number < max_steps:
                     judged, message = True, claimed_wrong(wrong)
                     if number == max_steps - 1:
@@ -1254,16 +1327,20 @@ class Conversation:
                     step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "sent back",
                                            "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  claim check: {listed([repr(short(c.text, 60)) for c in wrong])}; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
                 judgments = []
-                if wrong:  # left out of whatever text is final; a referral, which states nothing, with no line saying so
+                if wrong:  # left out of whatever text is final; a claim that states nothing with no line saying so
                     plain = claim_check.without_code(content)
-                    content, dropped = without(plain, claim_check.referrals(plain))
-                    judgments = [c for c in self.wrong(content, said or question, disputed) if c.kind == "judgment"]
+                    plain = claim_check.without_tool_talk(plain, self.view.states_facts)
+                    silent = [c for c in self.wrong(plain, said or question, disputed, emptied)
+                              if c.kind in claim_check.SILENT]
+                    content, dropped = without(plain, silent)
+                    judgments = [c for c in self.wrong(content, said or question, disputed, emptied)
+                                 if c.kind not in claim_check.SILENT and c.kind != "tool"]
                     step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "left out: " + (
                         "sent back once already" if judged else "the turn looked nothing up" if strict
                         else "no steps left" if outcome == "answered" else "not an answer"),
@@ -1280,7 +1357,7 @@ class Conversation:
                         message += " " + LAST_STEP
                     step["number_check"] = {"numbers": flagged_texts, "action": "sent back", "message": message}
                     self.current += [{"role": "assistant", "content": content, "thinking": thinking},
-                                     {"role": "user", "content": message}]
+                                     {"role": "user", "content": message + DRAFT}]
                     log(f"  number check: it states {listed(flagged_texts)}, which no tool result holds; sent back")
                     sent_back = (content, swaps, message)
                     self.finished(step)
@@ -1298,10 +1375,22 @@ class Conversation:
                     if not self.view.states_facts(content):  # no fact is left once the claims are out
                         content = NOT_LOOKED_UP if strict else NOT_CONFIRMED
                         record["action"] += "; no fact left, so the whole answer"
-                    else:
+                    elif not restates(unconfirmed, content):  # what's left out says nothing the answer doesn't
                         content = f"{content}\n\n{left_out(unconfirmed)}"
                     log(f"  {listed(flagged_texts + [c.text for c in judgments])} left out, since no tool result in"
                         " view holds them or says so")
+                drafted = any(isinstance(v, dict) and v.get("action") == "sent back" for s in trace["steps"]
+                              for v in s.values())
+                if outcome == "answered" and drafted and not disputed:  # a correction of a draft the user never saw
+                    labelled = claim_check.without_draft_label(content)
+                    unlabelled, talk = claim_check.without_draft_talk(labelled, self.view.states_facts)
+                    if talk or labelled != content.strip():
+                        step["draft_talk_removed"] = talk + ([] if labelled == content.strip() else ["the label"])
+                    content = unlabelled or content
+                if outcome == "answered":  # an ID beside each name, unasked (finding 31)
+                    content, stripped = unasked_ids(content, said or question, self.tools.resolver)
+                    if stripped:
+                        step["ids_removed"] = stripped
                 trace["answer"], trace["outcome"], trace["name_swaps"] = content.strip() or None, outcome, swaps
                 trace["unreturned_names"], trace["unreturned_ids"], trace["unconfirmed"] = names, ids, unconfirmed
                 log(f"  {trace['outcome']}: {short(content, 300)}")
@@ -1348,6 +1437,7 @@ class Conversation:
                 self.view.observe(name, observation, arguments)
                 if name in QUERIES:  # only a new query clears a result too large to show, or a lookup miss
                     too_big = observation.get("complete") is False
+                    emptied = "diagnosis" in observation
                     missing, missed = missing_text(observation.get("diagnosis")), False
                 noted(question, name, observation, asked, resolved)
                 if number == max_steps - 1 and i == len(calls) - 1:
@@ -1375,13 +1465,25 @@ class Conversation:
         trace["largest_context"] = max(((s["prompt_tokens"] or 0) + (s["output_tokens"] or 0) for s in trace["steps"]), default=0)
         return trace
 
-    def wrong(self, answer, question, disputed):
-        """What an answer claims that no tool does (claim_check.py): its referrals, and its judgments that a result is
-        wrong, unless the question is about the previous answer, whose re-check may say an answer was wrong."""
-        found = claim_check.referrals(answer)
+    def wrong(self, answer, question, disputed, emptied=False):
+        """What an answer claims that no tool does (claim_check.py): its referrals, placeholders and characterizations;
+        its judgments that a result is wrong, unless the question is about the previous answer, whose re-check may
+        say an answer was wrong; and, after a last query that found no rows (emptied), its claims to have removed a
+        condition."""
+        found = claim_check.referrals(answer) + claim_check.placeholders(answer) + claim_check.tool_talk(answer)
+        found += claim_check.unasked(answer, question)
+        window = self.view.window  # a characterization goes back only when the record behind it is close
+        found += [c for c in claim_check.characterizations(answer, question) if window.lopsided(answer, c) is False]
         if not disputed:
             found += claim_check.judgments(answer, question, self.view.in_view)
-        return sorted(found, key=lambda c: c.start)
+        if emptied:
+            found += claim_check.relaxed(answer)
+        kept, end = [], -1  # overlaps dropped, as claim_check.found drops them within a kind
+        for c in sorted(found, key=lambda c: (c.start, -c.end)):
+            if c.start >= end:
+                kept.append(c)
+                end = c.end
+        return kept
 
     def look_up(self, question, lookups, step, resolved, last):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the

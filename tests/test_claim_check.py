@@ -1,3 +1,4 @@
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -49,6 +50,53 @@ class JudgmentTest(unittest.TestCase):
 
     def test_overlapping_patterns_give_one_claim(self):
         self.assertEqual(texts(claim_check.judgments("It is likely an error in the data.", "q", "")), ["likely an error"])
+
+
+class RoundFiveTest(unittest.TestCase):
+    def test_placeholder_slots_are_found_and_links_or_the_page_note_are_not(self):
+        slots = "**Opponent**: [Opponent Name]\n**Wins**: [X] wins, a X-Y record"  # live, finding 33
+        self.assertEqual(texts(claim_check.placeholders(slots)), ["[Opponent Name]", "[X]", "X-Y"])
+        self.assertEqual(claim_check.placeholders("See [the bracket](https://start.gg/x) and [The page showed it]"), [])
+
+    def test_a_relaxation_and_a_characterization_are_found_unless_the_question_uses_one(self):
+        self.assertEqual(texts(claim_check.relaxed("I removed the 5-set minimum, so here they are.")),
+                         ["removed the 5-set minimum"])
+        self.assertEqual(texts(claim_check.characterizations("Raydish dominates the head-to-head series.", "q")),
+                         ["dominates"])  # live, finding 35: a 2-1 series
+        self.assertEqual(claim_check.characterizations("It was dominated by Zivai.", "the most dominant win"), [])
+        self.assertEqual(claim_check.characterizations("Neither player dominated.", "q"), [])
+        self.assertEqual(claim_check.characterizations("Zivai's most dominant win was BCX 2023.", "q"), [])
+
+
+class WritingTest(unittest.TestCase):
+    def test_tool_talk_is_found_and_a_sentence_keeps_its_facts_without_it(self):
+        said = "Phazon's 12 golds are 2v2 1st places (checked with `player_results(player_id=147522)`)."  # finding 32
+        self.assertEqual([c.text.strip() for c in claim_check.tool_talk(said)],
+                         ["(checked with `player_results(player_id=147522)`)"])
+        facts = lambda text: bool(re.search(r"\d", text))  # noqa: E731
+        self.assertEqual(claim_check.without_tool_talk(said, facts), "Phazon's 12 golds are 2v2 1st places.")
+        self.assertEqual(claim_check.without_tool_talk("I used `rank_pairs` to rank them. Wess leads, 34 sets.", facts),
+                         "Wess leads, 34 sets.")
+        self.assertEqual(claim_check.tool_talk("The player results are below."), [])
+
+    def test_an_order_said_to_be_requested_is_found_only_when_the_question_asked_for_none(self):
+        said = "Here are the three sets, most recent first as requested:"  # live, finding 35
+        self.assertEqual(texts(claim_check.unasked(said, "what are the three sets that volst vs'd raydish")),
+                         ["as requested"])
+        self.assertEqual(claim_check.unasked(said, "list them newest first"), [])
+
+
+class DraftTest(unittest.TestCase):
+    def test_draft_talk_loses_its_clause_or_its_sentence_and_a_correction_label_goes(self):
+        facts = lambda text: bool(re.search(r"[0-9]", text))  # noqa: E731
+        said = ("The previous answer incorrectly stated a 2-1 record against experiencedoa; the actual record is 0-3."
+                " The best is woolala, 3-0.")  # live, finding 34
+        self.assertEqual(claim_check.without_draft_talk(said, facts),
+                         ("the actual record is 0-3. The best is woolala, 3-0.",
+                          ["The previous answer incorrectly stated a 2-1 record against experiencedoa;"]))
+        self.assertEqual(claim_check.without_draft_talk("My previous answer was wrong. Zivai leads, 5-2.", facts)[0],
+                         "Zivai leads, 5-2.")
+        self.assertEqual(claim_check.without_draft_label("**Corrected Answer:**\nZivai leads, 5-2."), "Zivai leads, 5-2.")
 
 
 if __name__ == "__main__":

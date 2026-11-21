@@ -188,9 +188,114 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
   and "springs" named NurptheDerp.
   - Replayed on the 98 recorded and test questions, two names are now read as possessives: "renivics" (finding 25)
     and "mojakins", which is c9 turn 1's. The 45 questions still give the same 31 names.
-  - **This conflicts with a verified answer.** c9 turn 1 ("what are mojakins stats") expects suggestions with Mojakin
-    first, and now gets Mojakin's stats. That conversation's turn 2 ("the first one") then answers no suggestions.
-    c9 is left as verified, and the conflict is listed for the user below.
+  - **This conflicted with a verified answer.** c9 turn 1 ("what are mojakins stats") expected suggestions with
+    Mojakin first, and now got Mojakin's stats. Settled on 2026-11-21 by the user: keep the retry, and spell c9 turn 1
+    "mojakn", which matches Mojakin only loosely (0.78, first) and isn't a possessive.
+
+## Round five (2026-11-21): findings 30-35 and upsets
+
+The user's fifth round of live tests ran after the mechanism round was merged, at e4f7e1a on `claude/web-app`. Every
+figure was right, and the failures are in how the answers read. The user also defined upsets and settled c9 (above).
+Grouped by mechanism, with the open failures counted:
+
+| Mechanism | Findings | Open |
+|---|---|---|
+| M3 facts and claims | 30 (a true sentence cut for "two" in "the top two tied"), 33 (placeholders: "[Opponent Name]", and a condition said to be removed though no query ran without it), 34 (records written backwards, which the number check passes since it takes "2-1" from a row of 1 and 2 in either order), 35 ("dominates" for a 2-1 record) | 4 |
+| M5 answer writing, new | 31 (player IDs beside every name, unasked), 32 (the reply listed its tool calls), 35 (an order "as requested" that nobody requested) | 3 |
+| M4 the conversation | 32 (a question about the card answered as a dispute: "The previous answer was correct"), 34 (a reply to a check written as a correction of a draft the user never saw) | 2 |
+| M2 the tools | 34 (no tool ranks a player's opponents by record, so "best record" fell back to most sets), upsets (defined by the user, no tool) | 2 |
+| M1 reading the question | 34 ("best record" read as most sets played) | 1 |
+
+M5 is new. These answers say things beyond what the user asked: IDs, tool calls, and an order "as requested". It's
+not about facts, so it gets its own row.
+
+Built in round five:
+
+- **Count words that count a result's rows** (finding 30). A count word from two to ten is supported when that many
+  rows of one result share a number its sentence states ("the top two tied at 34 sets"). After "top", it's supported
+  when a result has that many rows or more ("the top three"). Such a count is about no one player or mode, so the
+  agreement check skips it. When everything left out only restates numbers the answer keeps, no left-out line is
+  added. Replayed on finding 30's live turn, its draft now passes with nothing flagged.
+- **A record is checked from its owner's side** (finding 34). The number check took "2-1" from any row holding a 1
+  and a 2, in either order. Now the evidence reads each row's sides as (player, against whom, wins, losses). That
+  covers a table's wins and losses, `player_wins` and `opponent_wins`, a set's winner and loser games, and the notes'
+  "X won 1 and lost 2 ... against Y" and the card's "X 1-5 against Y". A record claim's owner is the nearest player
+  named before it who isn't an object ("Raydish beat volst 2-1" is Raydish's), or the first of names joined by "and".
+  A player a list writes the record right after ("**Raydish** (3 sets, 2-1 record)") is the opponent of the answer's
+  subject, the one player the turn's results are about, unless the line calls them a winner. A record that matches
+  that pair's sides only the other way round goes back once, saying whose it is and how the results give it, then
+  it's left out. A loss ("lost 1-2 to"), whose order people write either way, isn't read.
+  - Replayed on 883 recorded drafts and answers: it flags only finding 34's two reversed records (volst against
+    Raydish and against antireplay, 2-1 where the results give 1-2), in both drafts. The first version of the owner
+    rule flagged five right records, from "A and B have a 2-1 record", "against A (2-2) and B (2-1)", "Winner: Raydish
+    (2-0)", "Impala dominates ... (2-1 record)" and the list lines. Each one shaped the rule above.
+- **Placeholders, removed conditions and characterizations** (findings 33 and 35), three more kinds of claim:
+  - A placeholder ("[Opponent Name]", "[X]", "X wins", "X-Y") goes back once, then is left out with the line.
+  - A claim to have removed a condition, after a last query that found no rows, goes back once with "run it without
+    that condition", then is dropped silently, since it states nothing.
+  - A characterization ("dominates", "crushed", "one-sided", "far superior") is checked against the record behind
+    it: the owner's record against the other player, from the results' sides, leaving out one set's game scores.
+    It goes back only when that record is close, meaning fewer than twice the losses in wins or fewer than 2 wins
+    ahead. A sentence about part of a series isn't checked ("the early matches", a year, "their last three
+    meetings"), and neither is a question that uses such a word itself.
+  - Replayed on 751 recorded answers: 14 claims. That's 7 placeholders (finding 33's five slots, and q30 seed 1's
+    "[Player Name]" and "[Team Name]", which nobody had seen), finding 33's "Removing that condition", and 6
+    characterizations. Five are "Impala dominates" on a 2-1 record across runs, and one is finding 35's "Raydish
+    dominates" a 2-1 series. Checking every "dominates" would have flagged 15. The record yardstick left out "Phazon
+    dominates" at 5-1 and "bestjava dominated, winning 7 of 10". The part-of-a-series rule left out "dominated the
+    early matches" and "dominated in 2025".
+- **M5, answer writing** (findings 31, 32 and 35):
+  - A player_id in parentheses right after that player's name ("**SiB | Wess (37977)**") is taken out of the final
+    answer, which the trace keeps as `ids_removed`. It stays when the question asks for IDs, or when two players in
+    the answer share the name, since the ID tells them apart. A number after a name that isn't that player's ID (a
+    year) isn't touched.
+  - Tool talk, a tool or a call the answer names ("checked with `player_results(player_id=147522)`"), goes back once.
+    After that, a sentence that states nothing else goes whole, and any other loses only those words.
+  - "As requested" about an order, when the question asked for none, goes back once, then its sentence goes.
+  - The prompt says to show IDs only when asked or needed, never to name the tools, to keep the tool's order unless
+    asked, and to describe a record by its numbers.
+  - Replayed on 747 recorded answers: 167 had IDs beside names (279 IDs). Tool talk appears 40 times, all of the
+    kind (`resolve_player(name="Ahmet")`, "using the `resolve_player` tool"). "As requested" appears once, in finding
+    35.
+- **M4, the conversation** (findings 32 and 34):
+  - A question about what the page showed has its own kind (`settling.PAGED`) and note: explain the figure it asks
+    about, from the page's message and the tools, and don't say whether the answer was right. It's settled before
+    the dispute cues, so "where does the card's 12 come from?" isn't a dispute. Like a dispute, its forced lookups
+    are its players only. Unlike one, it needs no re-check, and its judgments are checked.
+  - Every check's message ends with `DRAFT`: the user hasn't seen the draft, so the reply answers their question and
+    never corrects a draft. After a turn whose answer a check sent back, unless the question is about the previous
+    answer, the final answer loses a "Corrected Answer:" heading and its talk about its own draft. That's the clause
+    up to a colon or semicolon, or the whole sentence when nothing else in it states a fact. A sentence with facts and
+    no such clause is kept.
+  - Replayed on 89 recorded answers given after a send-back: only finding 34's has draft talk ("**Corrected
+    Answer:**", and "The previous answer incorrectly stated a 2-1 record against experiencedoa;"), and both go.
+- **A player's best records** (finding 34, M2 and M1). With `player_id`, `rank_pairs(by="record")` ranks that
+  player's opponents by the player's wins against them, then the fewest losses. An optional `min_sets` applies only
+  when the question sets a minimum, and a note asks the answer to say how it read "best record", and the minimum.
+  Without a player it's refused, since a record is one player's. "Choosing a tool" maps a player's best records to
+  it. "Who has the best record against a player" keeps the decided counting rule (win rate, at least 5 matches,
+  `run_sql`), which q08's verified answer rests on. On eval-v1, volst's best records are woolala 3-0, then nine
+  opponents at 2-0, in 0.37 s, which is finding 33's truth.
+- **Upsets** (the user's definition, 2026-11-21). `upsets` lists the sets the lower seed won, meaning the higher
+  `initial_seed` at that event from its standings, the biggest seed difference first, ties whole, with both seeds and
+  the score. A set without both seeds isn't judged, and the note says how many sets were and weren't. With
+  `player_id` it gives that player's upset wins. It works in 1v1 over every event or narrowed to a year, window,
+  region or event, and in 2v2 for an event or a player, since the 2v2 sets view takes more than a minute over every
+  event.
+  - Seeds and sets are read separately and joined in memory. The same join in SQL ran past 300 s. The full seed table
+    (about 8 s) is kept on the tools object after the first read.
+  - On eval-v1: BCX 2023's biggest 1v1 upset is irqqzz (seed 665) over Nomm999 (89), 576 apart. BBBalloonBoy's
+    biggest upset win came as seed 1,712 over seed 337, at LTC Midseason Online 2020. Over every event it's Commanda
+    Doggo (7,233) over Phoza (192), at the NA SteelSeries Championship's 7,240 entrants, which takes 22.5 s under the
+    agent's x64 Python, within the 30 s limit.
+  - The scope check reads its default mode as 1v1. ex35 shows the call for the Brawlhalla Japan Invitational. The
+    audit's kind 16 now has a template, a32 checks for `upsets`, and a50 and a51 ask a player's best record and
+    biggest upsets.
+- **The conversation set.** c18 (findings 30 and 31) and c19 (33 to 35) come from the fifth round's sessions, and
+  c14 turn 2 now also checks that the card question isn't answered as a dispute (32). None is verified yet. Scored
+  on the live transcripts they come from, each turn fails exactly the checks written for its finding: IDs and the
+  left-out line (c18); placeholders and woolala's 3-0 (c19 turn 1); `by="record"`, "Corrected Answer" and the
+  record (turn 2); "dominates" and "as requested" (turn 3).
 
 ## Decisions
 
@@ -218,13 +323,12 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
-- c9 turn 1 against the possessive retry. The retry (finding 25) reads "mojakins" as Mojakin, confident, where c9's
-  verified answer expects suggestions. There are two ways to settle it. One is to keep the retry and write c9 turn 1
-  with a loose spelling that isn't a possessive (for example "what are mojakn stats"), so turns 1 and 2 still test
-  suggestions and "the first one". The other is to drop the retry. Until then, c9 turn 1 fails its checks by design.
-- Verifying c14 to c17 (`eval/questions/conversations-review.md`).
-- Definitions for streaks (events in a row? in one mode?) and upsets (by placement at the event? by Power Ranking?),
-  if those kinds should get templates.
+- Verifying c14 to c19 (`eval/questions/conversations-review.md`).
+- One design call of round five to look at: a characterization such as "dominates" is supported when the record has
+  at least twice the losses in wins and is 2 wins ahead. That's my reading of the finding's "stronger than the record
+  supports", not a definition you gave.
+- A definition for streaks (events in a row? in one mode?), if that kind should get a template. Upsets were defined
+  on 2026-11-21 (round five).
 
 ## Runs wanted
 
@@ -233,7 +337,7 @@ resumable, and they're listed in the order they're worth:
 
 1. The before run of c8-c13 at 3d42613, as agreed on 2026-11-20 (`py -3.14 eval/conversations.py run --seeds 0 1 2
    --ids c8 c9 c10 c11 c12 c13`, from a checkout of 3d42613).
-2. The conversations at the latest commit, all 17, seeds 0-2. This measures findings 7-29's fixes on c8-c17, and
+2. The conversations at the latest commit, all 19, seeds 0-2. This measures findings 7-35's fixes on c8-c19, and
    checks c1-c7 for regressions.
 3. The 45 questions at the latest commit, seeds 0-2 (`py -3.14 eval/harness.py run --ids q01 ... q45 --seeds 0 1 2`,
    never `--all`). This checks for regressions against `20261119-webfixes`.

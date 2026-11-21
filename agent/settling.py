@@ -55,6 +55,7 @@ PAGE = re.compile(r"\b(?:on|in|from|about|of) (?:the|this|that|your|those|these)
                   r"|images?|pictures?|page|screen)\b|\b(?:the|this|that) (?:stat )?(?:cards?|graphics?|charts?) (?:says?"
                   r"|shows?|said|showed)\b", re.I)
 DISPUTED = "a question about the previous answer (cues)"
+PAGED = "a question about what the page showed (cues)"  # its own note: explain the figure, not defend the answer
 
 
 @dataclass
@@ -194,7 +195,9 @@ def by_cues(message, context, resolver, event_words=frozenset()):
     found = mentions.named(message, resolver, event_words, least=mentions.MIN_SCORE)
     names = unique([(c.get("display") or c["name"], c["player_id"]) for _, out in found if out.get("status") == "confident"
                     for c in out["candidates"][:1]])
-    if DISPUTES.search(message) or (context.shown and PAGE.search(message)):
+    if context.shown and PAGE.search(message):  # before the disputes: "where does the card's 12 come from?"
+        return about_page(message, context, names)
+    if DISPUTES.search(message):
         return about_answer(message, context, names)
     said = " ".join(words)
     fragment = len(words) <= FRAGMENT and words[0] in STARTS
@@ -240,14 +243,25 @@ def about_answer(message, context, names):
     previous = mentions.unnoted(context.question)
     players = unique(list(context.players) + list(names))
     about = f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else ""
-    if context.shown and PAGE.search(message):  # what the page showed, which the page's message above gives
-        note = (f'This asks about what the page showed beside your answer to the previous question, "{previous}"{about}'
-                ": answer from the page's message above, and check its figures with the tools (player_results with no"
-                " top gives each mode, and both together, at once), then say plainly what they are")
-    else:
-        note = (f'This questions your answer to the previous question, "{previous}"{about}: check what it questions'
-                " with the tools again, then say plainly whether that answer was right, and correct it if it wasn't")
+    note = (f'This questions your answer to the previous question, "{previous}"{about}: check what it questions'
+            " with the tools again, then say plainly whether that answer was right, and correct it if it wasn't")
     return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
+
+
+def about_page(message, context, names):
+    """A question about what the page showed beside the last answer ('on the card, where does phazon's 12 gold come
+    from?'), with a note to explain the figure it asks about, from the page's message and the tools, and not to
+    judge the answer: live, settled as a dispute, the reply opened "The previous answer was correct" and never said
+    what GOLD is (docs/web-app-testing-notes.md, finding 32). Its other words are never looked up as an event, as a
+    dispute's aren't, and it needs no re-check (react.py)."""
+    previous = mentions.unnoted(context.question)
+    players = unique(list(context.players) + list(names))
+    about = f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else ""
+    note = (f'This asks what the page showed beside your answer to the previous question, "{previous}"{about}: explain'
+            " the figure it asks about, from the page's message above, and check it with the tools if needed"
+            " (player_results with no top gives each mode, and both together, at once). It doesn't question your"
+            " answer, so don't say whether that answer was right")
+    return Settled(f"{message} [{note}.]", previous, PAGED, players=players, events=list(context.events))
 
 
 # The context after a turn

@@ -3,7 +3,8 @@
 # 20261119T233544Z-002 and -003), all verified by the user that day. c8-c13 (v2, 2026-11-20) come from the second and
 # third rounds of live tests (20261120T050251Z-001, -003, -004 and -005; docs/web-app-testing-notes.md on
 # claude/web-app, findings 7-20). c14-c17 (v3, 2026-11-20) come from the fourth round (20261120T175430Z-001,
-# 20261120T175642Z-001 to -003; findings 21-29), not verified yet. Review them in conversations-review.md, which `python eval/conversations.py review`
+# 20261120T175642Z-001 to -003; findings 21-29), and c18-c19 (2026-11-21) from the fifth (20261121T045117Z-002,
+# 20261121T053752Z-002; findings 30-35), not verified yet. Review them in conversations-review.md, which `python eval/conversations.py review`
 # makes from this file with each query's result; edit this file, never the page. Played and scored by
 # eval/conversations.py.
 #
@@ -578,8 +579,8 @@ measures = ["finding 16: a player's stats from one call", "finding 15: no answer
 verified = "yes"
 
 [[conversation.turn]]
-say = "what are mojakins stats"
-expect = "Suggestions, Mojakin (77046) first: 'mojakins' matches no name exactly, Mojakin only by a similar spelling."
+say = "what are mojakn stats"
+expect = "Suggestions, Mojakin (77046) first: 'mojakn' matches no name exactly, Mojakin only by a similar spelling. (Live and until 2026-11-21 the turn said 'mojakins', which the possessive retry now reads as Mojakin; the user had the spelling changed to one that isn't a possessive.)"
 suggests = 77046
 
 [[conversation.turn.query]]
@@ -836,7 +837,7 @@ SELECT player_id, COUNT(*) AS results, SUM(placement <= 8) AS top8s FROM v_resul
 id = "c14"
 title = "Cody Travis vs Phazon, then a question about the card"
 source = "20261120T175430Z-001, turns 1-2, and the conversation after it"
-measures = ["finding 24: a record written from one named player's side", "finding 21: the page's tag never copied into an answer", "finding 22: a card's figure read for its own mode and player", "finding 23: a question about the card is one about the answer, its words never looked up"]
+measures = ["finding 24: a record written from one named player's side", "finding 21: the page's tag never copied into an answer", "finding 22: a card's figure read for its own mode and player", "finding 23: a question about the card, its words never looked up", "finding 32: the card's figure explained, not the answer defended"]
 verified = ""
 
 [[conversation.turn]]
@@ -874,7 +875,7 @@ gold is a 1st place, and a medal a 1st, 2nd or 3rd place: his 2v2 medals are 33 
 as a question about the answer. The answer has no "[The page showed ...]" tag of its own, and no word of the message \
 is looked up as an event. Live, one run copied the tag, one read the 12 as 1v1, and one looked up "come".
 """
-not_says = ["[The page showed", "conflict", "anomal"]
+not_says = ["[The page showed", "conflict", "anomal", "previous answer", "was correct"]
 not_looked_up = ["come"]
 says_numbers = [12]
 players = [147522]
@@ -1014,4 +1015,88 @@ purpose = "the top 3 of the NA 2v2 Power Rankings"
 sql = '''
 SELECT power_ranking, player_id, points FROM pr_snapshots WHERE mode = '2v2' AND region = 'NA' AND power_ranking <= 3
 ORDER BY power_ranking
+'''
+
+[[conversation]]
+id = "c18"
+title = "The biggest 1v1 head-to-head, with no IDs and nothing left out"
+source = "20261121T045117Z-002, turn 1"
+measures = ["finding 30: a count of tied rows ('the top two tied at 34 sets') isn't cut", "finding 31: no player IDs unasked"]
+verified = ""
+
+[[conversation.turn]]
+say = "whats the biggest head to head record in 1v1"
+expect = """
+By the 1v1 sets between two players at official events: SiB | Wess and lFiend, and yüz and whoiskyna, tied at 34 sets \
+(Wess 15-19, yüz 17-17), then gdsandstorm and Boomie, 28 (gdsandstorm 19-9), and Remmy and noeL, 25 (Remmy 10-15). No \
+player IDs beside the names, and no closing line saying something was left out. Live, "the top two tied at 34 sets" \
+was cut for its "two", and every name had its ID.
+"""
+calls = ["rank_pairs"]
+says_numbers = [34, 28]
+not_says = ["(37977)", "(148891)", "I left out"]
+
+[[conversation.turn.query]]
+purpose = "the pairs with the most 1v1 sets between them"
+sql = '''
+SELECT MIN(winner_id, loser_id) AS a, MAX(winner_id, loser_id) AS b, COUNT(*) AS sets, SUM(winner_id < loser_id) AS a_wins
+FROM v_sets_1v1 GROUP BY 1, 2 ORDER BY sets DESC LIMIT 4
+'''
+
+[[conversation]]
+id = "c19"
+title = "volst's best records, without the minimum, then his sets against Raydish"
+source = "20261121T053752Z-002, turns 1, 3 and 4"
+measures = ["finding 33: no placeholders, and no condition said removed without a query run without it", "finding 34: 'best record' ranked by record, each record from volst's side, no correction of a draft", "finding 35: the tool's order, and no 'dominates' for a 2-1"]
+verified = ""
+
+[[conversation.turn]]
+say = "whats volst best records vs an opponent"
+expect = """
+volst has 1v1 sets against 223 opponents at official events, at most 4 against one (Bunny meow, 0-4), so no opponent \
+has 5. The best record is woolala, 3-0, then nine opponents at 2-0 (among them blazey. and Mr. Schmitty), with the \
+reading of "best record" said (the most wins, then the fewest losses). No placeholders. Live, the 5-set minimum \
+emptied the query, and the answer gave "[Opponent Name]" and "[X]" wins after saying it had removed the minimum.
+"""
+not_says = ["[Opponent", "[X]"]
+says_record = { record = [3, 0], about = ["woolala"] }
+
+[[conversation.turn.query]]
+purpose = "volst's best records: the most wins, then the fewest losses"
+sql = '''
+SELECT opponent, SUM(won) AS wins, COUNT(*) - SUM(won) AS losses FROM (
+  SELECT loser_id AS opponent, 1 AS won FROM v_sets_1v1 WHERE winner_id = 162675
+  UNION ALL SELECT winner_id, 0 FROM v_sets_1v1 WHERE loser_id = 162675)
+GROUP BY opponent ORDER BY wins DESC, losses ASC LIMIT 11
+'''
+
+[[conversation.turn]]
+say = "whats volsts best records vs an opponent without the 5 set minimum"
+expect = """
+The same ranking, with no minimum: woolala 3-0, then the nine at 2-0. Any other record it gives is volst's side: 1-2 \
+against Raydish and against antireplay, 0-4 against Bunny meow. No "Corrected Answer" and no talk of a previous \
+answer. Live, it ranked by sets played, wrote volst 2-1 against Raydish and antireplay, and opened "**Corrected \
+Answer:**".
+"""
+calls_with = [{ tool = "rank_pairs", player_id = 162675, by = "record" }]
+not_says = ["Corrected Answer", "previous answer", "[Opponent"]
+says_record = { record = [3, 0], about = ["woolala"] }
+
+[[conversation.turn]]
+say = "what are the three sets that volst vs'd raydish"
+expect = """
+The three 1v1 sets, in the tool's order (oldest first): North America - Spring Championship 2021 (2021-05-09), \
+Raydish won 2-0; Trial of Freya - North America (2024-09-15), volst won 3-x; Summer Championship - North America 2026 \
+(2026-07-19), Raydish won 3-x. volst 1-2 against Raydish. No "as requested" and no "dominates" for a 2-1. Live, they \
+were listed "most recent first ... as requested" and summed up as "Raydish dominates".
+"""
+calls = ["head_to_head"]
+players = [162675, 160000]
+not_says = ["dominat", "as requested"]
+
+[[conversation.turn.query]]
+purpose = "the sets between volst and Raydish"
+sql = '''
+SELECT start_date, tournament_name, winner_name, winner_games, loser_games FROM v_sets_1v1
+WHERE (winner_id = 162675 AND loser_id = 160000) OR (winner_id = 160000 AND loser_id = 162675) ORDER BY start_date
 '''

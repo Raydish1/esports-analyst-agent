@@ -765,10 +765,11 @@ def ties(rows):
 
 
 def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_id=None, year=None, since=None,
-               until=None, event=None, region=None):
+               until=None, event=None, region=None, min_sets=None):
     """Pairs of players ranked: opponents by the 1v1 sets between them, or for one player their 2v2 meetings too;
     teammates by their 2v2 events, wins, medals or top 8s together. Each pair once, every tie included."""
     of, top = one_of(of), whole(top, "top")
+    least = None if min_sets is None else whole(min_sets, "min_sets")
     narrow = narrowing(tools, year, since, until, event, region)
     if narrow.found and not narrow.found.usable:
         return unanswered("rank_pairs", narrow.found, query)
@@ -778,8 +779,13 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
         notes.append(merged(given, player, name))
     if of == "opponents":
         mode = "1v1" if mode is None else one_mode(mode)
-        if by is not None and str(by).strip().lower() not in ("sets", "meetings", "matches", "played", "most"):
-            raise Refused(f"opponents are ranked by the sets between them, not {by!r}: leave by out")
+        record = str(by or "").strip().lower() in ("record", "records", "best record", "wins", "win rate")
+        if by is not None and not record and str(by).strip().lower() not in ("sets", "meetings", "matches", "played",
+                                                                             "most"):
+            raise Refused(f"opponents are ranked by the sets between them, or with player_id by='record', not {by!r}")
+        if record and player is None:
+            raise Refused("by='record' ranks one player's opponents by that player's record against them: give"
+                          " player_id")
         if mode == "2v2" and player is None:
             raise Refused("2v2 opponents are ranked for one player only: give player_id. Over every player the 2v2"
                           " meetings take more than a minute; for the most-played pairs overall, use mode 1v1")
@@ -797,14 +803,21 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
             ranked = ("WITH pairs AS (SELECT m.player_id AS a, o.player_id AS b, COUNT(*) AS n, SUM(m.won) AS a_wins"
                       " FROM v_match_results m JOIN v_match_results o ON o.match_id = m.match_id AND o.side <> m.side"
                       f" WHERE m.player_id = {player} AND m.mode = '2v2'{met} GROUP BY 2)")
+        order = "a_wins DESC, n - a_wins ASC" if record else "n DESC"  # a record: the most wins, then fewest losses
         rows = query.rows(
-            f"{ranked}, ranked AS (SELECT *, RANK() OVER (ORDER BY n DESC) AS rank FROM pairs)"
+            f"{ranked}, ranked AS (SELECT *, RANK() OVER (ORDER BY {order}) AS rank FROM pairs"
+            f"{f' WHERE n >= {least}' if least else ''})"
             " SELECT ranked.rank, pa.name, ranked.a, pb.name, ranked.b, ranked.n, ranked.a_wins, ranked.n - ranked.a_wins"
             " FROM ranked JOIN players pa ON pa.player_id = ranked.a JOIN players pb ON pb.player_id = ranked.b"
             f" WHERE ranked.rank <= {top} ORDER BY ranked.rank, pa.name, pb.name")
         what = "sets" if mode == "1v1" else "meetings"
         columns = ["rank", "player", "player_id", "opponent", "opponent_id", what, "player_wins", "opponent_wins"]
-        title = (f"{name}'s opponents, the most {what} first" if player else "pairs of opponents, the most sets first")
+        title = (f"{name}'s records against opponents, the most wins first, then the fewest losses" if record else
+                 f"{name}'s opponents, the most {what} first" if player else "pairs of opponents, the most sets first")
+        if record:
+            notes.append(f"by='record' ranks {name}'s opponents by {name}'s wins against them, then the fewest losses"
+                         + (f", among those with at least {least} {what} between them" if least else
+                            ", with no minimum of sets") + ": say how the answer reads 'best record', and the minimum.")
         notes.append("Each pair is on one row, with each player's wins in their 1v1 sets against the other; DQs, forfeits"
                      " and ties are left out." if mode == "1v1" else
                      f"A meeting is a 2v2 set with {name} and the other player on opposite teams; player_wins are"
@@ -886,6 +899,101 @@ def power_rankings(query, tools, region=None, mode="1v1", top=10, player_id=None
     listed = [[r[0], r[1], r[2], names.get(canonical.get(r[3], r[3])), canonical.get(r[3], r[3]), *r[4:]] for r in rows]
     return observation("power_rankings", f"official Power Rankings as of {as_of}", notes,
                        [table(title, columns, listed) if listed else None], query.ran, **about)
+
+
+# upsets
+
+def seeds_at(query, tools, events):
+    """{(event_id, person's player_id): their initial seed at that event}, from the standings, for the events given
+    (None: every event, read once and kept on tools: about 8 s). A person with two records at one event has the
+    better seed. Records map to persons in memory (the resolver's canonical IDs), as a join would cost more."""
+    if events is None and getattr(tools, "seeds", None) is not None:
+        return tools.seeds
+    within = "" if events is None else f" AND event_id IN ({', '.join(quoted(e) for e in sorted(events)) or 'NULL'})"
+    canonical, out = tools.resolver.canonical, {}
+    for event_id, pid, seed in query.rows("SELECT event_id, player_id, initial_seed FROM standings"
+                                          f" WHERE initial_seed IS NOT NULL{within}"):
+        key = (event_id, canonical.get(pid, pid))
+        if key not in out or seed < out[key]:
+            out[key] = seed
+    if events is None:
+        tools.seeds = out
+    return out
+
+
+def upsets(query, tools, mode="1v1", top=5, player_id=None, year=None, since=None, until=None, event=None, region=None):
+    """Sets the lower seed won, the biggest seed difference first (the user's definition, 2026-11-21): the lower
+    seed is the higher initial seed number at that event, from its standings; a set without both seeds isn't judged."""
+    mode, top = one_mode(mode), whole(top, "top")
+    narrow = narrowing(tools, year, since, until, event, region)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("upsets", narrow.found, query)
+    player, name, given = person(tools, player_id) if player_id is not None else (None, None, None)
+    if mode == "2v2" and not (narrow.found or player):
+        raise Refused("2v2 upsets need an event or a player_id: over every event the 2v2 sets take more than a minute")
+    if mode == "1v1":
+        within = "".join(f" AND {c}" for c in narrow.where("x")) + (f" AND x.winner_id = {player}" if player else "")
+        sets = [(event_id, date, [(winner, wname)], [(loser, lname)], wg, lg) for event_id, date, winner, wname, loser,
+                lname, wg, lg in query.rows(
+                    "SELECT x.event_id, x.start_date, x.winner_id, x.winner_name, x.loser_id, x.loser_name, x.winner_games,"
+                    f" x.loser_games FROM v_sets_1v1 x WHERE 1{within}")]
+    else:
+        within = "".join(f" AND {c}" for c in narrow.where("m"))
+        mine = (f" AND m.match_id IN (SELECT match_id FROM v_match_results WHERE player_id = {player} AND mode = '2v2')"
+                if player else "")
+        sides = {}
+        for match_id, event_id, date, side, pid, won in query.rows(
+                "SELECT m.match_id, m.event_id, m.start_date, m.side, m.player_id, m.won FROM v_match_results m"
+                f" WHERE m.mode = '2v2'{within}{mine}"):
+            entry = sides.setdefault(match_id, {"event": event_id, "date": date, "won": {}, "lost": {}})
+            entry["won" if won else "lost"].setdefault(side, []).append((pid, tools.resolver.names.get(pid)))
+        sets = [(e["event"], e["date"], next(iter(e["won"].values())), next(iter(e["lost"].values())), None, None)
+                for e in sides.values() if len(e["won"]) == 1 and len(e["lost"]) == 1]
+        if player:  # the player's side won as the lower seed
+            sets = [x for x in sets if any(pid == player for pid, _ in x[2])]
+    seeds = seeds_at(query, tools, None if mode == "1v1" and not narrow and not player else {x[0] for x in sets})
+    def seed(event_id, team):
+        known = [seeds.get((event_id, pid)) for pid, _ in team]
+        return min(known) if known and all(k is not None for k in known) else None
+    judged, upset = 0, []
+    for event_id, date, winners, losers, wg, lg in sets:
+        ws, ls = seed(event_id, winners), seed(event_id, losers)
+        if ws is None or ls is None:
+            continue
+        judged += 1
+        if ws > ls:
+            upset.append((ws - ls, event_id, date, winners, ws, losers, ls, wg, lg))
+    upset.sort(key=lambda u: (-u[0], u[2] or "", u[1]))
+    rows, rank, last = [], 0, None
+    for i, (diff, event_id, date, winners, ws, losers, ls, wg, lg) in enumerate(upset, 1):
+        rank = i if diff != last else rank
+        last = diff
+        if rank > top:
+            break
+        rows.append([rank, tools.events.events.get(event_id, {}).get("name", event_id), date,
+                     " / ".join(n or str(p) for p, n in winners), [p for p, _ in winners] if mode == "2v2" else winners[0][0],
+                     ws, " / ".join(n or str(p) for p, n in losers), [p for p, _ in losers] if mode == "2v2" else losers[0][0],
+                     ls, diff, wg, lg])
+    listed, left = ties(rows)
+    notes = ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
+    if given != player:
+        notes.append(merged(given, player, name))
+    notes.append(f"An upset is a set the lower seed won: the higher initial seed number at that event, from its"
+                 f" standings; the biggest has the largest seed difference. Of the {len(sets)} {mode} sets here,"
+                 f" {judged} had both seeds and {len(upset)} were upsets; a set without both seeds isn't judged. Say"
+                 " so, and give each upset's seeds.")
+    if left:
+        notes.append(f"Past {RANKED_AT_MOST} rows a tie isn't split, so {sum(len(g) for g in left)} more upsets are counted"
+                     " but not listed.")
+    if len({row[0] for row in listed}) < len(listed):
+        notes.append("Upsets on the same rank are tied: give them the same place.")
+    title = (f"{name}'s upset wins, the biggest seed difference first" if player else
+             "upsets, the biggest seed difference first") + f", everyone ranked {ordinal(top)} or better"
+    columns = ["rank", "event", "date", "winner", "winner_id", "winner_seed", "loser", "loser_id", "loser_seed",
+               "seed_difference", "winner_games", "loser_games"]
+    return observation("upsets", ", ".join([SETS_SCOPE if mode == "1v1" else f"{SCOPE}, 2v2 sets", *narrow.said]), notes,
+                       [table(title, columns, listed) if listed else None], query.ran,
+                       player=player and {"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
 
 
 TEMPLATES = {t.name: t for t in (
@@ -975,13 +1083,16 @@ TEMPLATES = {t.name: t for t in (
         " the pairs with the most 1v1 sets between them, with each one's wins; with player_id, that player's most-played"
         " opponents, in 1v1 or, with mode 2v2, in 2v2 meetings between their teams. of='teammates': 2v2 partners ranked"
         " by their events together (by='events', the default), wins, medals or top8s together; with player_id, that"
-        " player's partners. Use it for the biggest rivalries, who has played whom the most, a player's most-played"
+        " player's partners. With player_id and by='record', that player's opponents ranked by the player's record"
+        " against them: the most wins, then the fewest losses (min_sets for a minimum). Use it for the biggest"
+        " rivalries, who has played whom the most, a player's most-played opponents, a player's best records against"
         " opponents, or the best duos, and narrow it to a year, a time window, a region or an event when the question"
         " does. Don't query v_head_to_head_1v1 for pairs: over every player it takes more than a minute.",
         {"of": {"type": "string", "enum": ["opponents", "teammates"], "description": "opponents (the default) or"
                                                                                      " teammates"},
-         "by": {"type": "string", "enum": ["events", "wins", "medals", "top8s"], "description": "for teammates only:"
-                                                                                               " what to rank by"},
+         "by": {"type": "string", "enum": ["sets", "record", "events", "wins", "medals", "top8s"],
+                "description": "opponents: sets (the default), or record with player_id; teammates: events (the"
+                               " default), wins, medals or top8s"},
          "top": {"type": "integer", "description": "how many ranks to return: 5 (the default) is every pair ranked 5th"
                                                    " or better"},
          "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "for opponents: 1v1 sets (the default), or"
@@ -991,7 +1102,9 @@ TEMPLATES = {t.name: t for t in (
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
-         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"},
+         "min_sets": {"type": "integer", "description": "only pairs with at least this many sets between them, when the"
+                                                        " question sets a minimum"}},
         (), rank_pairs),
     Template(
         "power_rankings",
@@ -1004,4 +1117,20 @@ TEMPLATES = {t.name: t for t in (
          "top": {"type": "integer", "description": "how many ranks to return: 10 (the default)"},
          "player_id": {"type": "integer", "description": "one player's rankings: their player_id, from resolve_player"}},
         (), power_rankings),
+    Template(
+        "upsets",
+        "Upsets at official events: sets the lower seed won (the higher initial seed number at that event, from its"
+        " standings), the biggest seed difference first, every tie included, with both players' seeds and the score;"
+        " a set without both seeds isn't judged. With player_id, that player's upset wins. In 1v1 over every event or"
+        " narrowed to a year, a time window, a region or an event; in 2v2 for an event or a player. Use it for the"
+        " biggest upsets, an event's upsets, or a player's biggest upset wins.",
+        {"mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "1v1 (the default) or 2v2"},
+         "top": {"type": "integer", "description": "how many ranks to return: 5 (the default)"},
+         "player_id": {"type": "integer", "description": "one player's upset wins: their player_id, from resolve_player"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        (), upsets),
 )}
