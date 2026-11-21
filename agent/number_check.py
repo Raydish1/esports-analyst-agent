@@ -91,11 +91,13 @@ class Claim:
 
 
 class Row(list):
-    """A result's row: its numbers, and the texts beside them, which say whom and which mode they're about."""
+    """A result's row: its numbers, and the texts beside them, which say whom and which mode they're about; for a
+    table's row, its columns and cells as the result gives them."""
 
-    def __init__(self):
+    def __init__(self, columns=None, cells=None):
         super().__init__()
         self.texts = []
+        self.columns, self.cells = columns, cells
 
     @property
     def text(self):
@@ -203,6 +205,7 @@ class Evidence:
 
     def __init__(self):
         self.values, self.rows, self.scope = set(), [], set()
+        self.tables = []  # each table's rows, for a count word that counts tied rows (counts)
         self.dates, self.months, self.days, self.times = set(), set(), set(), set()
         self.questions = []
 
@@ -236,12 +239,16 @@ class Evidence:
         if isinstance(value, dict):
             own = Row()
             self.rows.append(own)
+            columns = value.get("columns") if isinstance(value.get("columns"), list) else None
             for key, item in value.items():
                 if key == "rows" and isinstance(item, list):
+                    group = []
                     for cells in item:
-                        listed = Row()
+                        listed = Row(columns, cells if isinstance(cells, list) else None)
                         self.rows.append(listed)
+                        group.append(listed)
                         self.walk(cells, listed)
+                    self.tables.append(group)
                 else:
                     self.walk(item, own)
         elif isinstance(value, list):
@@ -301,6 +308,12 @@ class Evidence:
         """The claims an answer states (stated) that nothing in the conversation supports."""
         return [c for c in claims(stated(answer)) if not self.supports(c)]
 
+    def counts(self, n, values=(), top=False):
+        """Whether a count word n counts rows of one result: n rows sharing one of the values (a tie, 'the two tied
+        at 34'), or with top, a result of n rows or more ('the top two')."""
+        return any((top and len(group) >= n) or any(sum(v in r for r in group) == n for v in values)
+                   for group in self.tables)
+
 
 class Window:
     """The evidence a turn's answer may cite: its own tool results and the previous turn's, each an Evidence, which is
@@ -322,7 +335,10 @@ class Window:
         22)."""
         said, out = stated(answer), []
         spans = units(said)
-        for c in claims(said):
+        found = claims(said)
+        for c in found:
+            if self.counted(c, said, spans, found):  # a count of a result's rows, about no one player or mode
+                continue
             if not self.supports(c):
                 out.append(c)
                 continue
@@ -332,6 +348,17 @@ class Window:
                 mode, player, _ = about
                 out.append(replace(c, about=" in ".join(x for x in (self.names.get(player), mode) if x)))
         return out
+
+    def counted(self, claim, said, spans, found):
+        """Whether a count word counts a result's rows (Evidence.counts): after 'top', a ranking of that many rows or
+        more; else that many rows of one result sharing a number its sentence states. Live, "the top two tied at 34
+        sets" was cut for its "two", under a right list (docs/web-app-testing-notes.md, finding 30)."""
+        if claim.kind != "word" or not 2 <= claim.value[0] <= 10:
+            return False
+        top = said[max(0, claim.start - 4):claim.start].casefold() == "top "
+        a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
+        values = [c.value[0] for c in found if a <= c.start < b and c is not claim and c.kind in ("number", "ordinal")]
+        return any(e.counts(claim.value[0], values, top) for e in self.evidence)
 
     def about(self, said, claim, spans):
         """(mode, player, names) for the claim's sentence, or (): the one mode it names, 1v1 or 2v2 and not both
@@ -509,6 +536,19 @@ def without(answer, flagged):
         replaced.append({"claim": answer[a:b], "replacement": new, "numbers": [c.text for c in found]})
         out = out[:cut[0]] + new + out[cut[1]:]
     return re.sub(r"\n{3,}", "\n\n", out).strip(), replaced[::-1]
+
+
+def restates(replaced, kept):
+    """Whether every claim left out restates numbers the answer keeps: each left-out claim has numbers besides the
+    ones that took it out, and the kept text states them all. Then no line says something was left out: live, such a
+    line under a right list read as the answer being doubtful (finding 30)."""
+    numbers = {c.value[0] for c in claims(stated(kept)) if c.kind in ("number", "ordinal")}
+    for r in replaced:
+        own = {c.value[0] for c in claims(stated(r["claim"])) if c.kind in ("number", "ordinal")
+               and c.text not in r["numbers"]}
+        if not own or not own <= numbers:
+            return False
+    return bool(replaced)
 
 
 def left_out(replaced):

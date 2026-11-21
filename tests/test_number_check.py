@@ -187,6 +187,30 @@ class AgreementTest(unittest.TestCase):
         self.assertEqual(self.unsupported("In 1v1, Phazon is 15-6.", *CARD), [("15-6", "Phazon in 1v1")])
 
 
+PAIRS = {"template": "rank_pairs", "tables": [{"what": "pairs of opponents", "columns": ["rank", "player", "player_id",
+         "opponent", "opponent_id", "sets", "player_wins", "opponent_wins"],
+         "rows": [[1, "SiB | Wess", 37977, "lFiend", 148891, 34, 15, 19], [1, "yuz", 73254, "whoiskyna", 135748, 34, 17, 17],
+                  [3, "gdsandstorm", 74433, "Boomie", 146606, 28, 19, 9]]}]}
+
+
+class CountWordTest(unittest.TestCase):
+    def unsupported(self, answer):
+        return [c.text for c in number_check.Window(evidence(PAIRS)).unsupported(answer)]
+
+    def test_a_count_word_counting_tied_rows_or_the_top_of_a_ranking_is_supported(self):
+        self.assertEqual(self.unsupported("The top two tied at 34 sets."), [])  # live, finding 30
+        self.assertEqual(self.unsupported("Two pairs share the most sets, 34."), [])
+        self.assertEqual(self.unsupported("The top three are below."), [])
+        self.assertEqual(self.unsupported("Five pairs tied at 34 sets."), ["Five"])  # two rows hold 34, not five
+        self.assertEqual(self.unsupported("The top four are below."), ["four"])  # the ranking has three rows
+
+    def test_a_left_out_claim_that_restates_kept_numbers_needs_no_line(self):
+        cut = [{"claim": "The top two tied at 34 sets.", "numbers": ["two"], "replacement": ""}]
+        self.assertTrue(number_check.restates(cut, "1. SiB | Wess and lFiend, 34 sets"))
+        self.assertFalse(number_check.restates(cut, "1. SiB | Wess and lFiend"))
+        self.assertFalse(number_check.restates([{"claim": "Both tied.", "numbers": ["Both"], "replacement": ""}], "34"))
+
+
 class ReplacementTest(unittest.TestCase):
     def replaced(self, answer, *observations):
         found = evidence(*observations)

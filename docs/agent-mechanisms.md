@@ -209,6 +209,14 @@ Grouped by mechanism, with the open failures counted:
 M5 is new. These answers say things beyond what the user asked: IDs, tool calls, and an order "as requested". It's
 not about facts, so it gets its own row.
 
+Built in round five:
+
+- **Count words that count a result's rows** (finding 30). A count word from two to ten is supported when that many
+  rows of one result share a number its sentence states ("the top two tied at 34 sets"). After "top", it's supported
+  when a result has that many rows or more ("the top three"). Such a count is about no one player or mode, so the
+  agreement check skips it. When everything left out only restates numbers the answer keeps, no left-out line is
+  added. Replayed on finding 30's live turn, its draft now passes with nothing flagged.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.

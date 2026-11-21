@@ -59,7 +59,8 @@ import claim_check  # noqa: E402
 import mentions  # noqa: E402
 import scope  # noqa: E402
 import settling  # noqa: E402
-from number_check import Claim, Evidence, Window, claims as number_claims, left_out, stated, without  # noqa: E402
+from number_check import (Claim, Evidence, Window, claims as number_claims, left_out, restates, stated,  # noqa: E402
+                          without)
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
                    name_filters, player_ids, run_sql, tables)
@@ -1298,7 +1299,7 @@ class Conversation:
                     if not self.view.states_facts(content):  # no fact is left once the claims are out
                         content = NOT_LOOKED_UP if strict else NOT_CONFIRMED
                         record["action"] += "; no fact left, so the whole answer"
-                    else:
+                    elif not restates(unconfirmed, content):  # what's left out says nothing the answer doesn't
                         content = f"{content}\n\n{left_out(unconfirmed)}"
                     log(f"  {listed(flagged_texts + [c.text for c in judgments])} left out, since no tool result in"
                         " view holds them or says so")
