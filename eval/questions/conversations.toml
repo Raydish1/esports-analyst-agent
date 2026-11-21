@@ -578,8 +578,8 @@ measures = ["finding 16: a player's stats from one call", "finding 15: no answer
 verified = "yes"
 
 [[conversation.turn]]
-say = "what are mojakins stats"
-expect = "Suggestions, Mojakin (77046) first: 'mojakins' matches no name exactly, Mojakin only by a similar spelling."
+say = "what are mojakn stats"
+expect = "Suggestions, Mojakin (77046) first: 'mojakn' matches no name exactly, Mojakin only by a similar spelling. (Live and until 2026-11-21 the turn said 'mojakins', which the possessive retry now reads as Mojakin; the user had the spelling changed to one that isn't a possessive.)"
 suggests = 77046
 
 [[conversation.turn.query]]

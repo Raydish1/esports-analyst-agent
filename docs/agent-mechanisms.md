@@ -188,9 +188,26 @@ The audit's other gaps are listed for the user rather than built: streaks, upset
   and "springs" named NurptheDerp.
   - Replayed on the 98 recorded and test questions, two names are now read as possessives: "renivics" (finding 25)
     and "mojakins", which is c9 turn 1's. The 45 questions still give the same 31 names.
-  - **This conflicts with a verified answer.** c9 turn 1 ("what are mojakins stats") expects suggestions with Mojakin
-    first, and now gets Mojakin's stats. That conversation's turn 2 ("the first one") then answers no suggestions.
-    c9 is left as verified, and the conflict is listed for the user below.
+  - **This conflicted with a verified answer.** c9 turn 1 ("what are mojakins stats") expected suggestions with
+    Mojakin first, and now got Mojakin's stats. Settled on 2026-11-21 by the user: keep the retry, and spell c9 turn 1
+    "mojakn", which matches Mojakin only loosely (0.78, first) and isn't a possessive.
+
+## Round five (2026-11-21): findings 30-35 and upsets
+
+The user's fifth round of live tests ran after the mechanism round was merged, at e4f7e1a on `claude/web-app`. Every
+figure was right, and the failures are in how the answers read. The user also defined upsets and settled c9 (above).
+Grouped by mechanism, with the open failures counted:
+
+| Mechanism | Findings | Open |
+|---|---|---|
+| M3 facts and claims | 30 (a true sentence cut for "two" in "the top two tied"), 33 (placeholders: "[Opponent Name]", and a condition said to be removed though no query ran without it), 34 (records written backwards, which the number check passes since it takes "2-1" from a row of 1 and 2 in either order), 35 ("dominates" for a 2-1 record) | 4 |
+| M5 answer writing, new | 31 (player IDs beside every name, unasked), 32 (the reply listed its tool calls), 35 (an order "as requested" that nobody requested) | 3 |
+| M4 the conversation | 32 (a question about the card answered as a dispute: "The previous answer was correct"), 34 (a reply to a check written as a correction of a draft the user never saw) | 2 |
+| M2 the tools | 34 (no tool ranks a player's opponents by record, so "best record" fell back to most sets), upsets (defined by the user, no tool) | 2 |
+| M1 reading the question | 34 ("best record" read as most sets played) | 1 |
+
+M5 is new. These answers say things beyond what the user asked: IDs, tool calls, and an order "as requested". It's
+not about facts, so it gets its own row.
 
 ## Decisions
 
@@ -218,13 +235,9 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
-- c9 turn 1 against the possessive retry. The retry (finding 25) reads "mojakins" as Mojakin, confident, where c9's
-  verified answer expects suggestions. There are two ways to settle it. One is to keep the retry and write c9 turn 1
-  with a loose spelling that isn't a possessive (for example "what are mojakn stats"), so turns 1 and 2 still test
-  suggestions and "the first one". The other is to drop the retry. Until then, c9 turn 1 fails its checks by design.
 - Verifying c14 to c17 (`eval/questions/conversations-review.md`).
-- Definitions for streaks (events in a row? in one mode?) and upsets (by placement at the event? by Power Ranking?),
-  if those kinds should get templates.
+- A definition for streaks (events in a row? in one mode?), if that kind should get a template. Upsets were defined
+  on 2026-11-21 (round five).
 
 ## Runs wanted
 
