@@ -2,11 +2,11 @@
 
 Made by `python eval/conversations.py review` from [`conversations.toml`](conversations.toml), which is the file to edit.
 
-13 conversations, 36 turns, with expected facts computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each turn shows what a right answer says, the automatic checks scoring it, and the queries behind them with their results.
+17 conversations, 44 turns, with expected facts computed from the frozen snapshot `data/db/eval/eval-v1.sqlite` (build 20261007T230135Z). Each turn shows what a right answer says, the automatic checks scoring it, and the queries behind them with their results.
 
 **To verify:** check each turn's expected answer against what you know, then fill in `verified` for its conversation in `conversations.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the command to update this page.
 
-**Verified:** 13 of 13.
+**Verified:** 13 of 17.
 
 | Id | Conversation | Turns | Measures | Verified |
 |---|---|---|---|---|
@@ -23,6 +23,10 @@ Made by `python eval/conversations.py review` from [`conversations.toml`](conver
 | [c11](#c11) | volst's stats | 1 | finding 16: a player's stats from one call; finding 17: event 'all' is no filter | yes |
 | [c12](#c12) | kyna vs yuz, the biggest head-to-head, then kyna vs yuz again | 3 | finding 19: a note's 'won 11 and lost 11' supports 11-11; finding 14: 'two' isn't looked up as a player; finding 13: the players the question names, not the previous turn's | yes |
 | [c13](#c13) | the most medals, then dragon | 3 | turn 1: control; finding 18: a name several players share exactly, with no clear cut, ends in suggestions; turn 3: a candidate picked by its name, punctuation and all | yes |
+| [c14](#c14) | Cody Travis vs Phazon, then a question about the card | 2 | finding 24: a record written from one named player's side; finding 21: the page's tag never copied into an answer; finding 22: a card's figure read for its own mode and player; finding 23: a question about the card is one about the answer, its words never looked up |  |
+| [c15](#c15) | Renivic's best 2v2 placement, written as a possessive, then all his placements | 2 | finding 25: a possessive without its apostrophe is the player; finding 26: a best placement is the best one, with where; finding 27: placement counts from a tool, and a real placement not called an anomaly |  |
+| [c16](#c16) | The biggest rivalry, then megD's most-played opponent | 2 | finding 28: pairs ranked by a template, each pair once; a player's most-played opponent, which no tool ranked before |  |
+| [c17](#c17) | The strongest 1v1 player right now, then in 2v2 in NA | 2 | finding 29: the mode word reaches the call, and 'right now' is read as now, with the reading said |  |
 
 <a id="c1"></a>
 
@@ -524,7 +528,7 @@ SELECT rank, player_id, p.name, medals FROM ranked JOIN players p USING (player_
 
 **Checks:** not_calls ["head_to_head"]; players [117179, 147522]; rows_any [[[147522, "Phazon"], 12], [[147522, "Phazon"], 33]]; grounded and named (every turn)
 
-**Shown on the page after this turn:** Card shown with this answer: Cody Travis and Phazon, lifetime at official events. 1v1: Cody Travis 65 results (4 1st, 4 2nd, 5 3rd, 28 top 8s), Phazon 76 (0 1st, 3 2nd, 9 3rd, 28 top 8s). 2v2: Cody Travis 57 results (6 1st, 15 2nd, 6 3rd, 43 top 8s), Phazon 63 (12 1st, 15 2nd, 6 3rd, 51 top 8s).
+**Shown on the page after this turn:** Stat cards, at official events; on them MEDALS are GOLD (1st places), SILVER (2nd) and BRONZE (3rd). A comparison card of Cody Travis in 1v1 only 65 results, GOLD 4, SILVER 4, BRONZE 5, TOP 8 28; Cody Travis in 2v2 only 57 results, GOLD 6, SILVER 15, BRONZE 6, TOP 8 43; Cody Travis in both modes together 122 results, GOLD 10, SILVER 19, BRONZE 11, TOP 8 71; Cody Travis's first result 2017-02-04, latest 2024-11-15; Cody Travis's career earnings not recorded; and of Phazon in 1v1 only 76 results, GOLD 0, SILVER 3, BRONZE 9, TOP 8 28; Phazon in 2v2 only 63 results, GOLD 12, SILVER 15, BRONZE 6, TOP 8 51; Phazon in both modes together 139 results, GOLD 12, SILVER 18, BRONZE 15, TOP 8 79; Phazon's first result 2017-02-04, latest 2025-03-02; Phazon's career earnings not recorded.
 
 **Query 1:** their 2v2 wins, and their rank by them
 
@@ -958,3 +962,194 @@ SELECT player_id, COUNT(*) AS results, SUM(placement <= 8) AS top8s FROM v_resul
 | 88841 | 41 | 9 |
 
 **Verified:** yes
+
+<a id="c14"></a>
+
+## c14. Cody Travis vs Phazon, then a question about the card
+
+From 20261120T175430Z-001, turns 1-2, and the conversation after it.
+
+### Turn 1: cody travis vs phazon head to head
+
+**Expected:** Cody Travis's 1v1 record against Phazon at official events: 1-5 in 6 sets, games 7-15. In 2v2 their teams met in 20 sets: Cody Travis's side won 8 and lost 12 (Phazon's side 12-8), each record written from one named player's side. Live, a sentence put Cody Travis's 8 wins and 12 losses under Phazon's name.
+
+**Checks:** calls ["head_to_head"]; players [117179, 147522]; says_record {"record": [1, 5], "about": ["1v1", "sets"]}; grounded and named (every turn)
+
+**Shown on the page after this turn:** Stat cards, at official events; on them MEDALS are GOLD (1st places), SILVER (2nd) and BRONZE (3rd). A head-to-head card: their 1v1 record, Cody Travis 1-5 against Phazon in 6 sets, games 7-15; with the lifetime figures of Cody Travis in 1v1 only 65 results, GOLD 4, SILVER 4, BRONZE 5, TOP 8 28; Cody Travis in 2v2 only 57 results, GOLD 6, SILVER 15, BRONZE 6, TOP 8 43; Cody Travis in both modes together 122 results, GOLD 10, SILVER 19, BRONZE 11, TOP 8 71; Cody Travis's first result 2017-02-04, latest 2024-11-15; Cody Travis's career earnings not recorded; and of Phazon in 1v1 only 76 results, GOLD 0, SILVER 3, BRONZE 9, TOP 8 28; Phazon in 2v2 only 63 results, GOLD 12, SILVER 15, BRONZE 6, TOP 8 51; Phazon in both modes together 139 results, GOLD 12, SILVER 18, BRONZE 15, TOP 8 79; Phazon's first result 2017-02-04, latest 2025-03-02; Phazon's career earnings not recorded.
+
+**Query 1:** Cody Travis's 1v1 record against Phazon
+
+```sql
+SELECT wins, losses, matches, games_won, games_lost FROM v_head_to_head_1v1 WHERE player_id = 117179 AND opponent_id = 147522
+```
+
+| wins | losses | matches | games_won | games_lost |
+|---|---|---|---|---|
+| 1 | 5 | 6 | 7 | 15 |
+
+### Turn 2: on the card, where does phazon's 12 gold come from? is that medals?
+
+**Expected:** From the card: Phazon's GOLD 12 counts 1st places, all 12 in 2v2 (0 in 1v1), so 12 in both modes together too. A gold is a 1st place, and a medal a 1st, 2nd or 3rd place: his 2v2 medals are 33 (12, 15 and 6). Checked with a tool, as a question about the answer. The answer has no "[The page showed ...]" tag of its own, and no word of the message is looked up as an event. Live, one run copied the tag, one read the 12 as 1v1, and one looked up "come".
+
+**Checks:** not_says ["[The page showed", "conflict", "anomal"]; not_looked_up ["come"]; says_numbers [12]; players [147522]; grounded and named (every turn)
+
+**Query 1:** Phazon's 1st, 2nd and 3rd places in each mode
+
+```sql
+SELECT mode, SUM(placement = 1) AS first, SUM(placement = 2) AS second, SUM(placement = 3) AS third,
+       SUM(placement <= 3) AS medals
+FROM v_results WHERE player_id = 147522 GROUP BY mode
+```
+
+| mode | first | second | third | medals |
+|---|---|---|---|---|
+| 1v1 | 0 | 3 | 9 | 12 |
+| 2v2 | 12 | 15 | 6 | 33 |
+
+**Verified:** not yet
+
+<a id="c15"></a>
+
+## c15. Renivic's best 2v2 placement, written as a possessive, then all his placements
+
+From 20261120T175642Z-003, turns 1-3.
+
+### Turn 1: what is renivics best placement in 2v2
+
+**Expected:** Renivic, read from "renivics" with no suggestions: his best 2v2 placement at official events is 17th, twice, at the Winter Championship - North America 2026 - 2v2 (2026-03-01) and the Autumn Championship - North America 2025 - 2v2 (2025-09-21), of his 24 2v2 results. Live, the turn asked the user which player, and after "the first one" it asked top=1 and gave no placement.
+
+**Checks:** calls ["player_results"]; players [49489]; says_numbers [17]; not_says ["further analysis"]; grounded and named (every turn)
+
+**Query 1:** Renivic's best 2v2 placement, and where
+
+```sql
+SELECT placement, start_date, tournament_name FROM v_results
+WHERE player_id = 49489 AND mode = '2v2' AND placement = (SELECT MIN(placement) FROM v_results WHERE player_id = 49489 AND mode = '2v2')
+```
+
+| placement | start_date | tournament_name |
+|---|---|---|
+| 17 | 2026-03-01 | Winter Championship - North America 2026 - 2v2 |
+| 17 | 2025-09-21 | Autumn Championship - North America 2025 - 2v2 |
+
+### Turn 2: analyze all of renivic's 2v2 placements
+
+**Expected:** His 24 2v2 results by placement, counted by a tool: 17th 2 times, 25th 4, 33rd 6, 49th 2, 65th 4, 97th 1, 129th 2, 257th 2 and 513th 1, at Brawlhalla Combo Breaker Online (NA) in 2020, where 2,296 players placed: a real placement, not an anomaly. Live, the counts were made up from the list (25th and 33rd "5 times" each), and the 513th was called "likely a data anomaly".
+
+**Checks:** calls ["player_results"]; says_numbers [513, 4, 6]; not_says ["anomal", "data error", "misreported"]; grounded and named (every turn)
+
+**Query 1:** how many times each 2v2 placement happened
+
+```sql
+SELECT placement, COUNT(*) AS times FROM v_results WHERE player_id = 49489 AND mode = '2v2' GROUP BY placement ORDER BY placement
+```
+
+| placement | times |
+|---|---|
+| 17 | 2 |
+| 25 | 4 |
+| 33 | 6 |
+| 49 | 2 |
+| 65 | 4 |
+| 97 | 1 |
+| 129 | 2 |
+| 257 | 2 |
+| 513 | 1 |
+
+**Verified:** not yet
+
+<a id="c16"></a>
+
+## c16. The biggest rivalry, then megD's most-played opponent
+
+From asked 2026-11-20 (finding 28), and the 2026-11-19 log's megD question.
+
+### Turn 1: who has the biggest head to head record
+
+**Expected:** By the 1v1 sets between two players at official events, each pair once, and the answer says it read "biggest" so: SiB | Wess and lFiend, and yüz and whoiskyna, 34 sets each, tied 1st (Wess 15-19 against lFiend, yüz 17-17 against whoiskyna); then gdsandstorm and Boomie, 28 (gdsandstorm 19-9). Live, only SQL from a worked example answered it, and v_head_to_head_1v1 unfiltered times out.
+
+**Checks:** calls ["rank_pairs"]; says_numbers [34]; grounded and named (every turn)
+
+**Query 1:** the pairs with the most 1v1 sets between them
+
+```sql
+SELECT MIN(winner_id, loser_id) AS a, MAX(winner_id, loser_id) AS b, COUNT(*) AS sets, SUM(winner_id < loser_id) AS a_wins
+FROM v_sets_1v1 GROUP BY 1, 2 ORDER BY sets DESC LIMIT 4
+```
+
+| a | b | sets | a_wins |
+|---|---|---|---|
+| 37977 | 148891 | 34 | 15 |
+| 73254 | 135748 | 34 | 17 |
+| 74433 | 146606 | 28 | 19 |
+| 79652 | 115723 | 25 | 10 |
+
+### Turn 2: who has megd played the most
+
+**Expected:** megD's most-played opponent in 1v1 at official events: luna, 18 sets (megD won 6 and lost 12), then bestjava, 10 (3-7), and STING RAY, 9 (6-3).
+
+**Checks:** calls_with [{"tool": "rank_pairs", "player_id": 142100}]; players [142100]; says_numbers [18]; grounded and named (every turn)
+
+**Query 1:** megD's 1v1 opponents by sets
+
+```sql
+SELECT opponent, SUM(sets) AS sets FROM (
+  SELECT loser_id AS opponent, COUNT(*) AS sets FROM v_sets_1v1 WHERE winner_id = 142100 GROUP BY 1
+  UNION ALL SELECT winner_id, COUNT(*) FROM v_sets_1v1 WHERE loser_id = 142100 GROUP BY 1)
+GROUP BY opponent ORDER BY sets DESC LIMIT 3
+```
+
+| opponent | sets |
+|---|---|
+| 51494 | 18 |
+| 145913 | 10 |
+| 81144 | 9 |
+
+**Verified:** not yet
+
+<a id="c17"></a>
+
+## c17. The strongest 1v1 player right now, then in 2v2 in NA
+
+From 20261120T175642Z-003, turn 4.
+
+### Turn 1: who is the strongest 1v1 player right now
+
+**Expected:** A reading of "right now" that the answer names, never all time, in 1v1 only. By the official 1v1 Power Rankings of 2026-10-02, the #1s by region: BBBalloonBoy (NA), Zivai (EU), lopesbrawlhalla (SA), marker_bh1 (MENA) and keiththepoopoo (SEA). Or by official 1v1 wins in a recent window, such as since 2025-10-01: Marckiem00 and Zivai 3 each, then six players with 2. Live, rank_players(by="wins", top=5) with no mode and no time ranked total wins in both modes. Which reading is right is the user's to decide.
+
+**Checks:** calls_with [{"tool": "power_rankings"}, {"tool": "rank_players", "mode": "1v1", "since": "*"}, {"tool": "rank_players", "mode": "1v1", "year": "*"}]; grounded and named (every turn)
+
+**Query 1:** each region's #1 in the 1v1 Power Rankings
+
+```sql
+SELECT region, player_id, points FROM pr_snapshots WHERE mode = '1v1' AND power_ranking = 1 ORDER BY region
+```
+
+| region | player_id | points |
+|---|---|---|
+| EU | 147982 | 489.359 |
+| MENA | 148006 | 391.314 |
+| NA | 149305 | 528.718 |
+| SA | 49216 | 390.386 |
+| SEA | 111680 | 346.436 |
+
+### Turn 2: and in 2v2 in na?
+
+**Expected:** It continues the question, now in 2v2 and North America. By the official NA 2v2 Power Rankings of 2026-10-02, Pink | Zen and hideawaybh tied 1st (356.829 points), then BBBalloonBoy; or by 2v2 results at NA's events in a recent window, with the reading said.
+
+**Checks:** calls_with [{"tool": "power_rankings", "mode": "2v2", "region": "*"}, {"tool": "rank_players", "mode": "2v2", "region": "*"}]; grounded and named (every turn)
+
+**Query 1:** the top 3 of the NA 2v2 Power Rankings
+
+```sql
+SELECT power_ranking, player_id, points FROM pr_snapshots WHERE mode = '2v2' AND region = 'NA' AND power_ranking <= 3
+ORDER BY power_ranking
+```
+
+| power_ranking | player_id | points |
+|---|---|---|
+| 1 | 141522 | 356.829 |
+| 1 | 142042 | 356.829 |
+| 3 | 149305 | 347.863 |
+
+**Verified:** not yet

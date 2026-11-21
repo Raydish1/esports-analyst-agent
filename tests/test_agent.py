@@ -193,6 +193,21 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("7th"), ("confident", [16]))
 
 
+class PossessiveTest(Fixture):
+    def test_a_name_with_no_exact_match_is_read_without_its_possessive_ending(self):
+        for written in ("raydishs", "raydish's", "Raydish’s", "raydishs'"):  # live: "renivics best placement" (25)
+            out = self.resolver.resolve(written)
+            self.assertEqual((out["status"], [c["player_id"] for c in out["candidates"]], out["read_as"].casefold()),
+                             ("confident", [11], "raydish"), written)
+            self.assertTrue(out["note"].startswith(f"No player has exactly the name {written!r}: it's read as"))
+        self.assertTrue(self.resolver.known("raydishs"))
+
+    def test_only_an_exact_base_counts_and_a_name_ending_in_s_keeps_its_own_match(self):
+        self.assertNotIn("read_as", self.resolver.resolve("raydixs"))  # no alias is 'raydix'
+        self.assertIsNone(tools.possessive("abs"))  # too short to have an ending
+        self.assertEqual(tools.possessive("megds"), "megd")
+
+
 class EventResolverTest(Fixture):
     def setUp(self):
         super().setUp()
@@ -690,19 +705,59 @@ class LoopTest(Fixture):
         self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
 
     def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
-        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
-                       reply("The card shows 4 wins."))
+        lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
+        ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("The card shows 4 wins."),
+                       reply("You're welcome."))  # a question about the card is one about the answer: looked up again
         conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
         first = conversation.ask("how many results has raydish")
         conversation.shown("Card: Raydish, lifetime at official events: 6 results, 4 wins.")  # as the web app gives it
         self.assertEqual(first["shown"], "Card: Raydish, lifetime at official events: 6 results, 4 wins.")
-        self.assertEqual(conversation.current[-1]["content"], "Raydish has 6 official results.\n\n[The page showed beside"
-                                                              " this answer: Card: Raydish, lifetime at official events: 6"
-                                                              " results, 4 wins.]")
+        note = {"role": "user", "content": "[The page showed the user beside the answer above: Card: Raydish, lifetime at"
+                                           " official events: 6 results, 4 wins.]"}
+        self.assertEqual(conversation.current[-2:], [{"role": "assistant", "content": "Raydish has 6 official results."},
+                                                     note])  # its own message, not the answer's (finding 21)
         trace = conversation.ask("what did the card say about his wins")  # 4 is the card's, so it stands
         self.assertEqual((trace["answer"], trace["unconfirmed"]), ("The card shows 4 wins.", []))
-        self.assertEqual(ask.sent[2][-2], {"role": "assistant", "content": conversation.previous[-1]["content"]})
-        self.assertIn("[The page showed beside this answer: Card: Raydish", ask.sent[2][-2]["content"])  # the model reads it
+        self.assertEqual(ask.sent[2][-3:-1], [{"role": "assistant", "content": "Raydish has 6 official results."}, note])
+        self.assertEqual(trace["settled"]["how"], settling.DISPUTED)
+        self.assertIn("This asks about what the page showed beside your answer", trace["settled"]["text"])
+        conversation.ask("thanks")  # older turns keep their question, answer and the page's note
+        self.assertEqual(conversation.earlier[:3], [{"role": "user", "content": "how many results has raydish"},
+                                                    {"role": "assistant", "content": "Raydish has 6 official results."},
+                                                    note])
+
+    def test_a_question_about_the_card_looks_up_its_players_only(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("Raydish has 6 official results."),
+                       reply("It comes from his 2v2 wins."), reply("It comes from his 2v2 wins."),
+                       reply("It comes from his 2v2 wins."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        conversation.shown("Raydish in 2v2 only 3 results, GOLD 4.")
+        trace = conversation.ask("on the card, where does raydish's 4 gold come from, the tab?")  # live: "come" an event
+        self.assertEqual(trace["steps"][0]["no_tool_check"]["action"], "sent back")  # about the answer: check again
+        forced = [c for s in trace["steps"] for c in s["tool_calls"] if c.get("forced")]
+        self.assertEqual(forced, [])  # 'tab', which no result holds, is no event to look up
+
+    def test_a_copy_of_the_pages_note_is_taken_out_of_an_answer(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),
+                       reply("Raydish has 6 official results.\n\n[The page showed beside this answer: Raydish's 6 results]"))
+        trace = react.run("how many results has raydish", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["steps"][1]["page_tag_removed"]), ("Raydish has 6 official results.", True))
+
+    def test_a_card_figure_about_another_mode_goes_back_saying_whose_it_is(self):
+        lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
+        ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("Raydish has 4 wins in 1v1."),
+                       reply("Raydish has 4 wins in 2v2."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        conversation.shown("Raydish in 1v1 only 3 results, GOLD 0; Raydish in 2v2 only 3 results, GOLD 4.")
+        trace = conversation.ask("and raydish's wins on the card?")
+        check = trace["steps"][1]["number_check"]
+        self.assertEqual((check["numbers"], check["action"]), (["4"], "sent back"))
+        self.assertTrue(check["message"].startswith("Before this answer is final: it states '4' about Raydish in 1v1,"
+                                                    " though the results in view hold each only for another player or"
+                                                    " mode"), check["message"])
+        self.assertEqual(trace["answer"], "Raydish has 4 wins in 2v2.")
 
     def test_a_reply_about_the_answer_sent_back_keeps_that_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply("**Raydish** and **tike36** won 6."),
@@ -883,6 +938,32 @@ class LoopTest(Fixture):
                          ("kept the answer it replied about", "replaced: sent back once already; no fact left, so the"
                                                               " whole answer"))
         self.assertEqual(trace["answer"], react.NOT_CONFIRMED)
+
+    def test_an_answer_sending_the_user_to_the_database_goes_back_once_then_the_referral_goes_with_no_line(self):
+        said = "megD has 2 official results. You can query v_player_medals for medals."  # live, finding 22
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(said), reply(said))
+        trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
+        sent, kept = trace["steps"][1]["claim_check"], trace["steps"][2]["claim_check"]
+        self.assertEqual((sent["action"], kept["action"], kept["referrals_left_out"]),
+                         ("sent back", "left out: sent back once already", ["You can query v_player_medals for medals."]))
+        self.assertTrue(sent["message"].startswith("Before this answer is final: it sends the user to the database"
+                                                   " ('You can query'), and the user can't run queries."))
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), ("megD has 2 official results.", []))
+        self.assertIn("**Claim check:** referral 'You can query', which no tool result says. Sent back with:",
+                      react.markdown([trace], HEADER))
+
+    def test_a_judgment_no_tool_result_makes_is_left_out_with_a_line_saying_so(self):
+        said = "megD has 2 official results. The latest is likely a data anomaly."  # live, finding 27
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(said), reply(said))
+        trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "megD has 2 official results.\n\n(I left out a statement I couldn't confirm"
+                                          " from the data.)")
+        self.assertEqual(trace["unconfirmed"], [{"claim": "The latest is likely a data anomaly.", "numbers": ["anomaly"],
+                                                 "replacement": ""}])
+        self.assertNotIn("number_check", trace["steps"][2])
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(said))  # asked about errors itself
+        trace = react.run("Is megd's latest result an error?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], said)
 
     def test_a_player_id_written_as_an_id_is_no_number_to_check(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
@@ -1209,7 +1290,7 @@ class PromptTest(unittest.TestCase):
         self.assertIn("\nCounting rules" + rules + "\n", react.SYSTEM)
 
     def test_the_prompt_says_to_reduce_data_in_sql_always_not_on_trigger_words(self):
-        self.assertIn("Never count, rank or compare rows by reading them.", react.SYSTEM)
+        self.assertIn("Never count, rank or compare rows by reading them, a template's rows\n  included", react.SYSTEM)
         self.assertNotIn("how many, how often, the most, the best", react.SYSTEM)
 
     def test_the_prompt_says_to_state_relaxing_only_a_condition_from_the_question(self):

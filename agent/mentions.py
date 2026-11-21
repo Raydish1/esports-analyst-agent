@@ -36,7 +36,7 @@ tell show give list know mean meant like also etc please thanks thank ok okay ye
 still just only again now then than so really very hello hi hey guys look looking want see same different cool nice
 awesome lol wow interesting perfect sure alright gotcha amazing sweet bye goodbye welcome np ty thx hmm oh ah um uh fine
 two three four five six seven eight nine ten eleven twelve twenty hundred thousand both few several couple dozen once
-twice say said says saying wrong right correct incorrect true false
+twice say said says saying wrong right correct incorrect true false come comes came coming means shown showed
 """.split())  # function words, fillers, replies such as 'thanks' or 'cool', number words, and words about what was said:
 # none carries a question or names anything. Live, the loop looked up "two" as a player and "say cody travis 24" as an
 # event (docs/web-app-testing-notes.md on claude/web-app, findings 10 and 14)

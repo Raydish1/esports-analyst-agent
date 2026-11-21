@@ -47,7 +47,13 @@ DISPUTES = re.compile(r"\b(?:are you sure|you sure|why did you (?:say|write|tell
                       r"(?:said|wrote|told)|that(?:'s|s| is| was) (?:not right|not true|not correct|wrong|incorrect|false)"
                       r"|you(?:'re| are) wrong|(?:is|was) that (?:right|true|correct)|not that many|(?:can'?t|cannot)"
                       r" be right|doesn'?t (?:sound|seem|look) right|too (?:many|few)|double.?check|check (?:that|it|this)"
-                      r" again)\b", re.I)
+                      r" again|where (?:does|do|did|is|are) (?:\S+ ){0,4}(?:come|coming) from|where did you get|how did"
+                      r" you (?:get|count|work out))\b", re.I)
+# A message about what the page showed beside the last answer, when it showed something: "on the card, where does
+# phazon's 12 gold come from?" was looked up as the event "come" (docs/web-app-testing-notes.md, finding 23)
+PAGE = re.compile(r"\b(?:on|in|from|about|of) (?:the|this|that|your|those|these) (?:stat )?(?:cards?|graphics?|charts?"
+                  r"|images?|pictures?|page|screen)\b|\b(?:the|this|that) (?:stat )?(?:cards?|graphics?|charts?) (?:says?"
+                  r"|shows?|said|showed)\b", re.I)
 DISPUTED = "a question about the previous answer (cues)"
 
 
@@ -81,6 +87,7 @@ class Context:
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
     asked: list = field(default_factory=list)
+    shown: str = ""  # what the page showed beside the last answer (react.Conversation.shown)
 
 
 def listed(items):
@@ -187,7 +194,7 @@ def by_cues(message, context, resolver, event_words=frozenset()):
     found = mentions.named(message, resolver, event_words, least=mentions.MIN_SCORE)
     names = unique([(c.get("display") or c["name"], c["player_id"]) for _, out in found if out.get("status") == "confident"
                     for c in out["candidates"][:1]])
-    if DISPUTES.search(message):
+    if DISPUTES.search(message) or (context.shown and PAGE.search(message)):
         return about_answer(message, context, names)
     said = " ".join(words)
     fragment = len(words) <= FRAGMENT and words[0] in STARTS
@@ -232,10 +239,14 @@ def about_answer(message, context, names):
     that calls no tool."""
     previous = mentions.unnoted(context.question)
     players = unique(list(context.players) + list(names))
-    note = (f'This questions your answer to the previous question, "{previous}"'
-            + (f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else "")
-            + ": check what it questions with the tools again, then say plainly whether that answer was right, and"
-              " correct it if it wasn't")
+    about = f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else ""
+    if context.shown and PAGE.search(message):  # what the page showed, which the page's message above gives
+        note = (f'This asks about what the page showed beside your answer to the previous question, "{previous}"{about}'
+                ": answer from the page's message above, and check its figures with the tools (player_results with no"
+                " top gives each mode, and both together, at once), then say plainly what they are")
+    else:
+        note = (f'This questions your answer to the previous question, "{previous}"{about}: check what it questions'
+                " with the tools again, then say plainly whether that answer was right, and correct it if it wasn't")
     return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
 
 

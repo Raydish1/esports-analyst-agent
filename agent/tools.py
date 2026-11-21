@@ -137,6 +137,13 @@ QUALIFIER = {"qualifier", "qualifiers", "lcq"}
 YEAR = re.compile(r"20\d\d")
 EVENTS_LISTED = 10
 IDS_IN_SQL = 12  # a set this small is given by its IDs; a bigger alias set by a subquery on event_aliases
+# The regions, by the codes curation/event_terms.csv spells their events' names with, and other names for them; an
+# event is a region's when its name names it (EventResolver.region). Global events, such as Worlds, are in none
+REGIONS = {"na": "North America", "eu": "Europe", "sa": "South America", "brz": "Brazil", "sea": "Southeast Asia",
+           "aus": "Australia", "mena": "the Middle East", "jpn": "Japan"}
+REGION_NAMES = {"br": "brz", "oce": "aus", "oceania": "aus", "jp": "jpn", "usa": "na", "north american": "na",
+                "european": "eu", "south american": "sa", "brazilian": "brz", "middle east and north africa": "mena",
+                "japanese": "jpn", "australian": "aus"}
 IDS_AT_MOST = 40  # a bigger set of name matches gets no sql: too many IDs to copy into a query
 ABOUT_ALIAS = " About this alias: "  # before an alias's own note, at the end of resolve_event's note
 
@@ -190,9 +197,15 @@ class Resolver:
         self.forms = sorted(self.skeletons)
 
     def known(self, name):
-        """Whether an alias is this name, or a spelling of it with common character swaps undone: a match resolve
-        finds without scanning every alias for a similar spelling."""
-        return bool({normalize(name), normalize_full(name)} & set(self.aliases)) or skeleton(name) in self.skeletons
+        """Whether an alias is this name, or a spelling of it with common character swaps undone, or the name without a
+        possessive ending is one: a match resolve finds without scanning every alias for a similar spelling."""
+        base = possessive(name)
+        return (bool({normalize(name), normalize_full(name)} & set(self.aliases)) or skeleton(name) in self.skeletons
+                or bool(base and self.exact(base)))
+
+    def exact(self, name):
+        """Whether an alias is this name exactly, as normalized."""
+        return bool({normalize(name), normalize_full(name)} - {""} & set(self.aliases))
 
     def written(self, name, found):
         """The one player of `found` whose name, or an alias as shown, is the name exactly as written (any case,
@@ -228,6 +241,11 @@ class Resolver:
         for alias in {normalize(name), normalize_full(name)} - {""}:
             if alias in self.aliases:
                 add(alias, "exact")
+        base = None if found else possessive(name)
+        if base and self.exact(base):  # live, "renivics best placement" asked the user (finding 25)
+            out = self.resolve(base)
+            return {**out, "name": name, "read_as": base, "note": f"No player has exactly the name {name!r}: it's read"
+                    f" as {base!r}, written as a possessive. {out['note']}"}
         form = skeleton(name)
         if not found:
             for alias in self.skeletons.get(form, ()):
@@ -291,6 +309,14 @@ class Resolver:
                 for pid, kind, _, _ in self.aliases.get(alias, ()) if kind in CURRENT}
 
 
+def possessive(name):
+    """A name without a possessive ending, 'renivic' for "renivic's", "renivics'" or 'renivics' (an apostrophe a
+    question often drops), or None. resolve tries it only when no alias is the name itself, and keeps it only when an
+    alias is it exactly."""
+    m = re.fullmatch(r"(.{3,}?)(?:['’]s|s['’]?)", str(name).strip(), re.I)
+    return m[1] if m else None
+
+
 def quoted(text):
     return "'" + text.replace("'", "''") + "'"
 
@@ -342,7 +368,8 @@ class EventResolver:
                 self.terms[term].append(means)
         # the words of official event names, which a word of a question alone stands for before a player
         # (mentions.named): 'Trial' of Trial of Laufey is no player, though Sadistic once went by it
-        self.words = frozenset(w for e in self.events.values() for w in e["words"])
+        # and a curated term ('winters', 'cb') is one too: read as a possessive, 'springs' named a player (finding 25)
+        self.words = frozenset(w for e in self.events.values() for w in e["words"]) | frozenset(self.terms)
 
     def resolve(self, name, listed=EVENTS_LISTED):
         """{name, status, note, matched, score, event_count, tournament_count, sql, events}: the events an event
@@ -401,6 +428,16 @@ class EventResolver:
         return {**out, "status": status, "note": note, "matched": what + (f", {mode} only" if mode else ""),
                 "score": round(EVENT_SCORES[tier] * share, 2), "event_count": len(found),
                 "tournament_count": len(tournaments), "sql": sql, "events": [self.listed(e) for e in ranked[:listed]]}
+
+    def region(self, name):
+        """(code, event_ids) for a region's name ('na', 'north america', 'oce'): the events whose names name it, by its
+        code or a curated term's meaning for it, as resolve_event reads a region word; or None for no region."""
+        text = normalize_words(str(name))
+        code = (text if text in REGIONS else REGION_NAMES.get(text)
+                or next((c for c in REGIONS if text in self.terms.get(c, ())), None))
+        if code is None:
+            return None
+        return code, {e for e, event in self.events.items() if self.phrase(code, event["words"])}
 
     def by_alias(self, text):
         """(events, tier, aliases, closeness, share) for an alias or a series of yearly aliases, or nothing."""

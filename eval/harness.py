@@ -164,9 +164,10 @@ def tool_calls(trace):
 
 
 CHECKS_FIRED = {"size_check": "result-size check", "lookup_check": "lookup check", "no_tool_check": "no-tool check",
-                "event_check": "event check", "pairing_check": "pairing check", "answer_check": "answer check"}
+                "event_check": "event check", "pairing_check": "pairing check", "answer_check": "answer check",
+                "claim_check": "claim check"}
 NEW_CHECKS = ["number check, sent back", "number check, claims replaced", "name filter, queries refused",
-              "named-player check, calls refused", "AND/OR check, queries refused"]
+              "named-player check, calls refused", "AND/OR check, queries refused", "scope check, calls refused"]
 
 
 def fired(trace):
@@ -181,6 +182,7 @@ def fired(trace):
         out["name filter, queries refused"] += sum(bool(c.get("name_filters")) for c in step["tool_calls"])
         out["named-player check, calls refused"] += sum(bool(c.get("unnamed_players")) for c in step["tool_calls"])
         out["AND/OR check, queries refused"] += sum(bool(c.get("and_or")) for c in step["tool_calls"])
+        out["scope check, calls refused"] += sum(bool(c.get("scope")) for c in step["tool_calls"])
     return {label: n for label, n in out.items() if n}
 
 

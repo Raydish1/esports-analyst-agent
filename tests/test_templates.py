@@ -190,6 +190,123 @@ class EventResultsTest(Fixture):
         self.assertIn("event is the event's name", self.call("event_results", event=7)["error"])
 
 
+class WindowTest(Fixture):
+    def test_since_and_until_read_a_day_a_month_or_a_year_each_included(self):
+        self.assertEqual([templates.day(v, "since") for v in ("2025-10-01", "2025-10", "2025", 2025)],
+                         ["2025-10-01", "2025-10-01", "2025-01-01", "2025-01-01"])
+        self.assertEqual([templates.day(v, "until", last=True) for v in ("2024-02", "2024", "2024-12-31")],
+                         ["2024-02-29", "2024-12-31", "2024-12-31"])
+        for bad in ("last year", "2025-13", "10/01/2025", True):
+            with self.assertRaises(templates.Refused):
+                templates.day(bad, "since")
+        self.assertIn("since (1971-01-01) is after until (1970-12-31)",
+                      self.call("player_results", player_id=A, since="1971", until="1970")["error"])
+
+    def test_a_window_narrows_every_template_that_takes_a_year_and_the_scope_says_so(self):
+        every = self.call("player_results", player_id=A, since="1970-01-01")  # the fixture's events are all 1970-01-01
+        self.assertEqual((every["scope"], self.rows(every, "A's results")[-1][2]),
+                         ("official events, 1v1 and 2v2, since 1970-01-01", 5))
+        none = self.call("player_results", player_id=A, since="1971")
+        self.assertEqual(self.rows(none, "A's results")[-1][2], 0)
+        self.assertIn("None of A's 5 official results (3 in 1v1, 2 in 2v2) is among these", " ".join(none["notes"]))
+        ranked = self.call("rank_players", by="wins", until="1969")
+        self.assertEqual((ranked["scope"], ranked["tables"][0]["rows"]), ("official events, 1v1 and 2v2, until 1969-12-31", []))
+        teams = self.call("team_results", player_id=A, since="1970", until="1970")
+        self.assertEqual(teams["scope"], "official events, 2v2, from 1970-01-01 to 1970-12-31")
+
+    def test_a_head_to_head_in_a_window_counts_the_sets_in_it(self):
+        every = self.call("head_to_head", player_id=A, opponent_id=B)
+        within = self.call("head_to_head", player_id=A, opponent_id=B, year=1970)
+        self.assertEqual(self.rows(within, "A's 1v1 record")[0][4:7], self.rows(every, "A's 1v1 record")[0][4:7])
+        self.assertEqual(within["scope"], f"{templates.SETS_SCOPE}, in 1970")
+        later = self.call("head_to_head", player_id=A, opponent_id=B, since="1971")
+        self.assertEqual(self.rows(later, "A's 1v1 record")[0][4:7], [0, 0, 0])
+        self.assertIn("A and B have no counted 1v1 sets against each other at official events since 1971-01-01",
+                      " ".join(later["notes"]))
+
+
+class RegionTest(Fixture):
+    def test_a_region_is_its_code_or_a_name_for_it_and_its_events_are_those_whose_names_name_it(self):
+        events = self.tools.events
+        events.events["e-na"] = {**events.events["e1"], "name": "Winter Championship - North America", "words":
+                                 "winter championship north america".split()}
+        events.events["e-us"] = {**events.events["e1"], "name": "US Open", "words": ["us", "open"]}
+        events.terms["na"] = ["north america", "us"]
+        try:
+            for name in ("na", "NA", "north america", "North American"):
+                self.assertEqual(events.region(name), ("na", {"e-na", "e-us"}), name)
+            self.assertEqual(events.region("oce"), ("aus", set()))
+            self.assertIsNone(events.region("mars"))
+        finally:
+            del events.events["e-na"], events.events["e-us"]
+
+    def test_a_region_narrows_the_results_and_its_note_says_global_events_are_in_none(self):
+        out = self.call("player_results", player_id=A, region="eu")  # the fixture's events name no region
+        self.assertEqual((out["scope"], self.rows(out, "A's results")[-1][2]), ("official events, 1v1 and 2v2, at"
+                                                                                " Europe's events", 0))
+        self.assertIn("region counts the 0 events whose names name Europe: global events, such as Worlds and the BCX"
+                      " finals, are in no region. Say so.", out["notes"])
+        self.assertIn("region is one of na, eu, sa, brz, sea, aus, mena, jpn",
+                      self.call("rank_players", by="wins", region="mars")["error"])
+        self.assertEqual(self.call("rank_players", by="wins", region="all")["scope"], "official events, 1v1 and 2v2")
+
+
+class RankPairsTest(Fixture):
+    def test_opponents_are_ranked_by_the_sets_between_them_each_pair_once_with_each_ones_wins(self):
+        out = self.call("rank_pairs")  # finding 28: the biggest head-to-head, which only hand-written SQL answered
+        self.assertEqual(self.rows(out, "pairs of opponents, the most sets first"), [
+            [1, "A", A, "B", B, 3, 3, 0], [2, "A", A, "C", C, 1, 0, 1], [2, "A", A, "D", D, 1, 1, 0],
+            [2, "B", B, "C", C, 1, 1, 0], [2, "C", C, "D", D, 1, 1, 0]])
+        self.assertIn("Pairs on the same rank are tied: give them the same place.", out["notes"])
+        mine = self.call("rank_pairs", of="rivals", player_id=A, top=1)  # live: megD's most-played opponent
+        self.assertEqual(self.rows(mine, "A's opponents"), [[1, "A", A, "B", B, 3, 3, 0]])
+        met = self.call("rank_pairs", player_id=A, mode="2v2")
+        self.assertEqual(self.rows(met, "A's opponents, the most meetings first"),
+                         [[1, "A", A, "C", C, 1, 1, 0], [1, "A", A, "D", D, 1, 1, 0]])
+
+    def test_teammates_are_ranked_by_their_results_together(self):
+        out = self.call("rank_pairs", of="partners")
+        self.assertEqual(self.rows(out, "pairs of teammates, the most events together first"),
+                         [[1, "A", A, "B", B, 2, 1, 2, 2], [2, "C", C, "D", D, 1, 0, 1, 1]])
+        self.assertEqual(self.rows(self.call("rank_pairs", of="teammates", by="wins", top=1), "pairs of teammates"),
+                         [[1, "A", A, "B", B, 2, 1, 2, 2]])
+
+    def test_what_it_cant_rank_is_refused_with_the_reason(self):
+        self.assertIn("2v2 opponents are ranked for one player only", self.call("rank_pairs", mode="2v2")["error"])
+        self.assertIn("of is 'opponents' or 'teammates'", self.call("rank_pairs", of="enemies")["error"])
+        self.assertIn("teammates play 2v2 together", self.call("rank_pairs", of="teammates", mode="1v1")["error"])
+        self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="wins")["error"])
+
+
+class PowerRankingsTest(Fixture):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        db = sqlite3.connect(cls.path)
+        db.executemany("INSERT INTO pr_snapshots VALUES (?, ?, '2026-10-02', ?, ?, ?, 5, 9, 2, 1, 0, 'stats_api')",
+                       [(A, "1v1", "NA", 1, 500.0), (B, "1v1", "NA", 2, 400.0), (C, "1v1", "EU", 1, 450.0),
+                        (A, "2v2", "NA", 3, 300.0)])
+        db.commit()
+        db.close()
+
+    def test_a_regions_top_or_every_regions_and_a_players_rankings(self):
+        out = self.call("power_rankings", region="north america", top=1)
+        self.assertEqual(self.rows(out, "the 1v1 Power Rankings of NA"),
+                         [["NA", "1v1", 1, "A", A, 500.0, 2, 1, 0, 5, 9]])
+        self.assertEqual(out["scope"], "official Power Rankings as of 2026-10-02")
+        self.assertIn("not this data's counts of official results", out["notes"][-1])
+        each = self.call("power_rankings", top=1)
+        self.assertEqual([r[:4] for r in self.rows(each, "the 1v1 Power Rankings, each region")],
+                         [["EU", "1v1", 1, "C"], ["NA", "1v1", 1, "A"]])
+        mine = self.call("power_rankings", player_id=A)
+        self.assertEqual([r[:3] for r in self.rows(mine, "A's Power Rankings")], [["NA", "1v1", 1], ["NA", "2v2", 3]])
+        self.assertIn("D isn't in the Power Rankings of 2026-10-02.", self.call("power_rankings", player_id=D)["notes"])
+
+    def test_a_region_the_rankings_dont_have_is_refused(self):
+        self.assertIn("the Power Rankings' regions are NA, EU, SA (Brazil's too), SEA and MENA",
+                      self.call("power_rankings", region="oce")["error"])
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)
@@ -205,6 +322,19 @@ class PlayerResultsTest(Fixture):
         self.assertEqual(out["notes"], ["1 of the 1v1 results is a crew battle: a team result, counted as 1v1."])
         self.assertEqual(len(out["ran"]), 3)
         self.assertIn(f"WHERE r.player_id = {A} GROUP BY r.mode", out["ran"][0])
+
+    def test_the_whole_record_counts_each_placement_and_lists_where_the_best_was(self):
+        out = self.call("player_results", player_id=A)  # live, placement counts made up from the list (finding 27)
+        self.assertEqual(self.rows(out, "how many times each placement happened"),
+                         [["1v1", 1, 2], ["1v1", 2, 1], ["2v2", 1, 1], ["2v2", 3, 1]])
+        self.assertEqual(self.rows(out, "the results at the best placement"), [  # finding 26: the best, and where
+            ["1v1", 1, "1970-01-01", "Crew Battle 3v3"], ["1v1", 1, "1970-01-01", "Cup"], ["2v2", 1, "1970-01-01", "Duos"]])
+        with patch.object(templates, "BEST_LISTED", 1):
+            capped = self.call("player_results", player_id=A)
+        self.assertEqual(len(self.rows(capped, "the results at the best placement")), 2)
+        self.assertIn("A placed 1st 2 times in 1v1: the latest 1 are listed at the best placement.", capped["notes"])
+        narrowed = self.call("player_results", player_id=A, top=8)
+        self.assertFalse(any(t["what"].startswith(("how many times", "the results at the best")) for t in narrowed["tables"]))
 
     def test_top_mode_year_and_event_narrow_the_results_and_the_scope_says_so(self):
         wins = self.call("player_results", player_id=A, top=1, mode="doubles")
@@ -342,7 +472,7 @@ class HeadToHeadTest(Fixture):
 
     def test_each_side_of_the_sets_is_its_own_filter_since_an_or_reads_every_set(self):
         ran = " ".join(self.call("head_to_head", player_id=A, opponent_id=B)["ran"])
-        self.assertIn(f"WHERE winner_id = {A} AND loser_id = {B} UNION ALL", ran)
+        self.assertIn(f"WHERE s.winner_id = {A} AND s.loser_id = {B} UNION ALL", ran)
         self.assertNotIn(" OR ", ran)
 
     def test_2v2_meetings_are_counted_apart_from_the_1v1_record(self):
@@ -350,8 +480,9 @@ class HeadToHeadTest(Fixture):
                       self.call("head_to_head", player_id=A, opponent_id=B)["notes"])
         out = self.call("head_to_head", player_id=A, opponent_id=C)
         self.assertEqual(self.rows(out, "A's 1v1 record"), [["A", A, "C", C, 0, 1, 1, 0, 3, 0]])  # the DQ doesn't count
-        self.assertIn("In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0. Those aren't in the 1v1"
-                      " record.", out["notes"])
+        self.assertIn("In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0, and C's side won 0 and"
+                      " lost 1. Those aren't in the 1v1 record.", out["notes"])  # both sides, so it reads as whose
+        self.assertIn("In 1v1, A won 0 and lost 1 of their 1 set against C; C won 1 and lost 0.", out["notes"])
 
     def test_unscored_sets_are_flagged_and_players_who_never_met_get_a_record_of_zero(self):
         out = self.call("head_to_head", player_id=A, opponent_id=D)
@@ -373,7 +504,8 @@ class HeadToHeadTest(Fixture):
         self.assertIn("opponent_id is the number resolve_player returns, not a name: call resolve_player with 'B'",
                       self.call("head_to_head", player_id=A, opponent_id="B")["error"])
         self.assertEqual(self.call("head_to_head", player_id=A)["error"],
-                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id")
+                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, year, since, until,"
+                         " region, event")
 
 
 class RankPlayersTest(Fixture):
@@ -429,7 +561,7 @@ class RankPlayersTest(Fixture):
         self.assertEqual(self.rows(self.call("rank_players", by="Top 8s"), "players ranked by top 8s")[0][:2], [1, "A"])
         self.assertEqual(self.rows(self.call("rank_players", by="titles"), "players ranked by wins")[0][:2], [1, "A"])
         self.assertEqual(self.call("rank_players")["error"],
-                         "rank_players needs by: rank_players takes by, top, mode, year, event")
+                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, region, event")
         self.assertEqual(self.call("rank_players", by="wins", mode="crew")["error"], "mode is '1v1' or '2v2', not 'crew'")
         out = self.call("rank_players", by="wins", event="league")
         self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))
