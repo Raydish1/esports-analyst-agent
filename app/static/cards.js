@@ -1,4 +1,4 @@
-import { headToHeadFrame, lifetimeFrame, scaled, setsFrame } from "./broadcast.js";
+import { headToHeadFrame, lifetimeFrame, recordIn, scaled, setsFrame } from "./broadcast.js";
 
 // Stat cards (app/server/figures.py), drawn as broadcast frames (broadcast.js): lifetime figures, a head-to-head or
 // comparison, and set lists. Every number comes from the figures event; a missing one reads "not recorded", never 0.
@@ -63,11 +63,20 @@ function versus(card) {
   draw(MODES[0][0]);
   const [a, b] = card.players;
   const notes = [card.scope];
-  if (card.record) {
-    const r = card.record;
+  const said = (r, what) => {
     const games = r.games_won === null || r.games_won === undefined ? "games not recorded" : `${r.games_won}–${r.games_lost} in games`;
-    notes.push(`The record is ${a.name}'s official 1v1 sets against ${b.name}: ${r.wins}–${r.losses}, ${games}` +
-      (r.unscored ? `, leaving out ${r.unscored} set${r.unscored === 1 ? "" : "s"} with no recorded score.` : "."));
+    return `${what}: ${r.wins}–${r.losses}, ${games}` +
+      (r.unscored ? `, leaving out ${r.unscored} set${r.unscored === 1 ? "" : "s"} with no recorded score` : "");
+  };
+  if (card.records) {
+    const one = recordIn(card, "1v1");
+    const two = recordIn(card, "2v2");
+    notes.push(`The record is from ${a.name}'s side, in the mode picked. ` +
+      (one?.sets ? said(one, "1v1 sets") : "No 1v1 sets between them") + ". " +
+      (two?.sets ? said(two, `2v2 sets with ${a.name} and ${b.name} on opposite teams, whoever their partners`)
+        : "No 2v2 sets with them on opposite teams") + ". Both: the two added together.");
+  } else if (card.record) {
+    notes.push(said(card.record, `The record is ${a.name}'s official 1v1 sets against ${b.name}`) + ".");
   }
   if ("earnings" in a && "earnings" in b) {
     const sources = [...new Set([a, b].filter((p) => p.earnings.amount !== null).map((p) => `${p.earnings.source}, as of ${p.earnings.as_of}`))];
@@ -81,7 +90,7 @@ function versus(card) {
 
 function setRow(s) {
   const row = el("li", "set");
-  const when = el("span", "when", s.event ? `${s.date} · ${s.event}` : s.date);
+  const when = el("span", "when", [s.date, s.mode, s.event].filter(Boolean).join(" · "));
   const line = el("span", "line");
   const score = s.winner_games === null || s.winner_games === undefined
     ? el("span", "score missing", "score not recorded")
@@ -91,20 +100,38 @@ function setRow(s) {
   return row;
 }
 
+// A head-to-head's sets (card.modes) follow the mode switch, as its record does; an event's sets have one mode.
+function inMode(card, mode) {
+  if (!card.modes) return card;
+  const total = mode === "1v1 and 2v2" ? card.total : card.totals?.[mode];
+  const sets = card.sets && (mode === "1v1 and 2v2" ? card.sets : card.sets.filter((s) => s.mode === mode));
+  return { ...card, mode, sets, total };
+}
+
 function sets(card) {
   const node = el("section", "stat-card broadcast");
-  const { frame, width } = setsFrame(card);
-  node.append(scaled(frame, width, 1080, 560), scopeBox(card.scope));
-  if (card.sets?.length) {
-    const list = el("details", "set-details");
-    list.append(el("summary", null, `The ${card.sets.length} set${card.sets.length === 1 ? "" : "s"} as a list`));
-    const ol = el("ol", "set-list");
-    ol.append(...card.sets.map(setRow));
-    list.append(ol);
-    node.append(list);
-  } else if (card.sets === null) {
-    node.append(el("p", "card-sub", `${count.format(card.total)} sets: too many to list here.`));
-  }
+  const holder = el("div", "bc-holder");
+  const details = el("div");
+  const draw = (mode) => {
+    const shown = inMode(card, mode);
+    const { frame, width } = setsFrame(shown);
+    holder.replaceChildren(scaled(frame, width, 1080, 560));
+    details.replaceChildren();
+    if (shown.sets?.length) {
+      const list = el("details", "set-details");
+      list.append(el("summary", null, `The ${shown.sets.length} set${shown.sets.length === 1 ? "" : "s"} as a list`));
+      const ol = el("ol", "set-list");
+      ol.append(...shown.sets.map(setRow));
+      list.append(ol);
+      details.append(list);
+    } else if (shown.sets === null) {
+      details.append(el("p", "card-sub", `${count.format(shown.total)} sets: too many to list here.`));
+    }
+  };
+  draw(MODES[0][0]);
+  node.append(holder, scopeBox(card.scope));
+  if (card.modes) node.append(modeSwitch(draw));
+  node.append(details);
   return node;
 }
 

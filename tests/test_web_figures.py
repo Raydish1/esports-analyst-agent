@@ -122,8 +122,9 @@ class ChoosingTest(unittest.TestCase):
         self.assertEqual(record["kind"], "head_to_head")
         self.assertEqual(record["record"], {"wins": 2, "losses": 1, "sets": 3, "games_won": 7, "games_lost": 5, "unscored": 1})
         self.assertEqual([s["winner"] for s in sets["sets"]], ["Alpha", "Beta"])
-        self.assertEqual(sets["sets"][1], {"date": "2024-02-01", "event": "F", "winner": "Beta", "loser": "Alpha",
-                                           "winner_games": None, "loser_games": None})
+        self.assertEqual(sets["sets"][1], {"date": "2024-02-01", "event": "F", "mode": "1v1", "first_won": False,
+                                           "winner": "Beta", "loser": "Alpha", "winner_games": None, "loser_games": None})
+        self.assertEqual(record["records"]["2v2"]["sets"], 0)  # no 2v2 rows in the stub
 
     def test_a_set_list_too_long_for_the_template_keeps_its_count(self):
         h2h = {"player": {"player_id": 1}, "opponent": {"player_id": 2},
@@ -213,6 +214,19 @@ class RealTest(unittest.TestCase):
                          {"wins": 2, "losses": 1, "games_won": 8, "games_lost": 4})
         self.assertEqual([(s["winner"], s["loser"]) for s in sets["sets"]],
                          [("Impala", "BBBalloonBoy"), ("Impala", "BBBalloonBoy"), ("BBBalloonBoy", "Impala")])
+
+    def test_a_head_to_head_has_a_record_in_each_mode_and_its_2v2_sets(self):
+        # live, the card's 2v2 switch still showed Raydish and flowerVS's 1v1 record and sets
+        card, sets = self.cards.head_to_head(160000, 169119)
+        pick = lambda r: (r["wins"], r["losses"], r["sets"])
+        self.assertEqual({m: pick(r) for m, r in card["records"].items()},
+                         {"1v1": (2, 0, 2), "2v2": (8, 1, 9), "1v1 and 2v2": (10, 1, 11)})  # the template's 2v2 note: 8 of 9
+        self.assertEqual(sets["totals"], {"1v1": 2, "2v2": 9})
+        twos = [s for s in sets["sets"] if s["mode"] == "2v2"]
+        self.assertEqual((len(twos), sum(s["first_won"] for s in twos)), (9, 8))
+        self.assertTrue(all(" & " in s["winner"] and " & " in s["loser"] for s in twos))
+        self.assertEqual([s["date"] for s in sets["sets"]], sorted(s["date"] for s in sets["sets"]))
+        self.assertIn("their 2v2 record, Raydish's teams 8-1 against flowerVS's teams in 9 sets", figures.summary([card]))
 
     def test_the_line_for_the_agent_says_what_the_cards_showed_in_their_own_words(self):
         line = figures.summary(self.cards.head_to_head(168635, 149305))

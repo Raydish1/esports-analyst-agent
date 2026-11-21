@@ -6,7 +6,9 @@ from two queries of the app's own: career earnings, and an event's sets between 
 the model's text.
 
 Cards, at most two per answer:
-- head_to_head: two players' lifetime figures mirrored, and their 1v1 record; followed by sets, their 1v1 sets;
+- head_to_head: two players' lifetime figures mirrored, and their record in each mode (1v1 sets; 2v2 sets with the two
+  on opposite teams, from TWOS, counted as head_to_head counts its 2v2 meetings; both summed); followed by sets, their
+  sets in both modes, each marked with its mode, which the page's mode switch filters;
 - comparison: two players' lifetime figures, for a turn that called player_results for two players;
 - lifetime: one player's, for a player_results call without year or event;
 - sets for an event: the 1v1 sets between its top 8 players, for one held 1v1 event.
@@ -19,7 +21,7 @@ import csv
 import json
 from pathlib import Path
 
-from templates import TEMPLATES
+from templates import TEMPLATES, set_event
 from tools import connect
 
 MODES = ("1v1 and 2v2", "1v1", "2v2")
@@ -30,6 +32,17 @@ EARNINGS = "SELECT earnings_usd, source, as_of FROM v_career_earnings WHERE play
 EVENT_SETS = ("SELECT start_date, winner_name, winner_id, winner_placement, loser_name, loser_id, loser_placement,"
               " winner_games, loser_games, is_scored FROM v_sets_1v1 WHERE event_id = ? AND winner_placement <= 8"
               " AND loser_placement <= 8 ORDER BY start_date, start_time, match_id")
+# Each 2v2 set with the two players on opposite teams, from the first player's side, with each one's partner: the
+# meetings head_to_head counts (templates.head_to_head), listed. 0.1-0.3 s with the IDs as parameters.
+PARTNER = ("(SELECT c.name FROM match_players mp JOIN players i ON i.player_id = mp.player_id"
+           " JOIN players c ON c.player_id = i.canonical_id"
+           " WHERE mp.match_id = {0}.match_id AND mp.side = {0}.side AND i.canonical_id <> {0}.player_id LIMIT 1)")
+TWOS = ("SELECT a.start_date, e.tournament_name, e.event_name, a.won, a.games_won, a.games_lost, a.is_scored, "
+        + PARTNER.format("a") + ", " + PARTNER.format("b") +
+        " FROM v_match_results a JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side"
+        " JOIN v_events e ON e.event_id = a.event_id"
+        " WHERE a.player_id = ? AND b.player_id = ? AND a.mode = '2v2'"
+        " ORDER BY a.start_date, a.start_time, a.match_id")
 MOST = 2
 ROOT = Path(__file__).resolve().parent.parent.parent
 LEGENDS = ROOT / "data" / "curated" / "player_legends.csv"  # player_id,legend: mains, for cards only
@@ -153,25 +166,32 @@ class Cards:
             return []
         record = table_with(out, "wins", "losses", "games_won")
         r = dict(zip(record["columns"], record["rows"][0])) if record and record.get("rows") else {}
-        card = {"kind": "head_to_head", "players": players, "scope": self.scope(players),
-                "record": {"wins": r.get("wins"), "losses": r.get("losses"), "sets": r.get("sets"),
-                           "games_won": r.get("games_won"), "games_lost": r.get("games_lost"),
-                           "unscored": r.get("unscored_sets") or 0},
+        a, b = players
+        ones = {"wins": r.get("wins"), "losses": r.get("losses"), "sets": r.get("sets"),
+                "games_won": r.get("games_won"), "games_lost": r.get("games_lost"), "unscored": r.get("unscored_sets") or 0}
+        twos_rows = self.query(TWOS, (a["player_id"], b["player_id"]))
+        twos = tally(twos_rows)
+        card = {"kind": "head_to_head", "players": players, "scope": self.scope(players), "record": ones,
+                "records": {"1v1": ones, "2v2": twos, "1v1 and 2v2": combined(ones, twos)},
                 "record_scope": out.get("scope")}
         found = table_with(out, "winner_id", "winner_games", "loser_games")
-        if not found:
-            return [card]
-        a, b = players
         names = {a["player_id"]: a["name"], b["player_id"]: b["name"]}
-        listed = found.get("rows")
-        sets = None if listed is None else [
-            {"date": c["date"], "event": c.get("event"), "winner": names.get(c["winner_id"], c.get("winner")),
+        listed = found.get("rows") if found else []
+        singles = None if listed is None else [
+            {"date": c["date"], "event": c.get("event"), "mode": "1v1", "first_won": c["winner_id"] == a["player_id"],
+             "winner": names.get(c["winner_id"], c.get("winner")),
              "loser": next(n for i, n in names.items() if i != c["winner_id"]) if c["winner_id"] in names else None,
              "winner_games": c["winner_games"], "loser_games": c["loser_games"]}
             for c in (dict(zip(found["columns"], row)) for row in listed)]
+        doubles = [team_set(row, a["name"], b["name"]) for row in twos_rows]
+        if not singles and not doubles and listed is not None:
+            return [card]
+        totals = {"1v1": (found.get("row_count") or len(listed or [])) if found else 0, "2v2": len(doubles)}
+        sets = None if singles is None else sorted(singles + doubles, key=lambda s: s["date"] or "")  # stable sort
         return [card, {"kind": "sets", "title": f"Sets between {a['name']} and {b['name']}", "sets": sets,
-                       "total": found.get("row_count"),
-                       "scope": "Official 1v1 sets, one player a side, oldest first. DQs, forfeits and ties left out."}]
+                       "total": totals["1v1"] + totals["2v2"], "totals": totals, "modes": True,
+                       "scope": "Official sets between them, oldest first: 1v1 sets with one player a side, and 2v2 sets"
+                                " with the two on opposite teams. DQs, forfeits and ties left out."}]
 
     def event_sets(self, event):
         rows = self.query(EVENT_SETS, (event["event_id"],))
@@ -217,6 +237,35 @@ class Cards:
         return cards[:MOST]
 
 
+def tally(rows):
+    """A record from TWOS rows, from the first player's side, in the 1v1 record's shape."""
+    scored = [r for r in rows if r[6]]
+    wins = sum(1 for r in rows if r[3])
+    return {"wins": wins, "losses": len(rows) - wins, "sets": len(rows),
+            "games_won": sum(r[4] for r in scored) if scored else None,
+            "games_lost": sum(r[5] for r in scored) if scored else None, "unscored": len(rows) - len(scored)}
+
+
+def combined(*records):
+    """Records summed; games summed over the records that have them, None when none does."""
+    out = {k: sum(r.get(k) or 0 for r in records) for k in ("wins", "losses", "sets", "unscored")}
+    for k in ("games_won", "games_lost"):
+        known = [r[k] for r in records if r.get(k) is not None]
+        out[k] = sum(known) if known else None
+    return out
+
+
+def team_set(row, first, second):
+    """A TWOS row as a set of the list: each side named as its two players."""
+    date, tournament, event, won, games_won, games_lost, scored, partner, opposing = row
+    mine = f"{first} & {partner}" if partner else first
+    theirs = f"{second} & {opposing}" if opposing else second
+    return {"date": date, "event": set_event(tournament, event), "mode": "2v2", "first_won": bool(won),
+            "winner": mine if won else theirs, "loser": theirs if won else mine,
+            "winner_games": (games_won if won else games_lost) if scored else None,
+            "loser_games": (games_lost if won else games_won) if scored else None}
+
+
 # What the cards showed, for the agent (react.Conversation.shown): live, the user asked about a card's "12 medals in
 # 2v2", which were Phazon's 2v2 GOLD figure, and the model, which never sees the cards, invented where it came from
 # (docs/web-app-testing-notes.md, finding 9). One clause per player and mode, separated by ";", so each record's numbers
@@ -246,6 +295,10 @@ def card_summary(card):
         record = (f"their 1v1 record, {a['name']} {r.get('wins')}-{r.get('losses')} against {b['name']} in"
                   f" {r.get('sets')} sets, games {r.get('games_won')}-{r.get('games_lost')}"
                   if r.get("sets") else f"no 1v1 sets between {a['name']} and {b['name']}")
+        t = (card.get("records") or {}).get("2v2") or {}
+        record += (f"; their 2v2 record, {a['name']}'s teams {t['wins']}-{t['losses']} against {b['name']}'s teams in"
+                   f" {t['sets']} sets" if t.get("sets") else
+                   f"; no 2v2 sets with {a['name']} and {b['name']} on opposite teams")
         return (f"A head-to-head card: {record}; with the lifetime figures of {player_summary(a)}; and of"
                 f" {player_summary(b)}.")
     if kind == "sets":

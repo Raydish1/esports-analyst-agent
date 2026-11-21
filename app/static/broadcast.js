@@ -178,6 +178,15 @@ function sided(tag, className, side, value) {
 
 function absent(v) { return v === null || v === undefined; }
 
+// The set record shown in a mode: the card's record for that mode (figures.py), or, from before cards had one per
+// mode, its 1v1 record.
+export function recordIn(card, mode) {
+  return card.records ? card.records[mode] : card.record;
+}
+
+const RECORD_SCOPE = { "1v1": "official 1v1 sets", "2v2": "official 2v2 sets, the two on opposite teams",
+  "1v1 and 2v2": "official 1v1 and 2v2 sets together" };
+
 export function headToHeadFrame(card, mode = "1v1 and 2v2") {
   const [a, b] = card.players;
   const ma = a.modes[mode] || {};
@@ -195,7 +204,8 @@ export function headToHeadFrame(card, mode = "1v1 and 2v2") {
   frame.append(shapes([[H2H.borderL, "var(--bc-orange)"], [H2H.borderR, "var(--bc-teal)"], [H2H.strip, "var(--bc-cream)"]]));
   // The top strip's fields (PR, country, team, the round) aren't in the data: it states the card's scope instead.
   const strip = [scopeLine(mode, a.crew || b.crew)];
-  if (card.record) strip.push(`record: official 1v1 sets${card.record.unscored ? `, ${card.record.unscored} with no recorded score` : ""}`);
+  const record = recordIn(card, mode);
+  if (record) strip.push(`record: ${card.records ? RECORD_SCOPE[mode] : RECORD_SCOPE["1v1"]}${record.unscored ? `, ${record.unscored} with no recorded score` : ""}`);
   if ("earnings" in a && "earnings" in b) {
     const asOf = [...new Set([a, b].filter((p) => !absent(p.earnings.amount)).map((p) => `${p.earnings.source}, as of ${p.earnings.as_of}`))];
     if (asOf.length) strip.push(`earnings: career, ${asOf.join("; ")}`);
@@ -255,8 +265,8 @@ export function headToHeadFrame(card, mode = "1v1 and 2v2") {
     if (name.length > 9) node.style.fontSize = `${Math.max(48, Math.round((88 * 9) / name.length))}px`;  // keeps clear of the record
     frame.append(node);
   }
-  if (card.record) {  // the set record in the bottom strip: the left player's wins, then losses
-    const r = card.record;
+  if (record) {  // the set record in the bottom strip: the left player's wins, then losses, in the mode shown
+    const r = record;
     frame.append(sided("p", "bc-t bc-score", "l", absent(r.wins) ? "–" : String(r.wins)), text("bc-vs bc-heavy", "VS"),
       sided("p", "bc-t bc-score", "r", absent(r.losses) ? "–" : String(r.losses)));
   } else {
@@ -288,14 +298,15 @@ export function setsFrame(card) {
   ]));
   frame.append(text("bc-sets-subject", (card.event ? `${card.event}${card.date ? ` · ${card.date}` : ""}` : card.title).toUpperCase()));
   frame.append(text("bc-sets-heading bc-heavy", "MATCHES"));
-  // The first player of a head-to-head stays on top, with the score from their side; an event's winner is on top.
+  // The first player of a head-to-head (or their team) stays on top, with the score from their side; an event's
+  // winner is on top.
   const top = card.event ? null : (card.title.match(/^Sets between (.+) and (.+)$/) || [])[1];
   shown.forEach((s, i) => {
     const column = Math.floor(i / SIDEBAR.perColumn);
     const entry = el("div", "bc-entry");
     entry.style.left = `${column * SIDEBAR.width}px`;
     entry.style.top = `${347 + (i % SIDEBAR.perColumn) * SIDEBAR.pitch}px`;
-    const flip = top && s.loser === top;
+    const flip = top && (s.first_won === undefined ? s.loser === top : !s.first_won);
     const [upper, lower] = flip ? [s.loser, s.winner] : [s.winner, s.loser];
     const score = absent(s.winner_games) ? null
       : flip ? `${s.loser_games} - ${s.winner_games}` : `${s.winner_games} - ${s.loser_games}`;
@@ -312,9 +323,12 @@ export function setsFrame(card) {
     more.append(el("span", "bc-entry-score bc-heavy", `+${sets.length - shown.length}`), el("span", "bc-entry-name", "MORE SETS"));
     frame.append(more);
   }
-  if (!sets.length) frame.append(text("bc-sets-empty", card.sets === null ? `${card.total} SETS: TOO MANY TO LIST` : "NO SETS RECORDED"));
+  if (!sets.length) frame.append(text("bc-sets-empty", card.sets === null ? `${card.total} SETS: TOO MANY TO LIST`
+    : card.mode && card.mode !== "1v1 and 2v2" ? `NO ${card.mode.toUpperCase()} SETS` : "NO SETS RECORDED"));
   const foot = el("div", "bc-sets-foot");  // the title and what it counts, stacked, so a long title can't overlap
-  foot.append(el("p", "bc-sets-title bc-heavy", card.event ? card.title.toUpperCase() : "OFFICIAL 1V1 SETS"),
+  const heading = !card.modes || card.mode === "1v1" ? "OFFICIAL 1V1 SETS"
+    : card.mode === "2v2" ? "OFFICIAL 2V2 SETS" : "OFFICIAL SETS";
+  foot.append(el("p", "bc-sets-title bc-heavy", card.event ? card.title.toUpperCase() : heading),
     el("p", "bc-sets-scope", card.scope));
   frame.append(foot);
   for (let c = 0; c < columns; c++) {  // each column's gold rule on its right edge
