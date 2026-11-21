@@ -164,15 +164,15 @@ Truth: Phazon's 12 GOLD is 2v2 (12 1st places in 2v2, 0 in 1v1, so 12 in both mo
 - **Seen:** run 1, "Phazon's 12 gold medals in 1v1" (his 1v1 GOLD is 0), with BCX Regional Qualifier 2017 and
   DreamHack Atlanta 2019 as examples of his wins: both are events of the sets list, and he lost the 2019 set. Run 2:
   `player_results(147522, top=1, mode="1v1")` returned 0, and the answer said "conflict with the stat card's 10 golds"
-  (Cody Travis's figure in both modes), "2v2: 2 wins" (no tool returned it), and pointed to a view
-  `v_player_medals` that doesn't exist.
+  (Cody Travis's figure in both modes), "2v2: 2 wins" (no tool returned it), and told the user to query
+  `v_player_medals` themselves, a view it never queried (it exists: corrected 2026-11-20).
 - **The page's part, fixed:** run 1's line wrote the combined figure as "Phazon in 1v1 and 2v2 … GOLD 12", read as 1v1.
   It now says "in 1v1 only", "in 2v2 only" and "in both modes together", in that order. Run 2 was after the fix.
 - **Why no check caught it:** the number check checks where a number came from, not what it's about: 12 and 10 are in
-  the line, and 2 is in many results. The answer check reads only names shaped like tags, not view names.
+  the line, and 2 is in many results. And nothing stops an answer from sending the user to the database instead of querying it.
 - **Proposed:** a question about the card ("on the card", "the graphic", a card label like GOLD) is answered from the
-  line, or from `player_results` with no `top`, which gives every mode at once, never one mode with `top=1`. And a
-  view or table the answer names that doesn't exist is a claim to check.
+  line, or from `player_results` with no `top`, which gives every mode at once, never one mode with `top=1`. And an
+  answer never tells the user to run a query: the agent runs it.
 
 ### 23. "come" was looked up as an event
 
@@ -228,6 +228,22 @@ Truth: Phazon's 12 GOLD is 2v2 (12 1st places in 2v2, 0 in 1v1, so 12 in both mo
 - **Proposed:** a template `rank_pairs(by="sets", mode, top)`: the pairs with the most 1v1 sets (or 2v2 meetings
   between their teams), each pair once, ties whole, both players named, with each one's wins. And a line in
   `v_head_to_head_1v1`'s definition (or the prompt) saying it's for one player or pair at a time.
+
+### 29. "the strongest 1v1 player right now" got the most wins ever, in both modes
+
+- **Seen:** `20261120T175642Z-003`, turn 4: `rank_players(by="wins", top=5)`, with no mode and no year, and the answer
+  ranked total wins in both modes as "the strongest 1v1 player right now": gdsandstorm 30 1v1 wins, then Boomie "12",
+  ahead of TigerBrawlhalla's 26.
+- **Two failures:** the question's mode word wasn't passed to the call, and "right now" was read as all time. The
+  retrieved examples were about pairs, an event's winner and a record against one player: none about current form.
+- **What the data has for "right now" (eval-v1):** the official Power Rankings in `pr_snapshots`, per region and mode
+  as of 2026-10-02 (1v1 #1s: BBBalloonBoy NA, Zivai EU, lopesbrawlhalla SA, marker_bh1 MENA, keiththepoopoo SEA), and
+  results by date: 1v1 wins since 2025-10-01 are Marckiem00 3, Zivai 3, then four players with 2. `events.is_online`
+  marks 40 official events as offline; the latest is Brawlhalla - Autumn Royale 2025 (2025-10-12, Ahmet_ 1st,
+  Marckiem00 2nd). The Royales being offline is the API's flag, not checked.
+- **Proposed (the definition is the user's to decide):** current-form words ("right now", "currently", "these days",
+  "best", "strongest" without "ever") get a definition in the prompt, as "major" has one, with a worked example; a
+  template or `rank_players` arguments for it; and a check that a mode the question names is in the call.
 
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
 
