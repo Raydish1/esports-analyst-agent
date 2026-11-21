@@ -242,6 +242,7 @@ async function ask(question) {
   question = question.trim();
   if (!question || state.busy) return;
   setBusy(true);
+  document.body.classList.add("chatting");  // the title folds away and the chat fills the column
   addMsg("user", document.createTextNode(question));
   const bubble = typingBubble();
   const turn = { steps: [], examples: [], figures: [], answer: null, error: null, table: null };
@@ -290,6 +291,7 @@ $("restart").addEventListener("click", async () => {
   right.querySelectorAll(".shadow-dark").forEach((r) => r.remove());
   state.results = 0;
   state.demoAsked = [];
+  document.body.classList.remove("chatting");
   if (!state.demo) await newConversation();
   window.scrollTo({ top: 0, behavior: "smooth" });
   box.focus();

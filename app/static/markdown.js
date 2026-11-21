@@ -87,7 +87,25 @@ export function render(text) {
       flush();
       const ordered = /\d/.test(line.match(LIST)[2]);
       const list = document.createElement(ordered ? "ol" : "ul");
-      while (i < lines.length && (LIST.test(lines[i]) || (lines[i].trim() && /^\s{2,}/.test(lines[i])))) {
+      if (ordered) list.start = parseInt(line.match(LIST)[2], 10);  // a list that starts at 5 shows 5
+      // A blank line between items doesn't end the list: answers often write "1. ..., an indented "- ...", a blank
+      // line, then 2. ...", and ending it there restarted every item at 1. It goes on to an indented line or an item
+      // of the same kind (numbered or not), and ends at anything else.
+      const continues = (j) => {
+        while (j < lines.length && !lines[j].trim()) j++;
+        if (j >= lines.length) return -1;
+        const m = lines[j].match(LIST);
+        if (/^\s{2,}/.test(lines[j]) || (m && /\d/.test(m[2]) === ordered)) return j;
+        return -1;
+      };
+      while (i < lines.length) {
+        if (!lines[i].trim()) {
+          const next = continues(i);
+          if (next < 0) break;
+          i = next;
+          continue;
+        }
+        if (!LIST.test(lines[i]) && !/^\s{2,}/.test(lines[i])) break;
         const m = lines[i].match(LIST);
         if (m && m[1].length >= 2 && list.lastChild) {  // indented: a list inside the last item
           const tag = /\d/.test(m[2]) ? "OL" : "UL";

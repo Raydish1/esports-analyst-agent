@@ -245,6 +245,43 @@ Truth: Phazon's 12 GOLD is 2v2 (12 1st places in 2v2, 0 in 1v1, so 12 in both mo
   "best", "strongest" without "ever") get a definition in the prompt, as "major" has one, with a worked example; a
   template or `rank_players` arguments for it; and a check that a mode the question names is in the call.
 
+## Fifth round (2026-11-21, after merging the mechanism round, at e4f7e1a)
+
+The two smoke-test turns (`20261121T045117Z-001`) and the user's first question (`-002`). Every figure below was
+right: the failures are in how the answers read.
+
+### 30. A true sentence left out for its number word: "the top two tied at 34 sets"
+
+- **Seen:** `-002`, turn 1, "whats the biggest head to head record in 1v1": `rank_pairs(of="opponents", mode="1v1")`,
+  then a right list (SiB | Wess vs lFiend and yüz vs whoiskyna at 34 sets, gdsandstorm vs Boomie 28, Remmy vs noeL 25,
+  ...). The number check sent it back twice for "two" in "the top two tied at 34 sets", then left the sentence out, so
+  the answer ended with "(I left out a statement I couldn't confirm from the data.)" under a right answer.
+- **The mechanism:** a count of rows the model read ("the top two", "both", "three players") is arithmetic, which the
+  number check refuses, but here the rows are the tool's own ranking and the count is of a tie the result shows. The
+  user reads the closing line as the answer being doubtful.
+- **Proposed:** the number check accepts a count word (two to ten) when that many rows of one result share the value
+  the sentence states (a tie), or for "the top N" of a ranked result; and the left-out line is dropped when what was
+  left out restates a number the answer keeps elsewhere.
+
+### 31. Player IDs printed beside every name
+
+- **Seen:** the same answer named each player as "**SiB | Wess (37977)**". `Shown.without_ids` lets an ID through as
+  an ID, so no check objects, but the user never asked for IDs and they clutter every line. Also the list items were
+  separated by blank lines, which the page's renderer read as separate lists all numbered 1 (fixed in the page,
+  `markdown.js`, 2026-11-21).
+- **Proposed:** the answer guidance says not to show player IDs unless the user asks for them or two players share
+  the name (then the ID tells them apart).
+
+### 32. A question about the card answered as a dispute
+
+- **Seen:** `-001`, turn 2, "on the card, where does phazon's 12 gold come from? is that medals?": settled as a
+  question about the previous answer, so the reply opened "The previous answer was **correct**", listed its tool calls
+  in backticks, and never said what GOLD is. The figures were right (12 golds, all in 2v2).
+- **The mechanism:** fix M4's note for a question about the page tells the model to check the answer again, which is
+  the dispute note's job; a question about what a card means needs the figure explained, not the answer defended.
+- **Proposed:** a question about the page gets its own note (explain the figure asked about, from the card's line and
+  the tools), separate from the dispute note, and the answer guidance says not to list tool calls.
+
 ### 0. Three turns in a row answered with invented records (the most serious; fix 1 below covers it)
 
 - **Seen:** megD's biggest records (`20261119T233544Z-002`, turns 15–17). No turn called a tool. Turn 15 wrote a
