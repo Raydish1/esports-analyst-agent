@@ -884,6 +884,32 @@ class LoopTest(Fixture):
                                                               " whole answer"))
         self.assertEqual(trace["answer"], react.NOT_CONFIRMED)
 
+    def test_an_answer_sending_the_user_to_the_database_goes_back_once_then_the_referral_goes_with_no_line(self):
+        said = "megD has 2 official results. You can query v_player_medals for medals."  # live, finding 22
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(said), reply(said))
+        trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
+        sent, kept = trace["steps"][1]["claim_check"], trace["steps"][2]["claim_check"]
+        self.assertEqual((sent["action"], kept["action"], kept["referrals_left_out"]),
+                         ("sent back", "left out: sent back once already", ["You can query v_player_medals for medals."]))
+        self.assertTrue(sent["message"].startswith("Before this answer is final: it sends the user to the database"
+                                                   " ('You can query'), and the user can't run queries."))
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), ("megD has 2 official results.", []))
+        self.assertIn("**Claim check:** referral 'You can query', which no tool result says. Sent back with:",
+                      react.markdown([trace], HEADER))
+
+    def test_a_judgment_no_tool_result_makes_is_left_out_with_a_line_saying_so(self):
+        said = "megD has 2 official results. The latest is likely a data anomaly."  # live, finding 27
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(said), reply(said))
+        trace = react.run("How many results has megd?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], "megD has 2 official results.\n\n(I left out a statement I couldn't confirm"
+                                          " from the data.)")
+        self.assertEqual(trace["unconfirmed"], [{"claim": "The latest is likely a data anomaly.", "numbers": ["anomaly"],
+                                                 "replacement": ""}])
+        self.assertNotIn("number_check", trace["steps"][2])
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(said))  # asked about errors itself
+        trace = react.run("Is megd's latest result an error?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual(trace["answer"], said)
+
     def test_a_player_id_written_as_an_id_is_no_number_to_check(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."),
                        reply(calls=[("run_sql", {"query": "SELECT 1"})]), reply("Back to it."),

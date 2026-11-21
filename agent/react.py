@@ -55,6 +55,7 @@ from names import normalize, normalize_full, normalize_words  # noqa: E402
 from platform_clients import load_env  # noqa: E402
 import retrieval  # noqa: E402
 from diagnose import missing_text  # noqa: E402
+import claim_check  # noqa: E402
 import mentions  # noqa: E402
 import settling  # noqa: E402
 from number_check import Claim, Evidence, Window, claims as number_claims, left_out, stated, without  # noqa: E402
@@ -199,6 +200,10 @@ Answering
 - When the user asks whether an answer was right ("are you sure", "why did you say"), check it again with the tools,
   then say plainly whether it was right: never defend it, or explain it away, from memory.
 - A note "[The page showed beside this answer: ...]" is what the user saw beside an answer, such as its stat cards.
+- Run every query the answer needs yourself: never tell the user to query the data, a view or a table, or that
+  further analysis would be needed.
+- Report results as the data has them. Call a result wrong (an anomaly, an error, a conflict) only where a tool result
+  says the data is wrong, as a status such as placements_unreliable does.
 - If a question asks for something no table holds, say the data doesn't cover it, and what it does have. Never
   answer from a nearby table as a stand-in, such as official wins for community tournaments.
 - Name players by their current display name, spelled as the data spells it: the name resolve_player or the players
@@ -478,6 +483,7 @@ class Shown:
         self.given = set()  # the numbers in the user's questions
         self.evidence, self.earlier = Evidence(), Evidence()  # this question's, and the previous one's
         self.seen_now, self.seen_before, self.returned_now, self.returned_before = set(), set(), set(), set()
+        self.text_now, self.text_before = "", ""  # the tool results' text, for the claim check's markers
         for text in texts:
             self.read(text)
 
@@ -490,6 +496,7 @@ class Shown:
         self.earlier, self.evidence = self.evidence, Evidence()
         self.seen_before, self.seen_now = self.seen_now, set()
         self.returned_before, self.returned_now = self.returned_now, set()
+        self.text_before, self.text_now = self.text_now, ""
         self.evidence.ask(question)
 
     @property
@@ -500,6 +507,11 @@ class Shown:
     @property
     def seen(self):
         return self.seen_now | self.seen_before
+
+    @property
+    def in_view(self):
+        """The text of the tool results in view, this question's and the previous one's."""
+        return f"{self.text_before} {self.text_now}"
 
     def knows(self, pid):
         """Whether a tool call may use a player_id: a tool returned the person, or the user's question gives it."""
@@ -520,6 +532,7 @@ class Shown:
         self.evidence.observe(observation)
         if "error" not in observation:  # an error repeats what the call asked for, so it shows nothing
             self.seen_now |= mentions.seen([text])
+            self.text_now += " " + text
             if arguments is not None:
                 self.evidence.call(arguments)
         returned = {c["player_id"] for c in observation.get("candidates", ())} if name == "resolve_player" else set()
@@ -801,6 +814,21 @@ def no_tool(gap):
     return NO_TOOL_FACTS.format(facts=listed(facts))
 
 
+def claimed_wrong(found):
+    """The claim check's message (claim_check.py): what the answer claims that no tool does, and what to do instead."""
+    parts = []
+    referrals = [repr(short(c.text, 80)) for c in found if c.kind == "referral"]
+    judgments = [repr(short(c.text, 80)) for c in found if c.kind == "judgment"]
+    if referrals:
+        parts.append(f"it sends the user to the database ({listed(referrals)}), and the user can't run queries. Run"
+                     " what the answer needs with the tools yourself, and answer from what they return")
+    if judgments:
+        parts.append(f"it calls a result wrong ({listed(judgments)}), though no tool result says the data is wrong"
+                     " there. Report results as the data has them: if one looks surprising, say what the data shows"
+                     " without judging it, or check it with another query")
+    return "Before this answer is final: " + "; and ".join(parts) + "."
+
+
 def suggestions(names):
     """What the agent says instead of guessing: for each (name, resolve_player result), its top three candidates."""
     lines = []
@@ -994,6 +1022,7 @@ class Conversation:
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
+        judged = False  # whether the claim check sent an answer back
         respelled = False  # whether the event check sent an answer back, to look an event up with another spelling
         disputed = bool(settled and settled.how == settling.DISPUTED)  # a question about the previous answer
         # the question's players resolve_player decided, a choice from suggestions among them; the last answer sent back
@@ -1145,6 +1174,30 @@ class Conversation:
                 if names or ids:
                     step["answer_check"] = {"names": names, "ids": ids, "action": "kept: sent back once already" if checked
                                             else "kept: no steps left"}
+                wrong = self.wrong(content, said or question, disputed) if outcome == "answered" else []
+                if wrong and not judged and not strict and number < max_steps:
+                    judged, message = True, claimed_wrong(wrong)
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "sent back",
+                                           "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message}]
+                    log(f"  claim check: {listed([repr(short(c.text, 60)) for c in wrong])}; sent back")
+                    sent_back = (content, swaps, message)
+                    self.finished(step)
+                    continue
+                judgments = []
+                if wrong:  # left out of whatever text is final; a referral, which states nothing, with no line saying so
+                    plain = claim_check.without_code(content)
+                    content, dropped = without(plain, claim_check.referrals(plain))
+                    judgments = [c for c in self.wrong(content, said or question, disputed) if c.kind == "judgment"]
+                    step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "left out: " + (
+                        "sent back once already" if judged else "the turn looked nothing up" if strict
+                        else "no steps left" if outcome == "answered" else "not an answer"),
+                        "referrals_left_out": [d["claim"] for d in dropped]}
+                    if not content.strip():
+                        content = NOT_LOOKED_UP if strict else NOT_CONFIRMED
                 flagged = self.view.window.unsupported(self.view.without_ids(content))  # in every final text
                 if strict:  # and the players no result in view returned
                     flagged = sorted(flagged + self.view.player_claims(content, question), key=lambda c: c.start)
@@ -1161,17 +1214,22 @@ class Conversation:
                     self.finished(step)
                     continue
                 unconfirmed = []
-                if flagged:
-                    content, unconfirmed = without(content, flagged)
+                if flagged or judgments:
+                    content, unconfirmed = without(content, sorted(flagged + judgments, key=lambda c: c.start))
                     why = ("the turn looked nothing up" if strict else "sent back once already" if numbered
                            else "no steps left" if outcome == "answered" else "not an answer")
-                    step["number_check"] = {"numbers": flagged_texts, "action": f"replaced: {why}", "replaced": unconfirmed}
+                    record = ({"numbers": flagged_texts, "action": f"replaced: {why}"} if flagged
+                              else step["claim_check"])  # judgments alone: the claim check left them out
+                    record["replaced"] = unconfirmed
+                    if flagged:
+                        step["number_check"] = record
                     if not self.view.states_facts(content):  # no fact is left once the claims are out
                         content = NOT_LOOKED_UP if strict else NOT_CONFIRMED
-                        step["number_check"]["action"] += "; no fact left, so the whole answer"
+                        record["action"] += "; no fact left, so the whole answer"
                     else:
                         content = f"{content}\n\n{left_out(unconfirmed)}"
-                    log(f"  number check: {listed(flagged_texts)} left out, since no tool result in view holds them")
+                    log(f"  {listed(flagged_texts + [c.text for c in judgments])} left out, since no tool result in"
+                        " view holds them or says so")
                 trace["answer"], trace["outcome"], trace["name_swaps"] = content.strip() or None, outcome, swaps
                 trace["unreturned_names"], trace["unreturned_ids"], trace["unconfirmed"] = names, ids, unconfirmed
                 log(f"  {trace['outcome']}: {short(content, 300)}")
@@ -1237,6 +1295,14 @@ class Conversation:
         trace["output_tokens"] = sum(s["output_tokens"] or 0 for s in trace["steps"])
         trace["largest_context"] = max(((s["prompt_tokens"] or 0) + (s["output_tokens"] or 0) for s in trace["steps"]), default=0)
         return trace
+
+    def wrong(self, answer, question, disputed):
+        """What an answer claims that no tool does (claim_check.py): its referrals, and its judgments that a result is
+        wrong, unless the question is about the previous answer, whose re-check may say an answer was wrong."""
+        found = claim_check.referrals(answer)
+        if not disputed:
+            found += claim_check.judgments(answer, question, self.view.in_view)
+        return sorted(found, key=lambda c: c.start)
 
     def look_up(self, question, lookups, step, resolved, last):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the
@@ -1406,6 +1472,16 @@ def markdown(traces, header):
                             " returned. Sent back with:", "", f"> {check['message']}", ""]
                 else:
                     out += [f"**Answer check:** it {what}, which no tool returned ({check['action']}).", ""]
+            claimed = s.get("claim_check")
+            if claimed:
+                said = "; ".join(f"{kind} {text!r}" for kind, text in claimed["claims"])
+                if claimed["action"] == "sent back":
+                    out += ["**Reply**", "", s["content"].strip(), "", f"**Claim check:** {said}, which no tool"
+                            " result says. Sent back with:", "", f"> {claimed['message']}", ""]
+                else:
+                    out += [f"**Claim check:** {said}, which no tool result says ({claimed['action']}).", ""]
+                    out += [f"- {r!r} was left out" for r in claimed.get("referrals_left_out", ())]
+                    out += [f"- {r['claim']!r} was left out" for r in claimed.get("replaced", ())] + [""]
             numbers = s.get("number_check")
             if numbers:
                 stated = ", ".join(numbers["numbers"])
@@ -1486,11 +1562,13 @@ def summary(trace):
               for s in trace["steps"] if s.get("event_check")]
     numbers = [{"step": s["step"], "numbers": s["number_check"]["numbers"], "action": s["number_check"]["action"]}
                for s in trace["steps"] if s.get("number_check")]
+    claimed = [{"step": s["step"], "claims": s["claim_check"]["claims"], "action": s["claim_check"]["action"]}
+               for s in trace["steps"] if s.get("claim_check")]
     return {**{k: trace.get(k) for k in keep}, **({"settled": trace["settled"]} if trace.get("settled") else {}),
             "examples": examples, "tool_calls": calls, "answer_checks": checks,
             "size_checks": sizes, "lookup_checks": lookups, "no_tool_checks": told, "number_checks": numbers,
             "meta_replies": metas, **({"pairing_checks": pairings} if pairings else {}),
-            **({"event_checks": events} if events else {})}
+            **({"event_checks": events} if events else {}), **({"claim_checks": claimed} if claimed else {})}
 
 
 def main():

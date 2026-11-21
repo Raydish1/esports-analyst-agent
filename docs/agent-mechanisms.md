@@ -50,7 +50,22 @@ the card line, so "Phazon's 12 gold medals in 1v1" passed, though the 12 is his 
   `head_to_head` states a record from both players' sides (24). The prompt's rule, never count rows by reading them,
   now names template results too.
 
-Status: not built yet.
+Built so far:
+
+- **The claim check** (`agent/claim_check.py`). It reads two kinds of claim. A referral sends the user to the
+  database: a query to run, a view or table to check, fenced SQL, or "further analysis would be needed". A judgment
+  calls a result wrong: an anomaly, an error, a glitch, an inconsistency, a discrepancy or a conflict. Either kind
+  sends the answer back once. If the reply still makes the claim, it's left out of whatever text is final. A
+  referral states nothing, so it goes with no line saying so. A judgment goes with the left-out line, as an
+  unconfirmed number does.
+  - Judgments aren't checked when a tool result in view marks the data as wrong (a status such as
+    `placements_unreliable`, `cancelled` or held out, or unscored sets), or when the question asks about errors
+    itself, or when the question is about the previous answer. A denied judgment ("isn't an error") doesn't count.
+  - The prompt says to run every query the answer needs, and to call a result wrong only where a tool result says so.
+  - Replayed on 784 recorded answers (the template runs, the grounding and web-fixes runs, the three conversation
+    runs, and the live web sessions): 7 flagged. All 7 are claims the check is for. They include finding 22's SQL
+    for the user, finding 26's "further analysis ... would be needed" and finding 27's "likely a data anomaly". One
+    of the 7 is an offer ("I can query the database for entries"), which a send-back turns into a lookup.
 
 ## M2: tools that can't express the natural reading
 
