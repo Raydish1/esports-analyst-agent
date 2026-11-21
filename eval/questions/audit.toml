@@ -1,0 +1,527 @@
+# The question audit's set (2026-11-20; docs/question-audit.md, docs/agent-mechanisms.md): the kinds of questions a
+# Brawlhalla fan asks, each in at least two phrasings, to check the failure mechanisms on questions the agent wasn't
+# tuned on. It isn't for scoring, and nothing in it is verified: `expect` says what a right answer does, not a checked
+# fact, and the checks look at how the turn went (its tools, its scope, its claims), not at the answer's facts.
+#
+# The format is conversations.toml's (its header documents the checks), played and scored by eval/conversations.py
+# with --set, and reported by eval/audit.py, which groups the failed checks by kind and mechanism. Each conversation
+# also has:
+#   kind       the kind's number in docs/question-audit.md.
+#   mechanism  what it probes: M1 reading the question, M2 the tools, M3 facts the model makes, M4 the conversation.
+
+snapshot = "data/db/eval/eval-v1.sqlite"
+
+[[conversation]]
+id = "a01"
+title = "A player's stats"
+kind = 1
+mechanism = ["M2", "M3"]
+[[conversation.turn]]
+say = "zivai stats"
+expect = "Zivai's whole record in one call: player_results with no top, every count by mode from the tool."
+calls_with = [{ tool = "player_results", player_id = 147982, top = "-" }]
+
+[[conversation]]
+id = "a02"
+title = "A player's wins in one mode"
+kind = 1
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "how many 1v1 wins does bbballoonboy have"
+expect = "BBBalloonBoy's official 1v1 wins: player_results with mode 1v1, the count from the tool."
+calls_with = [{ tool = "player_results", player_id = 149305, mode = "1v1" }]
+
+[[conversation]]
+id = "a03"
+title = "A player's best placement"
+kind = 2
+mechanism = ["M1", "M2", "M3"]
+[[conversation.turn]]
+say = "what's megd's best placement"
+expect = "megD's best placement and where it was, from player_results with no top, ties included; no further analysis left to the user."
+calls_with = [{ tool = "player_results", player_id = 142100, top = "-" }]
+not_says = ["further analysis", "you can query"]
+
+[[conversation]]
+id = "a04"
+title = "A player's highest finish in one mode"
+kind = 2
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "highest finish flowervs has ever had in 2v2"
+expect = "flowerVS's best 2v2 placement and where, from player_results with mode 2v2 and no top."
+calls_with = [{ tool = "player_results", player_id = 169119, mode = "2v2", top = "-" }]
+
+[[conversation]]
+id = "a05"
+title = "How often a player placed one way"
+kind = 3
+mechanism = ["M3"]
+[[conversation.turn]]
+say = "how many times has phazon placed 2nd"
+expect = "Phazon's 2nd places, counted by a tool (player_results' second column, or its placement counts), not by reading rows."
+calls_with = [{ tool = "player_results", player_id = 147522, top = "-" }, { tool = "player_results", player_id = 147522, top = "2" }, { tool = "player_results", player_id = 147522, top = "3" }]
+
+[[conversation]]
+id = "a06"
+title = "A breakdown of a player's placements"
+kind = 3
+mechanism = ["M3"]
+[[conversation.turn]]
+say = "break down gdsandstorm's placements in 1v1"
+expect = "gdsandstorm's 1v1 placements and how many times each, from player_results' placement counts; no placement called an anomaly."
+calls_with = [{ tool = "player_results", player_id = 74433, mode = "1v1", top = "-" }]
+not_says = ["anomal", "data error"]
+
+[[conversation]]
+id = "a07"
+title = "A player's latest win"
+kind = 4
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "when did boomie last win an event"
+expect = "Boomie's latest official win, its event and date, from player_results with top 1 (the latest)."
+calls = ["player_results"]
+players = [146606]
+
+[[conversation]]
+id = "a08"
+title = "A player's first top 8"
+kind = 4
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "what was zivai's first top 8"
+expect = "Zivai's earliest result placed 8th or better, from player_results with top 8 (the first), or run_sql."
+players = [147982]
+
+[[conversation]]
+id = "a09"
+title = "The best player at the moment"
+kind = 5
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "who's the best 2v2 player at the moment"
+expect = "A reading of 'at the moment' that the answer names, never all time, in 2v2: the 2v2 Power Rankings, or 2v2 results in a recent window."
+calls_with = [{ tool = "power_rankings", mode = "2v2" }, { tool = "rank_players", mode = "2v2", since = "*" }, { tool = "rank_players", mode = "2v2", year = "*" }]
+
+[[conversation]]
+id = "a10"
+title = "A player's recent form"
+kind = 5
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "how has marckiem00 been doing lately"
+expect = "Marckiem00's recent results, in a window the answer names, or his Power Rankings; never his whole career as 'lately'."
+calls_with = [{ tool = "player_results", player_id = 146052, since = "*" }, { tool = "player_results", player_id = 146052, year = "*" }, { tool = "power_rankings", player_id = 146052 }]
+
+[[conversation]]
+id = "a11"
+title = "The most wins in one mode and year"
+kind = 6
+mechanism = ["M1"]
+[[conversation.turn]]
+say = "who won the most 1v1 events in 2024"
+expect = "rank_players by wins, mode 1v1, in 2024, ties whole."
+calls_with = [{ tool = "rank_players", mode = "1v1", year = "2024" }, { tool = "rank_players", mode = "1v1", since = "2024-01-01" }]
+
+[[conversation]]
+id = "a12"
+title = "The most medals in a region"
+kind = 6
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "most medals at european events"
+expect = "rank_players by medals with region eu, and a note that global events are in no region."
+calls_with = [{ tool = "rank_players", by = "medals", region = "*" }]
+
+[[conversation]]
+id = "a13"
+title = "A ranking since a year"
+kind = 6
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "top 10 players by top 8s since 2023"
+expect = "rank_players by top 8s with since 2023, top 10, ties whole."
+calls_with = [{ tool = "rank_players", since = "*" }]
+
+[[conversation]]
+id = "a14"
+title = "A ranking with a condition"
+kind = 7
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who has the most top 8s without ever winning an event"
+expect = "A run_sql query with the condition (rank_players can't take one), its counts from SQL."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a15"
+title = "The best player who never won one event"
+kind = 7
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "best player who never won worlds"
+expect = "A reading of 'best' that the answer names, with the condition in SQL (run_sql), or a ranking whose winners of worlds it leaves out by a query."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a16"
+title = "A region's number 1"
+kind = 8
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who is ranked number 1 in sea"
+expect = "power_rankings for SEA (1v1 unless the answer says otherwise), as of the snapshot's date."
+calls_with = [{ tool = "power_rankings", region = "*" }]
+
+[[conversation]]
+id = "a17"
+title = "A player's Power Ranking"
+kind = 8
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "what's lopesbrawlhalla's PR"
+expect = "power_rankings with lopesbrawlhalla's player_id: each ranking he's in, and the snapshot's date."
+calls_with = [{ tool = "power_rankings", player_id = 49216 }]
+
+[[conversation]]
+id = "a18"
+title = "Two players against each other"
+kind = 9
+mechanism = ["M2", "M3"]
+[[conversation.turn]]
+say = "zivai vs bbballoonboy"
+expect = "head_to_head: the 1v1 record in sets, written from one named player's side, and their 2v2 meetings."
+calls = ["head_to_head"]
+players = [147982, 149305]
+
+[[conversation]]
+id = "a19"
+title = "A head-to-head since a year"
+kind = 9
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "megd vs marckiem00 since 2025"
+expect = "head_to_head with since 2025: the sets in the window only."
+calls_with = [{ tool = "head_to_head", since = "*" }]
+
+[[conversation]]
+id = "a20"
+title = "The rivalry with the most sets"
+kind = 10
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "which rivalry has the most sets in brawlhalla"
+expect = "rank_pairs of opponents: the pairs with the most 1v1 sets, each pair once, ties whole."
+calls = ["rank_pairs"]
+
+[[conversation]]
+id = "a21"
+title = "A player's most-faced opponent"
+kind = 10
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who has boomie faced the most in 1v1"
+expect = "rank_pairs with Boomie's player_id: his most-played 1v1 opponents."
+calls_with = [{ tool = "rank_pairs", player_id = 146606 }]
+
+[[conversation]]
+id = "a22"
+title = "The best duo"
+kind = 11
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "best 2v2 duo of all time"
+expect = "rank_pairs of teammates, by a measure the answer names (wins, medals or events together)."
+calls_with = [{ tool = "rank_pairs", of = "teammates" }]
+
+[[conversation]]
+id = "a23"
+title = "The partners with the most wins together"
+kind = 11
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "which partners have won the most together"
+expect = "rank_pairs of teammates by wins."
+calls_with = [{ tool = "rank_pairs", of = "teammates", by = "wins" }]
+
+[[conversation]]
+id = "a24"
+title = "A player's partners"
+kind = 12
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who has blaze played 2v2 with"
+expect = "team_results with Blaze's player_id and no partner: every partner, the most events together first."
+calls = ["team_results"]
+players = [149204]
+
+[[conversation]]
+id = "a25"
+title = "Two players as a team"
+kind = 12
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "how did phazon and cody travis do as a team"
+expect = "team_results with both players: their events, wins, medals and top 8s together."
+calls_with = [{ tool = "team_results", partner_id = "*" }]
+
+[[conversation]]
+id = "a26"
+title = "Who has more wins of two"
+kind = 13
+mechanism = ["M3"]
+[[conversation.turn]]
+say = "who has more wins, zivai or bbballoonboy"
+expect = "Each player's wins from player_results (one call each), compared from the tools' counts."
+calls = ["player_results"]
+players = [147982, 149305]
+
+[[conversation]]
+id = "a27"
+title = "Two players' medals compared"
+kind = 13
+mechanism = ["M3"]
+[[conversation.turn]]
+say = "compare boomie and gdsandstorm's medals"
+expect = "Each player's medals by mode from player_results, each figure under its own player and mode."
+calls = ["player_results"]
+players = [146606, 74433]
+
+[[conversation]]
+id = "a28"
+title = "The best record against a player"
+kind = 14
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who has the best record against zivai"
+expect = "run_sql on v_head_to_head_1v1 filtered by Zivai as the opponent, the rate and minimum named (5 matches)."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a29"
+title = "Whom a player beats the most"
+kind = 14
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "who does megd beat the most"
+expect = "A reading the answer names (the most set wins against one opponent), from run_sql or rank_pairs' player_wins."
+players = [142100]
+
+[[conversation]]
+id = "a30"
+title = "A player's longest win streak"
+kind = 15
+mechanism = ["M2", "M3"]
+[[conversation.turn]]
+say = "what's zivai's longest win streak"
+expect = "No template counts streaks: a run_sql query over his results in date order, with the reading named (events in a row), or a plain statement that it can't be counted; never a count made by reading rows."
+players = [147982]
+
+[[conversation]]
+id = "a31"
+title = "The most top 8s in a row"
+kind = 15
+mechanism = ["M2", "M3"]
+[[conversation.turn]]
+say = "who has the most top 8s in a row"
+expect = "As a30, over every player: a query with the reading named, or a plain statement of what the data can't count."
+
+[[conversation]]
+id = "a32"
+title = "The biggest upset at an event"
+kind = 16
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "biggest upset at bcx 2023"
+expect = "A reading of 'upset' the answer names (a set won by the player placing lower at the event), from v_sets_1v1; the data has no seeds."
+
+[[conversation]]
+id = "a33"
+title = "A player's best win"
+kind = 16
+mechanism = ["M1", "M2"]
+[[conversation.turn]]
+say = "what's bbballoonboy's best win"
+expect = "A reading the answer names: a title (the biggest event won) or a set against the best-placed opponent, from the tools."
+players = [149305]
+
+[[conversation]]
+id = "a34"
+title = "The most dominant win of a series"
+kind = 17
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "most dominant worlds win"
+expect = "run_sql on v_win_runs for the worlds events: the fewest games lost, then sets dropped, then games won."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a35"
+title = "A win without dropping a game"
+kind = 17
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who won an event without dropping a game"
+expect = "run_sql on v_win_runs: wins with games_lost = 0, unscored sets left out and said so."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a36"
+title = "An event's winner"
+kind = 18
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who won bcx 2023"
+expect = "event_results for BCX 2023: its 1v1 and 2v2 winners."
+calls = ["event_results"]
+
+[[conversation]]
+id = "a37"
+title = "An event's top 8"
+kind = 18
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "top 8 of winters 2025 eu"
+expect = "event_results with top 8 for the Winter Championship - Europe 2025, ties whole."
+calls_with = [{ tool = "event_results", top = "8" }]
+
+[[conversation]]
+id = "a38"
+title = "A grand final's score"
+kind = 19
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "what was the grand final score at worlds 2024"
+expect = "run_sql on v_sets_1v1: the set the winner took from the runner-up, with its score."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a39"
+title = "Whom a player lost to at an event"
+kind = 19
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "who did zivai lose to at bcx 2023"
+expect = "run_sql on v_sets_1v1 with Zivai as the loser at BCX 2023's events."
+calls = ["run_sql"]
+players = [147982]
+
+[[conversation]]
+id = "a40"
+title = "Every winner of a series"
+kind = 20
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "every worlds winner"
+expect = "event_results for worlds: each year's winners, the regional years (2020, 2021) said so."
+calls = ["event_results"]
+
+[[conversation]]
+id = "a41"
+title = "A series' champions"
+kind = 20
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "list the bcx champions"
+expect = "event_results for bcx: each year's winners in each mode."
+calls = ["event_results"]
+
+[[conversation]]
+id = "a42"
+title = "A player's career earnings"
+kind = 21
+mechanism = ["M2", "M3"]
+[[conversation.turn]]
+say = "how much has boomie earned"
+expect = "run_sql on v_career_earnings: Boomie's figure with its source and date, or that none is recorded (not $0)."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a43"
+title = "The top earners"
+kind = 21
+mechanism = ["M2"]
+[[conversation.turn]]
+say = "top earners in brawlhalla"
+expect = "run_sql on v_career_earnings, ordered by the figure, saying it covers only players with a figure."
+calls = ["run_sql"]
+
+[[conversation]]
+id = "a44"
+title = "A player's main legend"
+kind = 22
+mechanism = ["M3"]
+[[conversation.turn]]
+say = "what legend does zivai main"
+expect = "The data doesn't record legends: said plainly, with what it does have, never a legend guessed."
+not_says = ["you can query"]
+
+[[conversation]]
+id = "a45"
+title = "Prize money at one event"
+kind = 22
+mechanism = ["M3"]
+[[conversation.turn]]
+say = "how much did zivai win at bcx 2023"
+expect = "The data has no prize money per tournament: said plainly, with his placements there if it gives any; a career figure isn't a stand-in."
+players = [147982]
+
+[[conversation]]
+id = "a46"
+title = "A possessive written without its apostrophe"
+kind = 1
+mechanism = ["M4"]
+[[conversation.turn]]
+say = "what are zivais stats"
+expect = "Zivai, read from 'zivais' with no suggestions, and his whole record."
+calls_with = [{ tool = "player_results", player_id = 147982, top = "-" }]
+
+[[conversation]]
+id = "a47"
+title = "A question about the card"
+kind = 1
+mechanism = ["M4", "M3"]
+[[conversation.turn]]
+say = "zivai lifetime stat card"
+expect = "Zivai's whole record from player_results with no top."
+shown = """
+Stat cards, at official events; on them MEDALS are GOLD (1st places), SILVER (2nd) and BRONZE (3rd). A lifetime card \
+of Zivai in 1v1 only 43 results, GOLD 23, SILVER 5, BRONZE 3, TOP 8 37; Zivai in 2v2 only 31 results, GOLD 8, SILVER \
+7, BRONZE 6, TOP 8 29; Zivai in both modes together 74 results, GOLD 31, SILVER 12, BRONZE 9, TOP 8 66; Zivai's first \
+result 2022-01-29, latest 2026-09-26; Zivai's career earnings $214,458 (Stats API, as of 2026-10-02).
+"""
+calls_with = [{ tool = "player_results", player_id = 147982, top = "-" }]
+[[conversation.turn]]
+say = "on the card what does silver 12 mean"
+expect = "A question about the card, answered as one about the answer: SILVER counts 2nd places, and 12 is both modes together (5 in 1v1, 7 in 2v2); no word of it looked up as an event, no tag copied."
+not_looked_up = ["mean", "silver"]
+not_says = ["[The page showed"]
+
+[[conversation]]
+id = "a48"
+title = "A follow-up that changes the year"
+kind = 6
+mechanism = ["M4", "M1"]
+[[conversation.turn]]
+say = "most 1v1 wins in 2024"
+expect = "rank_players by wins, mode 1v1, in 2024."
+calls_with = [{ tool = "rank_players", mode = "1v1", year = "2024" }]
+[[conversation.turn]]
+say = "and in 2025?"
+expect = "The same ranking, now in 2025."
+calls_with = [{ tool = "rank_players", year = "2025" }, { tool = "rank_players", since = "2025-01-01" }]
+
+[[conversation]]
+id = "a49"
+title = "A question about the answer"
+kind = 1
+mechanism = ["M4"]
+[[conversation.turn]]
+say = "how many events has megd won"
+expect = "megD's official wins from player_results with top 1."
+calls = ["player_results"]
+[[conversation.turn]]
+say = "are you sure?"
+expect = "Checked again with a tool, then said plainly whether it was right."
+calls_with = [{ tool = "player_results", player_id = 142100 }]
