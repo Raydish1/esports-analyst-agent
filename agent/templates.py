@@ -1097,6 +1097,58 @@ def player_sets(query, tools, player_id, result=None, mode="1v1", year=None, sin
                        query.ran, player={"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
 
 
+# dominant_wins
+
+def dominant_wins(query, tools, top=5, mode=None, player_id=None, flawless=False, year=None, since=None, until=None,
+                  event=None, region=None):
+    """Official wins ranked by the decided dominance rule (v_win_runs): the fewest games lost across the run, then the
+    fewest sets dropped, then the most games won; a run with any unscored set after every fully scored one; crew
+    battles left out. flawless keeps the runs without a dropped game. Live, "who won an event without dropping a
+    game" was looked up as an event's name (the 2026-11-21 audit, a35)."""
+    top = whole(top, "top")
+    mode = None if mode is None else one_mode(mode)
+    flawless = flawless is True or str(flawless).strip().casefold() in ("true", "yes", "1")
+    narrow = narrowing(tools, year, since, until, event, region)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("dominant_wins", narrow.found, query)
+    player, name, given = person(tools, player_id) if player_id is not None else (None, None, None)
+    where = ["w.is_crew_battle = 0"] + ([f"w.mode = '{mode}'"] if mode else []) + narrow.where("w") + (
+        [f"w.player_id = {player}"] if player else []) + (["w.games_lost = 0", "w.unscored_sets = 0"] if flawless else [])
+    rows = query.rows(
+        "WITH ranked AS (SELECT w.*, RANK() OVER (ORDER BY w.unscored_sets > 0, w.games_lost, w.sets_dropped,"
+        " w.games_won DESC) AS rank FROM v_win_runs w WHERE " + " AND ".join(where) + ")"
+        " SELECT ranked.rank, p.name, ranked.player_id, ranked.tournament_name, ranked.event_name, ranked.start_date,"
+        " ranked.mode, ranked.sets_played, ranked.sets_dropped, ranked.games_won, ranked.games_lost,"
+        " ranked.unscored_sets FROM ranked JOIN players p ON p.player_id = ranked.player_id"
+        f"{'' if flawless else f' WHERE ranked.rank <= {top}'} ORDER BY ranked.rank, ranked.start_date, p.name")
+    listed = [[r[0], r[1], r[2], set_event(r[3], r[4]), *r[5:]] for r in rows]
+    notes = ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
+    if given != player:
+        notes.append(merged(given, player, name))
+    notes.append("Dominance is the decided rule: the fewest games lost across the run, then the fewest sets dropped,"
+                 " then the most games won; a run with any set of no recorded score ranks after every fully scored"
+                 " one, and crew battles are left out." + (f" flawless keeps the {len(listed)} wins without a dropped"
+                                                           " game." if flawless else ""))
+    if not flawless:  # a run with unscored sets that would rank near the top on its scored games alone, in one line
+        unscored = query.rows("SELECT p.name, w.tournament_name, w.event_name, w.games_lost FROM v_win_runs w JOIN"
+                              " players p ON p.player_id = w.player_id WHERE " + " AND ".join(where) +
+                              " AND w.unscored_sets > 0 AND w.games_lost <= " + str(max((r[10] for r in rows if not r[11]),
+                                                                                        default=0)) + " LIMIT 3")
+        if unscored:
+            notes.append("Ranked after them, as their runs have sets with no recorded score, though their scored games"
+                         " would rank near the top: " + "; ".join(f"{n}, {set_event(t, e)}" for n, t, e, _ in unscored)
+                         + ". Say so in one line.")
+    if not listed:
+        notes.append("No official win here fits." if flawless or player or narrow else "No official wins here.")
+    title = (f"{name}'s wins" if player else "official wins") + (", without a dropped game" if flawless else
+                                                                ", the most dominant first")
+    columns = ["rank", "player", "player_id", "event", "date", "mode", "sets_played", "sets_dropped", "games_won",
+               "games_lost", "unscored_sets"]
+    return observation("dominant_wins", ", ".join([SCOPE, mode or "1v1 and 2v2", *narrow.said]), notes,
+                       [table(title, columns, listed, optional=flawless) if listed else None], query.ran,
+                       player=player and {"player_id": player, "name": name}, event=narrow.found and narrow.found.about)
+
+
 TEMPLATES = {t.name: t for t in (
     Template(
         "event_results",
@@ -1258,4 +1310,21 @@ TEMPLATES = {t.name: t for t in (
          "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id",), player_sets),
+    Template(
+        "dominant_wins",
+        "Official wins ranked by dominance, the decided rule: the fewest games lost across the run, then the fewest sets"
+        " dropped, then the most games won; a run with any unscored set after every fully scored one; crew battles left"
+        " out. flawless=true keeps every win without a dropped game. With player_id, that player's wins. Use it for the"
+        " most dominant win (overall, a player's, or at an event or series such as 'worlds'), or who won without"
+        " dropping a game, narrowed to a mode, a year, a time window or a region when the question is.",
+        {"top": {"type": "integer", "description": "how many ranks to return: 5 (the default)"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "one mode only; leave out for both"},
+         "player_id": {"type": "integer", "description": "one player's wins: their player_id, from resolve_player"},
+         "flawless": {"type": "boolean", "description": "true for every win without a dropped game"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        (), dominant_wins),
 )}

@@ -331,6 +331,14 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   `result="won"` or `"lost"`, 1v1 or 2v2, and the year, window, region and event filters. A long list is left out
   with its count. On eval-v1, Zivai at BCX 2023 in 1v1 played 10 sets, won 8 and lost 2, both 1-3, to yüz and
   whoiskyna. The live answer had named Kuroyuri. In 2v2 he won all 8 with Pink | Zen.
+- **Dominance and flawless wins** (audit a35, 3 of 3). "who won an event without dropping a game" was looked up as an
+  event's name. The new `dominant_wins` ranks official wins by the decided rule: the fewest games lost, then the
+  fewest sets dropped, then the most games won. A run with an unscored set comes after every fully scored one, a note
+  names any that would have ranked near the top, and crew battles are left out. `flawless=true` keeps every win
+  without a dropped game. It takes a player, a mode, and the year, window, region and event filters.
+  - On eval-v1, Raydish's most dominant win is Trial of Laufey NA (Moose Wars), 25 games to 2, which is q11's verified
+    answer. The 1v1 wins without a dropped game number 19, among them gdsandstorm's Mammoth Cup 2020 at 29-0.
+  - ex23 shows the call.
 
 ## Decisions
 

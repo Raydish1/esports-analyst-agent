@@ -98,6 +98,7 @@ Choosing a tool
   - the official Power Rankings, a player's PR, or who is ranked #1 in a region: power_rankings
   - the biggest upsets, an event's upsets, or a player's biggest upset wins: upsets
   - whom a player beat or lost to at an event, or their sets there (result="lost" for the losses): player_sets
+  - the most dominant win, a player's or an event's, or who won without dropping a game (flawless): dominant_wins
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.

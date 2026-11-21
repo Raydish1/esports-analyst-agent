@@ -363,6 +363,17 @@ class PlayerSetsTest(Fixture):
         self.assertIn("result is 'won' or 'lost'", self.call("player_sets", player_id=A, result="draws")["error"])
 
 
+class DominantWinsTest(Fixture):
+    def test_wins_by_the_dominance_rule_and_the_flawless_ones(self):
+        rows = self.rows(self.call("dominant_wins", top=10), "official wins, the most dominant first")  # audit a35
+        scored, unscored = [r for r in rows if r[10] == 0], [r for r in rows if r[10] > 0]
+        self.assertEqual(rows, scored + unscored)  # a run with an unscored set after every fully scored one
+        self.assertEqual([r[9] for r in scored], sorted(r[9] for r in scored))  # the fewest games lost first
+        flawless = self.call("dominant_wins", flawless=True)
+        self.assertTrue(all(r[9] == 0 and r[10] == 0 for t in flawless["tables"] for r in t.get("rows", [])))
+        self.assertIn("without a dropped game", " ".join(flawless["notes"]))
+
+
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):
         out = self.call("player_results", player_id=A)

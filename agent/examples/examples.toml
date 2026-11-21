@@ -331,6 +331,8 @@ id = "ex23"
 shape = "dominance"
 question = "What was blews's cleanest 1v1 tournament win?"
 note = "Dominance is fewest games lost, then fewest sets dropped, then most games won; runs with unscored sets go last."
+call = 'dominant_wins(player_id=149206, mode="1v1", top=3)'
+call_note = "The decided dominance rule, ranked: the fewest games lost, then fewest sets dropped, then most games won, unscored runs after, crew battles left out. flawless=true lists every win without a dropped game."
 sql = '''
 SELECT tournament_name, start_date, sets_played, sets_dropped, games_won, games_lost, unscored_sets
 FROM v_win_runs
