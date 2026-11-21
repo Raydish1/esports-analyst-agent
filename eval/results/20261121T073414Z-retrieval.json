@@ -1,0 +1,2305 @@
+{
+ "model": "nomic-embed-text",
+ "prefix": "clustering: ",
+ "k": 3,
+ "candidates": 10,
+ "lambda": 0.7,
+ "bank": 32,
+ "runs": {
+  "agent": {
+   "threshold": 0.7,
+   "questions": 45,
+   "labelled": 39,
+   "hit_at_k": 31,
+   "hit_at_1": 22,
+   "examples_for_labelled": 106,
+   "unlabelled": 6,
+   "examples_for_unlabelled": 13,
+   "misses": [
+    "q08",
+    "q14",
+    "q15",
+    "q23",
+    "q38",
+    "q39",
+    "q42",
+    "q45"
+   ],
+   "rows": [
+    {
+     "id": "q01",
+     "question": "What was the last tournament Boomie entered?",
+     "relevant": [
+      "last_event"
+     ],
+     "retrieved": [
+      [
+       "ex21",
+       "last_event",
+       0.825
+      ],
+      [
+       "ex24",
+       "empty_result",
+       0.744
+      ],
+      [
+       "ex25",
+       "empty_result",
+       0.757
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q02",
+     "question": "How many majors has Raydish won?",
+     "relevant": [
+      "official_wins"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.815
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.766
+      ],
+      [
+       "ex11",
+       "wins_list",
+       0.742
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q03",
+     "question": "Has Hexo ever placed top 8 in 1v1?",
+     "relevant": [
+      "first_top8",
+      "placements"
+     ],
+     "retrieved": [
+      [
+       "ex12",
+       "medals",
+       0.768
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.762
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.76
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q04",
+     "question": "What does Impala vs Balloonboy's history look like?",
+     "relevant": [
+      "head_to_head",
+      "head_to_head_sets"
+     ],
+     "retrieved": [
+      [
+       "ex05",
+       "head_to_head",
+       0.742
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q05",
+     "question": "List the top 10 highest-earning players in Brawlhalla history.",
+     "relevant": [
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.735
+      ],
+      [
+       "ex11",
+       "wins_list",
+       0.704
+      ],
+      [
+       "ex12",
+       "medals",
+       0.702
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q06",
+     "question": "Who has megd played with in 2v2 tournaments, and how did they place?",
+     "relevant": [
+      "teammates"
+     ],
+     "retrieved": [
+      [
+       "ex17",
+       "ranking",
+       0.808
+      ],
+      [
+       "ex08",
+       "teammates",
+       0.801
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.801
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q07",
+     "question": "How many medals does Balloonboy have?",
+     "relevant": [
+      "medals"
+     ],
+     "retrieved": [
+      [
+       "ex12",
+       "medals",
+       0.825
+      ],
+      [
+       "ex18",
+       "ranking",
+       0.79
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.757
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q08",
+     "question": "Who has the best record against marckiemoo?",
+     "relevant": [
+      "best_record"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.761
+      ],
+      [
+       "ex31",
+       "stats",
+       0.707
+      ],
+      [
+       "ex20",
+       "opponents",
+       0.727
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q09",
+     "question": "What tournament did sandstorm make the most money from?",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex21",
+       "last_event",
+       0.757
+      ],
+      [
+       "ex27",
+       "per_year",
+       0.756
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.727
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q10",
+     "question": "Give me the bracket link of BCX 2022.",
+     "relevant": [
+      "event_facts"
+     ],
+     "retrieved": [
+      [
+       "ex04",
+       "event_facts",
+       0.763
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.754
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.733
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q11",
+     "question": "What is Raydish's most dominant tournament win?",
+     "relevant": [
+      "dominance"
+     ],
+     "retrieved": [
+      [
+       "ex23",
+       "dominance",
+       0.823
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.753
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.757
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q12",
+     "question": "What was flowers' first top 8?",
+     "relevant": [
+      "first_top8"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.761
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.735
+      ],
+      [
+       "ex05",
+       "head_to_head",
+       0.709
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q13",
+     "question": "who won winters 2023 na 1v1",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.869
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.783
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.756
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q14",
+     "question": "Who made top 8 at Trial of Laufey NA?",
+     "relevant": [
+      "event_top8"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.805
+      ],
+      [
+       "ex29",
+       "event_final",
+       0.756
+      ],
+      [
+       "ex02",
+       "event_winner",
+       0.754
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q15",
+     "question": "did godly win eu summers 2026",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex03",
+       "event_top8",
+       0.804
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.745
+      ],
+      [
+       "ex25",
+       "empty_result",
+       0.779
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q16",
+     "question": "who won sa 2v2 springs 2026",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.851
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.811
+      ],
+      [
+       "ex02",
+       "event_winner",
+       0.783
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q17",
+     "question": "top 8 at bcx 2025 1v1?",
+     "relevant": [
+      "event_top8"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.83
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.827
+      ],
+      [
+       "ex12",
+       "medals",
+       0.77
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q18",
+     "question": "who won 2v2 at autumns 2023 NA?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.856
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.827
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.854
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q19",
+     "question": "Who won the Midseason Championship 2026?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.793
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.74
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.727
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q20",
+     "question": "what was the score of the 1v1 grand final at dreamhack valencia 2023",
+     "relevant": [
+      "event_final",
+      "event_winner",
+      "head_to_head_sets"
+     ],
+     "retrieved": [
+      [
+       "ex29",
+       "event_final",
+       0.854
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.83
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.771
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q21",
+     "question": "how many official events has baloonboy won?",
+     "relevant": [
+      "official_wins"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.879
+      ],
+      [
+       "ex12",
+       "medals",
+       0.791
+      ],
+      [
+       "ex13",
+       "placements",
+       0.777
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q22",
+     "question": "did markiemoo ever win worlds",
+     "relevant": [
+      "series_results"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.809
+      ],
+      [
+       "ex22",
+       "series_results",
+       0.793
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.766
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q23",
+     "question": "kingdom | godly vs impala head to head",
+     "relevant": [
+      "head_to_head"
+     ],
+     "retrieved": [],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q24",
+     "question": "who won msi 1v1",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.827
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.796
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.78
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q25",
+     "question": "how many official tournaments has RAYDISH won",
+     "relevant": [
+      "official_wins"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.843
+      ],
+      [
+       "ex13",
+       "placements",
+       0.755
+      ],
+      [
+       "ex27",
+       "per_year",
+       0.766
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q26",
+     "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+     "relevant": [
+      "medals",
+      "placements"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.819
+      ],
+      [
+       "ex13",
+       "placements",
+       0.786
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.782
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q27",
+     "question": "whats bbballoonboy's 1v1 record vs impala",
+     "relevant": [
+      "head_to_head"
+     ],
+     "retrieved": [
+      [
+       "ex05",
+       "head_to_head",
+       0.763
+      ],
+      [
+       "ex19",
+       "best_record",
+       0.762
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.758
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q28",
+     "question": "who won worlds 2019 1v1",
+     "relevant": [
+      "event_winner",
+      "series_results"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.896
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.79
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.802
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q29",
+     "question": "Who won the 1v1 at DreamHack Atlanta 2019?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.861
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.814
+      ],
+      [
+       "ex32",
+       "most_played_pair",
+       0.786
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q30",
+     "question": "who won ceo dreamland 2020",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.711
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.708
+      ],
+      [
+       "ex18",
+       "ranking",
+       0.705
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q31",
+     "question": "Who won SEA League Week 1/4?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.765
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.714
+      ],
+      [
+       "ex02",
+       "event_winner",
+       0.732
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q32",
+     "question": "how much prize money did vem win at max mode 2025",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex27",
+       "per_year",
+       0.75
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.732
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.73
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q33",
+     "question": "how much money has boomie made from brawlhalla",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.706
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q34",
+     "question": "Who won the 2016 Brawlhalla World Championship?",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.762
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.762
+      ],
+      [
+       "ex24",
+       "empty_result",
+       0.749
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q35",
+     "question": "what legend does godly main",
+     "relevant": [],
+     "retrieved": [],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q36",
+     "question": "How many community tournaments has raydish won?",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.813
+      ],
+      [
+       "ex27",
+       "per_year",
+       0.752
+      ],
+      [
+       "ex13",
+       "placements",
+       0.736
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q37",
+     "question": "Who has won the most official tournaments?",
+     "relevant": [
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.84
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.83
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.814
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q38",
+     "question": "rank the top 5 players by official 1v1 wins",
+     "relevant": [
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.814
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.802
+      ],
+      [
+       "ex12",
+       "medals",
+       0.785
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q39",
+     "question": "who has more medals, boomie or sandstorm?",
+     "relevant": [
+      "comparison",
+      "medals"
+     ],
+     "retrieved": [],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q40",
+     "question": "who has raydish lost to the most in 1v1",
+     "relevant": [
+      "best_record",
+      "opponents"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.827
+      ],
+      [
+       "ex19",
+       "best_record",
+       0.791
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.776
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q41",
+     "question": "Who has won the most 1v1 world championships?",
+     "relevant": [
+      "ranking",
+      "series_results"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.863
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.835
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.858
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q42",
+     "question": "what was the biggest official brawlhalla tournament ever?",
+     "relevant": [
+      "event_facts",
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex27",
+       "per_year",
+       0.74
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.724
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.739
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q43",
+     "question": "what was megd's first major win?",
+     "relevant": [
+      "first_win"
+     ],
+     "retrieved": [
+      [
+       "ex23",
+       "dominance",
+       0.769
+      ],
+      [
+       "ex15",
+       "first_win",
+       0.716
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.74
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q44",
+     "question": "How many times did Ahmet finish second to Godly in 2026?",
+     "relevant": [
+      "head_to_head_sets",
+      "placements"
+     ],
+     "retrieved": [
+      [
+       "ex13",
+       "placements",
+       0.786
+      ],
+      [
+       "ex18",
+       "ranking",
+       0.757
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.741
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q45",
+     "question": "who has earned more money, raydish or impala?",
+     "relevant": [
+      "comparison"
+     ],
+     "retrieved": [],
+     "hit": false,
+     "first": false
+    }
+   ]
+  },
+  "no threshold": {
+   "threshold": 0.0,
+   "questions": 45,
+   "labelled": 39,
+   "hit_at_k": 34,
+   "hit_at_1": 25,
+   "examples_for_labelled": 117,
+   "unlabelled": 6,
+   "examples_for_unlabelled": 18,
+   "misses": [
+    "q08",
+    "q14",
+    "q15",
+    "q38",
+    "q42"
+   ],
+   "rows": [
+    {
+     "id": "q01",
+     "question": "What was the last tournament Boomie entered?",
+     "relevant": [
+      "last_event"
+     ],
+     "retrieved": [
+      [
+       "ex21",
+       "last_event",
+       0.825
+      ],
+      [
+       "ex24",
+       "empty_result",
+       0.744
+      ],
+      [
+       "ex25",
+       "empty_result",
+       0.757
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q02",
+     "question": "How many majors has Raydish won?",
+     "relevant": [
+      "official_wins"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.815
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.766
+      ],
+      [
+       "ex11",
+       "wins_list",
+       0.742
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q03",
+     "question": "Has Hexo ever placed top 8 in 1v1?",
+     "relevant": [
+      "first_top8",
+      "placements"
+     ],
+     "retrieved": [
+      [
+       "ex12",
+       "medals",
+       0.768
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.762
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.76
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q04",
+     "question": "What does Impala vs Balloonboy's history look like?",
+     "relevant": [
+      "head_to_head",
+      "head_to_head_sets"
+     ],
+     "retrieved": [
+      [
+       "ex05",
+       "head_to_head",
+       0.742
+      ],
+      [
+       "ex13",
+       "placements",
+       0.698
+      ],
+      [
+       "ex15",
+       "first_win",
+       0.672
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q05",
+     "question": "List the top 10 highest-earning players in Brawlhalla history.",
+     "relevant": [
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.735
+      ],
+      [
+       "ex11",
+       "wins_list",
+       0.704
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.69
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q06",
+     "question": "Who has megd played with in 2v2 tournaments, and how did they place?",
+     "relevant": [
+      "teammates"
+     ],
+     "retrieved": [
+      [
+       "ex17",
+       "ranking",
+       0.808
+      ],
+      [
+       "ex08",
+       "teammates",
+       0.801
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.801
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q07",
+     "question": "How many medals does Balloonboy have?",
+     "relevant": [
+      "medals"
+     ],
+     "retrieved": [
+      [
+       "ex12",
+       "medals",
+       0.825
+      ],
+      [
+       "ex18",
+       "ranking",
+       0.79
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.757
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q08",
+     "question": "Who has the best record against marckiemoo?",
+     "relevant": [
+      "best_record"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.761
+      ],
+      [
+       "ex31",
+       "stats",
+       0.707
+      ],
+      [
+       "ex20",
+       "opponents",
+       0.727
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q09",
+     "question": "What tournament did sandstorm make the most money from?",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex21",
+       "last_event",
+       0.757
+      ],
+      [
+       "ex27",
+       "per_year",
+       0.756
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.727
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q10",
+     "question": "Give me the bracket link of BCX 2022.",
+     "relevant": [
+      "event_facts"
+     ],
+     "retrieved": [
+      [
+       "ex04",
+       "event_facts",
+       0.763
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.754
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.733
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q11",
+     "question": "What is Raydish's most dominant tournament win?",
+     "relevant": [
+      "dominance"
+     ],
+     "retrieved": [
+      [
+       "ex23",
+       "dominance",
+       0.823
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.753
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.757
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q12",
+     "question": "What was flowers' first top 8?",
+     "relevant": [
+      "first_top8"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.761
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.735
+      ],
+      [
+       "ex05",
+       "head_to_head",
+       0.709
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q13",
+     "question": "who won winters 2023 na 1v1",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.869
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.783
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.756
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q14",
+     "question": "Who made top 8 at Trial of Laufey NA?",
+     "relevant": [
+      "event_top8"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.805
+      ],
+      [
+       "ex29",
+       "event_final",
+       0.756
+      ],
+      [
+       "ex02",
+       "event_winner",
+       0.754
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q15",
+     "question": "did godly win eu summers 2026",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex03",
+       "event_top8",
+       0.804
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.745
+      ],
+      [
+       "ex25",
+       "empty_result",
+       0.779
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q16",
+     "question": "who won sa 2v2 springs 2026",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.851
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.811
+      ],
+      [
+       "ex02",
+       "event_winner",
+       0.783
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q17",
+     "question": "top 8 at bcx 2025 1v1?",
+     "relevant": [
+      "event_top8"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.83
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.827
+      ],
+      [
+       "ex12",
+       "medals",
+       0.77
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q18",
+     "question": "who won 2v2 at autumns 2023 NA?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.856
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.827
+      ],
+      [
+       "ex03",
+       "event_top8",
+       0.854
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q19",
+     "question": "Who won the Midseason Championship 2026?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.793
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.74
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.727
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q20",
+     "question": "what was the score of the 1v1 grand final at dreamhack valencia 2023",
+     "relevant": [
+      "event_final",
+      "event_winner",
+      "head_to_head_sets"
+     ],
+     "retrieved": [
+      [
+       "ex29",
+       "event_final",
+       0.854
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.83
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.771
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q21",
+     "question": "how many official events has baloonboy won?",
+     "relevant": [
+      "official_wins"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.879
+      ],
+      [
+       "ex12",
+       "medals",
+       0.791
+      ],
+      [
+       "ex13",
+       "placements",
+       0.777
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q22",
+     "question": "did markiemoo ever win worlds",
+     "relevant": [
+      "series_results"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.809
+      ],
+      [
+       "ex22",
+       "series_results",
+       0.793
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.766
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q23",
+     "question": "kingdom | godly vs impala head to head",
+     "relevant": [
+      "head_to_head"
+     ],
+     "retrieved": [
+      [
+       "ex05",
+       "head_to_head",
+       0.656
+      ],
+      [
+       "ex29",
+       "event_final",
+       0.641
+      ],
+      [
+       "ex06",
+       "head_to_head_sets",
+       0.629
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q24",
+     "question": "who won msi 1v1",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.827
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.796
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.78
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q25",
+     "question": "how many official tournaments has RAYDISH won",
+     "relevant": [
+      "official_wins"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.843
+      ],
+      [
+       "ex13",
+       "placements",
+       0.755
+      ],
+      [
+       "ex27",
+       "per_year",
+       0.766
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q26",
+     "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+     "relevant": [
+      "medals",
+      "placements"
+     ],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.819
+      ],
+      [
+       "ex13",
+       "placements",
+       0.786
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.782
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q27",
+     "question": "whats bbballoonboy's 1v1 record vs impala",
+     "relevant": [
+      "head_to_head"
+     ],
+     "retrieved": [
+      [
+       "ex05",
+       "head_to_head",
+       0.763
+      ],
+      [
+       "ex19",
+       "best_record",
+       0.762
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.758
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q28",
+     "question": "who won worlds 2019 1v1",
+     "relevant": [
+      "event_winner",
+      "series_results"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.896
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.79
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.802
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q29",
+     "question": "Who won the 1v1 at DreamHack Atlanta 2019?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.861
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.814
+      ],
+      [
+       "ex32",
+       "most_played_pair",
+       0.786
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q30",
+     "question": "who won ceo dreamland 2020",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.711
+      ],
+      [
+       "ex15",
+       "first_win",
+       0.696
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.708
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q31",
+     "question": "Who won SEA League Week 1/4?",
+     "relevant": [
+      "event_winner"
+     ],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.765
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.714
+      ],
+      [
+       "ex02",
+       "event_winner",
+       0.732
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q32",
+     "question": "how much prize money did vem win at max mode 2025",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex27",
+       "per_year",
+       0.75
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.732
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.73
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q33",
+     "question": "how much money has boomie made from brawlhalla",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.706
+      ],
+      [
+       "ex31",
+       "stats",
+       0.645
+      ],
+      [
+       "ex12",
+       "medals",
+       0.683
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q34",
+     "question": "Who won the 2016 Brawlhalla World Championship?",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex01",
+       "event_winner",
+       0.762
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.762
+      ],
+      [
+       "ex24",
+       "empty_result",
+       0.749
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q35",
+     "question": "what legend does godly main",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex11",
+       "wins_list",
+       0.687
+      ],
+      [
+       "ex08",
+       "teammates",
+       0.657
+      ],
+      [
+       "ex06",
+       "head_to_head_sets",
+       0.657
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q36",
+     "question": "How many community tournaments has raydish won?",
+     "relevant": [],
+     "retrieved": [
+      [
+       "ex10",
+       "official_wins",
+       0.813
+      ],
+      [
+       "ex27",
+       "per_year",
+       0.752
+      ],
+      [
+       "ex13",
+       "placements",
+       0.736
+      ]
+     ],
+     "hit": null,
+     "first": null
+    },
+    {
+     "id": "q37",
+     "question": "Who has won the most official tournaments?",
+     "relevant": [
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex30",
+       "ranking",
+       0.84
+      ],
+      [
+       "ex17",
+       "ranking",
+       0.83
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.814
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q38",
+     "question": "rank the top 5 players by official 1v1 wins",
+     "relevant": [
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.814
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.802
+      ],
+      [
+       "ex12",
+       "medals",
+       0.785
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q39",
+     "question": "who has more medals, boomie or sandstorm?",
+     "relevant": [
+      "comparison",
+      "medals"
+     ],
+     "retrieved": [
+      [
+       "ex12",
+       "medals",
+       0.686
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.686
+      ],
+      [
+       "ex18",
+       "ranking",
+       0.678
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q40",
+     "question": "who has raydish lost to the most in 1v1",
+     "relevant": [
+      "best_record",
+      "opponents"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.827
+      ],
+      [
+       "ex19",
+       "best_record",
+       0.791
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.776
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q41",
+     "question": "Who has won the most 1v1 world championships?",
+     "relevant": [
+      "ranking",
+      "series_results"
+     ],
+     "retrieved": [
+      [
+       "ex32",
+       "most_played_pair",
+       0.863
+      ],
+      [
+       "ex30",
+       "ranking",
+       0.835
+      ],
+      [
+       "ex01",
+       "event_winner",
+       0.858
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q42",
+     "question": "what was the biggest official brawlhalla tournament ever?",
+     "relevant": [
+      "event_facts",
+      "ranking"
+     ],
+     "retrieved": [
+      [
+       "ex27",
+       "per_year",
+       0.74
+      ],
+      [
+       "ex23",
+       "dominance",
+       0.724
+      ],
+      [
+       "ex21",
+       "last_event",
+       0.739
+      ]
+     ],
+     "hit": false,
+     "first": false
+    },
+    {
+     "id": "q43",
+     "question": "what was megd's first major win?",
+     "relevant": [
+      "first_win"
+     ],
+     "retrieved": [
+      [
+       "ex23",
+       "dominance",
+       0.769
+      ],
+      [
+       "ex15",
+       "first_win",
+       0.716
+      ],
+      [
+       "ex16",
+       "first_top8",
+       0.74
+      ]
+     ],
+     "hit": true,
+     "first": false
+    },
+    {
+     "id": "q44",
+     "question": "How many times did Ahmet finish second to Godly in 2026?",
+     "relevant": [
+      "head_to_head_sets",
+      "placements"
+     ],
+     "retrieved": [
+      [
+       "ex13",
+       "placements",
+       0.786
+      ],
+      [
+       "ex18",
+       "ranking",
+       0.757
+      ],
+      [
+       "ex10",
+       "official_wins",
+       0.741
+      ]
+     ],
+     "hit": true,
+     "first": true
+    },
+    {
+     "id": "q45",
+     "question": "who has earned more money, raydish or impala?",
+     "relevant": [
+      "comparison"
+     ],
+     "retrieved": [
+      [
+       "ex26",
+       "comparison",
+       0.648
+      ],
+      [
+       "ex13",
+       "placements",
+       0.641
+      ],
+      [
+       "ex15",
+       "first_win",
+       0.626
+      ]
+     ],
+     "hit": true,
+     "first": true
+    }
+   ]
+  }
+ }
+}
