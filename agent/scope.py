@@ -38,6 +38,11 @@ ANY_YEAR = re.compile(rf"\b{YEAR}\b")
 AGAINST = re.compile(r"\b(?:record|records|win\s*rate)\s+(?:against|vs\.?|versus|over)\s+(?!any|every|an?\s+opponent|opponents|"
                      r"other|them\b|their\b)\w|\b(?:lost|loses|lose|losing)\s+(?:to|against)\b|\bbeaten\s+by\b|\bwho\s+(?:has\s+|"
                      r"have\s+|had\s+)?(?:beat|beats|beaten|defeated)\s+\w", re.I)
+# A player's best placement: player_results with no top, whose best column and results at the best placement answer
+# it. Live, "best placement" was asked with top=1 and answered "no 1st places" (finding 26; c15, audit a03). Not a
+# count such as "top 8 finishes", which needs its top
+BEST = re.compile(r"\b(?:best|highest|peak)\s+(?:(?!\d+\s)[\w-]+\s+){0,2}?(?:placement|placing|finish|result|showing)s?\b",
+                  re.I)
 PRESENT = re.compile(r"\b(?:right\s+now|currently|these\s+days|nowadays|lately|recently|at\s+the\s+moment|this\s+season)\b",
                      re.I)
 REGION_WORDS = re.compile(r"\b(?:north\s+american?|south\s+american?|southeast\s+asian?|middle\s+east(?:ern)?|europe(?:an)?"
@@ -57,9 +62,11 @@ class Scope:
     regions: list = field(default_factory=list)
     present: str | None = None
     against: bool = False  # the opponents' side of one player's records (AGAINST)
+    best: bool = False  # a best placement (BEST)
 
     def __bool__(self):
-        return bool(self.mode or self.years or self.since or self.until or self.regions or self.present or self.against)
+        return bool(self.mode or self.years or self.since or self.until or self.regions or self.present or self.against
+                    or self.best)
 
 
 def scope(question, events):
@@ -82,7 +89,7 @@ def scope(question, events):
                                  for found in [events.region(m[0])] if found))
     present = PRESENT.search(text)
     return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0],
-                 bool(AGAINST.search(text)))
+                 bool(AGAINST.search(text)), bool(BEST.search(text)))
 
 
 def lacking(asked, name, arguments, parameters, events):
@@ -118,6 +125,9 @@ def lacking(asked, name, arguments, parameters, events):
             and str(arguments.get("side") or "").strip().casefold() not in ("opponents", "opponent", "against")):
         out.append(("asks for the other players' records against that player (who did best against them, or whom they"
                     " lost to)", 'side="opponents"'))
+    if asked.best and name == "player_results" and arguments.get("top") not in (None, ""):
+        out.append(("asks for a best placement", "no top: the best column and the results at the best placement"
+                    " give it"))
     if asked.present and "since" in takes and not any(arguments.get(k) for k in ("year", "since", "until")):
         out.append((f"asks about the present ('{asked.present}')", "a recent window (since) or year, or the official"
                     " Power Rankings (power_rankings)"))

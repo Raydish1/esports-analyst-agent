@@ -315,6 +315,11 @@ right answer taken from the previous turn's results for c8. Built offline, and t
     (46%) and gdsandstorm 4-7 (36%). Whom Raydish lost to most is gdsandstorm 10, luna 8, then Marckiem00 7.
   - Replayed on the 44 distinct recorded `rank_pairs` calls: the rule refuses the 6 of q08, q40 and a28, and nothing
     else. An empty ranking now says which minimum emptied it.
+- **A best placement asked with no `top`** (audit a03 3 of 3, c15 turn 1 2 of 3). The prompt and the description
+  already said a best placement is `player_results` with no `top`, and the model still asked `top=1`. So the scope
+  check refuses once a `player_results` call with a `top` when the question asks for a best or highest placement,
+  finish or result. It skips counts such as "top 8 finishes", which need their `top`. Replayed on the 85 distinct
+  recorded `player_results` calls, it refuses exactly the two (a03's and c15's `top=1`).
 
 ## Decisions
 

@@ -60,6 +60,13 @@ class ScopeTest(Fixture):
                          "volst's best records vs an opponent"):
             self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record"), [], question)
 
+    def test_a_best_placement_is_asked_with_no_top(self):
+        for question in ("what's megd's best placement", "what is renivics best placement in 2v2",
+                         "highest finish flowervs has ever had in 2v2"):  # finding 26, c15, audit a03
+            self.assertIn("asks for a best placement", self.lacks(question, "player_results", player_id=1, top=1))
+            self.assertNotIn("asks for a best placement", self.lacks(question, "player_results", player_id=1))
+        self.assertEqual(self.lacks("how many top 8 finishes does megd have", "player_results", player_id=1, top=8), [])
+
     def test_templates_that_cant_take_a_word_arent_checked_for_it(self):
         self.assertEqual(self.lacks("kyna vs yuz in only 1v1", "head_to_head", player_id=1, opponent_id=2), [])
         self.assertEqual(self.lacks("who did megd team with in 1v1 events", "team_results", player_id=1), [])
