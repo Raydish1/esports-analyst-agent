@@ -558,9 +558,9 @@ FROM v_results WHERE player_id IN (117179, 147522) AND mode = '2v2' GROUP BY pla
 [[conversation.turn]]
 say = "so why did you say cody travis and phazon have won 24 2v2 tournaments"
 expect = """
-About the agent's own earlier answer, checked again: they won 4 2v2 events together, of the 24 they entered \
-together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). Live, the \
-loop looked up "say cody travis 24" as an event.
+About the agent's own earlier answer: they won 4 2v2 events together, of the 24 they entered together, so an \
+answer that said 24 counted every event they entered (if no answer said 24, it says so). The figures may come from \
+a new call or from the previous turn's results. Live, the loop looked up "say cody travis 24" as an event.
 """
 says_numbers = [4]
 not_looked_up = ["say", "24"]
