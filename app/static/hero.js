@@ -195,6 +195,14 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
   if (!imgs.length) return;
 
   let N = CONFIG.particleCount;
+  // The particle count follows the hero's area on screen, so a big window keeps the density the settings were tuned
+  // at (particleCount over REF_AREA, the hero in a window about 1300 px wide); a fixed count looked sparse full-screen.
+  const REF_AREA = 420000, MIN_SCALE = 0.6, MAX_SCALE = 3.5;
+  const particles = () => {
+    const area = Math.max(1, canvas.clientWidth * canvas.clientHeight);
+    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, area / REF_AREA));
+    return Math.round(CONFIG.particleCount * scale);
+  };
   let aspect = 1, dpr = 1;
 
   function compile(type, src) {
@@ -358,6 +366,7 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
   }
 
   resize();
+  N = particles();
   makeRandoms();
   gl.enable(gl.BLEND);
   let shapes = imgs.map((im, i) => sampleImage(im, images[i]));
@@ -375,7 +384,7 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
   }
 
   function resampleAll() {
-    N = CONFIG.particleCount;
+    N = particles();
     shapes = imgs.map((im, i) => sampleImage(im, images[i]));
     cloud = scatterCloud(shapes[0]);
     makeRandoms();
@@ -432,12 +441,13 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
   }
 
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(hero);
-  let lastAspect = aspect, refit;
+  let lastAspect = aspect, lastN = N, refit;
   new ResizeObserver(() => {
     resize();
-    if (Math.abs(aspect - lastAspect) > 0.05) {
+    const n = particles();
+    if (Math.abs(aspect - lastAspect) > 0.05 || Math.abs(n - lastN) / lastN > 0.2) {
       clearTimeout(refit);
-      refit = setTimeout(() => { lastAspect = aspect; resampleAll(); }, 150);
+      refit = setTimeout(() => { lastAspect = aspect; lastN = particles(); resampleAll(); }, 150);
     }
   }).observe(canvas);
 
