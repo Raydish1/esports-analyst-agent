@@ -7,7 +7,8 @@ ENV PYTHONUNBUFFERED=1 PYTHONIOENCODING=utf-8 CARD_BROWSER="" PLAYWRIGHT_BROWSER
 WORKDIR /app
 COPY deploy/requirements-hosted.txt deploy/requirements-hosted.txt
 # Playwright's own driver needs libatomic, which the slim image lacks; --with-deps then installs Chromium's libraries
-RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/* \n    && pip install --no-cache-dir -r deploy/requirements-hosted.txt && playwright install --with-deps chromium
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir -r deploy/requirements-hosted.txt && playwright install --with-deps chromium
 
 COPY agent agent
 COPY app app
