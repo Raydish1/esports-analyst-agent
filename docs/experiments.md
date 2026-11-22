@@ -128,6 +128,22 @@ and took 3.2 times the model time. The frozen single agent stays the default, an
 (`--pipeline three-agent`). Two findings wait for the user: the names correction's swap inside "formerly Godly", a bug
 the single agent shares, and the answer check reading "SteelSeries" as a player's name.
 
+**Sonnet's misses, read against the pipeline.** The user asked whether the multi-agent design would fix the questions
+Sonnet missed in the Sonnet experiment (the entry below). Sonnet got none wrong: it gave 6 partly answers on 4
+questions, 2 in arm A (templates) and 4 in arm B (run_sql only). This is an estimate from step 2's replay, with no new
+run. The pipeline has only run with qwen3:30b in every role.
+
+| Question | Arm | What went wrong | Would the pipeline fix it? |
+|---|---|---|---|
+| q12, flowers' first top 8 | both | Sonnet named the other candidate correctly ("Flowers", 156897). The names correction then swapped it for flowerVS, so the answer says another player is named flowerVS. | No. The reporter's draft goes through the same correction. If the verifier flagged the result, each revision would be swapped again, and the pipeline would abstain, as it did on q35 ("formerly Zivai"). |
+| q45, who earned more, Raydish or Impala | both | Opens with "Raydish has earned more", though Impala has no figure. The next sentence says the two can't be compared. | Probably yes. A conclusion the packet doesn't support is the verifier's target, and the answer contradicts itself. |
+| q31, who won SEA League Week 1/4 | B | No winner recorded, rightly, but TigerBrawlhalla is named only for the event's last set, not as its one undefeated player (6-0). | Probably not. It's an omission, and the replay showed the verifier misses omissions. |
+| q41, the most 1v1 world titles | B | "Every other winner has one title" lists the other rows of a `LIMIT 8` query, leaving out ZEEKO and the other regional winners. | Maybe. The `LIMIT 8` is in the packet, but in the replay the verifier missed most problems that start in the query, not the wording. |
+
+At best that's q45's two runs and q41's one, of six. The other misses come from the agent's own code (q12) or from a
+fact the answer leaves out (q31). With Sonnet at 43 of 45, the pipeline's false alarms, which cost the qwen run q05
+and q42, could cost more than it gains.
+
 ## 2026-11-22: the live comparison's two proposals, replayed on the recorded runs
 
 **What it asked.** The previous entry's two proposals, which the user approved ("do as you recommend"):
@@ -338,9 +354,10 @@ smaller model's SQL more than they help a stronger one. Sonnet also answers abou
 qwen3:30b on the Ollama server (4.2 s against 20.0 s of model time). One seed only, and no held-out questions: the
 45 questions were used to tune the agent, on qwen models.
 
-**What it decided.** Nothing yet: the verdicts wait for the user's review
-(`eval/results/20261122-sonnet-templates-judgments.toml`, `20261122-sonnet-sqlonly-judgments.toml`), and the
-names-correction bug of q12 for the user's decision, as a fix for a bug that breaks a live answer.
+**What it decided.** Nothing yet. The verdicts were confirmed by the user (2026-11-22,
+`eval/results/20261122-sonnet-templates-judgments.toml` and `20261122-sonnet-sqlonly-judgments.toml`). The
+names-correction bug of q12 waits for the user's decision, as a fix for a bug that breaks a live answer. Checkpoint
+5's entry reads these misses against the three-agent pipeline.
 
 ## 2026-11-22: the doubled-ending fix, replayed on every recorded run, and the freeze
 
