@@ -2,6 +2,78 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: the Sonnet experiment, with and without the templates
+
+**What it asked.** The experiment the entry "run_sql when no template fits, and a backend for a Sonnet experiment"
+built and estimated, for the report (the user's go-ahead, 2026-11-22): claude-sonnet-5-5 in the frozen agent, on
+seed 0 of the 45 questions, in two arms. Arm A has everything as in the final measurement. Arm B has run_sql and the
+views only, with no templates. The question for the report: how much of the agent's accuracy comes from the tools
+and checks around the model, and how much from the model itself.
+
+**Setup.** The agent at 8923593 (frozen; agent code as 5c6b769), on eval-v1, retrieval on. The Anthropic backend
+(`agent/anthropic_chat.py`, SDK 2.12.0): adaptive thinking at effort high, summaries shown, at most 16,000 output
+tokens a step, no fallbacks. The API has no seed, so seed 0 only labels the runs. A one-question smoke test first
+(`20261122-sonnet-smoke`, q01: right, 3 steps, about $0.04). Then `harness.py run --ids q01 ... q45 --backend
+anthropic`, without and with `--templates off` (`20261122-sonnet-templates`, `20261122-sonnet-sqlonly`). Retrieval
+still embeds each question with nomic-embed-text on the Ollama server. Every verdict was drafted by hand and is
+"needs review".
+
+**Results.** The 45 questions, seed 0, by hand, next to qwen3:30b's seed 0 in the final measurement
+(`20261121-final-questions`):
+
+| Run | Right | Partly | Wrong | Automatic stages | Steps per run | Model time per run |
+|---|---|---|---|---|---|---|
+| qwen3:30b, final measurement | 37 | 6 | 2 | 43 of 45 | 2.9 | 20.0 s |
+| Sonnet, arm A (templates) | 43 | 2 | 0 | 45 of 45 | 2.7 | 4.2 s |
+| Sonnet, arm B (run_sql only) | 41 | 4 | 0 | 45 of 45 | 3.1 | 4.8 s |
+
+The cost, at the estimate's prices ($0.10 a million for cache reads, $2.50 for cache writes, $10 for output; $1 for
+uncached input), from each step's usage:
+
+| Run | Steps | Cache reads | Cache writes | Output | Cost |
+|---|---|---|---|---|---|
+| Arm A | 123 | 1.57M | 61k | 15k | $0.46 |
+| Arm B | 141 | 0.83M | 69k | 19k | $0.45 |
+
+So $0.95 for both arms (with the smoke test, $0.99), against the estimate's $2. Output came in under the low end:
+adaptive thinking thought on 11 of arm A's 123 steps and 18 of arm B's 141, and the replies are short.
+
+Tool use: arm A called a template in 34 of 45 runs (34 calls) and run_sql in 12 (15 calls), where qwen3:30b's seed 0
+called a template in 32 runs and run_sql in 6; arm B called run_sql in 44 of 45 runs (55 calls). The number check sent back 4 answers in arm A and 5 in arm B, the event check one in each;
+no other check fired, and no answer lost a claim to a check.
+
+What the misses were:
+- q12, both arms: the model wrote that another player is named Flowers (156897, with 3 results, as `resolve_player`
+  returned). The names correction then swapped "Flowers" for "flowerVS", taking it for the question's spelling of
+  flowerVS, so the answer says another player is named flowerVS. That's a bug in the names correction, not the
+  model's: a spelling that is exactly another candidate's name, which a tool returned, isn't the question's
+  misspelling. Not fixed.
+- q45, both arms: Raydish's $83,825 and Impala's missing figure, not $0, but the answer opens with "Raydish has
+  earned more", which the data can't say.
+- q31, arm B: no winner recorded and the placements unreliable, but TigerBrawlhalla is named only for the event's last
+  set, not as its one undefeated player (6-0).
+- q41, arm B: gdsandstorm's 3 and the tie without the regionals are right, but "every other winner" lists the six
+  other rows of a `LIMIT 8` query, leaving out ZEEKO and the other regional winners.
+
+What Sonnet got right that qwen3:30b missed on seed 0: q20 (the 1v1 grand final score, which no template gives; both
+arms queried `v_sets_1v1` with `winner_placement = 1 AND loser_placement = 2`), q42 (the biggest event, by entrants,
+both arms), q12's earlier 2v2 top 8, q23's sets, q32 (no prize money per event, without denying the career figure),
+q34 (no 2016 event: the prompt's 2017 now counts as evidence, 7f49596), q05 (the list said to cover only players with
+a figure), and q06 (all 17 partners named).
+
+**What it found.** With Sonnet, the templates add little to accuracy: 43 against 41 right, and none wrong in either
+arm. They cut the steps per run from 3.1 to 2.7, but each step reads a bigger prompt (the system prompt and tools
+are about 8,600 tokens with them, 3,700 without), so the two arms cost the same. Without templates, Sonnet writes
+the queries the templates hold (q06's partners, q11's dominance order on `v_win_runs`, q37's ranking) itself. With
+qwen3:8b the templates had moved the automatic stages from 124 to 130 of 135 (2026-11-17): they compensate for a
+smaller model's SQL more than they help a stronger one. Sonnet also answers about five times faster per run than
+qwen3:30b on the Ollama server (4.2 s against 20.0 s of model time). One seed only, and no held-out questions: the
+45 questions were used to tune the agent, on qwen models.
+
+**What it decided.** Nothing yet: the verdicts wait for the user's review
+(`eval/results/20261122-sonnet-templates-judgments.toml`, `20261122-sonnet-sqlonly-judgments.toml`), and the
+names-correction bug of q12 for the user's decision, as a fix for a bug that breaks a live answer.
+
 ## 2026-11-22: the doubled-ending fix, replayed on every recorded run, and the freeze
 
 **What it asked.** The user approved a fix for the bug the targeted run found, with a test and a replay on the
@@ -352,7 +424,7 @@ as measured: nothing after it is in them. Each change below has an entry of its 
 | A space left where a tool's name is cut out of an answer | Bug fix | 8ba7e18 | The final run, replayed | 5 final answers change, each by a space ("confirmed by thewith top=1") |
 | The prompt's own facts, the data's first year and its newest results' date, as evidence for the number check | Bug fix, the user's decision | 7f49596 | The final run, replayed | 16 of 69 check records with flagged numbers no longer fire, q34's six among them. q34 seed 0 keeps its draft instead of "I couldn't confirm this from the data" |
 | No swap of the question's spelling where the answer writes the right name | Bug fix | 5c6b769 | Every recorded run, replayed | 11 drafts change in 2,909 turns, each a doubled ending: "Dragon!!" (c13 turn 3, the final run's 3 seeds among them) and "Moni--" (c22 turn 2) |
-| A second backend on the Anthropic Messages API, and a switch for run_sql and the views only | Built for a Sonnet experiment | 3afe78a, 041b38c | Unit tests, with a fake client | None: the experiment is skipped for now (the user's decision), and the agent runs as before |
+| A second backend on the Anthropic Messages API, and a switch for run_sql and the views only | Built for a Sonnet experiment | 3afe78a, 041b38c | Unit tests, with a fake client; then the Sonnet experiment (2026-11-22, its own entry) | The agent runs as before on Ollama. With claude-sonnet-5-5, seed 0 by hand: 43 of 45 right with the templates, 41 without, for $0.95 in all |
 
 The targeted run (qwen3:30b at 7f49596, seeds 0-2, before 5c6b769) covered the items where the final run's no-tool
 check fired, and the live session's 2v2 turns:
