@@ -12,3 +12,9 @@ chromadb
 fastapi
 uvicorn
 httpx
+# The MCP server (app/server/mcp_server.py) and its stat card images, drawn in the installed Edge or Chrome
+mcp
+playwright
+pillow
+# The Sonnet backend (agent/anthropic_chat.py), only with ANTHROPIC_API_KEY
+anthropic
