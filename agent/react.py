@@ -818,7 +818,10 @@ class Shown:
         asked = {normalize_full(text) for text, _ in mentions.named(question, self.resolver, event_words)}
         for text, found in mentions.named(said, self.resolver, event_words):
             first = (found.get("candidates") or [{}])[0].get("player_id")
-            if first is None or canonical.get(first, first) in returned or normalize_full(text) in asked:
+            written = re.search(rf"(?<!\w){re.escape(text)}(?!\w)", self.in_view, re.I)  # a result's name as text,
+            # as a query joining players gives it: the replay of 2026-11-22 flagged such a right answer
+            if (first is None or canonical.get(first, first) in returned or self.resolver.called(text) & returned
+                    or written or normalize_full(text) in asked):
                 continue
             m = re.search(rf"(?<!\w){re.escape(text)}(?!\w)", said)
             if m:

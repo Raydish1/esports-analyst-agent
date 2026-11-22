@@ -1054,6 +1054,17 @@ class LoopTest(Fixture):
         self.assertEqual(trace["steps"][3]["number_check"]["action"],
                          "replaced: every tool call failed; no fact left, so the whole answer")
 
+    def test_a_plain_name_a_result_writes_out_isnt_one_no_tool_returned(self):  # a query joining players for names
+        view = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).view
+        view.ask("which two teams have the most history in 2v2 sets")
+        answer = "Raydish and Zivai played Cody Travis the most."
+        found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
+        self.assertEqual([c.text for c in found], ["Raydish", "Zivai", "Cody Travis"])  # no result yet
+        view.observe("run_sql", {"complete": True, "columns": ["team1_a", "team1_b", "sets"],
+                                 "rows": [["Raydish", "Zivai", 25]], "row_count": 1})
+        found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
+        self.assertEqual([c.text for c in found], ["Cody Travis"])
+
     def test_a_reply_saying_it_couldnt_get_the_data_stands_after_every_call_failed(self):
         honest = "I couldn't get the data: the ranking was refused and the query failed, so I can't say which teams."
         ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
