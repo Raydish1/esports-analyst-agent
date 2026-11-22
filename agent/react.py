@@ -1269,6 +1269,7 @@ class Conversation:
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
         missing, missed = [], False  # the last empty result's text filters no row has, and whether that was sent back
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
+        rechecked = False  # whether the loop ran again the data calls a questioned answer rested on
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
         judged = False  # whether the claim check sent an answer back
@@ -1379,7 +1380,7 @@ class Conversation:
                                 if settled.card else rested_on(self.traces, said or question,
                                                                [pid for _, pid in settled.players]))
                     if rechecks:
-                        forced = called = True
+                        forced = called = rechecked = True
                         self.look_up(question, rechecks, step, resolved, number == max_steps - 1, RECHECKED)
                         step["no_tool_check"] = {"disputed": True, "action": "ran again the calls the answer rested on",
                                                  "calls": [list(c) for c in rechecks]}
@@ -1413,7 +1414,9 @@ class Conversation:
                         break
                     self.finished(step)
                     continue
-                strict = told and not complied  # the turn's facts never came from a tool the model called itself
+                strict = told and not complied and not rechecked  # the turn's facts never came from a tool the model
+                # called itself, nor from the calls a recheck ran again for it: after one, in the final run, c10 turn 2's
+                # whole answer became "I couldn't look this up", though the loop had looked it up
                 if gap:
                     step["no_tool_check"] = {**gap, "action": "replaced: sent back once already" if told
                                              else "replaced: no steps left"}
@@ -1625,11 +1628,14 @@ class Conversation:
         for name, arguments in lookups:
             begun = time.monotonic()
             observation = self.call(name, arguments)
+            ran = observation.pop("ran", None) if isinstance(observation, dict) else None  # a template's SQL: for the
+            # trace, not for the model, as with the model's own calls (in the final run, a recheck's SQL reached both)
             self.view.observe(name, observation, arguments)
             noted(question, name, observation, asked, resolved)
             text = json.dumps(observation, ensure_ascii=False)
             step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
-                                       "seconds": round(time.monotonic() - begun, 3), "forced": True})
+                                       "seconds": round(time.monotonic() - begun, 3), "forced": True,
+                                       **({} if ran is None else {"ran": ran})})
             self.current.append({"role": "tool", "tool_name": name, "content": text})
         self.current.append({"role": "user", "content": note + (" " + LAST_STEP if last else "")})
         return asked

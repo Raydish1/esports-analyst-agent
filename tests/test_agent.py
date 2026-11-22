@@ -762,6 +762,30 @@ class LoopTest(Fixture):
         self.assertTrue(ask.sent[-1][-1]["content"].startswith(react.RECHECKED))
         self.assertEqual(trace["answer"], "Checked again: the count stands.")
 
+    def test_a_recheck_keeps_a_templates_sql_out_of_view_and_checks_the_answer_as_any_other(self):
+        results = ("player_results", {"player_id": 11})
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply(calls=[results]),
+                       reply("Raydish has his official results."), reply("Yes, as I said."), reply("Yes."),
+                       reply("Raydish has 99 results."), reply("Raydish's results are as the table shows."))
+        real = self.tools.call
+
+        def call(name, arguments):  # the tiny database has no template views: a result with the SQL it ran
+            if name == "player_results":
+                return {"template": "player_results", "tables": [{"what": "Raydish's results", "columns": ["results"],
+                                                                  "rows": [[6]]}], "ran": ["SELECT 6"]}
+            return real(name, arguments)
+
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        with patch.object(self.tools, "call", side_effect=call):
+            conversation.ask("what are raydish stats")
+            trace = conversation.ask("are you sure? that's too many")
+        rerun = next(c for s in trace["steps"] for c in s["tool_calls"] if c.get("forced"))
+        self.assertTrue(rerun["ran"])  # the SQL for the trace, as the model's own calls keep it
+        self.assertNotIn("ran", json.loads(rerun["observation"]))  # and not for the model
+        self.assertEqual(trace["steps"][2]["number_check"]["action"], "sent back")  # 99: checked as any answer is,
+        # not replaced as one that looked nothing up
+        self.assertEqual(trace["answer"], "Raydish's results are as the table shows.")
+
     def test_the_call_rested_on_is_the_latest_whose_result_holds_the_disputed_numbers(self):
         def made(*calls):
             return {"steps": [{"tool_calls": [{"name": n, "arguments": a, "observation": json.dumps(o)}
