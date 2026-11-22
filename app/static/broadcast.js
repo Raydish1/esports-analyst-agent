@@ -48,7 +48,7 @@ async function heavyFace() {
 export const fontsReady = heavyFace().catch(() => {});
 
 const HEAVY = [".bc-name", ".bc-heading", ".bc-pname", ".bc-vs", ".bc-earnings",
-  ".bc-count", ".bc-value", ".bc-money", ".bc-num", ".bc-pnum", ".bc-score", ".bc-wsets-heading", ".bc-wsets-side", ".bc-tile-event"]
+  ".bc-count", ".bc-value", ".bc-money", ".bc-num", ".bc-pnum", ".bc-score", ".bc-wsets-heading", ".bc-wsets-side", ".bc-tile-event", ".bc-board-title"]
   .map((c) => `${c}:not(.bc-missing)`).join(", ");
 
 function squeezeWords(frame) {
@@ -596,5 +596,63 @@ export function teamsFrame(card, mode = "2v2") {
       frame.append(text("bc-tnone", "NO SETS BETWEEN THEM"));
     }
   }
+  return squeezeWords(frame);
+}
+
+// Leaderboard (figures.Cards.leaderboard): a list answer's rows, each with its rank on a slanted plate (gold, silver and
+// bronze for the medals), the players' legends, their names, and the figure ranked by. One column up to five rows, two
+// columns up to ten; a longer list says how many more there are, and the full table stays under the card.
+const BOARD = { left: 90, top: 214, width: 1740, gap: 16, rowGap: 14, rowHeight: 146 };
+
+export function leaderboardFrame(card) {
+  const frame = el("div", "bc-frame bc-board");
+  backdrop(frame, card);
+  frame.setAttribute("role", "img");
+  const title = card.event ? `${shortEvent(card.event)} · TOP ${card.top}` : card.title || "";
+  frame.setAttribute("aria-label", title);
+  frame.append(shapes([["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"]]));
+  frame.append(text("bc-strip-text", (card.scope || "").toUpperCase()));
+  frame.append(text("bc-board-title bc-heavy", title.toUpperCase()));
+  const tied = new Set(card.rows.map((r) => r.rank).filter((r, i, all) => all.indexOf(r) !== i));
+  frame.append(text("bc-board-sub", [
+    "OFFICIAL EVENTS", tied.size ? "TIES SHARE A RANK" : null,
+    card.total > card.rows.length ? `THE FIRST ${card.rows.length} OF ${card.total}` : null,
+  ].filter(Boolean).join(" · ")));
+
+  const two = card.rows.length > 5;
+  const width = two ? (BOARD.width - BOARD.gap * 2) / 2 : BOARD.width;
+  card.rows.forEach((r, i) => {
+    const col = two ? Math.floor(i / 5) : 0, at = two ? i % 5 : i;
+    const row = el("div", `bc-board-row${two ? " bc-board-narrow" : ""}`);
+    row.style.left = `${BOARD.left + col * (width + BOARD.gap * 2)}px`;
+    row.style.top = `${BOARD.top + at * (BOARD.rowHeight + BOARD.rowGap)}px`;
+    row.style.width = `${width}px`;
+    row.style.height = `${BOARD.rowHeight}px`;
+    const medal = r.rank === 1 ? "bc-gold" : r.rank === 2 ? "bc-silver" : r.rank === 3 ? "bc-bronze" : "";
+    row.append(el("div", "bc-board-plate"));
+    const rank = el("div", `bc-board-rank ${medal}`);
+    rank.append(el("span", "bc-heavy", String(r.rank)));
+    row.append(rank);
+    (r.legends || []).forEach((legend, k) => {
+      const slot = legendSlot(legend);
+      slot.classList.add("bc-board-legend");
+      slot.style.left = `${150 + k * 84}px`;
+      row.append(slot);
+    });
+    const names = el("div", "bc-board-names");
+    names.style.left = `${150 + Math.max(1, (r.legends || []).length) * 84 + 96}px`;
+    for (const n of r.names) names.append(el("span", `bc-board-name bc-heavy${r.names.length > 1 ? " bc-pair" : ""}`, n.toUpperCase()));
+    if (r.extra) names.append(el("span", "bc-board-extra", r.extra));
+    row.append(names);
+    if (!card.event) {  // an event's placement is already on the rank plate
+      const value = el("div", "bc-board-value");
+      value.append(el("span", "bc-board-num bc-heavy", absent(r.value) ? "–" : String(r.value)));
+      if (card.unit) value.append(el("span", "bc-board-unit", card.unit));
+      row.append(value);
+    } else {
+      names.style.right = "40px";
+    }
+    frame.append(row);
+  });
   return squeezeWords(frame);
 }

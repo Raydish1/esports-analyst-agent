@@ -180,6 +180,22 @@ class ChoosingTest(unittest.TestCase):
         two = Stub(sets=[]).build(turn(results(1), event(["a", "e1", "d", "1v1", None]), results(2)))
         self.assertEqual([c["kind"] for c in two], ["comparison", "sets"])
 
+    def test_a_ranking_gets_a_leaderboard_ties_and_all(self):
+        out = {"scope": "official events, 1v1", "tables": [{"columns": ["rank", "player", "player_id", "wins"],
+                                                             "rows": [[1, "Alpha", 1, 30], [2, "Beta", 2, 26], [2, "Gamma", 3, 26]]}]}
+        (card,) = Stub().build(turn(call("rank_players", {"by": "wins", "mode": "1v1", "top": 2}, out)))
+        self.assertEqual((card["kind"], card["title"], card["unit"], card["total"]), ("leaderboard", "MOST OFFICIAL 1v1 WINS", "WINS", 3))
+        self.assertEqual([(r["rank"], r["names"], r["value"]) for r in card["rows"]],
+                         [(1, ["Alpha"], 30), (2, ["Beta"], 26), (2, ["Gamma"], 26)])
+        self.assertIn("1. Alpha 30 wins; 2. Beta 26 wins; 2. Gamma 26 wins", figures.summary([card]))
+
+    def test_a_list_the_leaderboard_doesnt_draw_gets_none(self):
+        several = {"tables": [{"columns": ["region", "mode", "rank", "player", "player_id", "points"],
+                               "rows": [["NA", "1v1", 1, "Alpha", 1, 9.0], ["EU", "1v1", 1, "Beta", 2, 8.0]]}]}
+        self.assertEqual(Stub().build(turn(call("power_rankings", {"top": 1}, several))), [])
+        opponents = {"tables": [{"columns": ["rank", "player", "player_id", "partner", "partner_id", "sets"], "rows": [[1, "a", 1, "b", 2, 9]]}]}
+        self.assertEqual(Stub().build(turn(call("rank_pairs", {"of": "opponents"}, opponents))), [])
+
     def test_a_failed_call_is_ignored(self):
         failed = {"name": "player_results", "arguments": {"player_id": 1}, "observation": json.dumps({"error": "x"})}
         self.assertEqual(Stub().build(turn(failed)), [])
@@ -383,6 +399,18 @@ class RealTest(unittest.TestCase):
         self.assertEqual([sorted(p["player_id"] for p in t) for t in card["teams"]],
                          [[141522, 142042], [142100, 160000]])  # Pink | Zen & hideawaybh, then Raydish & megD
         self.assertIn("winners", card["scope"])
+
+    def test_leaderboards_on_the_data(self):
+        from templates import TEMPLATES
+        args = {"by": "wins", "mode": "1v1", "top": 5}
+        out = TEMPLATES["rank_players"].call(self.cards.tools, args)
+        card = self.cards.leaderboard("rank_players", args, out)
+        first = dict(zip(out["tables"][0]["columns"], out["tables"][0]["rows"][0]))
+        self.assertEqual((card["rows"][0]["names"], card["rows"][0]["value"]), ([first["player"]], first["wins"]))
+        args = {"event": "bcx 2025 2v2", "top": 3}
+        card = self.cards.leaderboard("event_results", args, TEMPLATES["event_results"].call(self.cards.tools, args))
+        self.assertEqual([len(r["names"]) for r in card["rows"]], [2] * len(card["rows"]))  # each a team of two
+        self.assertTrue(all("|" not in n[-1:] for r in card["rows"] for n in r["names"]))
 
     def test_an_events_top_8_sets(self):
         card = self.cards.event_sets({"event_id": "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1", "name": "x",

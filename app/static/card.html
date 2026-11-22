@@ -15,11 +15,12 @@
        1920x1080, unscaled, and resolves once its fonts and images have loaded, for a screenshot. -->
   <div id="out"></div>
   <script type="module">
-    import { fontsReady, headToHeadFrame, lifetimeFrame, setsFrame, teamsFrame } from "./broadcast.js";
+    import { fontsReady, headToHeadFrame, leaderboardFrame, lifetimeFrame, setsFrame, teamsFrame } from "./broadcast.js";
     window.draw = async (card, mode) => {
       const frame = card.kind === "lifetime" ? lifetimeFrame(card, mode || "1v1 and 2v2")
         : card.kind === "head_to_head" || card.kind === "comparison" ? headToHeadFrame(card, mode || "1v1 and 2v2")
         : card.kind === "team" || card.kind === "teams" ? teamsFrame(card, mode || "2v2")
+        : card.kind === "leaderboard" ? leaderboardFrame(card)
         : setsFrame(card).frame;
       document.getElementById("out").replaceChildren(frame);
       await document.fonts.ready;

@@ -4,8 +4,8 @@ with them: mounted at /mcp by main.py (--mcp), over Streamable HTTP.
 Tools:
 - the agent's own 14 (react.TOOLS): resolve_player, resolve_event, run_sql (read-only, on the views) and the
   templates, with the schemas and descriptions the agent's model gets, run by react.Tools.call;
-- four card tools, the web app's broadcast graphics as images (figures.Cards, drawn by card.html in a headless browser):
-  player_card, head_to_head_card, partnership_card, teams_card. Each also returns the line the web app tells its
+- five card tools, the web app's broadcast graphics as images (figures.Cards, drawn by card.html in a headless browser):
+  player_card, head_to_head_card, partnership_card, teams_card, leaderboard_card. Each also returns the line the web app tells its
   agent (figures.summary), so the model can say what the card shows.
 
 What it can't bring: the agent's checks (the number check, the name checks, the no-tool check) live in its loop
@@ -46,8 +46,9 @@ The counting rules: a medal is a 1st, 2nd or 3rd place; crew battles count as 1v
 count toward neither 1v1 nor 2v2; a missing earnings figure is not $0; a cancelled event wasn't held; say "official
 events", not "majors".
 
-For a graphic, call player_card, head_to_head_card, partnership_card or teams_card with player_ids: each returns the
-broadcast-style stat card as an image, and a line of what it shows."""
+For a graphic, call player_card, head_to_head_card, partnership_card or teams_card with player_ids, or
+leaderboard_card with a list tool and its arguments: each returns the broadcast-style card as an image, and a line of
+what it shows."""
 
 CARD_TOOLS = [
     types.Tool(name="player_card", description="One player's lifetime stat card as an image (earnings, medals, top 8s"
@@ -72,6 +73,14 @@ CARD_TOOLS = [
                    "player_id": {"type": "integer"}, "partner_id": {"type": "integer"},
                    "opponent_id": {"type": "integer"}, "opponent_partner_id": {"type": "integer"}},
                    "required": ["player_id", "partner_id", "opponent_id", "opponent_partner_id"]}),
+    types.Tool(name="leaderboard_card", description="A ranked list as a leaderboard image (up to 10 rows, ties sharing a"
+               " rank): give the list tool and the arguments you'd call it with: rank_players (by wins, medals or"
+               " top8s), power_rankings (one region and mode), event_results (one event, with a top), or rank_pairs"
+               " (of='teammates'). Returns the image and a line of what it shows.",
+               inputSchema={"type": "object", "properties": {
+                   "list": {"type": "string", "enum": ["rank_players", "power_rankings", "event_results", "rank_pairs"]},
+                   "arguments": {"type": "object", "description": "the list tool's own arguments"}},
+                   "required": ["list", "arguments"]}),
 ]
 
 
@@ -153,6 +162,16 @@ def build(path, base_url, earnings_sources=("Stats API",), tools=None):
             if name == "partnership_card":
                 one = await anyio.to_thread.run_sync(cards.team, int(arguments["player_id"]), int(arguments["partner_id"]))
                 return await images([one] if one else [])
+            if name == "leaderboard_card":
+                tool, args = arguments["list"], dict(arguments.get("arguments") or {})
+                out = await anyio.to_thread.run_sync(tools.call, tool, args)
+                if "error" in out:
+                    return [types.TextContent(type="text", text=json.dumps(out, ensure_ascii=False, default=str))]
+                card = await anyio.to_thread.run_sync(cards.leaderboard, tool, args, out)
+                if card is None:
+                    return [types.TextContent(type="text", text="No leaderboard for this call: it needs a ranking of"
+                                              " one region and mode, one event with a top, or teammates.")]
+                return await images([card])
             if name == "teams_card":
                 found = await anyio.to_thread.run_sync(
                     cards.teams, (int(arguments["player_id"]), int(arguments["partner_id"])),

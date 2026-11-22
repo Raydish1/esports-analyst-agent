@@ -15,7 +15,7 @@
        ?player=ID&mode=1v1 (or 2v2, or nothing for both); &opponent=ID for a head-to-head -->
   <div id="out"></div>
   <script type="module">
-    import { fontsReady, headToHeadFrame, lifetimeFrame, setsFrame, teamsFrame } from "./broadcast.js";
+    import { fontsReady, headToHeadFrame, leaderboardFrame, lifetimeFrame, setsFrame, teamsFrame } from "./broadcast.js";
     const q = new URLSearchParams(location.search);
     const mode = q.get("mode") || "1v1 and 2v2";
     const id = (name) => encodeURIComponent(q.get(name));
@@ -30,7 +30,10 @@
     const fetchJson = window.fetch.bind(window);  // &bg=NAME draws the card on that background (art/backgrounds)
     window.fetch = async (...a) => { const r = await fetchJson(...a); if (!q.get("bg") || !String(a[0]).startsWith("/api/preview")) return r;
       const card = await r.json(); card.background = q.get("bg"); return new Response(JSON.stringify(card)); };
-    if (q.get("team") || q.get("teams")) {  // &team=ID,ID for a partnership; &teams=ID,ID,ID,ID for two teams
+    if (q.get("board")) {  // &board=TOOL&args=JSON: a list tool's leaderboard
+      const card = await (await fetch(`/api/preview/leaderboard?name=${encodeURIComponent(q.get("board"))}&args=${encodeURIComponent(q.get("args") || "{}")}`)).json();
+      document.getElementById("out").append(leaderboardFrame(card));
+    } else if (q.get("team") || q.get("teams")) {  // &team=ID,ID for a partnership; &teams=ID,ID,ID,ID for two teams
       const ids = (q.get("team") || q.get("teams")).split(",").map(encodeURIComponent).join("/");
       const part = q.get("sets") && q.get("teams") ? "?part=1" : "";  // &sets=1: the two teams' set list
       const card = await (await fetch(`/api/preview/${q.get("team") ? "team" : "teams"}/${ids}${part}`)).json();

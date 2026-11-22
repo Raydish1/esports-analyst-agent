@@ -1,4 +1,4 @@
-import { BACKGROUNDS, headToHeadFrame, lifetimeFrame, recordIn, scaled, setsFrame, teamsFrame } from "./broadcast.js";
+import { BACKGROUNDS, headToHeadFrame, leaderboardFrame, lifetimeFrame, recordIn, scaled, setsFrame, teamsFrame } from "./broadcast.js";
 
 // Stat cards (app/server/figures.py), drawn as broadcast frames (broadcast.js): lifetime figures, a head-to-head or
 // comparison, and set lists. Every number comes from the figures event; a missing one reads "not recorded", never 0.
@@ -160,8 +160,18 @@ function sets(card) {
   return node;
 }
 
+// A list answer: the leaderboard frame, and what it counts; the full table follows the cards (app.js).
+function leaderboard(card) {
+  const node = el("section", "stat-card broadcast");
+  const holder = el("div", "bc-holder");
+  holder.append(scaled(leaderboardFrame(card)));
+  const more = card.total > card.rows.length ? ` It shows the first ${card.rows.length} of ${card.total}; the table below has them all.` : "";
+  node.append(holder, scopeBox(`${card.scope[0].toUpperCase()}${card.scope.slice(1)}. Tied places share a rank.${more}`));
+  return node;
+}
+
 export function renderCards(cards) {
-  const make = { lifetime, head_to_head: versus, comparison: versus, team: teams, teams, sets };
+  const make = { lifetime, head_to_head: versus, comparison: versus, team: teams, teams, sets, leaderboard };
   const out = document.createDocumentFragment();
   for (const card of cards) {  // each card a background at random, kept through its mode switch
     card.background ??= BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)];

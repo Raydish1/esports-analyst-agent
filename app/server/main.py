@@ -213,6 +213,16 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
         def preview_event(event_id: str):
             return cards.event_sets({"event_id": event_id, "name": "Preview event", "date": None})
 
+        @app.get("/api/preview/leaderboard")
+        def preview_leaderboard(name: str, args: str = "{}"):
+            """A list tool's leaderboard card: ?name=rank_players&args={"by": "wins", "top": 5}."""
+            from templates import TEMPLATES
+            arguments = json.loads(args)
+            card = cards.leaderboard(name, arguments, TEMPLATES[name].call(tools, arguments)) if name in TEMPLATES else None
+            if card is None:
+                raise HTTPException(404, "No leaderboard for this call.")
+            return card
+
         @app.get("/api/preview/sets/{player_id}/{opponent_id}")
         def preview_sets(player_id: int, opponent_id: int):
             found = cards.head_to_head(player_id, opponent_id)

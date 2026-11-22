@@ -68,6 +68,13 @@ TEAMS = ("SELECT a.start_date, e.tournament_name, e.event_name, a.won, a.games_w
          " JOIN v_match_results b2 ON b2.match_id = a.match_id AND b2.side = b.side AND b2.player_id = ?"
          " JOIN v_events e ON e.event_id = a.event_id"
          " WHERE a.player_id = ? AND a.mode = '2v2' ORDER BY a.start_date, a.start_time, a.match_id")
+BOARD = 10  # a leaderboard's most rows; the full list stays in the table under it
+
+
+def ordinal_word(n):
+    return f"{n}{'TH' if 11 <= n % 100 <= 13 else {1: 'ST', 2: 'ND', 3: 'RD'}.get(n % 10, 'TH')}" if isinstance(n, int) else str(n)
+
+
 # One held 2v2 event's first and second place teams, each once.
 FINALISTS = ("SELECT player_id, partner_id, placement FROM v_team_results WHERE event_id = ? AND placement <= 2"
              " AND player_id < partner_id ORDER BY placement, player_id")
@@ -273,6 +280,83 @@ class Cards:
                        "scope": "Official sets between them, newest first: 1v1 sets with one player a side, and 2v2 sets"
                                 " with the two on opposite teams. DQs, forfeits and ties left out."}]
 
+    # A list answer as a leaderboard (broadcast.js, leaderboardFrame): rank_players, power_rankings, event_results with
+    # a top, and rank_pairs' teammates. Each row: its rank or placement, the players (one, or a team's two) with their
+    # legends, the figure ranked by and its unit, and any small figures beside it. At most BOARD rows are drawn.
+
+    def names(self, ids):
+        """Each player's name, by ID, in order."""
+        found = dict(self.query(f"SELECT player_id, name FROM players WHERE player_id IN ({', '.join('?' * len(ids))})",
+                                tuple(ids))) if ids else {}
+        return [found.get(i, str(i)).strip(" |") or found.get(i, str(i)) for i in ids]  # "Zen |": an empty team tag
+
+    def leaderboard(self, name, args, out):
+        """The leaderboard card for one list tool's result, or None when it isn't a list this card draws."""
+        mode = str(args.get("mode") or "").lower()
+        mode = mode if mode in ("1v1", "2v2") else ""
+        rows, title, unit, event = [], None, None, None
+
+        def row(rank, ids, names, value, extra=None):
+            ids = [i for i in ids if i is not None]
+            return {"rank": rank, "names": names, "player_ids": ids, "legends": [self.legends.of(i) for i in ids],
+                    "value": value, "extra": extra}
+
+        if name == "rank_players":
+            t = table_with(out, "rank", "player", "player_id")
+            by = next((c for c in (t or {}).get("columns", []) if c in ("wins", "medals", "top8s", "top8")), None)
+            if not t or not by:
+                return None
+            unit = {"wins": "WINS", "medals": "MEDALS"}.get(by, "TOP 8S")
+            for r in t.get("rows") or []:
+                c = dict(zip(t["columns"], r))
+                rows.append(row(c["rank"], [c["player_id"]], [c["player"]], c[by]))
+            title = f"MOST OFFICIAL {(mode + ' ') if mode else ''}{unit}"
+        elif name == "power_rankings":
+            t = table_with(out, "rank", "player", "points", "region")
+            if not t:
+                return None
+            unit = "PTS"
+            for r in t.get("rows") or []:
+                c = dict(zip(t["columns"], r))
+                rows.append(row(c["rank"], [c["player_id"]], [c["player"]], f"{c['points']:.1f}" if c.get("points") is not None else None,
+                                f"{c.get('gold') or 0} GOLD · {c.get('silver') or 0} SILVER · {c.get('bronze') or 0} BRONZE"))
+            regions = sorted({dict(zip(t["columns"], r))["region"] for r in t.get("rows") or []})
+            modes = sorted({dict(zip(t["columns"], r))["mode"] for r in t.get("rows") or []})
+            if len(regions) != 1 or len(modes) != 1:
+                return None  # several regions' rankings: a table reads better
+            title = f"{regions[0]} {modes[0].upper()} POWER RANKINGS"
+        elif name == "event_results":
+            t = table_with(out, "placement", "players", "player_ids", "event")
+            events = {dict(zip(t["columns"], r))["event"] for r in (t or {}).get("rows") or []}
+            if not t or len(events) != 1 or not args.get("top"):
+                return None
+            for r in t.get("rows") or []:
+                c = dict(zip(t["columns"], r))
+                ids = c["player_ids"] if isinstance(c["player_ids"], list) else [c["player_ids"]]
+                names = self.names(ids)  # by ID: splitting "players" at " / " broke a name with a slash or a pipe
+                rows.append(row(c["placement"], ids, names, ordinal_word(c["placement"])))
+            title, unit = None, ""  # the page names it from the event, written short (broadcast.js, shortEvent)
+            event = next(iter(events))
+        elif name == "rank_pairs":
+            t = table_with(out, "rank", "player", "partner", "player_id", "partner_id")
+            by = next((c for c in ("wins", "medals", "top8s", "events") if c in (t or {}).get("columns", [])), None)
+            if not t or str(args.get("of") or "").lower() not in ("teammates", "partners", "duos") or not by:
+                return None
+            want = str(args.get("by") or "events").lower()
+            by = want if want in t["columns"] else by
+            unit = {"wins": "WINS", "medals": "MEDALS", "top8s": "TOP 8S", "events": "EVENTS"}[by]
+            for r in t.get("rows") or []:
+                c = dict(zip(t["columns"], r))
+                rows.append(row(c["rank"], [c["player_id"], c["partner_id"]], [c["player"], c["partner"]], c[by],
+                                f"{c.get('events', 0)} EVENTS TOGETHER" if by != "events" else None))
+            title = f"DUOS WITH THE MOST {unit} TOGETHER"
+        else:
+            return None
+        if not rows:
+            return None
+        return {"kind": "leaderboard", "title": title, "event": event, "top": args.get("top"), "unit": unit,
+                "rows": rows[:BOARD], "total": len(rows), "scope": out.get("scope") or "official events"}
+
     def event_sets(self, event):
         rows = self.query(EVENT_SETS, (event["event_id"],))
         sets = [{"date": r[0], "event": None, "winner": r[1], "loser": r[4],
@@ -408,7 +492,22 @@ class Cards:
                 elif rows[0]["mode"] == "2v2" and not cards:
                     cards.extend(self.final(about))
                 break
+        board = self.board(trace)
+        if board and not any(c["kind"] in ("lifetime", "comparison", "team", "teams") for c in cards):
+            cards.insert(0, board)  # a list answer: the leaderboard first, an event's sets or final after it
         return cards[:MOST]
+
+    LISTS = ("rank_players", "power_rankings", "event_results", "rank_pairs")
+
+    def board(self, trace):
+        """The leaderboard for the turn's last list call that makes one (leaderboard), or None."""
+        last = None
+        for step in trace.get("steps", []):
+            for call in step.get("tool_calls", []):
+                data = observed(call) if call.get("name") in self.LISTS else None
+                card = data and self.leaderboard(call["name"], arguments(call), data)
+                last = card or last
+        return last
 
 
 def tally(rows):
@@ -459,6 +558,13 @@ def summary(cards):
 
 def card_summary(card):
     kind = card.get("kind")
+    if kind == "leaderboard":
+        title = card.get("title") or f"{card.get('event')}, top {card.get('top')}"
+        rows = "; ".join(f"{r['rank']}. {' & '.join(r['names'])}"
+                         + ("" if card.get("event") or r.get("value") is None else f" {r['value']} {(card.get('unit') or '').lower()}")
+                         for r in card["rows"])
+        more = f" (the first {len(card['rows'])} of {card['total']})" if card["total"] > len(card["rows"]) else ""
+        return f"A leaderboard card, {title.lower() if card.get('title') else title}{more}: {rows}."
     if kind == "lifetime":
         return f"A lifetime card of {player_summary(card['player'])}{recent_summary(card['player'])}."
     if kind == "comparison":

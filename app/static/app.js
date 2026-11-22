@@ -158,11 +158,8 @@ function resultCard(question, turn) {
   meta.append(el("span", "tag", `Result #${n}`),
     el("span", "ts", new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })));
   const body = el("div", "result-body");
-  if (turn.figures.length) {
-    body.append(renderCards(turn.figures));
-  } else {
-    body.append(tableBlock(turn.table));
-  }
+  if (turn.figures.length) body.append(renderCards(turn.figures));
+  if (turn.table) body.append(tableBlock(turn.table));
   if (turn.steps.length) body.append(how(turn.steps, turn.examples));
   card.append(meta, el("h2", null, question), body);
   const wrap = el("div", "shadow-dark");
@@ -255,7 +252,8 @@ function reply(question, turn) {
   if (a.problem) parts.push(el("p", "problem", a.problem));
   if (a.text) parts.push(render(a.text));
   if (a.suggestions.length) parts.push(suggestionButtons(a.suggestions));
-  turn.table = a.outcome === "answered" && !turn.figures.length ? mainTable(turn.steps) : null;
+  const listed = turn.figures.some((f) => f.kind === "leaderboard");  // a leaderboard keeps the full table under it
+  turn.table = a.outcome === "answered" && (!turn.figures.length || listed) ? mainTable(turn.steps) : null;
   if (a.outcome === "answered" && (turn.figures.length || turn.table)) {
     const { card, n } = resultCard(question, turn);
     const chip = el("button", "result-chip", `View result #${n} →`);
