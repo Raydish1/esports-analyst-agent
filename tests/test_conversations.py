@@ -52,6 +52,12 @@ class SetTest(unittest.TestCase):
     def test_the_set_has_no_problems(self):
         self.assertEqual(conversations.problems(conversations.load()), [])
 
+    def test_the_team_set_has_no_problems_and_no_id_of_the_main_sets(self):
+        teams = conversations.load(conversations.SET.with_name("teams.toml"))
+        self.assertEqual(conversations.problems(teams), [])
+        main = {c["id"] for c in conversations.load()["conversation"]}
+        self.assertEqual(main & {c["id"] for c in teams["conversation"]}, set())
+
     def test_a_turn_without_expect_or_with_an_unknown_check_is_a_problem_named_without_its_text(self):
         data = {"conversation": [{"id": "x1", "title": "t", "turn": [
             {"say": "a secret question", "expect": "", "rowz": [[1]]}, {"say": "s", "expect": "e", "check": "q09"}]}]}
