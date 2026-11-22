@@ -2,6 +2,68 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: run_sql when no template fits, and a backend for a Sonnet experiment, built offline
+
+**What it asked.** Two requests of the user's, after the final measurement, both offline first:
+- When no template fits, the agent queries the views with run_sql, instead of answering without a lookup or giving
+  up. Then a small targeted run, by id, on the 2v2 questions from the user's live session and the questions where the
+  no-tool check fired, with the team templates.
+- A Sonnet experiment for the report, built as a second model backend on the Anthropic API: seed 0 of the 45
+  questions in two arms, (A) everything as now and (B) run_sql and the views only, no templates. The tokens
+  estimated first.
+
+**Setup.** No model and no API call. Commits be0b938 to 041b38c. The 542 unit tests pass.
+
+**Results.**
+
+| Change | Checked on | Result |
+|---|---|---|
+| The prompt's rule: if no template fits, query the views with run_sql; every question about the results gets a lookup | unit tests | In "Choosing a tool". The no-tool check's two send-backs and the note after the loop's own lookups say the same, in one phrase (`LOOK_UP`), not only to look the names up |
+| `eval/questions/teams.toml`, c20-c24: the live session's 2v2 turns (20261122T043945Z-001 turns 2-7, -002 turns 1-2), 5 conversations and 9 turns | eval-v1, `teams-review.md` | Every row pattern holds on its reference queries. `v_head_to_head_2v2` agrees with `team_head_to_head` and `rank_pairs` on every count |
+| The templates switch, `react.Tools(templates=False)` | unit tests | Arm B offers resolve_player, resolve_event and run_sql. Its prompt names none of the 11 templates, its examples show their SQL, and its messages say run_sql. Arm A's prompt, tools, examples and messages are unchanged |
+| The Anthropic backend, `agent/anthropic_chat.py` | a fake client | In a three-step question, each request begins with the request before it, and each reply's thinking blocks go back unchanged. The loop's own lookups get ids from their place in the history. Each step keeps its usage by price |
+
+The new conversations' answers, on eval-v1:
+- c20: the teams Raydish and megD faced most, three tied at 5 sets: Marckiem00 and futurebubbles366 (5-0), bestjava
+  and fakey7 (2-3), luna and Snowy!! (2-3).
+- c21: against Pink | Zen and hideawaybh, 0-3 in sets (games 3-9), after "zen" goes to suggestions.
+- c22: after the Autumn Championship - North America 2026 - 2v2's top 8, against Moni- and animefan1266, 1-0 (3-2),
+  then "yes they did".
+- c23: "raydish megd vs marckiemoo futurebubble", two teams written without an "and": 5-0 (games 15-5).
+- c24: "yes they did" with nothing before it.
+
+The targeted run, qwen3:30b, seeds 0-2: `harness.py run --ids q09 q35 q36`, `conversations.py run --ids c1 c5 c8 c10
+c12 c15 c19`, `audit.py run --ids a44 a45 a49` and `conversations.py --set eval/questions/teams.toml run`. On the final
+run's times for the same items, about 31 minutes, plus about 10 for c20-c24.
+
+The Sonnet experiment's estimate: claude-sonnet-5-5, adaptive thinking at effort high, seed 0, the 45 questions per arm.
+Per question, the recorded step prompts give how the context grows, and the outputs give the replies: arm A from the
+final run (qwen3:30b), arm B from `20261110-templates-before` (qwen3:8b), the last run before the templates. Each step
+reads the request before it from the cache and writes the rest. The system prompt and tools (arm A about 8,600 tokens,
+arm B about 3,700) are written once and read at every step. At $0.10 a million for cache reads, $2.50 for cache
+writes and $10 for output:
+
+| Arm | Steps (recorded) | Cache reads | Cache writes | Output | Cost: low, middle, high |
+|---|---|---|---|---|---|
+| A, templates | 132 | 1.21M to 1.63M | 103k to 139k | 41k to 123k | $0.79, $1.26, $1.74 |
+| B, run_sql only | 127 | 0.53M to 0.72M | 78k to 106k | 30k to 91k | $0.55, $0.89, $1.24 |
+
+Low is Qwen's input tokens with half its output; middle, 1.15 times the input and the same output; high, 1.35 times
+the input (the tokenizer's range) and 1.5 times the output. So about $2 for both arms, and $3 at the high end. Output
+is most of it: if Sonnet thinks three times as much per step as qwen3:30b and takes half again as many steps, both
+arms come to about $8.
+
+Found in passing:
+- c24's give-up live: the reply asked for a question "from 2017 onward". The number check left out the prompt's own
+  2017, which is the open question of whether the prompt's facts count. With no fact left, the whole answer became "I
+  couldn't look this up in the data, so I won't guess." The new rule doesn't reach it.
+- Three answers of the final run read "confirmed bywith mode=..." or "confirmed by thewith top=1" (c8 seed 0 turn 4,
+  a49 seeds 0 and 2 turn 2). `claim_check.without_tool_talk` cuts a tool's name out with the spaces on both sides of
+  it, so the words around it fuse. It's a bug, not fixed yet.
+
+**What it decided.** Nothing run yet. The targeted run waits for the user's go-ahead on the Ollama server. The Sonnet
+experiment waits for the SDK's install (it isn't installed), the key in `.env`, and the go-ahead.
+
 ## 2026-11-22: team against team, an addition after the final measurement, checked offline
 
 **What it asked.** Can the agent answer two 2v2 teams against each other? In the user's live test, "raydish and megd

@@ -441,6 +441,19 @@ never met", though they met in the Autumn NA 2026 2v2. This is M2: no tool count
 
 It's offline and not measured with the model (in the log, 2026-11-22). A small targeted run waits for the user.
 
+## After the final measurement (2026-11-22): a lookup when no template fits, and arm B
+
+- M3, facts the model makes: the prompt's last "Choosing a tool" line says to query the views with run_sql when no
+  template fits, and that every question about the results gets a lookup. The no-tool check's send-backs and its
+  note after the loop's own lookups name that lookup (`LOOK_UP`), not only the names. Live, "raydish and megd vs moni
+  and animefan1266", which no template answered then, was answered from the previous turn's top 8: "they did not
+  face" each other.
+- Arm B of the Sonnet experiment: `react.Tools(templates=False)` gives the model run_sql and the views only. The
+  prompt (`without_templates`), the examples (their SQL) and the loop's messages (`SQL_WORDS`) follow the same flag.
+- A second backend, `agent/anthropic_chat.py`, on the Anthropic Messages API, called as the Ollama chat is.
+
+It's offline (in the log, 2026-11-22). The runs wait for the user.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -473,7 +486,9 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 ## Waiting on the user
 
 - Nothing for the agent. The final measurement ran on 2026-11-21 (in the log), and after it the agent changes only
-  for bugs.
+  for bugs and the user's additions.
+- The runs of 2026-11-22's additions (in the log): the targeted run on the Ollama server, and the Sonnet experiment,
+  which needs the SDK and the key first. Verifying c20 to c24 (`eval/questions/teams-review.md`).
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
