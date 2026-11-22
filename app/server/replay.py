@@ -56,6 +56,17 @@ def allowed(record, date):
     return bool(date) and date < HELDOUT_BEGAN
 
 
+def default_agent(folder):
+    """Whether a run recorded the agent replay mode plays: the Ollama backend with the templates. The Sonnet experiment's
+    runs (2026-11-22, backend "anthropic", one arm with templates "off") recorded another agent, and were newer than
+    the demo's own recordings, so the demo replayed run_sql answers without cards."""
+    try:
+        header = json.loads((folder / "header.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True
+    return header.get("backend") in (None, "ollama") and header.get("templates") in (None, "on")
+
+
 def recordings(root, runs=None):
     """Every recording under data/experiments (root), or only those of the named runs (directory names, or "sessions")."""
     root = Path(root)
@@ -73,7 +84,7 @@ def recordings(root, runs=None):
                                            sorted(records, key=lambda r: r.get("turn", 0))))
             continue
         path = folder / "traces.jsonl"
-        if not path.exists():
+        if not path.exists() or not default_agent(folder):
             continue
         date = date_of(name)
         for record in read(path):

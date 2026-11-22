@@ -54,6 +54,14 @@ class RecordingsTest(unittest.TestCase):
         write(self.root / "20261021T011930Z" / "traces.jsonl", trace("b"))
         self.assertEqual(self.questions(runs={"20261021T011930Z"}), ["b"])
 
+    def test_another_backend_or_no_templates_isnt_replayed(self):
+        for run, header in (("20261122-sonnet-templates", {"backend": "anthropic", "templates": "on"}),
+                            ("20261122-qwen-sqlonly", {"model": "qwen3:30b", "templates": "off"}),
+                            ("20261121-final-questions", {"model": "qwen3:30b"})):
+            write(self.root / run / "traces.jsonl", trace(run, set="existing"))
+            (self.root / run / "header.json").write_text(json.dumps(header), encoding="utf-8")
+        self.assertEqual(self.questions(), ["20261121-final-questions"])
+
 
 class IndexTest(unittest.TestCase):
     def setUp(self):
