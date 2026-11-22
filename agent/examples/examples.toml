@@ -527,7 +527,7 @@ LIMIT 1
 id = "ex36"
 shape = "most_played_teams"
 question = "Which two 2v2 teams have played each other the most?"
-note = "A 2v2 team is one side of a match: group v_match_results by match_id and side, keep the sides of two players, and name each team by its two player_ids in order. Pair each match's two sides once, the lower team first, and count the sets between each pair of teams. rank_pairs ranks 2v2 opponents for one player only, and v_head_to_head_2v2 over every player takes more than 30 s."
+note = "A 2v2 team is one side of a match: group v_match_results by match_id and side, keep the sides of two players (HAVING COUNT(*) = 2), and name each team by its two player_ids in order. Join each match's two sides on side <> side and keep the lower team first ((x.a, x.b) < (y.a, y.b)), then count the sets between each pair of teams; never pair them by side (side < side), which splits a pairing or drops its meetings. Join players for the four names, and answer with the names the query returns: a player_id isn't a name. rank_pairs ranks 2v2 opponents for one player only, and v_head_to_head_2v2 over every player takes more than 30 s."
 sql = '''
 WITH sides AS (
   SELECT match_id, side, MIN(player_id) AS a, MAX(player_id) AS b, MAX(won) AS won
