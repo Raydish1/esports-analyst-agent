@@ -389,6 +389,12 @@ class MentionsTest(Fixture):
         self.assertEqual(mentions.words("so why did you say cody travis and phazon have won 24 2v2 tournaments"),
                          (["cody", "travis", "phazon"], []))  # live: looked up as "say cody travis 24"
 
+    def test_request_words_name_nothing(self):
+        self.assertEqual(mentions.words("analyze all of renivic's 2v2 placements"), (["renivic"], []))  # c15 turn 2
+        self.assertEqual(mentions.words("break down volst's results"), (["volst"], []))
+        self.assertEqual(mentions.words("compare boomie and sandstorm"), (["boomie", "sandstorm"], []))
+        self.assertEqual(mentions.words("can you check raydish's 2024 results"), (["raydish"], ["2024"]))
+
     def test_the_players_a_question_names_are_found_in_spans_of_up_to_three_words(self):
         db = sqlite3.connect(self.path)
         events = tools.EventResolver(db, curated=None)
