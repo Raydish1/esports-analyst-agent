@@ -27,6 +27,9 @@
       return e?.file ? { url: `art/legends/${e.file}`, name: e.name, offset_x: e.offset_x, offset_y: e.offset_y, scale: e.scale } : null;
     };
     await document.fonts.ready;
+    const fetchJson = window.fetch.bind(window);  // &bg=NAME draws the card on that background (art/backgrounds)
+    window.fetch = async (...a) => { const r = await fetchJson(...a); if (!q.get("bg") || !String(a[0]).startsWith("/api/preview")) return r;
+      const card = await r.json(); card.background = q.get("bg"); return new Response(JSON.stringify(card)); };
     if (q.get("team") || q.get("teams")) {  // &team=ID,ID for a partnership; &teams=ID,ID,ID,ID for two teams
       const ids = (q.get("team") || q.get("teams")).split(",").map(encodeURIComponent).join("/");
       const part = q.get("sets") && q.get("teams") ? "?part=1" : "";  // &sets=1: the two teams' set list

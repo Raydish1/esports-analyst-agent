@@ -335,3 +335,8 @@
 .bc-lifetime .bc-badge-worlds { background: linear-gradient(160deg, #2a1a12, #0c0705); color: #e9c96b; }
 .bc-lifetime .bc-badge-midseason { background: linear-gradient(160deg, #8c5bc8, #4b2a7e); }
 .bc-lifetime .bc-badge-crew { background: linear-gradient(160deg, #3b3f46, #15171a); }
+
+/* On a painted background (broadcast.js, backdrop), the coloured figures that sit on it get a dark halo to read. */
+.bc-has-bg :is(.bc-money, .bc-num, .bc-wsets-record, .bc-wsets-side, .bc-recent-title, .bc-wsets-heading, .bc-wsets-note) {
+  text-shadow: 0 0 10px rgba(22, 12, 8, 0.9), 0 0 3px rgba(22, 12, 8, 0.9);
+}

@@ -1,4 +1,4 @@
-import { headToHeadFrame, lifetimeFrame, recordIn, scaled, setsFrame, teamsFrame } from "./broadcast.js";
+import { BACKGROUNDS, headToHeadFrame, lifetimeFrame, recordIn, scaled, setsFrame, teamsFrame } from "./broadcast.js";
 
 // Stat cards (app/server/figures.py), drawn as broadcast frames (broadcast.js): lifetime figures, a head-to-head or
 // comparison, and set lists. Every number comes from the figures event; a missing one reads "not recorded", never 0.
@@ -163,7 +163,8 @@ function sets(card) {
 export function renderCards(cards) {
   const make = { lifetime, head_to_head: versus, comparison: versus, team: teams, teams, sets };
   const out = document.createDocumentFragment();
-  for (const card of cards) {
+  for (const card of cards) {  // each card a background at random, kept through its mode switch
+    card.background ??= BACKGROUNDS[Math.floor(Math.random() * BACKGROUNDS.length)];
     if (make[card.kind]) out.append(make[card.kind](card));
   }
   return out;

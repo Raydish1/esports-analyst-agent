@@ -59,6 +59,17 @@ function squeezeWords(frame) {
   return frame;
 }
 
+// A card's background: one of the stage paintings in art/backgrounds, which cards.js picks at random once per card
+// (card.background), under a dark wash so the white text reads; a card without one keeps the gradient.
+export const BACKGROUNDS = ["savanna", "islands", "temple", "forest", "arena"];
+
+function backdrop(frame, card) {
+  if (!card?.background || !BACKGROUNDS.includes(card.background)) return;
+  frame.classList.add("bc-has-bg");
+  frame.style.background = "linear-gradient(180deg, rgba(22, 12, 8, 0.38) 0%, rgba(22, 12, 8, 0.45) 55%,"
+    + ` rgba(22, 12, 8, 0.7) 100%), url("art/backgrounds/${card.background}.webp") center / cover no-repeat`;
+}
+
 function text(className, value) {
   return el("p", `bc-t ${className}`, value);
 }
@@ -115,6 +126,7 @@ export function lifetimeFrame(card, mode = "1v1 and 2v2") {
   const p = card.player;
   const m = p.modes[mode] || {};
   const frame = el("div", "bc-frame bc-lifetime");
+  backdrop(frame, card);
   frame.setAttribute("role", "img");
   frame.setAttribute("aria-label", `Lifetime stats for ${p.name}`);
   frame.append(shapes([
@@ -252,6 +264,7 @@ export function headToHeadFrame(card, mode = "1v1 and 2v2") {
   const ma = a.modes[mode] || {};
   const mb = b.modes[mode] || {};
   const frame = el("div", "bc-frame bc-h2h");
+  backdrop(frame, card);
   frame.setAttribute("role", "img");
   frame.setAttribute("aria-label", `${a.name} against ${b.name}`);
   frame.append(shapes([["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"]]));
@@ -412,6 +425,7 @@ export function setsFrame(card) {
   const sets = [...(card.sets || [])].reverse();  // newest first
   const shown = sets.slice(0, TILES.most);
   const frame = el("div", "bc-frame bc-wsets");
+  backdrop(frame, card);
   frame.setAttribute("role", "img");
   frame.setAttribute("aria-label", card.title);
   frame.append(shapes([["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"]]));
@@ -535,6 +549,7 @@ export function teamsFrame(card, mode = "2v2") {
   const team = card.kind === "team";
   const players = team ? card.players : card.teams.flat();
   const frame = el("div", "bc-frame bc-teams");
+  backdrop(frame, card);
   frame.setAttribute("role", "img");
   frame.setAttribute("aria-label", team ? `${players[0].name} and ${players[1].name} as a team`
     : `${card.names[0]} against ${card.names[1]}`);

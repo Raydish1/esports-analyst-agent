@@ -29,3 +29,5 @@ images (2026-11-18).
   `app/static/fonts/` anyway (2026-11-19), after being told so.
 - The character art (the legends' idle poses and heads in `app/static/art/legends/`, from the Brawlhalla wiki, and the
   hero's official artwork in `app/static/art/hero/`) is cleared for redistribution (2026-11-19), so it's committed.
+- The cards' backgrounds (`app/static/art/backgrounds/`, five Brawlhalla stage paintings) were supplied by the user for
+  the cards (2026-11-22), and are committed with the other art; a card picks one at random.
