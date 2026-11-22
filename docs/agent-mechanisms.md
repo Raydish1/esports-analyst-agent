@@ -492,6 +492,24 @@ The user then approved the two proposals that followed (in the log):
 - M2, the tools: ex36's note says to join players for the names, and to pair the sides on `side <> side` with the
   lower team first, never by side.
 
+## Checkpoint 5's three-agent pipeline (2026-11-22): an experiment arm, measured
+
+The user asked for Checkpoint 5's design built and measured beside the frozen agent (in the log, "Checkpoint 5's
+measurement"). `agent/pipeline.py` runs an analyst (the loop, stopped before its answer), a reporter that writes from
+the evidence packet alone, and a verifier (the loop's answer checks, then one model call) in one LangGraph graph, with
+`harness.py run --pipeline three-agent`. The diagram is in `docs/figures/`.
+
+On the 45 questions, seed 0, with the same evidence as a single-agent control: 36 right against 37, 4 wrong against 2,
+at 3.2 times the model time. It took the model's unsupported claims out of the final answers, but abstained where a
+check's failure persisted (q05, q42), which the loop would have sent back once and kept. By Checkpoint 5's rule it
+isn't kept: the single agent stays the default.
+
+What it showed about the mechanisms:
+- M3, facts the model makes: a verifier with its own context catches wrong details the writer misses (q15, q16), but
+  not omissions or a wrong query that ran without error.
+- M5, answer writing: a writer that sees only the packet talks about it ("the evidence packet") and answers tersely.
+- A check's false alarm costs more where the check blocks: the loop's send-back-once is the safer design.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -527,6 +545,9 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
   for bugs that break a live answer, and what the user asks for.
 - A rerun of the live comparison's two phrasings with qwen3:30b, seeds 0-2 (about 5 minutes). It would measure the
   answer check's plain names and ex36's note, both built and replayed offline on 2026-11-22.
+- Checkpoint 5's measurement (2026-11-22): reviewing the drafted verdicts of `20261122-checkpoint5-pipeline` and
+  `-single`, and two findings, the names correction's swap inside "formerly Godly" (a bug the single agent shares) and
+  the answer check reading "SteelSeries" as a player's name.
 - Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions and the
   Sonnet experiment are in the log. Their drafted verdicts wait for review, and q12's names-correction bug for a
   decision.

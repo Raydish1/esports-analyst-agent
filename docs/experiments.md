@@ -2,6 +2,132 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: Checkpoint 5's measurement, the three-agent pipeline against the single agent
+
+**What it asked.** For completeness, the user asked for Checkpoint 5's multi-agent design (2026-11-09), built as an
+experiment arm beside the frozen agent, which must not change, and measured:
+1. built in LangGraph as Checkpoint 5 planned, with a harness switch and a diagram of the graph for the slides;
+2. offline first: the verifier alone on the final run's recorded answers, against their verdicts;
+3. the pipeline on the 45 questions, seed 0, against the final run's seed 0, scored the same way, with model time per
+   question.
+
+The held-out set is spent (2026-11-17), so this test used the evaluation set, which the agent was tuned on. Checkpoint
+5 had planned the 16 held-out questions, three seeds each.
+
+**Setup.** Six commits, d77c75d to 02738b4, each with tests (571 unit tests pass, and the pipeline's 17 also on
+py -3.14, which has LangGraph 1.2.24):
+- d77c75d, the analyst: `react.Conversation(evidence_only=True)` runs the loop through the checks that gather evidence
+  (result size, lookup, event, no-tool and the loop's own lookups) and stops where the checks that judge the answer
+  begin. Off by default, so the single agent doesn't change.
+- d9013cc, the packet and the verifier (`agent/pipeline.py`). The packet is every call that returned data, with its
+  result. The verifier runs the loop's answer checks (pairing, names and IDs, claims, numbers) in a model-free view of
+  the packet, then one model call that sees only the question, the packet and the draft. That call lists unsupported
+  claims and says whether the packet can answer the question, as JSON (Ollama's structured outputs).
+- 93ad177, the reporter and the graph. The reporter is one model call that sees only the question and the packet,
+  with a 5,917-character prompt: its role and how to read the packet, then the agent prompt's reading of the question,
+  counting rules and answering, without what's about tools. One StateGraph runs analyst, reporter and verifier. A
+  packet that can't answer goes back to the analyst once, a draft with failures to the reporter at most twice, then
+  the pipeline abstains.
+- 1ecc501 and abe0e8e: `harness.py run --pipeline three-agent`, and `harness.py verify RUN` for step 2.
+- 02738b4: the diagram, `docs/figures/three-agent-pipeline` (.mmd from LangGraph, .svg and .png rendered locally).
+
+Two differences from Checkpoint 5: qwen3:30b in every role (the default model since 2026-11-21, not qwen3:8b), and no
+graphic template for the reporter (the web app's cards draw the graphics).
+
+The runs were made at 02738b4 with qwen3:30b and retrieval on, at the user's go-ahead: the replay (33.8 minutes), the
+pipeline (34.5), and a control the user agreed to, the single agent at the same commit on seed 0 (11.5). The final
+run (0b7ee3d) predates the fixes made after it, so the control separates them from the pipeline's effect.
+
+**Results.**
+
+**Step 2: the verifier alone on the final run's answers** (`harness.py verify 20261121-final-questions`, 33.8
+minutes). It ran on the 132 recorded answers. The 3 suggestions (q22) aren't verified, since the pipeline ends before
+its verifier there. The verdicts are the user's confirmed ones: 130 by hand and 5 automatic.
+
+| Verdict | Answers | Flagged by code | Flagged by the model | Packet "can't answer" |
+|---|---|---|---|---|
+| right | 110 | 0 | 9 (8%) | 13 (12%) |
+| partly | 14 | 0 | 8 (57%) | 2 (14%) |
+| wrong | 8 | 0 | 3 (38%) | 4 (50%) |
+| not right | 22 | 0 | 11 (50%) | 6 (27%) |
+
+- **The code checks flag nothing.** These are the loop's own checks, and they already ran on these final answers.
+  Each sent back once, then left out what it still found.
+- **11 catches.** 9 flag the error the verdict names:
+  - q06's "3 medals (all 2nd places)", its "2nd or better in 9 events" and its partners' top 8s;
+  - q23's "two 3-0 wins" and its 3-1 at the wrong event;
+  - q27's "Won 2-3";
+  - q21's 1v1 event among the 2v2 wins;
+  - q16 seed 2's "SiB and Wess";
+  - q34 seed 2's earliest event.
+
+  2 flag another claim of a wrong answer (q16 seed 1, q42 seed 0).
+- **11 misses**, mostly what Checkpoint 5 said a verifier can't see:
+  - omissions: q05's scope, q12's 2v2 top 8, and q34's start year, which the number check had left out;
+  - wrong queries that ran without error: q20 (3 seeds), q42 seed 1, and q32 seed 2's name lookup;
+  - one unsupported claim: q32 seed 0's "career earnings aren't recorded", with no lookup.
+- **9 flags on right answers.**
+  - 4 point at real slips the verdicts let pass: q26 seed 0's "first result in 2024-08-04" (its first 2v2 medal is
+    2024-05-05), q17 seed 1's note on a name "yü", q11 seed 1's dominance rule in the wrong order, and q36 seed 2's
+    "Community" claim, which its verdict note also calls wrong.
+  - 2 flag the agent prompt's own facts, which the verifier doesn't see: q33's "figures only for PR players".
+  - 2 flag the answer's stated assumption (q30 seed 0, q15 seed 1).
+  - 1 flags a former name with a team tag (q26 seed 2).
+- **"Can't answer" on 13 right answers**, all on the partial and unanswerable questions: q09, q32, q33, q35, q36 and
+  q45. There the data lacks what's asked (earnings per event, legends, community events), and saying so is the right
+  answer. In the pipeline, each costs one return to the analyst.
+- 1 reply of 132 didn't parse: q37 seed 0's thinking ran to the 8,192-token cap. A call took 15.4 s on average (13.5
+  median, 63.1 at most), with 2,243 output tokens at 146 a second.
+
+**Step 3: the pipeline on the 45 questions, seed 0** (`20261122-checkpoint5-pipeline`, against the control
+`20261122-checkpoint5-single`):
+
+| Run | Right | Partly | Wrong | Model time per question |
+|---|---|---|---|---|
+| Final run, seed 0 (0b7ee3d), verdicts confirmed | 37 | 6 | 2 | 20.0 s |
+| Control: the single agent at 02738b4 | 37 | 6 | 2 | 13.5 s |
+| Pipeline at 02738b4 | 36 | 5 | 4 | 43.2 s |
+
+The control's and the pipeline's verdicts are drafted by hand ("needs review"); 2 of each are automatic (q20 and q44).
+The server ran at about 146 output tokens a second, against 90 in the final run, so the control is the fair
+comparison of time: the pipeline took 3.2 times its model time, 16.6 s for the analyst, 7.6 s for the reporter and
+19.0 s for the verifier per question.
+
+- **The same evidence.** With the same seed, the analyst made the control's calls: 32 resolve_player, 13
+  event_results and so on. Only the 5 returns added one run_sql (7 against 6). So this compares the answer alone: the
+  single agent's own, checked in its loop, against the reporter's, checked by the verifier.
+- **The paths.** Of 44 first drafts, 31 passed, 8 were revised once, 2 twice, and 5 went back to the analyst; 2
+  abstained. q22 ended at the analyst with its suggestions. All 61 verifier replies parsed.
+- **Caught in drafts and fixed by a revision:** q15's "did not win the 2v2" and q16's "SiB and Wess", the final run's
+  error in q16 seeds 1 and 2, both by the model call; tool names in q21, q25 and q26, by the claim check.
+- **Better than the control in 2:** q23, whose control lists the sets without DreamHack Valencia and says "three
+  events", and q45, whose control doesn't say Impala's figure isn't recorded.
+- **Worse in 3:**
+  - q05 abstained. The reporter wrote "yüZ" for yüz in all three drafts, and the verifier's model call flagged each.
+  - q42 abstained. The drafts named the North America SteelSeries Championship, 7,240 entries, which is right, but the
+    answer check read "SteelSeries" as a player's name each time. In the loop, a check sends back once, then keeps
+    the answer. In the pipeline, a failure that persists ends in abstaining.
+  - q35 says "Zivai, formerly Zivai". The names correction, which the reporter's finishing shares with the loop,
+    swapped the question's "Godly" inside "formerly Godly". The loop guards the exact display ("Zivai (formerly
+    Godly)"), not this phrasing, so the single agent has the same bug.
+- **Partly in both:** q06, q09, q12 and q34. The pipeline's q34 lost "the data starts in 2017": the verifier flagged
+  that fact of the agent prompt, which it doesn't see, and the revision left it out.
+- **Unsupported claims in the final answers**, the failure Checkpoint 5 targets: the control states 3 (q09's "no
+  career figure" for gdsandstorm, q23's "three events", q34's "the first World Championship was held in 2017"). The
+  pipeline's state none from the model, and 1 from code (q35).
+- **The writing.** The pipeline's answers are shorter: 26 words at the median against the control's 41, and 6 are a
+  bare name or phrase (q01, q12, q13, q20, q29, q40), against 1. 9 speak of what the user never saw ("the evidence
+  packet", "the event history table", "the ranked players data"), which the claim check's tool talk doesn't read.
+- **A gap in the reporter's prompt**, found in the replay: it lacks the agent prompt's earnings lines (figures only for
+  PR players, a ranking covers only players with a figure). The run was past q05 by then, so it ran as built.
+
+**What it decided.** By Checkpoint 5's own rule, to keep the three-agent design only if it reduces unsupported claims
+enough to justify the added latency: not kept. On the same evidence it took the model's unsupported claims out of the
+final answers (3 to none), but answered one question fewer right, abstained on two the single agent answered right,
+and took 3.2 times the model time. The frozen single agent stays the default, and the pipeline stays an arm
+(`--pipeline three-agent`). Two findings wait for the user: the names correction's swap inside "formerly Godly", a bug
+the single agent shares, and the answer check reading "SteelSeries" as a player's name.
+
 ## 2026-11-22: the live comparison's two proposals, replayed on the recorded runs
 
 **What it asked.** The previous entry's two proposals, which the user approved ("do as you recommend"):

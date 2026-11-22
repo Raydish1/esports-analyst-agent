@@ -1,0 +1,1348 @@
+[
+ {
+  "id": "q01",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 15.39,
+  "output_tokens": 868
+ },
+ {
+  "id": "q02",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 14.26,
+  "output_tokens": 1977
+ },
+ {
+  "id": "q03",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 16.41,
+  "output_tokens": 2279
+ },
+ {
+  "id": "q04",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 11.33,
+  "output_tokens": 1544
+ },
+ {
+  "id": "q05",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.59,
+  "output_tokens": 1375
+ },
+ {
+  "id": "q06",
+  "seed": 0,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "achieving 3 medals (all 2nd places)",
+    "why": "packet shows medals=3 without type breakdown, and best=2 does not imply all medals were 2nd"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 22.19,
+  "output_tokens": 2994
+ },
+ {
+  "id": "q07",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 15.21,
+  "output_tokens": 1941
+ },
+ {
+  "id": "q08",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.97,
+  "output_tokens": 1903
+ },
+ {
+  "id": "q09",
+  "seed": 0,
+  "failures": [],
+  "missing": "a per-tournament earnings breakdown for sandstorm",
+  "parsed": true,
+  "seconds": 26.56,
+  "output_tokens": 3572
+ },
+ {
+  "id": "q10",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.2,
+  "output_tokens": 699
+ },
+ {
+  "id": "q11",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 22.02,
+  "output_tokens": 3011
+ },
+ {
+  "id": "q12",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 26.73,
+  "output_tokens": 3540
+ },
+ {
+  "id": "q13",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 12.38,
+  "output_tokens": 1737
+ },
+ {
+  "id": "q14",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.49,
+  "output_tokens": 1803
+ },
+ {
+  "id": "q15",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 27.68,
+  "output_tokens": 3665
+ },
+ {
+  "id": "q16",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.32,
+  "output_tokens": 1859
+ },
+ {
+  "id": "q17",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 12.56,
+  "output_tokens": 1705
+ },
+ {
+  "id": "q18",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 11.25,
+  "output_tokens": 1574
+ },
+ {
+  "id": "q19",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 8.1,
+  "output_tokens": 1129
+ },
+ {
+  "id": "q20",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 7.63,
+  "output_tokens": 1082
+ },
+ {
+  "id": "q21",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 16.34,
+  "output_tokens": 2193
+ },
+ {
+  "id": "q23",
+  "seed": 0,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "six official matches",
+    "why": "The packet states '6 sets' (not matches) in the head-to-head note."
+   },
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "three matches",
+    "why": "The packet states Zivai won 3 sets (not matches)."
+   },
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "two 3-0 wins",
+    "why": "The packet shows only one 3-0 win for Impala (the first set) and the other two wins by Impala were 3-1 and 3-2."
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 57.19,
+  "output_tokens": 7330
+ },
+ {
+  "id": "q24",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 11.35,
+  "output_tokens": 1549
+ },
+ {
+  "id": "q25",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 7.25,
+  "output_tokens": 1002
+ },
+ {
+  "id": "q26",
+  "seed": 0,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "since their first result in 2024-08-04",
+    "why": "the packet shows the first top 3 was on 2024-05-05"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 31.15,
+  "output_tokens": 4015
+ },
+ {
+  "id": "q27",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.67,
+  "output_tokens": 1313
+ },
+ {
+  "id": "q28",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.79,
+  "output_tokens": 1391
+ },
+ {
+  "id": "q29",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 11.06,
+  "output_tokens": 1596
+ },
+ {
+  "id": "q30",
+  "seed": 0,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "as it is the standard mode for individual victory questions",
+    "why": "The packet does not mention any standard mode for individual victory questions."
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 32.9,
+  "output_tokens": 4300
+ },
+ {
+  "id": "q31",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 15.08,
+  "output_tokens": 2057
+ },
+ {
+  "id": "q32",
+  "seed": 0,
+  "failures": [],
+  "missing": "prize money for player_id 71736 in event_id 'tournament/max-mode-2025/event/brawlhalla-1v1' or 'tournament/max-mode-2025/event/brawlhalla-2v2-1'",
+  "parsed": true,
+  "seconds": 31.06,
+  "output_tokens": 4149
+ },
+ {
+  "id": "q33",
+  "seed": 0,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "The Stats API only includes earnings figures for players with an official Power Rankings (PR) ranking",
+    "why": "The evidence packet does not contain any information about the PR ranking requirement; it only shows that the query for Boomie's earnings returned no rows."
+   }
+  ],
+  "missing": "the result of the query 'SELECT earnings_usd FROM v_career_earnings WHERE player_id = 146606'",
+  "parsed": true,
+  "seconds": 23.38,
+  "output_tokens": 3206
+ },
+ {
+  "id": "q34",
+  "seed": 0,
+  "failures": [],
+  "missing": "A lookup for the event name 'Brawlhalla World Championship 2016' would be required.",
+  "parsed": true,
+  "seconds": 19.14,
+  "output_tokens": 2687
+ },
+ {
+  "id": "q35",
+  "seed": 0,
+  "failures": [],
+  "missing": "the main legend for the player, which is not recorded in the official Brawlhalla esports results database.",
+  "parsed": true,
+  "seconds": 18.02,
+  "output_tokens": 2513
+ },
+ {
+  "id": "q36",
+  "seed": 0,
+  "failures": [],
+  "missing": "community tournament results for raydish",
+  "parsed": true,
+  "seconds": 16.89,
+  "output_tokens": 2399
+ },
+ {
+  "id": "q37",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": false,
+  "seconds": 63.11,
+  "output_tokens": 8192
+ },
+ {
+  "id": "q38",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.88,
+  "output_tokens": 798
+ },
+ {
+  "id": "q39",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 16.71,
+  "output_tokens": 1699
+ },
+ {
+  "id": "q40",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 14.74,
+  "output_tokens": 2022
+ },
+ {
+  "id": "q41",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.83,
+  "output_tokens": 2210
+ },
+ {
+  "id": "q42",
+  "seed": 0,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "Official major tournaments are named in the data (e.g., \"Worlds,\" \"BCX\")",
+    "why": "The packet contains no data, so there are no event names to reference."
+   }
+  ],
+  "missing": "The packet lacks tournament data including prize pools and participant counts.",
+  "parsed": true,
+  "seconds": 12.27,
+  "output_tokens": 2052
+ },
+ {
+  "id": "q43",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 14.2,
+  "output_tokens": 2294
+ },
+ {
+  "id": "q44",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 8.09,
+  "output_tokens": 1315
+ },
+ {
+  "id": "q45",
+  "seed": 0,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 16.4,
+  "output_tokens": 2696
+ },
+ {
+  "id": "q01",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 3.88,
+  "output_tokens": 625
+ },
+ {
+  "id": "q02",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 10.38,
+  "output_tokens": 1676
+ },
+ {
+  "id": "q03",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 7.58,
+  "output_tokens": 1228
+ },
+ {
+  "id": "q04",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 10.3,
+  "output_tokens": 1651
+ },
+ {
+  "id": "q05",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 3.75,
+  "output_tokens": 599
+ },
+ {
+  "id": "q06",
+  "seed": 1,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "placing 2nd or better in 9 events",
+    "why": "the packet says top8s: 9 (meaning top 8 placements), not top 2"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 21.86,
+  "output_tokens": 3493
+ },
+ {
+  "id": "q07",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 4.84,
+  "output_tokens": 692
+ },
+ {
+  "id": "q08",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 10.63,
+  "output_tokens": 1726
+ },
+ {
+  "id": "q09",
+  "seed": 1,
+  "failures": [],
+  "missing": "per-tournament earnings data",
+  "parsed": true,
+  "seconds": 6.49,
+  "output_tokens": 1057
+ },
+ {
+  "id": "q10",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 3.26,
+  "output_tokens": 503
+ },
+ {
+  "id": "q11",
+  "seed": 1,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "fewest sets dropped, then fewest games lost, then most games won",
+    "why": "the packet says 'fewest games lost, then fewest sets dropped, then most games won'"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 18.0,
+  "output_tokens": 2924
+ },
+ {
+  "id": "q12",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.28,
+  "output_tokens": 821
+ },
+ {
+  "id": "q13",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.78,
+  "output_tokens": 941
+ },
+ {
+  "id": "q14",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 11.71,
+  "output_tokens": 1872
+ },
+ {
+  "id": "q15",
+  "seed": 1,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "The question refers to the 1v1 event as the primary competition",
+    "why": "The packet lists both events but does not state that the question refers to the 1v1 event."
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 29.74,
+  "output_tokens": 4647
+ },
+ {
+  "id": "q16",
+  "seed": 1,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "with no reported issues affecting the results",
+    "why": "The packet does not mention any issues, so it does not support the claim that there were no reported issues."
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 21.33,
+  "output_tokens": 3452
+ },
+ {
+  "id": "q17",
+  "seed": 1,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "The name 'yü' in the event results",
+    "why": "the packet's event_results table shows the player as 'yüz', not 'yü'"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 22.28,
+  "output_tokens": 3519
+ },
+ {
+  "id": "q18",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.12,
+  "output_tokens": 814
+ },
+ {
+  "id": "q19",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 17.65,
+  "output_tokens": 2872
+ },
+ {
+  "id": "q20",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 3.7,
+  "output_tokens": 599
+ },
+ {
+  "id": "q21",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 7.27,
+  "output_tokens": 1172
+ },
+ {
+  "id": "q23",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 17.86,
+  "output_tokens": 2861
+ },
+ {
+  "id": "q24",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.36,
+  "output_tokens": 1515
+ },
+ {
+  "id": "q25",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.71,
+  "output_tokens": 2218
+ },
+ {
+  "id": "q26",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 6.34,
+  "output_tokens": 949
+ },
+ {
+  "id": "q27",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 6.22,
+  "output_tokens": 999
+ },
+ {
+  "id": "q28",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 3.21,
+  "output_tokens": 503
+ },
+ {
+  "id": "q29",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 4.55,
+  "output_tokens": 751
+ },
+ {
+  "id": "q30",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 20.29,
+  "output_tokens": 3214
+ },
+ {
+  "id": "q31",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.83,
+  "output_tokens": 935
+ },
+ {
+  "id": "q32",
+  "seed": 1,
+  "failures": [],
+  "missing": "a per-event prize money breakdown for V3M_T4NQUIL0 at MAX MODE 2025",
+  "parsed": true,
+  "seconds": 21.0,
+  "output_tokens": 3405
+ },
+ {
+  "id": "q33",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 3.39,
+  "output_tokens": 548
+ },
+ {
+  "id": "q34",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 4.06,
+  "output_tokens": 683
+ },
+ {
+  "id": "q35",
+  "seed": 1,
+  "failures": [],
+  "missing": "A lookup for the player's main legend.",
+  "parsed": true,
+  "seconds": 13.07,
+  "output_tokens": 2187
+ },
+ {
+  "id": "q36",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.0,
+  "output_tokens": 830
+ },
+ {
+  "id": "q37",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.78,
+  "output_tokens": 1630
+ },
+ {
+  "id": "q38",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 16.85,
+  "output_tokens": 2765
+ },
+ {
+  "id": "q39",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 8.72,
+  "output_tokens": 967
+ },
+ {
+  "id": "q40",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.03,
+  "output_tokens": 1467
+ },
+ {
+  "id": "q41",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 18.59,
+  "output_tokens": 3031
+ },
+ {
+  "id": "q42",
+  "seed": 1,
+  "failures": [],
+  "missing": "A tool that provides tournament size metrics such as participant count or prize pool.",
+  "parsed": true,
+  "seconds": 11.54,
+  "output_tokens": 1923
+ },
+ {
+  "id": "q43",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 30.85,
+  "output_tokens": 4915
+ },
+ {
+  "id": "q44",
+  "seed": 1,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 19.83,
+  "output_tokens": 3209
+ },
+ {
+  "id": "q45",
+  "seed": 1,
+  "failures": [],
+  "missing": "Impala's career earnings figure",
+  "parsed": true,
+  "seconds": 15.34,
+  "output_tokens": 2520
+ },
+ {
+  "id": "q01",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 6.83,
+  "output_tokens": 1125
+ },
+ {
+  "id": "q02",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 14.83,
+  "output_tokens": 2398
+ },
+ {
+  "id": "q03",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 11.71,
+  "output_tokens": 1906
+ },
+ {
+  "id": "q04",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 15.65,
+  "output_tokens": 2466
+ },
+ {
+  "id": "q05",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 4.88,
+  "output_tokens": 779
+ },
+ {
+  "id": "q06",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "bestjava (2 events, 1 top 8)",
+    "why": "the packet shows bestjava has 2 top 8s"
+   },
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "none of her other partners earned medals or top 8 placements",
+    "why": "the packet shows Moni-, Walshy, and Snowy!! each earned 1 top 8 placement"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 31.15,
+  "output_tokens": 4913
+ },
+ {
+  "id": "q07",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.05,
+  "output_tokens": 1387
+ },
+ {
+  "id": "q08",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 12.97,
+  "output_tokens": 2056
+ },
+ {
+  "id": "q09",
+  "seed": 2,
+  "failures": [],
+  "missing": "A view that lists earnings per tournament, such as `v_tournament_earnings`.",
+  "parsed": true,
+  "seconds": 14.26,
+  "output_tokens": 2332
+ },
+ {
+  "id": "q10",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.75,
+  "output_tokens": 929
+ },
+ {
+  "id": "q11",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 5.24,
+  "output_tokens": 857
+ },
+ {
+  "id": "q12",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 15.32,
+  "output_tokens": 2260
+ },
+ {
+  "id": "q13",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 6.61,
+  "output_tokens": 1073
+ },
+ {
+  "id": "q14",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.37,
+  "output_tokens": 1502
+ },
+ {
+  "id": "q15",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 14.76,
+  "output_tokens": 2359
+ },
+ {
+  "id": "q16",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "the team consisting of SiB and Wess",
+    "why": "the packet says the players string is \"SiB | Wess / V3M_T4NQUIL0\""
+   }
+  ],
+  "missing": "player_names for player_ids 37977 and 71736",
+  "parsed": true,
+  "seconds": 39.71,
+  "output_tokens": 6266
+ },
+ {
+  "id": "q17",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 14.02,
+  "output_tokens": 2223
+ },
+ {
+  "id": "q18",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 9.55,
+  "output_tokens": 1535
+ },
+ {
+  "id": "q19",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 8.15,
+  "output_tokens": 1336
+ },
+ {
+  "id": "q20",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 6.18,
+  "output_tokens": 1027
+ },
+ {
+  "id": "q21",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "Autumn Championship (2026) in 2v2",
+    "why": "The packet lists it as 1v1."
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 32.97,
+  "output_tokens": 5190
+ },
+ {
+  "id": "q23",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "3-1 at DreamHack San Diego 2023",
+    "why": "packet shows 3-2 for DreamHack San Diego 2023"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 34.48,
+  "output_tokens": 5337
+ },
+ {
+  "id": "q24",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 7.28,
+  "output_tokens": 1165
+ },
+ {
+  "id": "q25",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.45,
+  "output_tokens": 2182
+ },
+ {
+  "id": "q26",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "formerly M30W | BalloonBoy",
+    "why": "the packet says 'formerly BalloonBoy'"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 22.08,
+  "output_tokens": 3429
+ },
+ {
+  "id": "q27",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "Won 2-3 against Impala at *Brawlhalla World Championship Expo 2024* (2024-11-15)",
+    "why": "the packet shows the set was won by BBBalloonBoy with a score of 3-2 (winner_games=3, loser_games=2)"
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 21.8,
+  "output_tokens": 3459
+ },
+ {
+  "id": "q28",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 8.11,
+  "output_tokens": 1312
+ },
+ {
+  "id": "q29",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 7.72,
+  "output_tokens": 1254
+ },
+ {
+  "id": "q30",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 23.35,
+  "output_tokens": 3263
+ },
+ {
+  "id": "q31",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 10.29,
+  "output_tokens": 1418
+ },
+ {
+  "id": "q32",
+  "seed": 2,
+  "failures": [],
+  "missing": "a query to retrieve the prize money for player V3M_T4NQUIL0 at the event 'Max Mode 2025'",
+  "parsed": true,
+  "seconds": 25.38,
+  "output_tokens": 3497
+ },
+ {
+  "id": "q33",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "which only includes players with a Power Rankings (PR) ranking",
+    "why": "The packet does not mention Power Rankings or any condition about PR ranking; it only shows that the row for player_id 146606 was not found in v_career_earnings."
+   }
+  ],
+  "missing": "SELECT earnings_usd FROM v_career_earnings WHERE player_id = 146606",
+  "parsed": true,
+  "seconds": 29.47,
+  "output_tokens": 4006
+ },
+ {
+  "id": "q34",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "the earliest recorded event in the dataset is the 2017 Brawlhalla World Championship (BCX 2017)",
+    "why": "The evidence packet does not contain any event data for 2017, only two failed lookups for 2016 events."
+   }
+  ],
+  "missing": "",
+  "parsed": true,
+  "seconds": 30.78,
+  "output_tokens": 4192
+ },
+ {
+  "id": "q35",
+  "seed": 2,
+  "failures": [],
+  "missing": "legend",
+  "parsed": true,
+  "seconds": 24.98,
+  "output_tokens": 3440
+ },
+ {
+  "id": "q36",
+  "seed": 2,
+  "failures": [
+   {
+    "by": "model",
+    "check": "unsupported",
+    "claim": "Community tournaments (including those named with \"Community\" or \"Open\") are not part of the official results database, as explicitly stated in the data documentation.",
+    "why": "The packet does not contain any data documentation or mention of community tournaments."
+   }
+  ],
+  "missing": "get_player_community_tournaments(player_id=160000)",
+  "parsed": true,
+  "seconds": 22.26,
+  "output_tokens": 3109
+ },
+ {
+  "id": "q37",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 21.42,
+  "output_tokens": 2955
+ },
+ {
+  "id": "q38",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 12.91,
+  "output_tokens": 1840
+ },
+ {
+  "id": "q39",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 20.49,
+  "output_tokens": 2153
+ },
+ {
+  "id": "q40",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 6.78,
+  "output_tokens": 938
+ },
+ {
+  "id": "q41",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 28.64,
+  "output_tokens": 3864
+ },
+ {
+  "id": "q42",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.34,
+  "output_tokens": 1894
+ },
+ {
+  "id": "q43",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 24.59,
+  "output_tokens": 3329
+ },
+ {
+  "id": "q44",
+  "seed": 2,
+  "failures": [],
+  "missing": "",
+  "parsed": true,
+  "seconds": 13.49,
+  "output_tokens": 1895
+ },
+ {
+  "id": "q45",
+  "seed": 2,
+  "failures": [],
+  "missing": "SELECT earnings_usd FROM v_career_earnings WHERE player_id = 168635",
+  "parsed": true,
+  "seconds": 30.0,
+  "output_tokens": 4070
+ }
+]
