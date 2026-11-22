@@ -90,6 +90,14 @@ class CrawlTest(unittest.TestCase):
         self.assertEqual(again.refreshed, 4)  # each mode's full listing and this year's, asked again
         self.assertEqual({r[0] for r in self.db.execute("SELECT event_id FROM crawl_events")}, {"old", "new"})
 
+    def test_pr_refresh_asks_again_for_every_page(self):
+        self.assertEqual(self.run_stage(FakeApi({"/pr": pr_route}), "pr"), "finished")
+        pages = 2 * len(crawl.REGIONS) * 3
+        again = FakeApi({"/pr": pr_route})
+        self.args.refresh = True
+        self.assertEqual(self.run_stage(again, "pr"), "finished")
+        self.assertEqual((len(again.calls), again.refreshed), (pages, pages))
+
     def test_stopping_and_rerunning_never_repeats_a_finished_task(self):
         api = FakeApi({"/pr": pr_route})
         self.assertEqual(self.run_stage(api, "pr", stop_after=4), "stopped")

@@ -4,6 +4,7 @@
     python ingest/crawl.py events                  stage 0: every official event
     python ingest/crawl.py events --refresh        stage 0 again for new events: the full listings and this year's
     python ingest/crawl.py pr                      stage 1: the PR lists, which seed the players
+    python ingest/crawl.py pr --refresh            stage 1 again, for the newest PR lists (after a new event)
     python ingest/crawl.py profiles                stage 2: profiles of known players
     python ingest/crawl.py lookups                 stage 2b: the Stats API record of every platform player
     python ingest/crawl.py histories [--sample N]  stage 3: official placements and teammates (held after its pilot)
@@ -393,14 +394,20 @@ def check_events(db, api, log):
 # Stage 1: PR lists
 
 def plan_pr(db, queue, args):
+    """Each list's first page, whose answer plans the rest. With --refresh, every page already fetched runs again,
+    asking the API instead of the cache (the PR lists' counts and earnings move on after each event)."""
     for mode in MODES:
         for region in REGIONS:
             queue.add("pr", "pr_page", f"pr:{mode}:{region}:1", {"mode": mode, "region": region, "page": 1})
+    if getattr(args, "refresh", False):
+        for key, params in db.execute("SELECT task_key, params FROM tasks WHERE stage = 'pr'").fetchall():
+            db.execute("UPDATE tasks SET status = 'pending', params = ?, updated_at = ? WHERE task_key = ?",
+                       (json.dumps({**json.loads(params), "refresh": True}), now(), key))
 
 
 def fetch_pr_page(api, p, log):
-    return api.get("/pr", {"gameMode": p["mode"], "region": p["region"], "page": p["page"],
-                           "maxResults": PR_PAGE_SIZE})
+    params = {"gameMode": p["mode"], "region": p["region"], "page": p["page"], "maxResults": PR_PAGE_SIZE}
+    return api.get("/pr", params, refresh=True) if p.get("refresh") else api.get("/pr", params)
 
 
 def apply_pr_page(db, p, body):
@@ -1287,7 +1294,8 @@ def main():
     parser.add_argument("--max-pools", type=int, metavar="N",
                         help="brackets: only the first N pools of each phase of an event fetched pool by pool")
     parser.add_argument("--refresh", action="store_true",
-                        help="events only: fetch the full listings and this year's again, to find new events")
+                        help="events: fetch the full listings and this year's again, to find new events; pr: fetch"
+                             " every PR page again, for the newest lists")
     parser.add_argument("--retry-rejected", action="store_true",
                         help="put this stage's rejected tasks back in the queue first, once their cause is fixed")
     args = parser.parse_args()
@@ -1298,8 +1306,8 @@ def main():
         return
     if args.event and args.stage not in EVENT_STAGES:
         parser.error(f"--event works with {', '.join(sorted(EVENT_STAGES))}")
-    if args.refresh and args.stage != "events":
-        parser.error("--refresh works with events only")
+    if args.refresh and args.stage not in ("events", "pr"):
+        parser.error("--refresh works with events and pr only")
     if args.top is not None and args.stage != "legends":
         parser.error("--top works with legends only")
     if args.max_pools is not None and args.stage != "brackets":
