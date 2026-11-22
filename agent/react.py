@@ -27,9 +27,9 @@ replaced by a sentence saying it couldn't be confirmed (number_check.py), so no 
 returned (decided 2026-11-17). The model is qwen3:30b, the 30B-A3B mixture of experts, with thinking on (decided
 2026-11-21 after the model comparison in the agent, docs/experiments.md: the fastest, with the fewest refused calls,
 and none of qwen3:8b's records read from the wrong side), with its own sampling defaults and a fixed seed. The system
-prompt (SYSTEM) is the comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
-a section on the views that hold each pairing more than once, which tool fits which question, and how to use the tools
-and write the answer.
+prompt (SYSTEM) is the comparison prompt's description of the views and its counting rules, with the name lookup
+replaced by resolve_player, a section on the views that hold each pairing more than once, which tool fits which
+question, and how to use the tools and write the answer.
 
 The console shows each step in short. Every step in full (thinking, reply, tool calls and observations, exactly as
 sent) goes to data/experiments/<run>/traces.jsonl and traces.md (git-ignored). A run of target questions also writes
