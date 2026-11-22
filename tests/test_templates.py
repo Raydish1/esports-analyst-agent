@@ -281,8 +281,10 @@ class RankPairsTest(Fixture):
     def test_the_opponents_side_ranks_the_other_players_records_against_the_player(self):
         out = self.call("rank_pairs", player_id=B, side="opponents", by="record")  # live: q08 and q40 asked B's side
         rows = self.rows(out, "records against B")
-        self.assertEqual(rows[0][1:8], ["A", A, "B", B, 3, 3, 0])  # A beat B in 3 of 3: from A's side
-        self.assertIn("each row is another player's record against B, from that player's side", " ".join(out["notes"]))
+        self.assertEqual(out["tables"][0]["columns"], ["rank", "player", "player_id", "sets", "wins_vs_B", "losses_vs_B"])
+        self.assertEqual(rows[0][1:6], ["A", A, 3, 3, 0])  # A beat B in 3 of 3: from A's side, B's column gone
+        self.assertIn("each row is another player's record against B, from that player's side: wins_vs_B are their"
+                      " wins against B (B's losses to them)", " ".join(out["notes"]))
         rate = self.call("rank_pairs", player_id=B, side="opponents", by="rate")  # the counting rule: 5 sets at least
         self.assertEqual(rate["tables"], [])
         self.assertIn("with at least 5 sets or meetings between them, the minimum, so the ranking is empty.",

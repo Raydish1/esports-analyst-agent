@@ -833,7 +833,7 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
                       f" WHERE m.player_id = {player} AND m.mode = '2v2'{met} GROUP BY 2)")
         won, lost = ("n - a_wins", "a_wins") if against else ("a_wins", "n - a_wins")  # the side each row is from
         order = (f"1.0 * ({won}) / n DESC, n DESC" if rate else f"{won} DESC, {lost} ASC" if record else "n DESC")
-        first = "pb.name, ranked.b, pa.name, ranked.a" if against else "pa.name, ranked.a, pb.name, ranked.b"
+        first = "pb.name, ranked.b" if against else "pa.name, ranked.a, pb.name, ranked.b"
         rows = query.rows(
             f"{ranked}, ranked AS (SELECT *, RANK() OVER (ORDER BY {order}) AS rank FROM pairs"
             f"{f' WHERE n >= {least}' if least else ''})"
@@ -842,7 +842,8 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
             " FROM ranked JOIN players pa ON pa.player_id = ranked.a JOIN players pb ON pb.player_id = ranked.b"
             f" WHERE ranked.rank <= {top} ORDER BY ranked.rank, pa.name, pb.name")
         what = "sets" if mode == "1v1" else "meetings"
-        columns = ["rank", "player", "player_id", "opponent", "opponent_id", what, "player_wins", "opponent_wins"] + (
+        sided = [f"wins_vs_{name}", f"losses_vs_{name}"] if against else ["player_wins", "opponent_wins"]
+        columns = ["rank", "player", "player_id"] + ([] if against else ["opponent", "opponent_id"]) + [what, *sided] + (
             ["win_rate"] if rate else [])
         measure = (f"the best win rate first, among those with at least {least} {what} between them" if rate else
                    "the most wins first, then the fewest losses" + (f", among those with at least {least} {what}" if least
@@ -852,7 +853,8 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
                  f"{name}'s opponents, the most {what} first" if player else "pairs of opponents, the most sets first")
         if against:
             notes.append(f"side='opponents': each row is another player's record against {name}, from that player's"
-                         f" side: player_wins are theirs, opponent_wins {name}'s. Say how the answer reads the question"
+                         f" side: wins_vs_{name} are their wins against {name} ({name}'s losses to them), and"
+                         f" losses_vs_{name} their losses to {name}. Say how the answer reads the question"
                          + (", and the minimum." if least else "."))
         elif record:
             notes.append(f"by='{'rate' if rate else 'record'}' ranks {name}'s opponents by {name}'s"
