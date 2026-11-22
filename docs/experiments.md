@@ -2,6 +2,30 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: the doubled-ending fix, replayed on every recorded run, and the freeze
+
+**What it asked.** The user approved a fix for the bug the targeted run found, with a test and a replay on the
+recorded runs. The names correction swapped the question's spelling of a player for their name wherever a non-word
+character followed it, so a spelling that is the name's start matched inside the right name: "moni" in "Moni-" gave
+"Moni--", and "dragon" in "Dragon!" gave "Dragon!!". After the fix the agent is frozen (the user's decision).
+
+**Setup.** No model. Commit 5c6b769: a match where the answer already writes the player's name or display isn't
+swapped. Every recorded run was read, held-out records skipped. Each draft of a turn with a swap of the question's
+spelling went through the code before the fix (7f49596, from git) and after it. The turn's resolved players were
+rebuilt as the loop builds them, from its confident `resolve_player` results and any choice from suggestions.
+
+**Results.** Of 2,909 turns, 87 had a swap of the question's spelling, and 11 drafts change. Each is a doubled
+ending, and each one's final answer held it:
+- c13 turn 3, "Dragon!!" becomes "Dragon!": the final run's seeds 0-2, `20261121-conversations`' seeds 0-2, and seed
+  0 of the three model comparison runs (qwen3:8b, 14b and 30b);
+- c22 turn 2, "Moni--" becomes "Moni-": the targeted run's seeds 1 and 2.
+
+The other 76 turns keep their swaps, so no misspelling stops being corrected. The 546 unit tests pass.
+
+**What it decided.** The fix stands. From here the agent is frozen: no more prompt or check changes, only fixes for
+bugs that break a live answer (the user's decision, 2026-11-22). The final entry's section "After the final
+measurement" lists every change since, for the report.
+
 ## 2026-11-22: the targeted run of the additions after the final measurement
 
 **What it asked.** Do the additions after the final measurement hold up with the model? They are the run_sql rule and
@@ -214,8 +238,8 @@ it the agent changes only for bugs (the user's decision, 2026-11-21).
 - **Not rerun.** The held-out set's final measurement is 2026-11-17's, since its questions were read after it.
 - **Two bugs found in the final run** were fixed after it (40996f9). Both are in round seven's recheck, and the numbers
   below include them.
-- **Added after it**, and not in its numbers: `team_head_to_head` and `rank_pairs`' team mode (2026-11-22, the entry
-  above).
+- **Changed after it**, and not in its numbers: two additions and three bug fixes, then the freeze (2026-11-22), in
+  the section "After the final measurement" at the end of this entry.
 
 **Headline numbers.**
 
@@ -277,6 +301,7 @@ marked offline were checked without the model, and their effect is in the next m
 | 2026-11-21 | Round six | The opponents' side, a best placement, `never_won`, `player_sets`, `dominant_wins`, the card kept | Reruns: the 13 questions 30 to 35 of 39 automatic, but 7 conversations 37 to 34 of 60 and 16 audit questions 29 to 27 of 48 |
 | 2026-11-21 | The model comparison | None (qwen3:8b, qwen3:14b and qwen3:30b at round six's code) | Seed 0 by hand: 36, 32 and 36 of 45 right. Conversations at seed 0: 34, 38 and 37 of 48 turns. qwen3:30b fastest, 17.6 s per question |
 | 2026-11-21 | Round seven (offline) | qwen3:30b the default, and fixes 1-10 with six more (in its entry) | The final measurement, above: 113 of 135 questions right by hand, 120 of 144 conversation turns and 158 of 162 audit turns passing |
+| 2026-11-22 | After the final measurement | The team templates, the run_sql rule, and three bug fixes (the section below), then the freeze | The fixes replayed on the recorded runs. The targeted run: every two-team record right (9 turns), give-ups 2 to 0, and 51 against 53 of 69 conversation turns |
 
 **Known limitations, by mechanism**, from the final runs:
 - **M1, reading the question.**
@@ -297,7 +322,7 @@ marked offline were checked without the model, and their effect is in the next m
   - c1 turn 3 left one of the three players named out of its lookups, and c10 turn 2's seed 1 summed the partners'
     events itself.
   - The number check doesn't count the prompt's own facts: q34's "the data starts in 2017" is left out (3 runs, a
-    question open since 2026-11-18).
+    question open since 2026-11-18). Fixed after it (7f49596).
 - **M4, the conversation.** A question about the card (c14 turn 2, 3 runs) is explained from the page's line without
   the tool check its expected answer asks for.
 - **M5, answer writing.**
@@ -308,12 +333,36 @@ marked offline were checked without the model, and their effect is in the next m
   - Totals not stated: Mojakin's 26 results (c9 turn 2), Dragon!'s 9 top 8s (c13 turn 3), and c10 turn 2's partner
     figures (2 runs).
   - q05's "only players with a figure" left out (seed 0), and a score written from the loser's side (q27).
+  - Dragon! written "Dragon!!" (c13 turn 3, 3 runs), and the words around a tool's name fused once it was cut out (5
+    answers, "confirmed by thewith top=1"). Both fixed after it (5c6b769, 8ba7e18).
 - **The audit set**, 4 failing turns.
   - "whats volst's best record against anyone" (a50, all 3 runs) is asked with a 5-set minimum the model sets
     itself. The answers give the empty ranking's note (at most 4 sets, with Bunny meow), not a record, though the note
     says to call again without the minimum (M1).
   - a45, seed 2, says Zivai's career earnings aren't given, with no lookup (M3).
 - **Every set's runs** took at most 20,254 tokens of context, and no reply reached the output cap.
+
+**After the final measurement** (2026-11-22). The headline numbers above are the final measurement's, and they stay
+as measured: nothing after it is in them. Each change below has an entry of its own, above this one:
+
+| Change | Kind | Commits | Checked on | What it changed |
+|---|---|---|---|---|
+| `team_head_to_head`, `rank_pairs` with a partner, and the scope check's refusal of `head_to_head` for two teams | Addition, from the user's live test | 8f3409a, 477513d | eval-v1, then the targeted run | Every two-team record right in the 9 turns that name two teams. "versed the most" still ranks each player's opponents in 2 of 3 seeds (c20) |
+| The prompt's rule to query the views with run_sql when no template fits, and the no-tool check's messages saying so | Addition, the user's request | be0b938 | The targeted run | Give-ups 2 to 0 on the items where the no-tool check had fired, one through 40996f9. After a send-back the model queried 6 of 16 times, against 7 of 21 |
+| A space left where a tool's name is cut out of an answer | Bug fix | 8ba7e18 | The final run, replayed | 5 final answers change, each by a space ("confirmed by thewith top=1") |
+| The prompt's own facts, the data's first year and its newest results' date, as evidence for the number check | Bug fix, the user's decision | 7f49596 | The final run, replayed | 16 of 69 check records with flagged numbers no longer fire, q34's six among them. q34 seed 0 keeps its draft instead of "I couldn't confirm this from the data" |
+| No swap of the question's spelling where the answer writes the right name | Bug fix | 5c6b769 | Every recorded run, replayed | 11 drafts change in 2,909 turns, each a doubled ending: "Dragon!!" (c13 turn 3, the final run's 3 seeds among them) and "Moni--" (c22 turn 2) |
+| A second backend on the Anthropic Messages API, and a switch for run_sql and the views only | Built for a Sonnet experiment | 3afe78a, 041b38c | Unit tests, with a fake client | None: the experiment is skipped for now (the user's decision), and the agent runs as before |
+
+The targeted run (qwen3:30b at 7f49596, seeds 0-2, before 5c6b769) covered the items where the final run's no-tool
+check fired, and the live session's 2v2 turns:
+- q09, q35 and q36: 9 of 9 right by hand, as in the final run.
+- The 7 conversations: 51 of 69 turns, against 53 in the final run rescored with the same checks.
+- The 3 audit items: 10 of 12 turns, against 11.
+- The team conversations, c20-c24: 21 of 27 turns by their checks, and 19 right, 5 partly and 3 wrong by hand.
+
+**The agent is frozen** from 2026-11-22 (the user's decision): no more prompt or check changes, only fixes for bugs
+that break a live answer.
 
 ## 2026-11-21: round seven, the model comparison's fixes, checked offline
 

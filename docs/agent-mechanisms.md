@@ -454,12 +454,17 @@ It's offline and not measured with the model (in the log, 2026-11-22). A small t
 
 It's offline (in the log, 2026-11-22). The runs wait for the user.
 
-Two bug fixes followed, at the user's go-ahead, each replayed on the final run (in the log):
+Three bug fixes followed, at the user's go-ahead, each replayed on the recorded runs (in the log):
 - M5, answer writing: a tool's name cut out of an answer leaves a space, so the words around it never fuse
   (`claim_check.cut`).
 - M3, facts the model makes: the prompt's own facts about the data, its first year and its newest results' date, are
   standing evidence for every answer (`react.prompt_facts`, `Shown.standing`). The user decided the question open
   since 2026-11-18: they count. q34's give-up and the live "yes they did" give-up no longer happen.
+- M5, answer writing: the question's spelling isn't swapped where the answer already writes the player's name or
+  display, so a spelling that is the name's start no longer doubles its ending ("Moni--", "Dragon!!").
+
+Then the agent was frozen (2026-11-22, the user's decision): no more prompt or check changes, only fixes for bugs
+that break a live answer.
 
 ## Decisions
 
@@ -492,12 +497,10 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 ## Waiting on the user
 
-- Nothing for the agent. The final measurement ran on 2026-11-21 (in the log), and after it the agent changes only
-  for bugs and the user's additions.
+- Nothing for the agent. It's frozen since 2026-11-22 (the user's decision): no prompt or check changes, only fixes
+  for bugs that break a live answer.
 - Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions is in the
   log, and the Sonnet experiment is skipped for now, with its backend in place (the user's decision).
-- M5, answer writing: a fix for the names correction writing the question's spelling over the start of the right
-  name ("Moni--", "Dragon!!"), found in the targeted run, waits for the user's go-ahead.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
