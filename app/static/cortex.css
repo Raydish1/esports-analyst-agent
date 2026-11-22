@@ -16,7 +16,9 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--bg); scroll-behavior: smooth; scrollbar-width: none; }
+/* Behind the page, cream on the left and navy on the right, as the columns are, and no bounce past its ends: a bounce
+   showed the page background under the results column, with the fixed seam standing in it. */
+html { background: linear-gradient(90deg, var(--bg) 50%, var(--navy) 50%); overscroll-behavior: none; scroll-behavior: smooth; scrollbar-width: none; }
 html::-webkit-scrollbar { display: none; }
 body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); min-height: 100vh; }
 button, input { font: inherit; }
@@ -148,6 +150,7 @@ body.chatting .chat-wrap { margin-top: 0; }
 .result .stat-card { border: 0; padding: 0; background: transparent; }
 
 @media (max-width: 960px) {
+  html { background: var(--bg); }
   .seam { display: none; }
   .layout { grid-template-columns: 1fr; }
   .left { position: relative; top: 0; height: auto; padding: calc(var(--header-h) + 24px) 18px 0; }
