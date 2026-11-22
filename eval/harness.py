@@ -92,8 +92,11 @@ def query_calls(trace):
         for c in step["tool_calls"]:
             if c["observation"] and (c["name"] == "run_sql" or c["name"] in TEMPLATES):
                 args = c["arguments"] if isinstance(c["arguments"], dict) else {}
-                statements = [args.get("query", "")] if c["name"] == "run_sql" else c.get("ran") or []
-                out.append((c["name"], args, json.loads(c["observation"]), statements))
+                observation = json.loads(c["observation"])
+                ran = c.get("ran") or (observation.pop("ran", None) if isinstance(observation, dict) else None)  # a
+                # recheck's call recorded before 2026-11-21's fix kept its SQL in the observation
+                statements = [args.get("query", "")] if c["name"] == "run_sql" else ran or []
+                out.append((c["name"], args, observation, statements))
     return out
 
 
