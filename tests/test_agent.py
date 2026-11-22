@@ -1057,13 +1057,25 @@ class LoopTest(Fixture):
     def test_a_plain_name_a_result_writes_out_isnt_one_no_tool_returned(self):  # a query joining players for names
         view = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).view
         view.ask("which two teams have the most history in 2v2 sets")
-        answer = "Raydish and Zivai played Cody Travis the most."
+        answer = "The teams were Raydish and Zivai against Cody Travis."  # mid-sentence, where a name reads as one
         found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
         self.assertEqual([c.text for c in found], ["Raydish", "Zivai", "Cody Travis"])  # no result yet
         view.observe("run_sql", {"complete": True, "columns": ["team1_a", "team1_b", "sets"],
                                  "rows": [["Raydish", "Zivai", 25]], "row_count": 1})
         found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
         self.assertEqual([c.text for c in found], ["Cody Travis"])
+
+    def test_a_word_that_is_some_players_name_reads_as_one_only_where_it_names(self):  # the replay of 2026-11-22
+        def named(text, word):
+            return react.plainly_named(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text))
+        self.assertTrue(named("The teams are Cody Travis and Phazon against Killa and Zivai.", "Zivai"))
+        self.assertTrue(named("The teams are **Frodo and Lego** versus **Ninja and Spartan**.", "Ninja"))
+        for text, word in (("However, the query failed.", "However"), ("### Key Partners\n- megD", "Key"),
+                           ("Note: no data.", "Note"), ("Placed 25th twice.", "25th"), ("It was in August.", "August"),
+                           ("under the name", "under"), ("by the official Power Rankings", "Power"),
+                           ("I'll check.", "I'll"), ("an exact count", "exact"), ("a gold medal", "gold"),
+                           ("- 3v3 crew battle\n\n### **Key Notes**\n- invitational", "Notes")):
+            self.assertFalse(named(text, word), word)
 
     def test_a_reply_saying_it_couldnt_get_the_data_stands_after_every_call_failed(self):
         honest = "I couldn't get the data: the ranking was refused and the query failed, so I can't say which teams."

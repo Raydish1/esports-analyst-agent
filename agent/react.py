@@ -401,6 +401,9 @@ MISATTRIBUTED = ("though the results in view hold each only for another player o
                  " Take each figure from the row for the player and the mode its sentence names: the cards and the"
                  " templates give each mode a row of its own, and both modes together another.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
+# Words an answer writes that are some player's name but never name one there (plainly_named)
+NOT_NAMES = {"january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+             "november", "december", "gold", "golds", "silver", "silvers", "bronze", "bronzes"}
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
 QUOTED = re.compile(r'"([^"\n]+)"|“([^”\n]+)”|(?<![\w\'‘’])[\'‘]([^\'‘’\n]+)[\'’](?![\w\'‘’])')
@@ -809,10 +812,11 @@ class Shown:
         return out
 
     def named_claims(self, answer, question, event_words):
-        """Each player an answer names in plain text (mentions.named, as a question's names are found) that no tool
-        result in view returned and the question doesn't name, at its first mention, as a claim number_check.without
-        can leave out. Only for a turn whose every call failed (failed_only): name_spans finds a name only when it's
-        shaped like a tag or in bold or quotes, and live, "Phazon & Zivai and Cody Travis & Ryno" passed."""
+        """Each player an answer names in plain text (mentions.named, as a question's names are found, where it reads
+        as a name: plainly_named) that no tool returned, in view or earlier in the conversation, and the question
+        doesn't name, at its first mention, as a claim number_check.without can leave out. For a turn whose every call
+        failed (failed_only): name_spans finds a name only when it's shaped like a tag or in bold or quotes, and live,
+        "Phazon & Zivai and Cody Travis & Ryno" passed."""
         said, out = stated(answer), []
         returned, canonical = self.returned_now | self.returned_before, self.resolver.canonical
         asked = {normalize_full(text) for text, _ in mentions.named(question, self.resolver, event_words)}
@@ -820,11 +824,11 @@ class Shown:
             first = (found.get("candidates") or [{}])[0].get("player_id")
             written = re.search(rf"(?<!\w){re.escape(text)}(?!\w)", self.in_view, re.I)  # a result's name as text,
             # as a query joining players gives it: the replay of 2026-11-22 flagged such a right answer
-            if (first is None or canonical.get(first, first) in returned or self.resolver.called(text) & returned
-                    or written or normalize_full(text) in asked):
+            if (first is None or canonical.get(first, first) in returned | self.players
+                    or self.resolver.called(text) & (returned | self.players) or written or normalize_full(text) in asked):
                 continue
             m = re.search(rf"(?<!\w){re.escape(text)}(?!\w)", said)
-            if m:
+            if m and plainly_named(m):
                 out.append(Claim("player", text, m.start(), m.end(), (text,)))
         return out
 
@@ -1064,6 +1068,25 @@ def unretried(trace):
 def gapped(gap):
     """What the no-tool check found (Shown.ungrounded), as a log line says it."""
     return "; ".join(f"{kind} {', '.join(values)}" for kind, values in gap.items())
+
+
+def plainly_named(m):
+    """Whether a span the plain-name finder matched in an answer (a regex match on it) reads as a name where it's
+    written, not as an ordinary word that is also some player's name: it has a capital, isn't a number or an ordinal
+    (25th, 8s), a month or a medal word, has no apostrophe (I'll), and, if one word, isn't the first word of its
+    sentence, line or label (However, Note:, Key Partners) nor the first of a capitalized term (Power Rankings). On
+    2026-11-22 the finder alone read 1,041 recorded answers as naming a player no tool returned, nearly all for such
+    words. The made-up names of that day's check run ("Cody Travis and Phazon against Killa and Zivai") are
+    capitalized mid-sentence."""
+    span, before, after = m.group(0), m.string[:m.start()], m.string[m.end():]
+    if (not re.search(r"[A-Z]", span) or re.search(r"['’]", span) or NUMBERISH.fullmatch(normalize(span))
+            or span.casefold() in NOT_NAMES or len(span) < 3 or re.match(r"\s*#", before.rpartition("\n")[2])):
+        return False  # the last: a heading's words label a section ("### **Key Notes**")
+    if " " in span:
+        return True
+    first = (re.fullmatch(r"[\s*_#>\-]*", before)
+             or re.search(r"(?:[.!?:]|\n\s*(?:[-*>#]+|\d+[.)])?)[\s*_\"'“]*$", before))
+    return not first and not re.match(r"\s+[A-Z][a-z]", after)
 
 
 def failed_only(trace):
