@@ -13,9 +13,9 @@ COPY app app
 COPY curation curation
 COPY ingest ingest
 COPY deploy deploy
-RUN ln -s /data /app/data && sed -i 's/
-$//' deploy/start.sh && chmod +x deploy/start.sh
-$//" deploy/start.sh && chmod +x deploy/start.sh
+# start.sh may arrive with Windows line endings from a Windows checkout: strip them
+RUN ln -s /data /app/data && tr -d '\015' < deploy/start.sh > /tmp/start.sh && mv /tmp/start.sh deploy/start.sh \
+    && chmod +x deploy/start.sh
 
 EXPOSE 8080
 CMD ["deploy/start.sh"]
