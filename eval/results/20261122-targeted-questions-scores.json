@@ -1,0 +1,428 @@
+[
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not include prize money per tournament; it only stores a player's total career earnings in the `v_career_earnings` view. For player **gdsandstorm**, the total career earnings are recorded, but the data does not break down earnings by individual tournament. Therefore, it is not possible to determine which tournament contributed the most to their earnings.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.755
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 23.4,
+  "output_tokens": 1107,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which character a player usually picks (their main legend). The player formerly known as \"godly\" is now called Zivai, but no information about their main legend is stored in the results database.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 14.2,
+  "output_tokens": 1551,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data provided covers only official Brawlhalla esports events, as explicitly stated in the guidelines: \"Community tournaments aren't in the data.\" The player *Raydish* has no results in community tournaments, as none exist in the dataset. All entries in the results database are official events, and the question's premise (community tournaments) is not supported by the data.\n\n(I left out a statement I couldn't confirm from the data.)",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [
+   "answer_check",
+   "no_tool_check",
+   "number_check"
+  ],
+  "fired": {
+   "no-tool check": 2,
+   "number check, claims replaced": 1,
+   "answer check": 1
+  },
+  "steps": 3,
+  "model_seconds": 25.5,
+  "output_tokens": 2693,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track earnings per tournament; it only provides a total career earnings figure for players with a Power Rankings ranking. The player \"gdsandstorm\" (player_id 74433) has a career earnings figure recorded, but it is not broken down by event. Therefore, it is impossible to determine which tournament contributed the most to their earnings from the available data.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.755
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 11.9,
+  "output_tokens": 1211,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which character a player main (legend), as explicitly stated in the provided documentation. The tools and database views track tournament results, placements, and statistics, but not players' preferred characters. Therefore, there is no information available to answer this question.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 2
+  },
+  "steps": 3,
+  "model_seconds": 12.1,
+  "output_tokens": 1328,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data does not include community tournaments, as explicitly stated in the documentation: \"Community tournaments aren't in the data.\" All results tracked are for official events only, regardless of event names containing terms like \"Community\" or \"Open.\" Therefore, the count of community tournaments won by Raydish (or any player) is **not recorded** in the official esports results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 9.5,
+  "output_tokens": 1004,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track earnings per tournament; it only provides total career earnings for players with a Power Rankings ranking. The player \"sandstorm\" (resolved to **gdsandstorm**, player_id 74433) has a career earnings figure in the Stats API, but this is a cumulative total, not broken down by tournament. There is no per-tournament prize money data available in the official results database.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.755
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 11.6,
+  "output_tokens": 1145,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which legend a player main, as explicitly stated in the provided information. The available esports results database tracks placements, wins, and other competitive metrics, but does not store players' preferred characters (legends). Therefore, this question cannot be answered from the data.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 2
+  },
+  "steps": 3,
+  "model_seconds": 11.8,
+  "output_tokens": 1351,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data only includes official esports events, and community tournaments are not part of the official Brawlhalla results. Therefore, the number of community tournaments won by Raydish cannot be determined from the available data.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 19.9,
+  "output_tokens": 2082,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ }
+]

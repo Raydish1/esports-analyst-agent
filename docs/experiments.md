@@ -2,6 +2,65 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: the targeted run of the additions after the final measurement
+
+**What it asked.** Do the additions after the final measurement hold up with the model? They are the run_sql rule and
+the no-tool check's messages (be0b938), the team templates (8f3409a, 477513d), and the two fixes (8ba7e18, 7f49596). The
+run covers the items where the final run's no-tool check fired and the live session's 2v2 turns, as the user asked.
+
+**Setup.** qwen3:30b at 7f49596, seeds 0-2, retrieval on, in the run worktree, approved by the user. Four runs, one
+after another: `20261122-targeted-questions` (q09, q35, q36), `-conversations` (c1, c5, c8, c10, c12, c15, c19),
+`-audit` (a44, a45, a49) and `-teams` (c20-c24, `eval/questions/teams.toml`). It took 47.5 minutes, with qwen3:30b at
+21 GB, 100% GPU and a context of 32768 in all 46 samples. The final run's same items were rescored in memory with
+today's scorer, which counts the prompt's facts since 7f49596; its files are unchanged. The question verdicts are
+drafted by hand ("needs review").
+
+**Results.**
+
+| Items | Final run, rescored | Targeted run |
+|---|---|---|
+| q09, q35, q36, by hand | 9 of 9 right | 9 of 9 right |
+| 7 conversations, 69 turns passing every check | 53 | 51 |
+| 3 audit items, 12 turns passing every check | 11 | 10 |
+| c20-c24, 27 turns | (new) | 21 pass every check; by hand 19 right, 5 partly, 3 wrong |
+| Turns where the no-tool check fired, of the 90 above | 31 | 27 |
+| Answers that gave up ("I couldn't look this up", "I couldn't confirm this") | 2 | 0 |
+| After a no-tool send-back, the model queried (a template or run_sql) | 7 of 21 | 6 of 16 |
+
+The give-ups:
+- c10 seed 1 turn 2 now stands, through the recheck fix made after the final run (40996f9), not today's changes.
+- c19 seed 0 turn 3 ("what are the three sets that volst vs'd raydish"): the model now looked both players up and
+  called `head_to_head` itself, and listed the three sets. One run can't tell the new rule from the run's variation.
+
+The new rule doesn't show in the counts: after a send-back the model queried about as often as before, and run_sql
+was called once in the 90 turns, against twice. Most of these items are questions no query answers (legends,
+community tournaments, prize money per event), where looking the name up is all there is to do.
+
+The turns that changed are spread both ways, as a changed prompt changes every turn's sampling: 4 now pass and 6 now
+fail. Among the 6: c12 turn 1, seeds 1 and 2, give the 1v1 record (17-17) without the 2v2 meetings (11-11). c19
+seed 2 turn 1 sets itself a 5-set minimum, a known limitation in the final entry. c8 seed 2 turns 3 and 5 give each
+player's 2v2 wins in place of the pair's events together. In the audit, a45 seed 1 answered that there's no prize
+money per event without looking up Zivai.
+
+The team templates, where the model picked them:
+- `team_head_to_head` in all 9 turns that name two teams (c21 turn 2, c22 turn 2, c23), each record right: 0-3
+  against Pink | Zen and hideawaybh, 1-0 (3-2) against Moni- and animefan1266, 5-0 against Marckiem00 and
+  futurebubbles366. c23 writes the teams without an "and", which the scope check doesn't see, and still got it.
+- "yes they did", after the 3-2, confirmed it in all 3 seeds (c22 turn 3). With nothing before it (c24), it asked
+  what the user meant in all 3, where the live answer gave up.
+- c20 ("who have raydish and megd versed the most in 2v2"): seed 2 ranked the duo's opposing teams (`rank_pairs`
+  with a partner) in both turns. Seeds 0 and 1 ranked each player's own opponents in turn 1, as live. Seed 0's turn 2
+  went to run_sql, and seed 1's named one of the three teams tied at 5 sets.
+- c22 turn 1 ("show a 2v2 graphic"): the top 8 in seed 0, only the bracket link in seeds 1 and 2, as live.
+
+Found in the run, a bug: the names correction writes the question's spelling over the start of the right name when it
+is that name's start. "moni" became "Moni--" in c22 seeds 1 and 2 turn 2, and in the final run "dragon" became
+"Dragon!!" in c13 turn 3 in all 3 seeds. That's 5 of the 13 name swaps in these runs. Not fixed: it waits for the
+user's go-ahead.
+
+**What it decided.** Nothing in the agent changed. The additions stand. The doubled-ending fix is the user's to
+approve.
+
 ## 2026-11-22: two fixes after the final measurement, replayed on the final run
 
 **What it asked.** The user approved two fixes, one commit each, and asked for the final run to be replayed to show

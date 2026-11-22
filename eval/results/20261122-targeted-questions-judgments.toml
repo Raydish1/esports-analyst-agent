@@ -1,0 +1,103 @@
+# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL
+# logic, empty or insufficient data, answer writing, or no answer. review is "auto" for a stage 1 or 2
+# failure the code found, and "needs review" for a verdict drafted by hand, until the user confirms it
+# ("confirmed"). Fill in or correct verdict, stage and note; scoring keeps what's here.
+
+# q09 (retrieval on): What tournament did sandstorm make the most money from?
+# Expected: The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no prize money per tournament, only career totals; names v_career_earnings (tool talk)"
+answer = "The data does not include prize money per tournament; it only stores a player's total career earnings in the `v_career_earnings` view. For player **gdsandstorm**, the total career earnings are recorded, but the data does not break down earnings by individual tournament. Therefore, it is not possible to determine which tournament contributed the most to their earnings."
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no prize money per tournament, only career totals; cites player_id 74433 unasked"
+answer = "The data does not track earnings per tournament; it only provides a total career earnings figure for players with a Power Rankings ranking. The player \"gdsandstorm\" (player_id 74433) has a career earnings figure recorded, but it is not broken down by event. Therefore, it is impossible to determine which tournament contributed the most to their earnings from the available data."
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no prize money per tournament, only career totals; cites player_id 74433 unasked"
+answer = "The data does not track earnings per tournament; it only provides total career earnings for players with a Power Rankings ranking. The player \"sandstorm\" (resolved to **gdsandstorm**, player_id 74433) has a career earnings figure in the Stats API, but this is a cumulative total, not broken down by tournament. There is no per-tournament prize money data available in the official results database."
+
+# q35 (retrieval on): what legend does godly main
+# Expected: The data can't say: the database has no legend (character) data. Godly is Zivai (147982).
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no legend data; Zivai (formerly Godly)"
+answer = "The data does not record which character a player usually picks (their main legend). The player formerly known as \"godly\" is now called Zivai, but no information about their main legend is stored in the results database."
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no legend data"
+answer = "The data does not record which character a player main (legend), as explicitly stated in the provided documentation. The tools and database views track tournament results, placements, and statistics, but not players' preferred characters. Therefore, there is no information available to answer this question."
+
+[[run]]
+arm = "on"
+question = "q35"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no legend data"
+answer = "The data does not record which legend a player main, as explicitly stated in the provided information. The available esports results database tracks placements, wins, and other competitive metrics, but does not store players' preferred characters (legends). Therefore, this question cannot be answered from the data."
+
+# q36 (retrieval on): How many community tournaments has raydish won?
+# Expected: The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. ("Brawlhalla Community Tournament #2", 2025, is an official event despite its name, and Raydish didn't enter it.)
+
+[[run]]
+arm = "on"
+question = "q36"
+seed = 0
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no community tournaments in the data"
+answer = "The data provided covers only official Brawlhalla esports events, as explicitly stated in the guidelines: \"Community tournaments aren't in the data.\" The player *Raydish* has no results in community tournaments, as none exist in the dataset. All entries in the results database are official events, and the question's premise (community tournaments) is not supported by the data.\n\n(I left out a statement I couldn't confirm from the data.)"
+
+[[run]]
+arm = "on"
+question = "q36"
+seed = 1
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no community tournaments in the data; events named Community or Open are official, rightly"
+answer = "The data does not include community tournaments, as explicitly stated in the documentation: \"Community tournaments aren't in the data.\" All results tracked are for official events only, regardless of event names containing terms like \"Community\" or \"Open.\" Therefore, the count of community tournaments won by Raydish (or any player) is **not recorded** in the official esports results."
+
+[[run]]
+arm = "on"
+question = "q36"
+seed = 2
+verdict = "right"
+stage = ""
+review = "needs review"
+note = "no community tournaments in the data"
+answer = "The data only includes official esports events, and community tournaments are not part of the official Brawlhalla results. Therefore, the number of community tournaments won by Raydish cannot be determined from the available data."

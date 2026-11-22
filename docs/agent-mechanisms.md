@@ -494,8 +494,10 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 - Nothing for the agent. The final measurement ran on 2026-11-21 (in the log), and after it the agent changes only
   for bugs and the user's additions.
-- Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions is running,
-  and the Sonnet experiment is skipped for now, with its backend in place (the user's decision).
+- Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions is in the
+  log, and the Sonnet experiment is skipped for now, with its backend in place (the user's decision).
+- M5, answer writing: a fix for the names correction writing the question's spelling over the start of the right
+  name ("Moni--", "Dragon!!"), found in the targeted run, waits for the user's go-ahead.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
