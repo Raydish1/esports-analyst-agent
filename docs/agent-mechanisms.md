@@ -426,6 +426,21 @@ could be. The reruns wait for the user.
 
 The unit tests (526) and `retrieval.py check` (35 examples) pass.
 
+## An addition after the final measurement (2026-11-22): team against team
+
+The user's live test asked "raydish and megd vs moni and animefan1266". It got a 1v1 head-to-head, or no tool and "they
+never met", though they met in the Autumn NA 2026 2v2. This is M2: no tool counted one 2v2 team against another.
+
+- `team_head_to_head(player_id, partner_id, opponent_id, opponent_partner_id)`: the first team's record in sets, with
+  games, and each set between them. Each pair has to be on its own side of the set. Without the opponent's partner, it
+  counts the sets against that opponent with any partner, each naming the partner.
+- `rank_pairs(player_id, partner_id)`: the teams a duo faced, by sets, by its record or by its rate, with no minimum
+  unless given.
+- The scope check refuses `head_to_head` once for "X and Y vs Z and W" (`scope.TEAMS`).
+- The context carries a template's partner and opponent's partner, so a follow-up keeps all four players.
+
+It's offline and not measured with the model (in the log, 2026-11-22). A small targeted run waits for the user.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.

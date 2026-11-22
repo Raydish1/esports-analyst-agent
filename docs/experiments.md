@@ -2,6 +2,31 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: team against team, an addition after the final measurement, checked offline
+
+**What it asked.** Can the agent answer two 2v2 teams against each other? In the user's live test, "raydish and megd
+vs moni and animefan1266" got a 1v1 head-to-head, or no tool and "they never met". They met in the Autumn
+Championship NA 2026's 2v2 elimination final, 3-2. No tool counted one team against another. The user asked for a
+template, and for `rank_pairs` to rank a team's opposing teams. It comes after the final measurement, so the report
+lists it as an addition: the final numbers don't include it.
+
+**Setup.** No model. The tools ran on eval-v1, timed with the agent's x64 Python, and the scope rule was checked on the
+147 texts of the three sets. Commits 8f3409a and 477513d.
+
+**Results.**
+
+| Change | Checked on | Result |
+|---|---|---|
+| `team_head_to_head(player_id, partner_id, opponent_id, opponent_partner_id)` | eval-v1, the live question | Raydish and megD 1-0 against Moni- and animefan1266, 3-2 in games, at the Autumn Championship - North America 2026 - 2v2 (2026-09-27), in 0.2 s |
+| The same without `opponent_partner_id` | eval-v1 | Against Moni- with any partner: 1-1, with the Midseason Championship 2026 set lost 1-3 to Moni- and Marckiem00 |
+| `rank_pairs(player_id, partner_id)`, a duo's opposing teams | eval-v1 | Raydish and megD's most-played teams: Marckiem00 and futurebubbles366 (5 sets, 5-0), bestjava and fakey7 (5, 2-3), luna and Snowy!! (5, 2-3) |
+| The scope check refusing `head_to_head` once for "X and Y vs Z and W" | the 147 texts of the three sets | None matches, so no recorded call would have been refused |
+
+The 532 unit tests and `retrieval.py check` pass. No worked example was added: one would change the example bank, and
+rebuilding its store needs the embedding model on the server.
+
+**What it decided.** Built. Measuring it with the model is a small targeted run, for the user's go-ahead.
+
 ## 2026-11-21: the final measurement, and a summary of the results
 
 **What it is.** The agent's final measurement, which the report cites, with a summary of every round before it. After
@@ -22,6 +47,8 @@ it the agent changes only for bugs (the user's decision, 2026-11-21).
 - **Not rerun.** The held-out set's final measurement is 2026-11-17's, since its questions were read after it.
 - **Two bugs found in the final run** were fixed after it (40996f9). Both are in round seven's recheck, and the numbers
   below include them.
+- **Added after it**, and not in its numbers: `team_head_to_head` and `rank_pairs`' team mode (2026-11-22, the entry
+  above).
 
 **Headline numbers.**
 
