@@ -150,11 +150,15 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
             return found
 
         @app.get("/api/preview/teams/{a}/{b}/{c}/{d}")
-        def preview_teams(a: int, b: int, c: int, d: int):
+        def preview_teams(a: int, b: int, c: int, d: int, part: int = 0):
             found = cards.teams((a, b), (c, d))
-            if not found:
-                raise HTTPException(404, "No such players.")
-            return found[0]
+            if len(found) <= part:
+                raise HTTPException(404, "No such players." if not found else "No sets between these teams.")
+            return found[part]
+
+        @app.get("/api/preview/event/{event_id:path}")
+        def preview_event(event_id: str):
+            return cards.event_sets({"event_id": event_id, "name": "Preview event", "date": None})
 
         @app.get("/api/preview/sets/{player_id}/{opponent_id}")
         def preview_sets(player_id: int, opponent_id: int):

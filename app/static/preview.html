@@ -29,8 +29,12 @@
     await document.fonts.ready;
     if (q.get("team") || q.get("teams")) {  // &team=ID,ID for a partnership; &teams=ID,ID,ID,ID for two teams
       const ids = (q.get("team") || q.get("teams")).split(",").map(encodeURIComponent).join("/");
-      const card = await (await fetch(`/api/preview/${q.get("team") ? "team" : "teams"}/${ids}`)).json();
-      document.getElementById("out").append(teamsFrame(card, q.get("mode") || "2v2"));
+      const part = q.get("sets") && q.get("teams") ? "?part=1" : "";  // &sets=1: the two teams' set list
+      const card = await (await fetch(`/api/preview/${q.get("team") ? "team" : "teams"}/${ids}${part}`)).json();
+      document.getElementById("out").append(part ? setsFrame(card).frame : teamsFrame(card, q.get("mode") || "2v2"));
+    } else if (q.get("event")) {  // &event=ID: an event's top 8 sets
+      const card = await (await fetch(`/api/preview/event/${q.get("event")}`)).json();
+      document.getElementById("out").append(setsFrame(card).frame);
     } else if (q.get("sets")) {  // the set list of a head-to-head: &sets=1 with player and opponent
       const card = await (await fetch(`/api/preview/sets/${id("player")}/${id("opponent")}`)).json();
       document.getElementById("out").append(setsFrame(card).frame);

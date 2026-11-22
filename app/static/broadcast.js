@@ -47,8 +47,8 @@ async function heavyFace() {
 }
 export const fontsReady = heavyFace().catch(() => {});
 
-const HEAVY = [".bc-name", ".bc-heading", ".bc-pname", ".bc-vs", ".bc-sets-heading", ".bc-sets-title", ".bc-earnings",
-  ".bc-count", ".bc-value", ".bc-money", ".bc-num", ".bc-pnum", ".bc-score", ".bc-entry-score"]
+const HEAVY = [".bc-name", ".bc-heading", ".bc-pname", ".bc-vs", ".bc-earnings",
+  ".bc-count", ".bc-value", ".bc-money", ".bc-num", ".bc-pnum", ".bc-score", ".bc-wsets-heading", ".bc-wsets-side", ".bc-tile-event"]
   .map((c) => `${c}:not(.bc-missing)`).join(", ");
 
 function squeezeWords(frame) {
@@ -275,68 +275,127 @@ export function headToHeadFrame(card, mode = "1v1 and 2v2") {
   return squeezeWords(frame);
 }
 
-// Set list (reference: the "Matches" sidebar of IMG_2447, scaled to 1920 wide). Each sidebar column holds five sets, as
-// the reference does, and columns sit side by side, up to SIDEBARS; past that the last slot says how many more.
-export const SIDEBAR = { width: 236, perColumn: 5, pitch: 103, columns: 8 };
+// Set list: the sets side by side on one 1920x1080 frame, newest first, each a tile with its event, its date and the
+// score. A head-to-head's or two teams' sets (card.sides) keep the first side on the left, in orange, the other in teal,
+// as the other cards do, with the record between them in the header; an event's sets name each set's two players.
+// One to four sets fill one row; five to eight two rows; past eight the latest eight, and the header says so.
+export const TILES = { most: 8, perRow: 4, left: 60, top: 330, width: 1800, height: 710, gap: 30, maxWidth: 430 };
+
+const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const REGIONS = [["North America", "NA"], ["South America", "SA"], ["Southeast Asia", "SEA"], ["Europe", "EU"],
+  ["Middle East & North Africa", "MENA"], ["Middle East and North Africa", "MENA"], ["Australia", "AUS"],
+  ["Oceania", "OCE"], ["Japan", "JPN"], ["Brazil", "BRZ"]];
+
+// An event's name written short for a tile: the tournament without the event name after " / " or the mode, the
+// regions abbreviated, "Brawlhalla" dropped ("Winter Championship - North America 2025 / Brawlhalla Championship 2v2"
+// is "Winter Championship NA 2025"; "Brawlhalla World Championship Expo 2024" is "BCX 2024"). Display only: the list
+// below the card keeps the full name.
+export function shortEvent(name) {
+  if (!name) return "";
+  let s = name.split(" / ")[0].replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s*-\s*(1v1|2v2)\s*$/i, "");
+  s = s.replace(/^Brawlhalla World Championship Expo/i, "BCX").replace(/^Brawlhalla World Championship(?! Expo)/i, "Worlds");
+  for (const [long, abbr] of REGIONS) s = s.replaceAll(long, abbr);
+  s = s.replace(/^Brawlhalla\s*(-\s*)?/i, "").replace(/\s+-\s+/g, " ").replace(/\s{2,}/g, " ").trim();
+  // "NA Spring Championship 2022" reads as the newer names do, "Spring Championship NA 2022"
+  const lead = s.match(/^(NA|SA|SEA|EU|MENA|AUS|OCE|JPN|BRZ) (.+?)( \d{4})?$/);
+  return lead ? `${lead[2]} ${lead[1]}${lead[3] || ""}` : s;
+}
+
+function day(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : "DATE NOT RECORDED";
+}
+
+// One tile's score from the left side's view: [left games, right games, whether the left side won].
+function sidedScore(s, sides) {
+  const leftWon = s.first_won === undefined ? s.winner === sides[0] : s.first_won;
+  const [l, r] = leftWon ? [s.winner_games, s.loser_games] : [s.loser_games, s.winner_games];
+  return { l, r, leftWon };
+}
+
+function tile(s, card) {
+  const node = el("div", "bc-tile");
+  const band = el("div", "bc-tile-band");
+  // An event's sets share the event, which the header names: each band names the set's two players instead, the
+  // winner first, as the score reads.
+  band.append(el("span", "bc-tile-event bc-heavy", (card.sides ? shortEvent(s.event || card.event)
+    : `${s.winner || ""} vs ${s.loser || ""}`).toUpperCase()));
+  node.append(band);
+  node.append(el("span", "bc-tile-date", [day(s.date), card.modes && s.mode ? s.mode.toUpperCase() : null].filter(Boolean).join(" · ")));
+  const scored = !absent(s.winner_games);
+  if (card.sides) {
+    const { l, r, leftWon } = sidedScore(s, card.sides);
+    const score = el("p", "bc-tile-score bc-heavy");
+    if (scored) {
+      score.append(el("span", leftWon ? "bc-l" : "bc-lost", String(l)), el("span", "bc-dash", "–"),
+        el("span", leftWon ? "bc-lost" : "bc-r", String(r)));
+    } else {
+      score.classList.add("bc-missing");
+      score.textContent = "SCORE NOT RECORDED";
+    }
+    node.append(score);
+    const won = el("div", `bc-tile-won ${leftWon ? "bc-l" : "bc-r"}`);
+    won.append(el("span", "bc-tile-won-word", "WON"), el("span", "bc-tile-won-name", (leftWon ? card.sides[0] : card.sides[1]).toUpperCase()));
+    node.append(won);
+  } else {  // an event's set: the score winner first, and who won
+    const score = scored ? el("p", "bc-tile-score bc-heavy") : el("p", "bc-tile-score bc-missing", "SCORE NOT RECORDED");
+    if (scored) score.append(el("span", "bc-l", String(s.winner_games)), el("span", "bc-dash", "–"), el("span", "bc-lost", String(s.loser_games)));
+    const won = el("div", "bc-tile-won bc-l");
+    won.append(el("span", "bc-tile-won-word", "WON"), el("span", "bc-tile-won-name", (s.winner || "").toUpperCase()));
+    node.append(score, won);
+  }
+  return node;
+}
 
 export function setsFrame(card) {
-  const sets = card.sets || [];
-  const slots = SIDEBAR.perColumn * SIDEBAR.columns;
-  const shown = sets.length > slots ? sets.slice(0, slots - 1) : sets;
-  const columns = Math.max(1, Math.ceil((shown.length + (sets.length > slots ? 1 : 0)) / SIDEBAR.perColumn));
-  const width = columns * SIDEBAR.width;
-  const frame = el("div", "bc-frame bc-sets");
-  frame.style.width = `${width}px`;
+  const sets = [...(card.sets || [])].reverse();  // newest first
+  const shown = sets.slice(0, TILES.most);
+  const frame = el("div", "bc-frame bc-wsets");
   frame.setAttribute("role", "img");
   frame.setAttribute("aria-label", card.title);
-  // The dark plate at the top (the reference's logo area, traced; the logo itself is left out) holds what the list is.
-  const edge = [[236, 128], [232, 135], [136, 204], [104, 192], [80, 200], [72, 217], [0, 261]];
-  const pts = (list) => list.map(([x, y]) => `${x},${y}`).join(" ");
-  frame.append(shapes([
-    [pts([...edge, ...edge.map(([x, y]) => [x, y + 12]).reverse()]), "var(--bc-orange)"],
-    [`0,0 236,0 ${pts(edge)}`, "#170c08"],
-  ]));
-  frame.append(text("bc-sets-subject", (card.event ? `${card.event}${card.date ? ` · ${card.date}` : ""}` : card.title).toUpperCase()));
-  frame.append(text("bc-sets-heading bc-heavy", "MATCHES"));
-  // The first player of a head-to-head (or their team) stays on top, with the score from their side; an event's
-  // winner is on top.
-  const top = card.event ? null : (card.title.match(/^Sets between (.+) and (.+)$/) || [])[1];
-  shown.forEach((s, i) => {
-    const column = Math.floor(i / SIDEBAR.perColumn);
-    const entry = el("div", "bc-entry");
-    entry.style.left = `${column * SIDEBAR.width}px`;
-    entry.style.top = `${347 + (i % SIDEBAR.perColumn) * SIDEBAR.pitch}px`;
-    const flip = top && (s.first_won === undefined ? s.loser === top : !s.first_won);
-    const [upper, lower] = flip ? [s.loser, s.winner] : [s.winner, s.loser];
-    const score = absent(s.winner_games) ? null
-      : flip ? `${s.loser_games} - ${s.winner_games}` : `${s.winner_games} - ${s.loser_games}`;
-    entry.append(el("span", "bc-entry-name", (upper || "").toUpperCase()),
-      score === null ? el("span", "bc-entry-score bc-missing", "SCORE NOT RECORDED") : el("span", "bc-entry-score bc-heavy", score),
-      el("span", "bc-entry-name", (lower || "").toUpperCase()));
-    if (i % SIDEBAR.perColumn) entry.classList.add("bc-ruled");
-    frame.append(entry);
-  });
-  if (sets.length > slots) {
-    const more = el("div", "bc-entry bc-ruled bc-more");
-    more.style.left = `${(SIDEBAR.columns - 1) * SIDEBAR.width}px`;
-    more.style.top = `${347 + (SIDEBAR.perColumn - 1) * SIDEBAR.pitch}px`;
-    more.append(el("span", "bc-entry-score bc-heavy", `+${sets.length - shown.length}`), el("span", "bc-entry-name", "MORE SETS"));
-    frame.append(more);
+  frame.append(shapes([["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"]]));
+  frame.append(text("bc-strip-text", (card.scope || "").toUpperCase()));
+
+  const heading = card.event ? card.title.toUpperCase()
+    : card.mode === "2v2" ? "OFFICIAL 2V2 SETS" : !card.modes || card.mode === "1v1" ? "OFFICIAL 1V1 SETS" : "OFFICIAL SETS";
+  frame.append(text("bc-wsets-heading bc-heavy", heading));
+  if (card.sides) {
+    const wins = sets.filter((s) => sidedScore(s, card.sides).leftWon).length;
+    frame.append(el("p", "bc-t bc-wsets-side bc-l bc-heavy", card.sides[0].toUpperCase()),
+      el("p", "bc-t bc-wsets-side bc-r bc-heavy", card.sides[1].toUpperCase()));
+    if (card.sets) {
+      const record = el("p", "bc-t bc-wsets-record bc-heavy");
+      record.append(el("span", "bc-l", String(wins)), el("span", "bc-dash", "–"), el("span", "bc-r", String(sets.length - wins)));
+      frame.append(record);
+    }
+  } else if (card.event) {
+    frame.append(text("bc-wsets-event bc-heavy", `${card.event}${card.date ? ` · ${day(card.date)}` : ""}`.toUpperCase()));
   }
-  if (!sets.length) frame.append(text("bc-sets-empty", card.sets === null ? `${card.total} SETS: TOO MANY TO LIST`
-    : card.mode && card.mode !== "1v1 and 2v2" ? `NO ${card.mode.toUpperCase()} SETS` : "NO SETS RECORDED"));
-  const foot = el("div", "bc-sets-foot");  // the title and what it counts, stacked, so a long title can't overlap
-  const heading = card.mode === "2v2" ? "OFFICIAL 2V2 SETS"  // a head-to-head in 2v2, or two teams' sets
-    : !card.modes || card.mode === "1v1" ? "OFFICIAL 1V1 SETS" : "OFFICIAL SETS";
-  foot.append(el("p", "bc-sets-title bc-heavy", card.event ? card.title.toUpperCase() : heading),
-    el("p", "bc-sets-scope", card.scope));
-  frame.append(foot);
-  for (let c = 0; c < columns; c++) {  // each column's gold rule on its right edge
-    const rule = el("div", "bc-sets-rule");
-    rule.style.left = `${(c + 1) * SIDEBAR.width - 4}px`;
-    frame.append(rule);
+  if (sets.length > TILES.most) frame.append(text("bc-wsets-note", `THE LATEST ${TILES.most} OF ${sets.length} · NEWEST FIRST`));
+  else if (sets.length > 1) frame.append(text("bc-wsets-note", "NEWEST FIRST"));
+
+  const cols = Math.min(shown.length, TILES.perRow);
+  const rows = Math.ceil(shown.length / TILES.perRow);
+  if (shown.length) {
+    const w = Math.min(TILES.maxWidth, (TILES.width - TILES.gap * (TILES.perRow - 1)) / TILES.perRow);
+    const h = rows > 1 ? (TILES.height - TILES.gap) / 2 : 430;
+    const top = TILES.top + (rows > 1 ? 0 : (TILES.height - h) / 2);
+    shown.forEach((s, i) => {
+      const inRow = i < TILES.perRow ? cols : shown.length - TILES.perRow;
+      const rowWidth = inRow * w + (inRow - 1) * TILES.gap;
+      const t = tile(s, card);
+      t.style.left = `${TILES.left + (TILES.width - rowWidth) / 2 + (i % TILES.perRow) * (w + TILES.gap)}px`;
+      t.style.top = `${top + Math.floor(i / TILES.perRow) * (h + TILES.gap)}px`;
+      t.style.width = `${w}px`;
+      t.style.height = `${h}px`;
+      if (rows > 1) t.classList.add("bc-tile-short");
+      frame.append(t);
+    });
+  } else {
+    frame.append(text("bc-wsets-empty bc-heavy", card.sets === null ? `${card.total} SETS: TOO MANY TO LIST`
+      : card.mode && card.mode !== "1v1 and 2v2" ? `NO ${card.mode.toUpperCase()} SETS` : "NO SETS RECORDED"));
   }
-  return { frame: squeezeWords(frame), width };
+  return { frame: squeezeWords(frame), width: 1920 };
 }
 
 // 2v2 (reference: the North America elimination final, Moni & AnimeFan1266 vs Raydish & megD, scaled to 1920 wide).

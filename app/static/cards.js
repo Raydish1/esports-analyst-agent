@@ -140,14 +140,13 @@ function sets(card) {
   const details = el("div");
   const draw = (mode) => {
     const shown = inMode(card, mode);
-    const { frame, width } = setsFrame(shown);
-    holder.replaceChildren(scaled(frame, width, 1080, 560));
+    holder.replaceChildren(scaled(setsFrame(shown).frame));
     details.replaceChildren();
     if (shown.sets?.length) {
       const list = el("details", "set-details");
       list.append(el("summary", null, `The ${shown.sets.length} set${shown.sets.length === 1 ? "" : "s"} as a list`));
       const ol = el("ol", "set-list");
-      ol.append(...shown.sets.map(setRow));
+      ol.append(...[...shown.sets].reverse().map(setRow));  // newest first, as the frame shows them
       list.append(ol);
       details.append(list);
     } else if (shown.sets === null) {

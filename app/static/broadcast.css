@@ -89,7 +89,8 @@
 .bc-proxima-cond .bc-frame { --bc-squeeze: 1; }  /* the condensed cut needs no squeeze */
 .bc-frame .bc-sq { display: inline-block; transform: scaleX(var(--bc-squeeze)); transform-origin: left center; }
 .bc-frame .bc-center .bc-sq, .bc-frame .bc-pname .bc-sq, .bc-frame .bc-vs .bc-sq, .bc-frame .bc-count .bc-sq,
-.bc-frame .bc-sets-heading .bc-sq, .bc-frame .bc-sets-title .bc-sq, .bc-frame .bc-entry-score .bc-sq { transform-origin: center; }
+.bc-frame :is(.bc-wsets-heading, .bc-tile-event) .bc-sq { transform-origin: center; }
+.bc-frame .bc-wsets-side.bc-l .bc-sq { transform-origin: right center; }
 .bc-frame .bc-l .bc-sq, .bc-frame .bc-value .bc-sq { transform-origin: right center; }  /* right-aligned figures */
 
 .bc-frame svg.bc-shapes { position: absolute; inset: 0; width: 1920px; height: 1080px; }
@@ -202,42 +203,64 @@
 .bc-h2h .bc-score.bc-r { left: 1084px; }
 .bc-h2h .bc-vs { left: 954px; transform: translateX(-50%); top: 938px; font-size: 149px; color: var(--bc-orange); text-shadow: 9px 0 0 var(--bc-teal); letter-spacing: -4px; }
 
-/* Set list (reference: the "Matches" sidebar). A column is 236 px wide with a gold rule on its right; entries every
-   103 px, separated by a 2 px rule. The frame is as wide as its columns. */
+/* Set list: the sets side by side as tiles under a header (broadcast.js, setsFrame). The first side is orange on the
+   left and the other teal on the right, as on the head-to-head and teams frames. */
 
-.bc-sets { background: #faefed; }
-.bc-sets .bc-sets-heading { left: 0; width: 225px; text-align: center; top: 298px; font-size: 28px; }
-.bc-sets .bc-sets-subject {
-  left: 14px; width: 190px; top: 34px; white-space: normal; text-align: left; font-size: 18px; font-weight: 700;
-  line-height: 1.25; color: #fff4ec;
+.bc-wsets { --bc-teal: #6cbc99; --bc-lost: #b7a59d; }
+.bc-wsets .bc-strip-text { left: 0; width: 1920px; top: 10px; text-align: center; font-size: 18px; font-weight: 500; color: var(--bc-ink); }
+.bc-wsets .bc-wsets-heading { left: 0; width: 1920px; top: 70px; text-align: center; font-size: 40px; color: var(--bc-cream); }
+.bc-wsets .bc-wsets-side {
+  top: 130px; width: 640px; height: 130px; display: flex; align-items: center; white-space: normal; font-size: 54px;
+  line-height: 1; color: var(--bc-white);
 }
-.bc-sets .bc-entry { position: absolute; width: 220px; height: 88px; }
-.bc-sets .bc-entry.bc-ruled::before {
-  content: ""; position: absolute; left: 0; top: -15px; width: 232px; height: 2px; background: #a07a72;
+.bc-wsets .bc-wsets-side.bc-l { left: 60px; justify-content: flex-end; text-align: right; border-right: 10px solid var(--bc-orange); padding-right: 28px; }
+.bc-wsets .bc-wsets-side.bc-r { left: 1182px; justify-content: flex-start; text-align: left; border-left: 10px solid var(--bc-teal); padding-left: 28px; }
+.bc-wsets .bc-wsets-record { left: 760px; width: 400px; top: 118px; text-align: center; font-size: 140px; line-height: 1; }
+.bc-wsets .bc-wsets-event { left: 120px; width: 1680px; top: 150px; text-align: center; white-space: normal; font-size: 54px; line-height: 1.1; color: var(--bc-white); }
+.bc-wsets .bc-wsets-note { left: 0; width: 1920px; top: 284px; text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 0.08em; color: var(--bc-cream); }
+.bc-wsets .bc-l { color: var(--bc-orange); }
+.bc-wsets .bc-r { color: var(--bc-teal); }
+.bc-wsets .bc-lost { color: var(--bc-lost); }
+.bc-wsets .bc-dash { color: var(--bc-cream); margin: 0 0.18em; }
+.bc-wsets .bc-wsets-empty { left: 0; width: 1920px; top: 600px; text-align: center; font-size: 56px; color: var(--bc-cream); }
+
+.bc-wsets .bc-tile {
+  position: absolute; background: var(--bc-cream); display: flex; flex-direction: column; align-items: center;
+  box-shadow: 10px 10px 0 rgba(22, 12, 8, 0.45); overflow: hidden;
 }
-.bc-sets .bc-entry > span { position: absolute; left: 0; width: 220px; text-align: center; white-space: nowrap; line-height: 1; }
-.bc-sets .bc-entry-name { font-size: 22.7px; font-weight: 500; color: var(--bc-ink); overflow: hidden; text-overflow: ellipsis; }
-.bc-sets .bc-entry-name:first-child { top: 1px; }
-.bc-sets .bc-entry-name:last-child { top: 51.5px; }
-.bc-sets .bc-entry-score { top: 21px; left: 4px; font-size: 30.5px; color: var(--bc-orange); }
-.bc-sets .bc-entry-score.bc-missing { top: 27px; font-size: 15px; font-weight: 700; font-style: italic; }
-.bc-sets .bc-more .bc-entry-name { top: 36px; }
-.bc-sets .bc-sets-empty { left: 0; width: 225px; text-align: center; top: 380px; white-space: normal; font-size: 20px; font-weight: 700; }
-.bc-sets .bc-sets-foot { position: absolute; left: 8px; width: 212px; top: 870px; display: flex; flex-direction: column; gap: 10px; }
-.bc-sets .bc-sets-foot p { margin: 0; text-align: center; }
-.bc-sets .bc-sets-title { font-size: 28px; line-height: 1.05; }
-.bc-sets .bc-sets-scope { font-size: 14px; line-height: 1.3; font-weight: 500; color: #5d514c; }
-.bc-sets .bc-sets-rule { position: absolute; top: 0; width: 4px; height: 1080px; background: linear-gradient(90deg, #f1dc97, #e5cc77 60%, #aa914f); }
+.bc-wsets .bc-tile-band {
+  width: 100%; height: 118px; flex: none; background: var(--bc-dark); display: flex; align-items: center; justify-content: center;
+  padding: 0 22px; box-sizing: border-box; border-bottom: 8px solid var(--bc-orange);
+}
+.bc-wsets .bc-tile-event { font-size: 34px; line-height: 1.05; text-align: center; color: var(--bc-white); }
+.bc-wsets .bc-tile-date { margin-top: 18px; font-size: 22px; font-weight: 700; letter-spacing: 0.06em; color: #6d5e57; }
+.bc-wsets .bc-tile-score { margin: auto 0; font-size: 120px; line-height: 1; white-space: nowrap; }
+.bc-wsets .bc-tile-score.bc-missing { font-size: 26px; font-style: italic; font-weight: 700; color: #6d5e57; }
+.bc-wsets .bc-tile-won {
+  width: 100%; height: 64px; flex: none; display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 0 18px; box-sizing: border-box; color: var(--bc-white);
+}
+.bc-wsets .bc-tile-won.bc-l { background: var(--bc-orange); color: var(--bc-white); }
+.bc-wsets .bc-tile-won.bc-r { background: var(--bc-teal); color: var(--bc-dark); }
+.bc-wsets .bc-tile-won-word { font-size: 18px; font-weight: 700; letter-spacing: 0.1em; opacity: 0.85; }
+.bc-wsets .bc-tile-won-name { font-size: 24px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bc-wsets .bc-tile .bc-dash { color: #8f7d75; }
+/* Two rows: shorter tiles */
+.bc-wsets .bc-tile-short .bc-tile-band { height: 100px; }
+.bc-wsets .bc-tile-short .bc-tile-event { font-size: 30px; }
+.bc-wsets .bc-tile-short .bc-tile-date { margin-top: 12px; font-size: 20px; }
+.bc-wsets .bc-tile-short .bc-tile-score { font-size: 96px; }
+.bc-wsets .bc-tile-short .bc-tile-won { height: 54px; }
 
 /* The broadcast sets the condensed cut with slightly open spacing: its gaps measure 1-3 px wider at heading size, the
    letters the same. Only the words take it; the figures matched as they are. */
-.bc-proxima-cond .bc-frame :is(.bc-name, .bc-heading, .bc-pname, .bc-vs, .bc-sets-heading, .bc-sets-title) { letter-spacing: 0.03em; }
+.bc-proxima-cond .bc-frame :is(.bc-name, .bc-heading, .bc-pname, .bc-vs, .bc-wsets-heading, .bc-wsets-side, .bc-tile-event) { letter-spacing: 0.03em; }
 
 /* The small text in Author Medium (the producer): labels, the bar and strip lines, the sidebar's names, the scope
    lines. Its tall "|" matches the reference's region/PR line, which Proxima Nova's short one doesn't. That line runs
    about 8% wider than Author at the same cap height, about 1 px a gap, so the bar and strip lines take 0.04 em. */
-.bc-frame :is(.bc-eyebrow, .bc-bar-text, .bc-strip-text, .bc-label, .bc-mlabel, .bc-plabel, .bc-circle, .bc-entry-name,
-  .bc-sets-subject, .bc-scope, .bc-sets-scope) { font-family: "BC Small", "BC Text", "Montserrat", system-ui, sans-serif; font-weight: 500; }
+.bc-frame :is(.bc-eyebrow, .bc-bar-text, .bc-strip-text, .bc-label, .bc-mlabel, .bc-plabel, .bc-circle, .bc-tile-date, .bc-tile-won, .bc-wsets-note,
+  .bc-scope) { font-family: "BC Small", "BC Text", "Montserrat", system-ui, sans-serif; font-weight: 500; }
 .bc-frame :is(.bc-bar-text, .bc-strip-text) { letter-spacing: 0.04em; }
 
 /* 2v2 (reference: the North America elimination final). Positions from the reference scaled by 1920/1206: four
