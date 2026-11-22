@@ -18,6 +18,7 @@ import asyncio
 import base64
 import io
 import json
+import os
 import random
 from contextlib import asynccontextmanager
 
@@ -78,8 +79,11 @@ class Renderer:
     """Draws cards with card.html in one headless browser (Playwright, the installed Edge or Chrome), launched on first
     use. Each card becomes a 1280x720 JPEG, small enough for a model's context."""
 
-    def __init__(self, base_url, channel="msedge"):
-        self.base_url, self.channel, self.page, self.lock = base_url.rstrip("/"), channel, None, asyncio.Lock()
+    def __init__(self, base_url, channel=None):
+        """channel: the installed browser to drive (CARD_BROWSER, default msedge); an empty one is Playwright's own
+        Chromium, as the hosted image installs it."""
+        channel = os.environ.get("CARD_BROWSER", "msedge") if channel is None else channel
+        self.base_url, self.channel, self.page, self.lock = base_url.rstrip("/"), channel or None, None, asyncio.Lock()
 
     async def start(self):
         from playwright.async_api import async_playwright
@@ -107,9 +111,10 @@ class Renderer:
             await self.playwright.stop()
 
 
-def build(path, base_url, earnings_sources=("Stats API",)):
-    """The MCP server on the database at path, its cards drawn from the app at base_url. Returns (asgi app, lifespan)."""
-    tools = react.Tools(path)  # its own, so its calls never show up in a web visitor's progress
+def build(path, base_url, earnings_sources=("Stats API",), tools=None):
+    """The MCP server on the database at path, its cards drawn from the app at base_url. Returns (asgi app, lifespan).
+    tools: a react.Tools to share; by default its own, so its calls never show up in a web visitor's progress."""
+    tools = tools or react.Tools(path)
     cards = figures.Cards(tools, sources=earnings_sources)
     renderer = Renderer(base_url)
     server = Server("brawlhalla-cortex", instructions=INSTRUCTIONS)

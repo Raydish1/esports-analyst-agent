@@ -1,0 +1,9 @@
+data
+.git
+.claude
+.env
+**/__pycache__
+**/node_modules
+docs
+eval
+tests

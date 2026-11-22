@@ -1,0 +1,7 @@
+# The hosted server's packages only (the agent's core is standard library): its web server, the MCP server, and the
+# cards' rendering.
+fastapi
+uvicorn
+mcp
+playwright
+pillow

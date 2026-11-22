@@ -222,22 +222,7 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
 
     @app.get("/api/event-image")
     def event_image(id: str):
-        """An event's logo (figures.EventImages), as a 256-pixel WebP made once from the fetched image."""
-        name = cards.images.file(id)
-        if not name:
-            raise HTTPException(404, "No logo for this event.")
-        source = figures.ROOT / "data" / "raw" / "event_images" / name
-        thumb = source.parent / "thumbs" / (source.stem + ".webp")
-        if not thumb.exists():
-            if not source.exists():
-                raise HTTPException(404, "No logo for this event.")
-            from PIL import Image
-            thumb.parent.mkdir(exist_ok=True)
-            with Image.open(source) as im:
-                im = im.convert("RGBA")
-                im.thumbnail((256, 256))
-                im.save(thumb, "WEBP", quality=88)
-        return FileResponse(thumb, media_type="image/webp", headers={"Cache-Control": "max-age=86400"})
+        return event_logo(cards, id)
 
     @app.middleware("http")
     async def revalidate(request, call_next):
@@ -254,6 +239,58 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
         app.mount("/mcp", asgi)
     if static.exists():
         app.mount("/", StaticFiles(directory=static, html=True), name="static")
+    return app
+
+
+def event_logo(cards, event_id):
+    """An event's logo (figures.EventImages), as a 256-pixel WebP made once from the fetched image (data/raw/
+    event_images; the hosted server has only the thumbs)."""
+    name = cards.images.file(event_id)
+    if not name:
+        raise HTTPException(404, "No logo for this event.")
+    source = figures.ROOT / "data" / "raw" / "event_images" / name
+    thumb = source.parent / "thumbs" / (source.stem + ".webp")
+    if not thumb.exists():
+        if not source.exists():
+            raise HTTPException(404, "No logo for this event.")
+        from PIL import Image
+        thumb.parent.mkdir(exist_ok=True)
+        with Image.open(source) as im:
+            im = im.convert("RGBA")
+            im.thumbnail((256, 256))
+            im.save(thumb, "WEBP", quality=88)
+    return FileResponse(thumb, media_type="image/webp", headers={"Cache-Control": "max-age=86400"})
+
+
+def hosted_app(path, base_url, static=STATIC):
+    """The hosted server (Fly.io, deploy/): no model, so the MCP server at /mcp, the event logos, and the page, which
+    finds no /api/info and plays the demo's recorded answers (app.js, offline). Stats API earnings only."""
+    import mcp_server
+    tools = react.Tools(path)
+    cards = figures.Cards(tools, sources=("Stats API",))
+    asgi, lifespan = mcp_server.build(path, base_url, earnings_sources=("Stats API",), tools=tools)
+    app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None,
+                  lifespan=lambda _: lifespan())
+
+    @app.get("/api/event-image")
+    def event_image(id: str):
+        return event_logo(cards, id)
+
+    @app.get("/healthz")
+    def health():
+        return {"ok": True}
+
+    @app.middleware("http")
+    async def slash(request, call_next):
+        if request.scope["path"] == "/mcp":
+            request.scope["path"], request.scope["raw_path"] = "/mcp/", b"/mcp/"
+        response = await call_next(request)
+        if not request.url.path.startswith(("/api/", "/mcp")):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+    app.mount("/mcp", asgi)
+    app.mount("/", StaticFiles(directory=static, html=True), name="static")
     return app
 
 
@@ -307,7 +344,7 @@ def card_earnings(flag, env):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="The demo web app: the agent behind a queue, streamed to the page.")
-    parser.add_argument("--mode", choices=["replay", "live"], default="replay",
+    parser.add_argument("--mode", choices=["replay", "live", "hosted"], default="replay",
                         help="replay: recorded model replies through the real loop and tools (the default); live: the"
                              " model server at OLLAMA_BASE_URL. Never live while an eval run is going")
     parser.add_argument("--examples", choices=["on", "off"], default="on",
@@ -330,6 +367,12 @@ def main(argv=None):
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
+    if args.mode == "hosted":  # no model: the MCP server and the demo page (hosted_app)
+        path = database(args.db)
+        print(f"Hosted mode: the MCP server at /mcp and the demo page. Database: {path}. Loading the players' names...")
+        import uvicorn
+        uvicorn.run(hosted_app(path, f"http://127.0.0.1:{args.port}"), host=args.host, port=args.port)
+        return
     if args.mode == "live":
         source = live_source(args.examples == "on", parser.error, public=args.public)
         print(f"Live mode: {', '.join(m['label'] for m in source.choices())}, examples {args.examples}."
