@@ -15,6 +15,9 @@ Cards, at most two per answer:
 - teams: two 2v2 teams, each player's lifetime figures, and the teams' record against each other (2v2 sets with each
   team's two players on one side, from TEAMS); followed by sets, those sets. For a turn that called team_results for
   two partnerships with no players in common;
+  For a turn that called team_head_to_head with four players, or whose question names four players who make two
+  teams in the data (the pairing with the most events together, each pair partnered at least once), or that looked
+  up one held 2v2 event (its winners against its runners-up);
 - team: one partnership, each partner's lifetime figures and their 2v2 results together (team_results with no year or
   event), for a turn that called team_results for one;
 - sets for an event: the 1v1 sets between its top 8 players, for one held 1v1 event.
@@ -25,8 +28,10 @@ earnings query isn't run.
 
 import csv
 import json
+import re
 from pathlib import Path
 
+import mentions
 from templates import TEMPLATES, set_event
 from tools import connect
 
@@ -62,6 +67,12 @@ TEAMS = ("SELECT a.start_date, e.tournament_name, e.event_name, a.won, a.games_w
          " JOIN v_match_results b2 ON b2.match_id = a.match_id AND b2.side = b.side AND b2.player_id = ?"
          " JOIN v_events e ON e.event_id = a.event_id"
          " WHERE a.player_id = ? AND a.mode = '2v2' ORDER BY a.start_date, a.start_time, a.match_id")
+# One held 2v2 event's first and second place teams, each once.
+FINALISTS = ("SELECT player_id, partner_id, placement FROM v_team_results WHERE event_id = ? AND placement <= 2"
+             " AND player_id < partner_id ORDER BY placement, player_id")
+# A question naming four players is about two teams only if it says so: "vs", "against", "2v2", "team", ...
+TEAM_WORDS = re.compile(r"\b(vs?|versus|against|played|fought|faced|met|beat|2v2|2s|doubles|teams?|duos?)\b", re.I)
+TOGETHER = "SELECT COUNT(*) FROM v_team_results WHERE player_id = ? AND partner_id = ?"  # a partnership's events
 NARROWING = ("year", "event", "since", "until", "region")  # a call with any of these is about part of a career
 TEAM_SCOPE = ("Each player's own figures: all official events, regional championships included, in the mode picked (2v2"
               " when the card opens).")
@@ -246,7 +257,7 @@ class Cards:
         return {"kind": "team", "players": players, "together": together, "mode": "2v2",
                 "scope": self.team_scope(players) + " Together: their 2v2 results with each other at official events."}
 
-    def teams(self, first, second):
+    def teams(self, first, second, about=None):
         """Two teams (each a (player_id, partner_id) pair): the four players' lifetime figures and the teams' 2v2 sets
         against each other, from the first team's side; then those sets."""
         players = [self.lifetime(p) for p in (*first, *second)]
@@ -256,7 +267,8 @@ class Cards:
         names = [" & ".join(p["name"] for p in players[:2]), " & ".join(p["name"] for p in players[2:])]
         card = {"kind": "teams", "teams": [players[:2], players[2:]], "names": names, "record": tally(rows),
                 "mode": "2v2", "scope": self.team_scope(players) + f" The record: official 2v2 sets with {names[0]} on"
-                                        f" one side and {names[1]} on the other, from the first team's side."}
+                                        f" one side and {names[1]} on the other, from the first team's side."
+                                        + (f" {about}" if about else "")}
         if not rows:
             return [card]
         sets = [{"date": r[0], "event": set_event(r[1], r[2]), "mode": "2v2", "first_won": bool(r[3]),
@@ -267,12 +279,51 @@ class Cards:
                        "total": len(sets), "mode": "2v2",
                        "scope": "Official 2v2 sets between the two teams, oldest first. DQs, forfeits and ties left out."}]
 
+    def named_teams(self, question):
+        """Two teams from a question naming four players, each confidently (mentions.named): the pairing with the most
+        events together, each pair partnered at least once, the question's own order first among equals. None else."""
+        if not question or self.tools is None or not TEAM_WORDS.search(question):
+            return None
+        found = mentions.named(question, self.tools.resolver, self.tools.events.words)
+        ids = list(dict.fromkeys(out["candidates"][0]["player_id"] for _, out in found
+                                 if out.get("status") == "confident" and out.get("candidates")))
+        if len(ids) != 4:
+            return None
+        a, b, c, d = ids
+        best = None
+        for first, second in (((a, b), (c, d)), ((a, c), (b, d)), ((a, d), (b, c))):
+            counts = [self.query(TOGETHER, pair)[0][0] for pair in (first, second)]
+            if min(counts) and (best is None or sum(counts) > best[0]):
+                best = (sum(counts), first, second)
+        return best and best[1:]
+
+    def final(self, event):
+        """One held 2v2 event's winners against its runners-up, when exactly one team placed at each."""
+        rows = self.query(FINALISTS, (event["event_id"],))
+        first = [(r[0], r[1]) for r in rows if r[2] == 1]
+        second = [(r[0], r[1]) for r in rows if r[2] == 2]
+        if len(first) != 1 or len(second) != 1:
+            return []
+        return self.teams(first[0], second[0], about=f"Left: {event.get('name') or 'the event'}'s winners; right: its"
+                                                       " runners-up. The record counts every official set between them.")
+
     # Choosing the cards
 
     def build(self, trace):
         """The cards for a turn (the module docstring), at most MOST."""
         if trace.get("outcome") != "answered":
             return []
+        for args, out in calls(trace, "team_head_to_head"):
+            four = [(out.get(k) or {}).get("player_id") for k in ("player", "partner", "opponent", "opponent_partner")]
+            if None not in four and not any(args.get(k) for k in NARROWING):
+                found = self.teams(tuple(four[:2]), tuple(four[2:]))
+                if found:
+                    return found[:MOST]
+        named = self.named_teams(trace.get("question"))
+        if named:
+            found = self.teams(*named)
+            if found:
+                return found[:MOST]
         meetings = calls(trace, "head_to_head")
         if meetings:
             _, out = meetings[-1]
@@ -308,9 +359,12 @@ class Cards:
         for _, out in calls(trace, "event_results"):
             events = table_with(out, "event_id", "mode", "status")
             rows = [dict(zip(events["columns"], r)) for r in (events.get("rows") or [])] if events else []
-            if len(rows) == 1 and rows[0]["mode"] == "1v1" and not rows[0]["status"]:
-                cards.append(self.event_sets({"event_id": rows[0]["event_id"], "name": rows[0].get("event"),
-                                              "date": rows[0].get("date")}))
+            if len(rows) == 1 and not rows[0]["status"]:
+                about = {"event_id": rows[0]["event_id"], "name": rows[0].get("event"), "date": rows[0].get("date")}
+                if rows[0]["mode"] == "1v1":
+                    cards.append(self.event_sets(about))
+                elif rows[0]["mode"] == "2v2" and not cards:
+                    cards.extend(self.final(about))
                 break
         return cards[:MOST]
 

@@ -219,6 +219,30 @@ class TeamCardsTest(unittest.TestCase):
         self.assertIn("Alpha and Beta together in 2v2: 20 events, 0 wins, 3 medals, 9 top 8s, best placement 2;",
                       figures.summary([card]))
 
+    def test_a_team_head_to_head_call_gets_the_teams_card(self):
+        out = {"template": "team_head_to_head", "player": {"player_id": 1}, "partner": {"player_id": 2},
+               "opponent": {"player_id": 3}, "opponent_partner": {"player_id": 4}, "tables": []}
+        stub = TeamStub({}, sets=[("2026-09-27", "T", None, 1, 3, 2, 1)])
+        card, _ = stub.build(turn(call("team_head_to_head", {"player_id": 1, "partner_id": 2, "opponent_id": 3,
+                                                             "opponent_partner_id": 4}, out)))
+        self.assertEqual((card["kind"], card["record"]["wins"]), ("teams", 1))
+        narrowed = call("team_head_to_head", {"player_id": 1, "partner_id": 2, "opponent_id": 3,
+                                              "opponent_partner_id": 4, "year": 2025}, out)
+        self.assertEqual(TeamStub({}).build(turn(narrowed)), [])
+        no_partner = {**out, "opponent_partner": None}
+        self.assertEqual(TeamStub({}).build(turn(call("team_head_to_head", {}, no_partner))), [])
+
+    def test_a_held_2v2_event_gets_its_final(self):
+        def finalists(rows):
+            stub = TeamStub({})
+            plain = stub.query
+            stub.query = lambda sql, params: rows if sql == figures.FINALISTS else plain(sql, params)
+            return stub.build(turn(event(["Autumn / 2v2", "e", "2026-09-27", "2v2", None])))
+        (card,) = finalists([(1, 2, 1), (3, 4, 2)])
+        self.assertEqual((card["kind"], card["record"]["sets"]), ("teams", 0))
+        self.assertIn("Autumn / 2v2's winners", card["scope"])
+        self.assertEqual(finalists([(1, 2, 1), (3, 4, 1)]), [])  # a tie at 1st: no final to show
+
 
 class LegendsTest(unittest.TestCase):
     """A card's legend: the player's main, if the manifest lists it and its file exists; never a guess."""
@@ -317,6 +341,23 @@ class RealTest(unittest.TestCase):
         team = self.cards.team(160000, 142100)
         self.assertEqual({k: team["together"][k] for k in ("events", "wins", "medals", "top8s", "best")},
                          {"events": 20, "wins": 0, "medals": 3, "top8s": 9, "best": 2})
+
+    def test_a_question_naming_two_teams(self):
+        trace = {"outcome": "answered", "question": "raydish megd vs moni and animefan1266", "steps": []}
+        card, listed = self.cards.build(trace)
+        self.assertEqual((card["kind"], card["names"]), ("teams", ["Raydish & megD", "Moni- & animefan1266"]))
+        self.assertEqual((card["record"]["wins"], card["record"]["losses"]), (1, 0))
+        mixed = self.cards.named_teams("raydish and moni vs megd and animefan1266")  # paired by the data, not the order
+        self.assertEqual({frozenset(t) for t in mixed}, {frozenset((160000, 142100)), frozenset((152572, 146616))})
+        self.assertIsNone(self.cards.named_teams("raydish vs megd"))
+        self.assertIsNone(self.cards.named_teams("compare raydish, megd, moni and animefan1266 wins"))
+
+    def test_a_2v2_events_final(self):
+        event = {"event_id": "774eaef2-3f11-4c7b-f9ab-08ded4cb1c05", "name": "Autumn Championship NA 2026 2v2"}
+        card = self.cards.final(event)[0]
+        self.assertEqual([sorted(p["player_id"] for p in t) for t in card["teams"]],
+                         [[141522, 142042], [142100, 160000]])  # Pink | Zen & hideawaybh, then Raydish & megD
+        self.assertIn("winners", card["scope"])
 
     def test_an_events_top_8_sets(self):
         card = self.cards.event_sets({"event_id": "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1", "name": "x",
