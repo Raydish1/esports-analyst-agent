@@ -438,6 +438,10 @@ def event_results(query, tools, event, top=1):
         notes.append("A crew battle's placement is the crew's: a team result, which counts as 1v1.")
     if tied:
         notes.append("Rows on the same placement in one event are tied there: give them the same place.")
+    if {"1v1", "2v2"} <= {e["counts_as"] for e in events}:  # qwen3:30b gave BCX 2022's 1v1 bracket alone (q10), and
+        # the Midseason Championship 2026's 1v1 winner alone (q19)
+        notes.append("The name covers both a 1v1 and a 2v2 event: answer for both, or say which one the answer is"
+                     " about.")
     links = len(events) <= LINKS_AT_MOST
     ids = len(events) <= IDS_IN_SQL  # an event_id for any SQL that follows, as resolve_event gives IDs for so few
     if not ids:

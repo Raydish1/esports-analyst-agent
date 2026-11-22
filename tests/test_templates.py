@@ -125,6 +125,8 @@ class EventResultsTest(Fixture):
                                                         ["Duos", "e2", "1970-01-01", "2v2", None, None]])
         self.assertEqual(self.rows(out, "each event's winners"), [["Cup", "1970-01-01", "1v1", 1, "A", [A]],
                                                                   ["Duos", "1970-01-01", "2v2", 1, "A / B", [A, B]]])
+        self.assertIn("The name covers both a 1v1 and a 2v2 event: answer for both, or say which one the answer is"
+                      " about.", out["notes"])  # q10 and q19: qwen3:30b gave the 1v1 alone
 
     def test_each_event_comes_with_its_event_id_for_a_query_of_its_sets(self):
         events = next(t for t in self.call("event_results", event="cup 2020")["tables"]
