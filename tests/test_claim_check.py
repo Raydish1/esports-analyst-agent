@@ -79,6 +79,17 @@ class WritingTest(unittest.TestCase):
                          "Wess leads, 34 sets.")
         self.assertEqual(claim_check.tool_talk("The player results are below."), [])
 
+    def test_a_tool_name_cut_out_of_a_sentence_leaves_its_neighbours_apart(self):  # the final run's "by thewith"
+        facts = lambda text: bool(re.search(r"\d", text))  # noqa: E731
+        said = "megD has won 2 official events, as confirmed by the player_results tool with top=1. The data shows 2 wins."
+        self.assertEqual(claim_check.without_tool_talk(said, facts),
+                         "megD has won 2 official events, as confirmed by the with top=1. The data shows 2 wins.")
+        self.assertEqual(claim_check.without_tool_talk("Phazon has 12 2v2 wins, as confirmed by `player_results`"
+                                                       " (mode=\"2v2\", no top).", facts),
+                         "Phazon has 12 2v2 wins, as confirmed by (mode=\"2v2\", no top).")
+        self.assertEqual(claim_check.without_tool_talk("Raydish has 6 wins\n`player_results` gives 3 medals.", facts),
+                         "Raydish has 6 wins\ngives 3 medals.")  # a line break the match took stays
+
     def test_an_order_said_to_be_requested_is_found_only_when_the_question_asked_for_none(self):
         said = "Here are the three sets, most recent first as requested:"  # live, finding 35
         self.assertEqual(texts(claim_check.unasked(said, "what are the three sets that volst vs'd raydish")),

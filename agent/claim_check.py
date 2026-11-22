@@ -179,8 +179,15 @@ def without_tool_talk(answer, states_facts):
                if TOOL_TALK.search(answer[a:b]) and not states_facts(TOOL_TALK.sub(" ", answer[a:b]))]
     from number_check import without
     out, _ = without(answer, dropped)
-    out = TOOL_TALK.sub("", out)
+    out = TOOL_TALK.sub(cut, out)
     return re.sub(r"[ \t]+([.,;:!?])", r"\1", re.sub(r"[ \t]{2,}", " ", out)).strip()
+
+
+def cut(m):
+    """What a tool's name cut out of an answer leaves: the line breaks the match took, else a space, so the words
+    around it never fuse. In the final run, "as confirmed by the player_results tool with top=1" became "as confirmed
+    by thewith top=1" (a49 seeds 0 and 2, turn 2; c8 seed 0, turn 4: "bywith")."""
+    return "\n" * m[0].count("\n") or " "
 
 
 def draft_talk(answer):
