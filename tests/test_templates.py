@@ -513,6 +513,38 @@ class PlayerResultsTest(Fixture):
         self.assertIn("top is a whole number, 1 or more", self.call("player_results", player_id=A, top=0)["error"])
 
 
+class TeamHeadToHeadTest(Fixture):
+    def test_one_teams_2v2_record_against_another_with_each_set(self):  # live: "raydish and megd vs moni and
+        # animefan1266" got a 1v1 head-to-head, or "they never met"
+        out = self.call("team_head_to_head", player_id=A, partner_id=B, opponent_id=C, opponent_partner_id=D)
+        self.assertEqual(self.rows(out, "A and B's 2v2 record against C and D"),
+                         [["A and B", [A, B], "C and D", [C, D], 1, 0, 1, 3, 2, 0]])
+        self.assertEqual(self.rows(out, "each 2v2 set between them"), [["Duos", "1970-01-01", "A and B", 3, 2]])
+        self.assertEqual(out["notes"], ["In 2v2, A and B won 1 and lost 0 of their 1 set against C and D; C and D won 0"
+                                        " and lost 1."])
+        self.assertEqual((out["partner"], out["opponent_partner"]), ({"player_id": B, "name": "B"},
+                                                                     {"player_id": D, "name": "D"}))
+
+    def test_an_opponent_with_any_partner_names_the_partner_and_teams_that_never_met_say_so(self):
+        out = self.call("team_head_to_head", player_id=A2, partner_id=B, opponent_id=C)  # A2 is a record of A
+        self.assertEqual(self.rows(out, "each 2v2 set between them"), [["Duos", "1970-01-01", "A and B", 3, 2, "D", D]])
+        self.assertIn("player_id 5 is another record of A (player_id 1): these are the person's.", out["notes"])
+        apart = self.call("team_head_to_head", player_id=A, partner_id=C, opponent_id=B, opponent_partner_id=D)
+        self.assertEqual(self.rows(apart, "A and C's 2v2 record"), [["A and C", [A, C], "B and D", [B, D], 0, 0, 0, None,
+                                                                      None, 0]])
+        self.assertIn("A and C never met B and D at official events", apart["notes"][0])
+        self.assertIn("four different players", self.call("team_head_to_head", player_id=A, partner_id=A,
+                                                          opponent_id=C)["error"])
+
+    def test_rank_pairs_with_a_partner_ranks_the_teams_the_duo_faced(self):
+        out = self.call("rank_pairs", player_id=A, partner_id=B)
+        self.assertEqual(self.rows(out, "the teams A and B faced"), [[1, "C and D", [C, D], 1, 1, 0]])
+        self.assertIn("with A and B's wins against it (team_wins)", " ".join(out["notes"]))
+        self.assertIn("a team plays 2v2", self.call("rank_pairs", player_id=A, partner_id=B, mode="1v1")["error"])
+        self.assertIn("partner_id needs player_id", self.call("rank_pairs", partner_id=B)["error"])
+        self.assertIn("leave partner_id out", self.call("rank_pairs", player_id=A, partner_id=B, of="teammates")["error"])
+
+
 class TeamResultsTest(Fixture):
     def test_2v2_is_its_one_mode(self):
         self.assertEqual(self.call("team_results", player_id=A, partner_id=B, mode="2v2"),

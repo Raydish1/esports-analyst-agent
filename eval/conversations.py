@@ -44,7 +44,6 @@ from review_questions import flat, table  # noqa: E402
 from tools import connect  # noqa: E402
 
 SET = ROOT / "eval" / "questions" / "conversations.toml"
-REVIEW = ROOT / "eval" / "questions" / "conversations-review.md"
 QUESTIONS = ROOT / "eval" / "questions" / "questions.toml"
 LONE_ID = re.compile(r"\bplayer\s*#?\s*\d{4,}\b|\*\*-?\d{5,}\*\*", re.I)  # "Player 147569", "**147569**"
 QUERY_SECONDS = 120
@@ -119,8 +118,10 @@ class Turn:
     def evidence(self):
         """What the number check may cite in this turn's answer: the window's tool results, both questions, and the
         line the page showed after the previous turn, as the agent counts it (react.Conversation.shown). Without the
-        line, qwen3:14b's right "TOP 8: 51" from Phazon's card failed c14 turn 2 (the 2026-11-21 model comparison)."""
+        line, qwen3:14b's right "TOP 8: 51" from Phazon's card failed c14 turn 2 (the 2026-11-21 model comparison).
+        The prompt's own facts about the data count too, as the agent counts them (react.prompt_facts)."""
         found = Evidence()
+        found.state(**react.prompt_facts(react.SNAPSHOT))
         for t in self.window:
             found.ask(t["question"])
             for step in t["steps"]:
@@ -429,9 +430,10 @@ def run_query(sql, path):
         db.close()
 
 
-def review(data, path):
+def review(data, path, source=SET.name):
     """The set's review page, and what went wrong: (markdown, problems). Each turn's queries run on the snapshot,
-    and its rows and rows_any patterns must hold on their results, as on the agent's."""
+    and its rows and rows_any patterns must hold on their results, as on the agent's. source is the set's file name,
+    the file to edit, which the page sits beside."""
     db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
     harness.add_views(db)
     try:
@@ -444,13 +446,12 @@ def review(data, path):
     conversations = data["conversation"]
     verified = [c for c in conversations if str(c.get("verified", "")).strip()]
     out = ["# Test conversations: review", "",
-           "Made by `python eval/conversations.py review` from [`conversations.toml`](conversations.toml), which is the"
-           " file to edit.", "",
+           f"Made by `python eval/conversations.py review` from [`{source}`]({source}), which is the file to edit.", "",
            f"{len(conversations)} conversations, {sum(len(c['turn']) for c in conversations)} turns, with expected facts"
            f" computed from the frozen snapshot `{data['snapshot']}` (build {data['build']}). Each turn shows what a right"
            " answer says, the automatic checks scoring it, and the queries behind them with their results.", "",
            "**To verify:** check each turn's expected answer against what you know, then fill in `verified` for its"
-           " conversation in `conversations.toml`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the"
+           f" conversation in `{source}`: `yes`, or `no: ...` or `partly: ...` with what's right. Then re-run the"
            " command to update this page.", "",
            f"**Verified:** {len(verified)} of {len(conversations)}.", "",
            "| Id | Conversation | Turns | Measures | Verified |", "|---|---|---|---|---|"]
@@ -511,9 +512,10 @@ def main():
     if args.command == "review":
         if data.get("heldout"):
             sys.exit("A held-out set gets no review page here: it would show its text.")
-        page, issues = review(data, ROOT / data["snapshot"])
-        REVIEW.write_text(page, encoding="utf-8")
-        print(f"Wrote {REVIEW.relative_to(ROOT).as_posix()}")
+        page, issues = review(data, ROOT / data["snapshot"], Path(args.set).name)
+        written = Path(args.set).resolve().with_name(Path(args.set).stem + "-review.md")  # each set's page beside it
+        written.write_text(page, encoding="utf-8")
+        print(f"Wrote {written.relative_to(ROOT).as_posix()}")
         if issues:
             print("Problems:\n  " + "\n  ".join(issues))
             sys.exit(1)

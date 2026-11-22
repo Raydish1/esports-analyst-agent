@@ -2,6 +2,222 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: the doubled-ending fix, replayed on every recorded run, and the freeze
+
+**What it asked.** The user approved a fix for the bug the targeted run found, with a test and a replay on the
+recorded runs. The names correction swapped the question's spelling of a player for their name wherever a non-word
+character followed it, so a spelling that is the name's start matched inside the right name: "moni" in "Moni-" gave
+"Moni--", and "dragon" in "Dragon!" gave "Dragon!!". After the fix the agent is frozen (the user's decision).
+
+**Setup.** No model. Commit 5c6b769: a match where the answer already writes the player's name or display isn't
+swapped. Every recorded run was read, held-out records skipped. Each draft of a turn with a swap of the question's
+spelling went through the code before the fix (7f49596, from git) and after it. The turn's resolved players were
+rebuilt as the loop builds them, from its confident `resolve_player` results and any choice from suggestions.
+
+**Results.** Of 2,909 turns, 87 had a swap of the question's spelling, and 11 drafts change. Each is a doubled
+ending, and each one's final answer held it:
+- c13 turn 3, "Dragon!!" becomes "Dragon!": the final run's seeds 0-2, `20261121-conversations`' seeds 0-2, and seed
+  0 of the three model comparison runs (qwen3:8b, 14b and 30b);
+- c22 turn 2, "Moni--" becomes "Moni-": the targeted run's seeds 1 and 2.
+
+The other 76 turns keep their swaps, so no misspelling stops being corrected. The 546 unit tests pass.
+
+**What it decided.** The fix stands. From here the agent is frozen: no more prompt or check changes, only fixes for
+bugs that break a live answer (the user's decision, 2026-11-22). The final entry's section "After the final
+measurement" lists every change since, for the report.
+
+## 2026-11-22: the targeted run of the additions after the final measurement
+
+**What it asked.** Do the additions after the final measurement hold up with the model? They are the run_sql rule and
+the no-tool check's messages (be0b938), the team templates (8f3409a, 477513d), and the two fixes (8ba7e18, 7f49596). The
+run covers the items where the final run's no-tool check fired and the live session's 2v2 turns, as the user asked.
+
+**Setup.** qwen3:30b at 7f49596, seeds 0-2, retrieval on, in the run worktree, approved by the user. Four runs, one
+after another: `20261122-targeted-questions` (q09, q35, q36), `-conversations` (c1, c5, c8, c10, c12, c15, c19),
+`-audit` (a44, a45, a49) and `-teams` (c20-c24, `eval/questions/teams.toml`). It took 47.5 minutes, with qwen3:30b at
+21 GB, 100% GPU and a context of 32768 in all 46 samples. The final run's same items were rescored in memory with
+today's scorer, which counts the prompt's facts since 7f49596; its files are unchanged. The question verdicts are
+drafted by hand ("needs review").
+
+**Results.**
+
+| Items | Final run, rescored | Targeted run |
+|---|---|---|
+| q09, q35, q36, by hand | 9 of 9 right | 9 of 9 right |
+| 7 conversations, 69 turns passing every check | 53 | 51 |
+| 3 audit items, 12 turns passing every check | 11 | 10 |
+| c20-c24, 27 turns | (new) | 21 pass every check; by hand 19 right, 5 partly, 3 wrong |
+| Turns where the no-tool check fired, of the 90 above | 31 | 27 |
+| Answers that gave up ("I couldn't look this up", "I couldn't confirm this") | 2 | 0 |
+| After a no-tool send-back, the model queried (a template or run_sql) | 7 of 21 | 6 of 16 |
+
+The give-ups:
+- c10 seed 1 turn 2 now stands, through the recheck fix made after the final run (40996f9), not today's changes.
+- c19 seed 0 turn 3 ("what are the three sets that volst vs'd raydish"): the model now looked both players up and
+  called `head_to_head` itself, and listed the three sets. One run can't tell the new rule from the run's variation.
+
+The new rule doesn't show in the counts: after a send-back the model queried about as often as before, and run_sql
+was called once in the 90 turns, against twice. Most of these items are questions no query answers (legends,
+community tournaments, prize money per event), where looking the name up is all there is to do.
+
+The turns that changed are spread both ways, as a changed prompt changes every turn's sampling: 4 now pass and 6 now
+fail. Among the 6: c12 turn 1, seeds 1 and 2, give the 1v1 record (17-17) without the 2v2 meetings (11-11). c19
+seed 2 turn 1 sets itself a 5-set minimum, a known limitation in the final entry. c8 seed 2 turns 3 and 5 give each
+player's 2v2 wins in place of the pair's events together. In the audit, a45 seed 1 answered that there's no prize
+money per event without looking up Zivai.
+
+The team templates, where the model picked them:
+- `team_head_to_head` in all 9 turns that name two teams (c21 turn 2, c22 turn 2, c23), each record right: 0-3
+  against Pink | Zen and hideawaybh, 1-0 (3-2) against Moni- and animefan1266, 5-0 against Marckiem00 and
+  futurebubbles366. c23 writes the teams without an "and", which the scope check doesn't see, and still got it.
+- "yes they did", after the 3-2, confirmed it in all 3 seeds (c22 turn 3). With nothing before it (c24), it asked
+  what the user meant in all 3, where the live answer gave up.
+- c20 ("who have raydish and megd versed the most in 2v2"): seed 2 ranked the duo's opposing teams (`rank_pairs`
+  with a partner) in both turns. Seeds 0 and 1 ranked each player's own opponents in turn 1, as live. Seed 0's turn 2
+  went to run_sql, and seed 1's named one of the three teams tied at 5 sets.
+- c22 turn 1 ("show a 2v2 graphic"): the top 8 in seed 0, only the bracket link in seeds 1 and 2, as live.
+
+Found in the run, a bug: the names correction writes the question's spelling over the start of the right name when it
+is that name's start. "moni" became "Moni--" in c22 seeds 1 and 2 turn 2, and in the final run "dragon" became
+"Dragon!!" in c13 turn 3 in all 3 seeds. That's 5 of the 13 name swaps in these runs. Not fixed: it waits for the
+user's go-ahead.
+
+**What it decided.** Nothing in the agent changed. The additions stand. The doubled-ending fix is the user's to
+approve.
+
+## 2026-11-22: two fixes after the final measurement, replayed on the final run
+
+**What it asked.** The user approved two fixes, one commit each, and asked for the final run to be replayed to show
+what each changes:
+- the tool-name spacing bug: `claim_check.without_tool_talk` cut a tool's name out of an answer with the spaces on
+  both sides, so the words around it fused ("confirmed by thewith top=1");
+- the prompt's own facts as evidence for the number check: the data's first year (2017) and its newest results' date
+  (2026-09-27). This was the question open since 2026-11-18, and it's the known limitation of q34 in the final entry.
+
+**Setup.** No model. Commits 8ba7e18 (spacing) and 7f49596 (facts). Each replay reads the final run's recorded traces:
+the 45 questions, the 19 conversations and the audit set, seeds 0-2, 441 turns. The spacing replay runs every draft
+holding tool talk through the old and the new removal, and finds the old text in the final answers. The facts replay
+takes every number the number check or the no-tool check flagged, and asks whether the two facts now support it. The
+live give-up of 2026-11-22 (20261122T043945Z-002 turn 1) is replayed beside them.
+
+**Results.**
+
+| Fix | Replay | What changes |
+|---|---|---|
+| A space where a tool's name is cut out (8ba7e18) | 40 drafts with tool talk | 5 final answers, each by a space: c1 seed 0 turn 4 ("by theresult"), c8 seed 0 turn 4 ("bywith"), a49 seeds 0 and 2 turn 2 ("by thewith"), a51 seed 0 turn 1 ("biggestare") |
+| The prompt's facts as evidence (7f49596) | 69 check records with flagged numbers | 16 no longer fire, and 2 fire for "$0" only (q05 seed 0, a43 seed 0) |
+
+The 16 records the facts settle:
+- q34 ("Who won the 2016 Brawlhalla World Championship?"), seeds 0-2, 6 records. Seed 0's final answer was "I
+  couldn't confirm this from the data, so I won't guess.", and its draft, which says the data runs from 2017 on, now
+  stands. Seed 1 keeps "Official results begin in 2017."
+- One send-back each of "since 2017", "from 2017" or "2026-09-27" in q37 seed 2, q42 seed 2, c13 seed 1 turn 1, a12
+  seed 2, a14 seeds 0-2, a31 seeds 0-2 and a41 seed 1.
+- The live give-up: the reply asking for a question "from 2017 onward" now stands, instead of "I couldn't look this
+  up in the data, so I won't guess."
+
+What the fixes leave:
+- With its spaces kept, a clause such as "as confirmed by the with top=1" still reads badly once the name is out.
+- a51's draft wrote "biggest `upsets` are", and the cut takes the word itself, since `upsets` is also a template's
+  name.
+- The number check reads where a number came from, not what it means: q34 seed 1's draft calls Worlds 2017 "the
+  earliest recorded event", and that now passes.
+
+The facts come from the snapshot, one query, `react.coverage`, which also formats the prompt, so the two can't
+drift. The conversation scorer's grounded check counts them as the agent does. The query reads every result, about 5
+s on eval-v1, and it's now read once per snapshot: the newest date's query had run for every question since round
+seven.
+
+**What it decided.** Both fixes stand. The targeted run started at 7f49596. The Sonnet experiment is skipped for now,
+with its backend in place (the user's decision).
+
+## 2026-11-22: run_sql when no template fits, and a backend for a Sonnet experiment, built offline
+
+**What it asked.** Two requests of the user's, after the final measurement, both offline first:
+- When no template fits, the agent queries the views with run_sql, instead of answering without a lookup or giving
+  up. Then a small targeted run, by id, on the 2v2 questions from the user's live session and the questions where the
+  no-tool check fired, with the team templates.
+- A Sonnet experiment for the report, built as a second model backend on the Anthropic API: seed 0 of the 45
+  questions in two arms, (A) everything as now and (B) run_sql and the views only, no templates. The tokens
+  estimated first.
+
+**Setup.** No model and no API call. Commits be0b938 to 041b38c. The 542 unit tests pass.
+
+**Results.**
+
+| Change | Checked on | Result |
+|---|---|---|
+| The prompt's rule: if no template fits, query the views with run_sql; every question about the results gets a lookup | unit tests | In "Choosing a tool". The no-tool check's two send-backs and the note after the loop's own lookups say the same, in one phrase (`LOOK_UP`), not only to look the names up |
+| `eval/questions/teams.toml`, c20-c24: the live session's 2v2 turns (20261122T043945Z-001 turns 2-7, -002 turns 1-2), 5 conversations and 9 turns | eval-v1, `teams-review.md` | Every row pattern holds on its reference queries. `v_head_to_head_2v2` agrees with `team_head_to_head` and `rank_pairs` on every count |
+| The templates switch, `react.Tools(templates=False)` | unit tests | Arm B offers resolve_player, resolve_event and run_sql. Its prompt names none of the 11 templates, its examples show their SQL, and its messages say run_sql. Arm A's prompt, tools, examples and messages are unchanged |
+| The Anthropic backend, `agent/anthropic_chat.py` | a fake client | In a three-step question, each request begins with the request before it, and each reply's thinking blocks go back unchanged. The loop's own lookups get ids from their place in the history. Each step keeps its usage by price |
+
+The new conversations' answers, on eval-v1:
+- c20: the teams Raydish and megD faced most, three tied at 5 sets: Marckiem00 and futurebubbles366 (5-0), bestjava
+  and fakey7 (2-3), luna and Snowy!! (2-3).
+- c21: against Pink | Zen and hideawaybh, 0-3 in sets (games 3-9), after "zen" goes to suggestions.
+- c22: after the Autumn Championship - North America 2026 - 2v2's top 8, against Moni- and animefan1266, 1-0 (3-2),
+  then "yes they did".
+- c23: "raydish megd vs marckiemoo futurebubble", two teams written without an "and": 5-0 (games 15-5).
+- c24: "yes they did" with nothing before it.
+
+The targeted run, qwen3:30b, seeds 0-2: `harness.py run --ids q09 q35 q36`, `conversations.py run --ids c1 c5 c8 c10
+c12 c15 c19`, `audit.py run --ids a44 a45 a49` and `conversations.py --set eval/questions/teams.toml run`. On the final
+run's times for the same items, about 31 minutes, plus about 10 for c20-c24.
+
+The Sonnet experiment's estimate: claude-sonnet-5-5, adaptive thinking at effort high, seed 0, the 45 questions per arm.
+Per question, the recorded step prompts give how the context grows, and the outputs give the replies: arm A from the
+final run (qwen3:30b), arm B from `20261110-templates-before` (qwen3:8b), the last run before the templates. Each step
+reads the request before it from the cache and writes the rest. The system prompt and tools (arm A about 8,600 tokens,
+arm B about 3,700) are written once and read at every step. At $0.10 a million for cache reads, $2.50 for cache
+writes and $10 for output:
+
+| Arm | Steps (recorded) | Cache reads | Cache writes | Output | Cost: low, middle, high |
+|---|---|---|---|---|---|
+| A, templates | 132 | 1.21M to 1.63M | 103k to 139k | 41k to 123k | $0.79, $1.26, $1.74 |
+| B, run_sql only | 127 | 0.53M to 0.72M | 78k to 106k | 30k to 91k | $0.55, $0.89, $1.24 |
+
+Low is Qwen's input tokens with half its output; middle, 1.15 times the input and the same output; high, 1.35 times
+the input (the tokenizer's range) and 1.5 times the output. So about $2 for both arms, and $3 at the high end. Output
+is most of it: if Sonnet thinks three times as much per step as qwen3:30b and takes half again as many steps, both
+arms come to about $8.
+
+Found in passing:
+- c24's give-up live: the reply asked for a question "from 2017 onward". The number check left out the prompt's own
+  2017, which is the open question of whether the prompt's facts count. With no fact left, the whole answer became "I
+  couldn't look this up in the data, so I won't guess." The new rule doesn't reach it.
+- Three answers of the final run read "confirmed bywith mode=..." or "confirmed by thewith top=1" (c8 seed 0 turn 4,
+  a49 seeds 0 and 2 turn 2). `claim_check.without_tool_talk` cuts a tool's name out with the spaces on both sides of
+  it, so the words around it fuse. It's a bug, not fixed yet.
+
+**What it decided.** Nothing run yet. The targeted run waits for the user's go-ahead on the Ollama server. The Sonnet
+experiment waits for the SDK's install (it isn't installed), the key in `.env`, and the go-ahead.
+
+## 2026-11-22: team against team, an addition after the final measurement, checked offline
+
+**What it asked.** Can the agent answer two 2v2 teams against each other? In the user's live test, "raydish and megd
+vs moni and animefan1266" got a 1v1 head-to-head, or no tool and "they never met". They met in the Autumn
+Championship NA 2026's 2v2 elimination final, 3-2. No tool counted one team against another. The user asked for a
+template, and for `rank_pairs` to rank a team's opposing teams. It comes after the final measurement, so the report
+lists it as an addition: the final numbers don't include it.
+
+**Setup.** No model. The tools ran on eval-v1, timed with the agent's x64 Python, and the scope rule was checked on the
+147 texts of the three sets. Commits 8f3409a and 477513d.
+
+**Results.**
+
+| Change | Checked on | Result |
+|---|---|---|
+| `team_head_to_head(player_id, partner_id, opponent_id, opponent_partner_id)` | eval-v1, the live question | Raydish and megD 1-0 against Moni- and animefan1266, 3-2 in games, at the Autumn Championship - North America 2026 - 2v2 (2026-09-27), in 0.2 s |
+| The same without `opponent_partner_id` | eval-v1 | Against Moni- with any partner: 1-1, with the Midseason Championship 2026 set lost 1-3 to Moni- and Marckiem00 |
+| `rank_pairs(player_id, partner_id)`, a duo's opposing teams | eval-v1 | Raydish and megD's most-played teams: Marckiem00 and futurebubbles366 (5 sets, 5-0), bestjava and fakey7 (5, 2-3), luna and Snowy!! (5, 2-3) |
+| The scope check refusing `head_to_head` once for "X and Y vs Z and W" | the 147 texts of the three sets | None matches, so no recorded call would have been refused |
+
+The 532 unit tests and `retrieval.py check` pass. No worked example was added: one would change the example bank, and
+rebuilding its store needs the embedding model on the server.
+
+**What it decided.** Built. Measuring it with the model is a small targeted run, for the user's go-ahead.
+
 ## 2026-11-21: the final measurement, and a summary of the results
 
 **What it is.** The agent's final measurement, which the report cites, with a summary of every round before it. After
@@ -22,6 +238,8 @@ it the agent changes only for bugs (the user's decision, 2026-11-21).
 - **Not rerun.** The held-out set's final measurement is 2026-11-17's, since its questions were read after it.
 - **Two bugs found in the final run** were fixed after it (40996f9). Both are in round seven's recheck, and the numbers
   below include them.
+- **Changed after it**, and not in its numbers: two additions and three bug fixes, then the freeze (2026-11-22), in
+  the section "After the final measurement" at the end of this entry.
 
 **Headline numbers.**
 
@@ -83,6 +301,7 @@ marked offline were checked without the model, and their effect is in the next m
 | 2026-11-21 | Round six | The opponents' side, a best placement, `never_won`, `player_sets`, `dominant_wins`, the card kept | Reruns: the 13 questions 30 to 35 of 39 automatic, but 7 conversations 37 to 34 of 60 and 16 audit questions 29 to 27 of 48 |
 | 2026-11-21 | The model comparison | None (qwen3:8b, qwen3:14b and qwen3:30b at round six's code) | Seed 0 by hand: 36, 32 and 36 of 45 right. Conversations at seed 0: 34, 38 and 37 of 48 turns. qwen3:30b fastest, 17.6 s per question |
 | 2026-11-21 | Round seven (offline) | qwen3:30b the default, and fixes 1-10 with six more (in its entry) | The final measurement, above: 113 of 135 questions right by hand, 120 of 144 conversation turns and 158 of 162 audit turns passing |
+| 2026-11-22 | After the final measurement | The team templates, the run_sql rule, and three bug fixes (the section below), then the freeze | The fixes replayed on the recorded runs. The targeted run: every two-team record right (9 turns), give-ups 2 to 0, and 51 against 53 of 69 conversation turns |
 
 **Known limitations, by mechanism**, from the final runs:
 - **M1, reading the question.**
@@ -103,7 +322,7 @@ marked offline were checked without the model, and their effect is in the next m
   - c1 turn 3 left one of the three players named out of its lookups, and c10 turn 2's seed 1 summed the partners'
     events itself.
   - The number check doesn't count the prompt's own facts: q34's "the data starts in 2017" is left out (3 runs, a
-    question open since 2026-11-18).
+    question open since 2026-11-18). Fixed after it (7f49596).
 - **M4, the conversation.** A question about the card (c14 turn 2, 3 runs) is explained from the page's line without
   the tool check its expected answer asks for.
 - **M5, answer writing.**
@@ -114,12 +333,36 @@ marked offline were checked without the model, and their effect is in the next m
   - Totals not stated: Mojakin's 26 results (c9 turn 2), Dragon!'s 9 top 8s (c13 turn 3), and c10 turn 2's partner
     figures (2 runs).
   - q05's "only players with a figure" left out (seed 0), and a score written from the loser's side (q27).
+  - Dragon! written "Dragon!!" (c13 turn 3, 3 runs), and the words around a tool's name fused once it was cut out (5
+    answers, "confirmed by thewith top=1"). Both fixed after it (5c6b769, 8ba7e18).
 - **The audit set**, 4 failing turns.
   - "whats volst's best record against anyone" (a50, all 3 runs) is asked with a 5-set minimum the model sets
     itself. The answers give the empty ranking's note (at most 4 sets, with Bunny meow), not a record, though the note
     says to call again without the minimum (M1).
   - a45, seed 2, says Zivai's career earnings aren't given, with no lookup (M3).
 - **Every set's runs** took at most 20,254 tokens of context, and no reply reached the output cap.
+
+**After the final measurement** (2026-11-22). The headline numbers above are the final measurement's, and they stay
+as measured: nothing after it is in them. Each change below has an entry of its own, above this one:
+
+| Change | Kind | Commits | Checked on | What it changed |
+|---|---|---|---|---|
+| `team_head_to_head`, `rank_pairs` with a partner, and the scope check's refusal of `head_to_head` for two teams | Addition, from the user's live test | 8f3409a, 477513d | eval-v1, then the targeted run | Every two-team record right in the 9 turns that name two teams. "versed the most" still ranks each player's opponents in 2 of 3 seeds (c20) |
+| The prompt's rule to query the views with run_sql when no template fits, and the no-tool check's messages saying so | Addition, the user's request | be0b938 | The targeted run | Give-ups 2 to 0 on the items where the no-tool check had fired, one through 40996f9. After a send-back the model queried 6 of 16 times, against 7 of 21 |
+| A space left where a tool's name is cut out of an answer | Bug fix | 8ba7e18 | The final run, replayed | 5 final answers change, each by a space ("confirmed by thewith top=1") |
+| The prompt's own facts, the data's first year and its newest results' date, as evidence for the number check | Bug fix, the user's decision | 7f49596 | The final run, replayed | 16 of 69 check records with flagged numbers no longer fire, q34's six among them. q34 seed 0 keeps its draft instead of "I couldn't confirm this from the data" |
+| No swap of the question's spelling where the answer writes the right name | Bug fix | 5c6b769 | Every recorded run, replayed | 11 drafts change in 2,909 turns, each a doubled ending: "Dragon!!" (c13 turn 3, the final run's 3 seeds among them) and "Moni--" (c22 turn 2) |
+| A second backend on the Anthropic Messages API, and a switch for run_sql and the views only | Built for a Sonnet experiment | 3afe78a, 041b38c | Unit tests, with a fake client | None: the experiment is skipped for now (the user's decision), and the agent runs as before |
+
+The targeted run (qwen3:30b at 7f49596, seeds 0-2, before 5c6b769) covered the items where the final run's no-tool
+check fired, and the live session's 2v2 turns:
+- q09, q35 and q36: 9 of 9 right by hand, as in the final run.
+- The 7 conversations: 51 of 69 turns, against 53 in the final run rescored with the same checks.
+- The 3 audit items: 10 of 12 turns, against 11.
+- The team conversations, c20-c24: 21 of 27 turns by their checks, and 19 right, 5 partly and 3 wrong by hand.
+
+**The agent is frozen** from 2026-11-22 (the user's decision): no more prompt or check changes, only fixes for bugs
+that break a live answer.
 
 ## 2026-11-21: round seven, the model comparison's fixes, checked offline
 

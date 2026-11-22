@@ -301,5 +301,14 @@ class ReplacementTest(unittest.TestCase):
         self.assertEqual([r["numbers"] for r in replaced], [["80", "34", "46", "69"], ["11"]])
 
 
+class StandingTest(unittest.TestCase):
+    def test_the_prompts_facts_support_their_years_and_date_but_not_the_dates_parts(self):
+        found = Evidence()
+        found.state(years=[2017, 2026], dates=[(2026, 9, 27)])
+        self.assertEqual(found.unsupported("Official events from 2017 onward, the latest on September 27, 2026."), [])
+        self.assertEqual(found.unsupported("The newest results are from 2026-09-27, in September 2026."), [])
+        self.assertEqual([c.text for c in found.unsupported("Raydish won 27 sets and 9 events.")], ["27", "9"])
+
+
 if __name__ == "__main__":
     unittest.main()

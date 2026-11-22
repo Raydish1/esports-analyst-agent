@@ -48,6 +48,7 @@ import tomllib
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,7 +75,7 @@ REQUEST_SECONDS = 900
 RESULTS = ROOT / "eval" / "results"
 RAW = ROOT / "data" / "experiments"
 
-SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using these
+SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from {first} on), using these
 tools: resolve_player finds the player a name means, resolve_event the events an event name means, the templates answer
 the most common questions with tested queries, and run_sql queries a SQLite database of the results. Every player_id in
 a view is a person's canonical ID. The data's latest results are from {last}, so every event in it has been held,
@@ -90,6 +91,8 @@ Choosing a tool
   - one player's wins, medals, top 8s or placements alone, overall, in a year or at an event: player_results
   - two players as a team, or who a player has played with in 2v2: team_results
   - two players against each other: head_to_head
+  - two 2v2 teams against each other ("X and Y vs Z and W"), with the four players' player_ids: team_head_to_head
+  - the teams a duo faced most, or the duo's best records against teams: rank_pairs with player_id and partner_id
   - who has the most wins, medals or top 8s, or the most among players who never won (never_won): rank_players
   - who has played whom the most, a player's most-played opponents, or the best duos: rank_pairs
   - a player's best records against their opponents: rank_pairs with player_id and by="record" (min_sets only for a
@@ -106,8 +109,10 @@ Choosing a tool
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
-- For anything else (the last event entered, a set's details, earnings), use run_sql, with resolve_event for an
-  event's name.
+- If no template fits (the last event entered, a set's details, an event's size), query the views below with
+  run_sql, with resolve_event for an event's name. Every question about the results gets a lookup: never answer one
+  without it, or from earlier results that don't hold the answer, and never say it can't be looked up when a query
+  on the views can answer it.
 
 Reading the question
 - Pass the question's scope to every call it applies to: its mode (1v1 or 2v2), a year, a time window (since,
@@ -258,6 +263,30 @@ Answering
   which player you took.
 - Say what else you assumed, such as what was counted."""
 
+# Arm B's prompt (without_templates): "Choosing a tool" from SQL_CUT on becomes SQL_CHOOSING, which keeps arm A's
+# guidance on earnings and on looking every result up; then each swap of SQL_PROMPT, once
+SQL_CUT = "\n- If a template fits the question, call it"
+SQL_CHOOSING = """
+- A player's career earnings, or the top earners: v_career_earnings, one figure per player (a player with no row
+  has no figure, which isn't $0).
+- Query the views below with run_sql, with resolve_event for an event's name. Every question about the results gets
+  a lookup: never answer one without it, or from earlier results that don't hold the answer, and never say it can't
+  be looked up when a query on the views can answer it."""
+SQL_PROMPT = [
+    ("the templates answer\nthe most common questions with tested queries, and run_sql queries", "and run_sql queries"),
+    ("Pass the question's scope to every call it applies to: its mode (1v1 or 2v2), a year, a time window (since,\n"
+     "  until) and a region. A template call that leaves out one the question names isn't run, and its error says why.",
+     "Pass the question's scope to every query it applies to: its mode (1v1 or 2v2), a year, a time window and a\n"
+     "  region."),
+    (' or "by the official Power Rankings of 2026-10-02"', ""),
+    ("read them as the official\n  Power Rankings (power_rankings) or as results in a recent window (since), and say"
+     " which.", "read them as results in a\n  recent window, and say which."),
+    (" (head_to_head) unless", " unless"),
+    (", a template's rows\n  included: take every count from a tool that counts it, a template's figures or run_sql"
+     " with GROUP BY.", ": take every\n  count from run_sql with GROUP BY."),
+    ("so rank pairs with rank_pairs.", "so count pairs from v_sets_1v1 or\n  v_team_results instead."),
+]
+
 TOOLS = [
     {"type": "function", "function": {
         "name": "resolve_player",
@@ -286,6 +315,9 @@ TOOLS = [
         "parameters": {"type": "object", "required": ["query"], "properties": {
             "query": {"type": "string", "description": "one SQLite SELECT statement"}}}}},
 ] + [template.schema() for template in TEMPLATES.values()]
+# Arm B of the Sonnet experiment (2026-11-22): run_sql and the views only, the tools from before the templates
+# (Tools(templates=False)). The prompt (without_templates) and the loop's messages (SQL_WORDS) follow the same flag
+SQL_TOOLS = [tool for tool in TOOLS if tool["function"]["name"] not in TEMPLATES]
 QUERIES = {"run_sql", *TEMPLATES}  # the tools that query the results: a call to one is a new query
 LAST_STEP = "You have one step left: reply with your answer, without calling a tool."
 CHECK = ("Before this answer is final: it {what}, which no tool returned in this conversation. If that means a"
@@ -295,17 +327,23 @@ PAIRING = ("Before this answer is final: it pairs {pairs}. A player_id belongs t
            " meant, use the player_id resolve_player gives for them, and query again if a query used the other one; if"
            " the player_id is, name them by its name.")
 # The no-tool check: none offers to keep the answer if its facts "come from earlier results", which let three turns of
-# invented head-to-head records stand in the web app's live testing (decided 2026-11-19)
+# invented head-to-head records stand in the web app's live testing (decided 2026-11-19). Each says how to look the
+# results up (LOOK_UP), as the prompt does: live, "raydish and megd vs moni and animefan1266", which no template
+# answered then, was answered from the previous turn's top 8, which held no sets, as "they never met" (2026-11-22)
+LOOK_UP = "the template that fits, or, when none does, a run_sql query on the views"
 NO_TOOL_LOOKUP = ("Before this answer is final: this question called no tool, and no tool result you can see holds {words},"
-                  " so the answer can't rest on them. Look {them} up with the tools first (resolve_player for a player,"
-                  " resolve_event for an event, then a template or run_sql for results), and answer only from what they"
-                  " return.")
+                  " so the answer can't rest on them. Look up what the question asks: resolve_player for each player and"
+                  " resolve_event for an event, then {lookup}. Answer only from what they return, and never give up on a"
+                  " question a query can answer.")
 NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and the answer states {facts}, which no tool"
                  " result you can see holds. Only this question's results and the previous question's count, not earlier"
-                 " answers. Look them up with the tools first (a template or run_sql), and answer only from what they"
-                 " return.")
+                 " answers. Look them up with {lookup}, and answer only from what they return.")
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
-          " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
+          " results are above. Now look up what the question asks with {lookup}, and answer only from what the tools"
+          " return.")
+# Arm B's wording of the loop's messages (Conversation.worded): the same advice, said of run_sql
+SQL_WORDS = [(LOOK_UP, "a run_sql query on the views"), ("a template or run_sql", "run_sql"),
+             (": the cards and the templates give each mode a row of its own, and both modes together another.", ".")]
 RECHECKED = ("You answered again without a tool, so the agent ran again the calls the questioned answer rested on: the"
              " results are above. Say from them whether that answer was right, and correct it if it wasn't.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
@@ -389,26 +427,52 @@ def ollama(path, payload=None, timeout=60):
         return json.load(response)
 
 
-def chat(messages, model=MODEL, think=True, seed=0):
+def chat(messages, model=MODEL, think=True, seed=0, tools=TOOLS):
     """One model reply, with the tools offered: the server's /api/chat response."""
-    return ollama("/api/chat", {"model": model, "stream": False, "think": think, "tools": TOOLS, "messages": messages,
+    return ollama("/api/chat", {"model": model, "stream": False, "think": think, "tools": tools, "messages": messages,
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
 
 
-def latest_results(path):
-    """The date of the snapshot's newest results, for the prompt: qwen3:30b answered that EU Summers 2026 hadn't
-    happened yet, "the data only goes up to 2025", its training's end (q15 in the 2026-11-21 model comparison)."""
+@lru_cache(maxsize=None)
+def coverage(path):
+    """The snapshot's first year of results and its newest results' date, which the prompt states (SYSTEM's first and
+    last): qwen3:30b answered that EU Summers 2026 hadn't happened yet, "the data only goes up to 2025", its
+    training's end (q15 in the 2026-11-21 model comparison). Read once per snapshot, which is frozen: the query reads
+    every result, about 5 s on eval-v1, and ran for every question until 2026-11-22."""
     db = connect(path, SQL_SECONDS)
     try:
-        (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
+        (first, last), = db.execute("SELECT MIN(start_date), MAX(start_date) FROM v_results").fetchall()
     finally:
         db.close()
-    return last
+    return int(first[:4]), last
 
 
-def prompt(path, steps):
-    """The system prompt for the snapshot at path."""
-    return SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=steps, last=latest_results(path))
+def prompt_facts(path):
+    """The prompt's own facts about the data, as evidence any answer may cite (number_check.Evidence.state; the
+    user's decision, 2026-11-22): the first year, and the newest results' date with its year. Live, a reply asking
+    for a question "from 2017 onward" had its 2017 left out as a number no tool returned, and with no fact left the
+    whole answer became NOT_LOOKED_UP. The prompt's other numbers are rules and examples, not facts about the data."""
+    first, last = coverage(path)
+    y, m, d = (int(part) for part in last.split("-"))
+    return {"years": [first, y], "dates": [(y, m, d)]}
+
+
+def prompt(path, steps, templates=True):
+    """The system prompt for the snapshot at path, for the tools offered (Tools.templates)."""
+    text, (first, last) = SYSTEM if templates else without_templates(SYSTEM), coverage(path)
+    return text.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=steps, first=first, last=last)
+
+
+def without_templates(text):
+    """The system prompt for arm B: "Choosing a tool" without its template lines (SQL_CHOOSING), and every other
+    line naming a template said of run_sql (SQL_PROMPT). Each swap must find its text once, so a prompt edit that
+    moves one fails loudly instead of leaving a template named in arm B."""
+    head, rest = text.split(SQL_CUT, 1)
+    text = head + SQL_CHOOSING + "\n\nReading the question\n" + rest.split("\n\nReading the question\n", 1)[1]
+    for old, new in SQL_PROMPT:
+        assert text.count(old) == 1, old
+        text = text.replace(old, new)
+    return text
 
 
 def rested_on(traces, message, players=(), most=3):
@@ -513,10 +577,12 @@ def looked_up_by_name(filters):
 
 
 class Tools:
-    """The tools the model can call, by name, on one snapshot."""
+    """The tools the model can call, by name, on one snapshot: with templates=False, arm B's (SQL_TOOLS), which
+    refuses a template's name as a tool it doesn't have."""
 
-    def __init__(self, path=SNAPSHOT):
-        self.path = path
+    def __init__(self, path=SNAPSHOT, templates=True):
+        self.path, self.templates = path, templates
+        self.offered = TOOLS if templates else SQL_TOOLS
         db = sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True)
         try:
             self.resolver, self.events = Resolver(db), EventResolver(db)
@@ -546,10 +612,10 @@ class Tools:
             if isinstance(value, str) and value.strip():
                 return run_sql(value, self.path)
             return {"error": "run_sql takes one argument, query: one SQLite SELECT statement"}
-        if name in TEMPLATES:
+        if name in TEMPLATES and self.templates:
             return TEMPLATES[name].call(self, arguments)
         return {"error": f"there is no tool named {name!r}: the tools are"
-                         f" {listed([tool['function']['name'] for tool in TOOLS])}"}
+                         f" {listed([tool['function']['name'] for tool in self.offered])}"}
 
 
 # The answer check
@@ -597,6 +663,7 @@ class Shown:
         self.resolver, self.words, self.numbers, self.players = resolver, set(), set(), set()
         self.given = set()  # the numbers in the user's questions
         self.evidence, self.earlier = Evidence(), Evidence()  # this question's, and the previous one's
+        self.standing = Evidence()  # the prompt's own facts about the data, in view in every turn (prompt_facts)
         self.seen_now, self.seen_before, self.returned_now, self.returned_before = set(), set(), set(), set()
         self.text_now, self.text_before = "", ""  # the tool results' text, for the claim check's markers
         self.about_now, self.about_before = set(), set()  # the players templates' results are about, by name
@@ -625,7 +692,8 @@ class Shown:
             if len(name) >= 3:
                 names[name.casefold()] = name
         about = self.about_now or self.about_before  # this question's subject, else the previous one's
-        return Window(self.evidence, self.earlier, names=names, subject=next(iter(about)) if len(about) == 1 else None)
+        return Window(self.evidence, self.earlier, self.standing, names=names,
+                      subject=next(iter(about)) if len(about) == 1 else None)
 
     @property
     def seen(self):
@@ -754,7 +822,9 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
     [{name, player_id, belongs_to, name_is}].
     - resolved: (spelling, player_id, name, display) for each player the question named that resolve_player decided.
       The question's spelling becomes the display where the answer first names the player, and the name after,
-      unless it's quoted (the name talked about, not used) or in parentheses just after the name, explaining it.
+      unless it's quoted (the name talked about, not used) or in parentheses just after the name, explaining it, or
+      the answer already writes the name or the display there: a spelling that is the name's start matches inside it
+      when a mark follows, and the swap wrote "Moni--" for "Moni-" and "Dragon!!" for "Dragon!" (2026-11-22).
     - A name in bold, quotes or a tag's shape just before a player ID that isn't that ID's name becomes it: '**Lucky**
       (player_id 147982)' becomes '**Zivai** (player_id 147982)'. But a name resolve_player decides as another player
       is left as it is, a pairing for the model (decided 2026-11-19): live, 'Raydish (player_id 147569)' had capsar's
@@ -775,7 +845,8 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
         done = []
 
         def swap(m):
-            if any(a <= m.start() < b for a, b in kept):
+            here = m.string[m.start():].casefold()
+            if any(a <= m.start() < b for a, b in kept) or any(here.startswith(n.casefold()) for n in (name, shown)):
                 return m.group(0)
             to = name if done or named < m.start() else shown
             done.append({"kind": "the question's spelling", "from": m.group(0), "to": to, "player_id": pid})
@@ -969,12 +1040,12 @@ def gapped(gap):
 
 
 def no_tool(gap):
-    """The no-tool check's message: look up the question's words no result in view holds, or else the facts."""
+    """The no-tool check's message: look up what the question asks, for its words no result in view holds, or else
+    the facts."""
     if gap.get("words"):
-        return NO_TOOL_LOOKUP.format(words=listed([repr(w) for w in gap["words"]]),
-                                     them="it" if len(gap["words"]) == 1 else "them")
+        return NO_TOOL_LOOKUP.format(words=listed([repr(w) for w in gap["words"]]), lookup=LOOK_UP)
     facts = [f"{kind} ({', '.join(gap[kind])})" for kind in ("players", "numbers") if gap.get(kind)]
-    return NO_TOOL_FACTS.format(facts=listed(facts))
+    return NO_TOOL_FACTS.format(facts=listed(facts), lookup=LOOK_UP)
 
 
 def numbers_message(flagged):
@@ -1097,6 +1168,8 @@ def ending(content, done_reason):
     """How a reply without tool calls ends the question."""
     if done_reason == "length":
         return "cut off at the output cap"
+    if done_reason == "refusal":  # the Anthropic backend's safety decline (anthropic_chat.py)
+        return "refused"
     if "<tool_call>" in content:
         return "tool call in the reply text, not parsed"
     return "answered" if content.strip() else "empty reply"
@@ -1123,9 +1196,10 @@ class Conversation:
                  **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
         self.retriever, self.on_examples = retriever, on_examples
-        self.system = {"role": "system", "content": prompt(tools.path, max_steps)}
+        self.system = {"role": "system", "content": prompt(tools.path, max_steps, tools.templates)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
-        self.view = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
+        self.view = Shown(tools.resolver, self.system["content"], json.dumps(tools.offered))
+        self.view.standing.state(**prompt_facts(tools.path))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
         self.last = None  # the last trace ask() returned, which shown() adds to
         self.traces = []  # every trace ask() returned, oldest first: a recheck runs again the calls an answer rested on
@@ -1142,7 +1216,8 @@ class Conversation:
             self.earlier += [self.previous[0], answer, *[m for m in self.previous if is_page_note(m)]]
         settled = self.settle(question)
         found = self.examples(settled.retrieve)
-        self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(settled.text, found)}]
+        self.previous, self.current = self.current, [{"role": "user", "content": retrieval.prompt(settled.text, found,
+                                                                                       self.tools.templates)}]
         self.view.ask(settled.text)
         trace = self.turn(settled.text, found, said=question, settled=settled)
         self.current[0] = {"role": "user", "content": settled.text}
@@ -1293,7 +1368,7 @@ class Conversation:
         for number in range(1, max_steps + 1):
             begun = time.monotonic()
             try:
-                reply = self.chat(self.messages, **self.model)
+                reply = self.chat(self.messages, tools=self.tools.offered, **self.model)
             except (urllib.error.URLError, TimeoutError) as e:
                 body = e.read().decode("utf-8", "replace")[:300] if isinstance(e, urllib.error.HTTPError) else ""
                 trace["outcome"] = f"request error at step {number}: {e} {body}".strip()
@@ -1304,6 +1379,8 @@ class Conversation:
             step = {"step": number, "seconds": round(time.monotonic() - begun, 2), "prompt_tokens": reply.get("prompt_eval_count"),
                     "cached_tokens": reply.get("prompt_eval_cached_count"), "output_tokens": reply.get("eval_count"),
                     "done_reason": reply.get("done_reason"), "thinking": thinking, "content": content, "tool_calls": []}
+            step.update({k: reply[k] for k in ("usage", "input_transformations") if reply.get(k)})  # another backend's:
+            # its input by price (cache writes, reads, the rest) and any thinking block it dropped (anthropic_chat.py)
             trace["steps"].append(step)
             log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
             if not calls:
@@ -1390,7 +1467,7 @@ class Conversation:
                         continue
                 gap = self.view.ungrounded(question, content) if outcome == "answered" and not called else {}
                 if gap and not told and number < max_steps:
-                    told, message = True, no_tool(gap)
+                    told, message = True, self.worded(no_tool(gap))
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
                     step["no_tool_check"] = {**gap, "action": "sent back", "message": message}
@@ -1485,7 +1562,7 @@ class Conversation:
                     flagged = sorted(flagged + self.view.player_claims(content, question), key=lambda c: c.start)
                 flagged_texts = [c.text for c in flagged]
                 if flagged and outcome == "answered" and not numbered and not strict and number < max_steps:
-                    numbered, message = True, numbers_message(flagged)
+                    numbered, message = True, self.worded(numbers_message(flagged))
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
                     step["number_check"] = {"numbers": flagged_texts, "action": "sent back", "message": message}
@@ -1618,11 +1695,11 @@ class Conversation:
                 end = c.end
         return kept
 
-    def look_up(self, question, lookups, step, resolved, last, note=FORCED):
+    def look_up(self, question, lookups, step, resolved, last, note=None):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the
-        model's calls are, kept in the history as its calls, with a note to answer from them, and in the step marked
-        forced. Returns the names from the question they matched only loosely, for suggestions."""
-        asked = []
+        model's calls are, kept in the history as its calls, with a note to answer from them (FORCED unless note), and
+        in the step marked forced. Returns the names from the question they matched only loosely, for suggestions."""
+        asked, note = [], note or self.worded(FORCED.format(lookup=LOOK_UP))
         self.current.append({"role": "assistant", "content": "", "tool_calls": [
             {"function": {"name": name, "arguments": arguments}} for name, arguments in lookups]})
         for name, arguments in lookups:
@@ -1639,6 +1716,12 @@ class Conversation:
             self.current.append({"role": "tool", "tool_name": name, "content": text})
         self.current.append({"role": "user", "content": note + (" " + LAST_STEP if last else "")})
         return asked
+
+    def worded(self, message):
+        """A message of the loop's as the tools offered have it: without templates, said of run_sql (SQL_WORDS)."""
+        for old, new in () if self.tools.templates else SQL_WORDS:
+            message = message.replace(old, new)
+        return message
 
     def suggested(self, trace, step, asked):
         """End the turn with suggestions for the names from the question matched only below CONFIDENT. The trace keeps
@@ -1687,19 +1770,25 @@ def short(text, width):
 
 # Writing the traces
 
-def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None, examples="off"):
+def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None, examples="off",
+               backend=None):
     """What a run or a session was made with: the model and its server, the options, the snapshot, and how it
-    retrieved examples (examples_header)."""
+    retrieved examples (examples_header). backend is another backend than Ollama's, which says how it asks
+    (anthropic_chat.AnthropicChat.describe); the Ollama server then serves only the examples' embeddings."""
     snapshot = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     build = dict(snapshot.execute("SELECT key, value FROM build_info WHERE key IN ('build_id', 'code_commit')"))
     snapshot.close()
-    info = ollama("/api/show", {"model": model}).get("model_info", {})
-    return {"run": run_id, "title": title or f"ReAct prototype traces: run {run_id}",
-            "ollama": ollama("/api/version")["version"], "model": model,
-            "variant": " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)),
-            "think": think, "seeds": list(seeds), "options": OPTIONS, "max_steps": max_steps, "sql_seconds": SQL_SECONDS,
-            "token_budget": TOKEN_BUDGET, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build},
-            "retrieval": examples}
+    if backend is None:
+        info = ollama("/api/show", {"model": model}).get("model_info", {})
+        variant, options = " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)), OPTIONS
+    else:
+        options = backend.describe()
+        variant = options["backend"]
+    served = ollama("/api/version")["version"] if backend is None or examples != "off" else "not used"
+    return {"run": run_id, "title": title or f"ReAct prototype traces: run {run_id}", "ollama": served, "model": model,
+            "variant": variant, "think": think, "seeds": list(seeds), "options": options, "max_steps": max_steps,
+            "sql_seconds": SQL_SECONDS, "token_budget": TOKEN_BUDGET,
+            "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}, "retrieval": examples}
 
 
 def markdown(traces, header):

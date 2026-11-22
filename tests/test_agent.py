@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 import sys
 import tempfile
@@ -572,6 +573,44 @@ class LoopTest(Fixture):
         super().setUp()
         self.tools = react.Tools(self.path)
 
+    def test_without_templates_the_model_has_run_sql_and_the_views_only(self):  # arm B of the Sonnet experiment
+        tools = react.Tools(self.path, templates=False)
+        self.assertEqual([t["function"]["name"] for t in tools.offered], ["resolve_player", "resolve_event", "run_sql"])
+        refused = tools.call("player_results", {"player_id": 11})
+        self.assertEqual(refused, {"error": "there is no tool named 'player_results': the tools are resolve_player,"
+                                            " resolve_event and run_sql"})
+        ask = Scripted(reply("**Raydish** won it."), reply("**Raydish** won it."), reply("Raydish never won worlds."))
+        offered = []
+        trace = react.run("has raydish won worlds", tools, ask=lambda m, **model: offered.append(model["tools"]) or ask(m),
+                          log=lambda *_: None)
+        self.assertEqual(offered, [react.SQL_TOOLS] * 3)
+        system = ask.sent[0][0]["content"]
+        self.assertEqual(system, react.prompt(self.path, react.MAX_STEPS, templates=False))
+        self.assertEqual([n for n in templates.TEMPLATES if re.search(rf"\b{n}\b", system)], [])
+        self.assertNotIn("template", system.casefold())
+        self.assertIn("Query the views below with run_sql", system)
+        for message in (trace["steps"][0]["no_tool_check"]["message"], ask.sent[2][-1]["content"]):
+            self.assertIn("a run_sql query on the views", message)
+            self.assertNotIn("template", message)
+        with_templates = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).system["content"]
+        first, last = react.coverage(self.path)
+        self.assertEqual(with_templates, react.SYSTEM.format(budget=f"{react.TOKEN_BUDGET:,}", seconds=react.SQL_SECONDS,
+                                                             steps=react.MAX_STEPS, first=first, last=last))
+
+    def test_the_prompts_own_facts_about_the_data_are_evidence_for_every_answer(self):  # live: "from 2017 onward"
+        first, last = react.coverage(self.path)
+        year = last[:4]
+        reply_ = (f"I need a specific question about official results to answer from the data. Please ask about an"
+                  f" official event or player from {first} onward.")
+        trace = react.run("yes they did", self.tools, ask=Scripted(reply(reply_)), log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["steps_used"]), (reply_, 1))  # no check: nothing unsupported
+        window = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).view.window
+        self.assertEqual(window.unsupported(f"The data's latest results are from {last}, in {year}, and start in"
+                                            f" {first}."), [])
+        day = str(int(last[8:]))
+        self.assertEqual([c.text for c in window.unsupported(f"They won {day} sets.")], [day])  # a date's day isn't one
+        self.assertIn(f"from {first} on", react.prompt(self.path, react.MAX_STEPS))
+
     def test_the_prompt_says_when_the_datas_latest_results_are(self):  # q15: "the data only goes up to 2025"
         db = sqlite3.connect(self.path)
         (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
@@ -702,6 +741,16 @@ class LoopTest(Fixture):
         self.assertEqual(answer, "Raydish won. Then Raydish lost, and Raydish won again.")
         self.assertEqual(swaps, [{"kind": "the question's spelling", "from": "Raydsh", "to": "Raydish", "player_id": 11,
                                   "times": 3}])  # live, 'Yuz' to 'yüz' was listed eleven times
+
+    def test_a_spelling_that_starts_the_name_isnt_swapped_where_the_answer_writes_the_name(self):  # "Moni--"
+        resolved = [("dragon", 22, "Dragon!", "Dragon!")]
+        answer, swaps, _ = react.correct_names("Dragon! won 3 events.", resolved, self.tools.resolver)
+        self.assertEqual((answer, swaps), ("Dragon! won 3 events.", []))
+        answer, swaps, _ = react.correct_names("dragon won 3 events, and Dragon! lost one.", resolved, self.tools.resolver)
+        self.assertEqual(answer, "Dragon! won 3 events, and Dragon! lost one.")
+        self.assertEqual([(s["from"], s["to"]) for s in swaps], [("dragon", "Dragon!")])
+        tagged = [("cody", 21, "Cody Travis", "Cody Travis")]  # a name the spelling starts, a space after it
+        self.assertEqual(react.correct_names("Cody Travis won.", tagged, self.tools.resolver)[0], "Cody Travis won.")
 
     def test_a_name_several_players_share_exactly_with_no_clear_cut_goes_to_the_user(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "dragon"})]), reply("Dragon has 5 results."))
@@ -985,7 +1034,8 @@ class LoopTest(Fixture):
         self.assertEqual([(c["name"], c["forced"]) for c in forced], [("resolve_player", True), ("resolve_event", True)])
         self.assertEqual(json.loads(forced[0]["observation"])["candidates"][0]["player_id"], 11)
         roles = [m["role"] for m in ask.sent[2][-4:]]
-        self.assertEqual((roles, ask.sent[2][-1]["content"]), (["assistant", "tool", "tool", "user"], react.FORCED))
+        self.assertEqual((roles, ask.sent[2][-1]["content"]),
+                         (["assistant", "tool", "tool", "user"], react.FORCED.format(lookup=react.LOOK_UP)))
         self.assertEqual((trace["answer"], trace["answered_without_tools"]), ("Raydish never won worlds.", True))
         page = react.markdown([trace], HEADER)
         self.assertIn("The loop looked up resolve_player({\"name\": \"raydish\"}), resolve_event({\"name\": \"worlds\"})"
@@ -1395,6 +1445,17 @@ class PromptTest(unittest.TestCase):
         for name in templates.TEMPLATES:
             self.assertRegex(choosing, rf"\n  - [^\n]+: {name}\n", name)
         self.assertIn("so don't call resolve_event first", " ".join(choosing.split()))
+
+    def test_the_prompt_and_the_no_tool_check_say_to_query_the_views_when_no_template_fits(self):
+        prompt = " ".join(react.SYSTEM.split())
+        self.assertIn("If no template fits (the last event entered, a set's details, an event's size), query the views"
+                      " below with run_sql", prompt)
+        self.assertIn("never say it can't be looked up when a query on the views can answer it", prompt)
+        for gap in ({"words": ["moni"]}, {"numbers": ["3-2"]}):
+            self.assertIn("the template that fits, or, when none does, a run_sql query on the views",
+                          react.no_tool(gap), gap)
+        self.assertIn("Now look up what the question asks with the template that fits",
+                      react.FORCED.format(lookup=react.LOOK_UP))
 
     def test_the_prompt_keeps_the_comparison_prompts_views_and_counting_rules(self):
         views = mc.PROMPT.split("\nViews\n")[1].split("\n\nCounting rules")[0]

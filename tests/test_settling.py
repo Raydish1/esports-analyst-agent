@@ -90,6 +90,14 @@ class CuesTest(Fixture):
                           "top 5 2v2 players in brawlhalla history what about cody travis and raydish?"))
         self.assertEqual(self.settle("what about zivai vs godly").players, [("Zivai", 19)])  # Godly is Zivai: once
 
+    def test_the_context_carries_a_teams_four_players(self):
+        observation = {"template": "team_head_to_head", "player": {"player_id": 11, "name": "Raydish"},
+                       "partner": {"player_id": 7, "name": "megD"}, "opponent": {"player_id": 19, "name": "Zivai"},
+                       "opponent_partner": {"player_id": 21, "name": "Cody Travis"}, "tables": []}
+        calls = [{"name": "team_head_to_head", "arguments": {}, "observation": json.dumps(observation)}]
+        context = settling.after({"steps": [{"tool_calls": calls}]}, Settled("q", "q"))
+        self.assertEqual(context.players, [("Raydish", 11), ("megD", 7), ("Zivai", 19), ("Cody Travis", 21)])
+
     def test_a_follow_up_naming_players_after_a_ranking_keeps_its_measure(self):  # c8 turn 2, every model
         calls = [{"name": "rank_players", "arguments": {"by": "medals", "mode": "2v2", "top": 5},
                   "observation": json.dumps({"tables": []})}]

@@ -1,0 +1,284 @@
+[
+ {
+  "id": "a44",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a45",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a49",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a44",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a45",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147982]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a49",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a44",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a45",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147982]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "a49",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls_with": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ }
+]

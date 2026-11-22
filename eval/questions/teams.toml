@@ -1,0 +1,226 @@
+# 2v2 team conversations: what the user typed in the web app's live mode on 2026-11-22 (data/experiments/web/
+# 20261122T043945Z-001 and -002), cut into conversations, with expected facts computed from the frozen snapshot
+# eval-v1. They measure the additions after the final measurement: team_head_to_head, rank_pairs with a partner, and
+# the prompt's rule to query the views with run_sql when no template fits. Not verified yet. The format and the
+# checks are conversations.toml's (its header documents them); ids go on from that set's, so none is used twice.
+# Played and scored by eval/conversations.py with --set eval/questions/teams.toml.
+
+snapshot = "data/db/eval/eval-v1.sqlite"
+build = "20261007T230135Z"
+
+[[conversation]]
+id = "c20"
+title = "the teams Raydish and megD faced most"
+source = "20261122T043945Z-001, turns 2-3"
+measures = ["rank_pairs with player_id and partner_id: a duo's opposing teams, not each player's opponents"]
+verified = ""
+
+[[conversation.turn]]
+say = "who have raydish and megd versed the most in 2v2"
+expect = """
+Raydish and megD together: three teams tied at 5 sets, Marckiem00 and futurebubbles366 (Raydish and megD 5-0), \
+bestjava and fakey7 (2-3) and luna and Snowy!! (2-3), then four teams at 3. A right answer counts their sets as a \
+team, or says which reading it took. Live, it gave each player's own most-played opponents, Pink | Guichabou first.
+"""
+rows = [[["Marckiem00 and futurebubbles366", 146052], 5, 0], [["bestjava and fakey7", 145913], 5, 2, 3],
+        [["luna and Snowy!!", 51494], 5, 2, 3]]
+says = ["Marckiem00", "bestjava", "luna"]
+
+[[conversation.turn.query]]
+purpose = "Raydish and megD's 2v2 record against each team, the most sets first"
+sql = '''
+SELECT h.opponent1_id, a.name, h.opponent2_id, b.name, h.matches, h.wins, h.losses, h.games_won, h.games_lost
+FROM v_head_to_head_2v2 h JOIN players a ON a.player_id = h.opponent1_id JOIN players b ON b.player_id = h.opponent2_id
+WHERE h.player_id = 160000 AND h.partner_id = 142100 ORDER BY h.matches DESC, a.name LIMIT 8
+'''
+
+[[conversation.turn]]
+say = "what team has raydish and megd fought the most as a team"
+expect = """
+The same three teams, tied at 5 sets: Marckiem00 and futurebubbles366 (Raydish and megD 5-0), bestjava and fakey7 \
+(2-3) and luna and Snowy!! (2-3). Live, it said they played 20 events together and left the rest out.
+"""
+rows = [[["Marckiem00 and futurebubbles366", 146052], 5, 0], [["bestjava and fakey7", 145913], 5, 2, 3],
+        [["luna and Snowy!!", 51494], 5, 2, 3]]
+says = ["Marckiem00", "bestjava", "luna"]
+
+[[conversation.turn.query]]
+purpose = "Raydish and megD's 2v2 record against each team, the most sets first"
+sql = '''
+SELECT h.opponent1_id, a.name, h.opponent2_id, b.name, h.matches, h.wins, h.losses, h.games_won, h.games_lost
+FROM v_head_to_head_2v2 h JOIN players a ON a.player_id = h.opponent1_id JOIN players b ON b.player_id = h.opponent2_id
+WHERE h.player_id = 160000 AND h.partner_id = 142100 ORDER BY h.matches DESC, a.name LIMIT 8
+'''
+
+[[conversation]]
+id = "c21"
+title = "Raydish and megD against Zen and hideaway"
+source = "20261122T043945Z-001, turns 4-5"
+measures = ["team_head_to_head after a choice from suggestions, not a 1v1 head-to-head"]
+verified = ""
+
+[[conversation.turn]]
+say = "what is raydish and megd's 2v2 history with zen and hideaway"
+expect = """
+"zen" is three players' name: Pink | Zen (66 official results) and two named Zen (31 and 8), no clear cut. So the \
+agent suggests them, Pink | Zen first, before it looks anything up.
+"""
+suggests = 141522
+
+[[conversation.turn.query]]
+purpose = "the players named zen, with their official results"
+sql = '''
+SELECT p.player_id, p.name, COUNT(r.event_id) AS results FROM players p LEFT JOIN v_results r USING (player_id)
+WHERE p.player_id IN (141522, 144384, 39618) GROUP BY p.player_id ORDER BY results DESC
+'''
+
+[[conversation.turn]]
+say = "the first one"
+expect = """
+The user picked Pink | Zen. Raydish and megD against Pink | Zen and hideawaybh (formerly Hideaway) in 2v2: 0-3 in \
+sets, games 3-9. They lost 0-3 at the Midseason Championship 2026 2v2 (2026-06-12), then 2-3 and 1-3 at the Autumn \
+Championship - North America 2026 - 2v2 (2026-09-27). Live, it gave Raydish's 2v2 meetings with Pink | Zen with any \
+partner (4-6 in 10) as the two teams' record.
+"""
+players = [160000, 142100, 141522, 142042]
+rows = [[["Raydish and megD", 160000], ["Pink | Zen and hideawaybh", 141522], 0, 3, 9]]
+
+[[conversation.turn.query]]
+purpose = "Raydish and megD's 2v2 record against Pink | Zen and hideawaybh"
+sql = '''
+SELECT player_id, partner_id, opponent1_id, opponent2_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_2v2 WHERE player_id = 160000 AND partner_id = 142100 AND 141522 IN (opponent1_id, opponent2_id)
+AND 142042 IN (opponent1_id, opponent2_id)
+'''
+
+[[conversation.turn.query]]
+purpose = "each set between the two teams"
+sql = '''
+SELECT e.tournament_name, e.event_name, a.start_date, a.won, a.games_won, a.games_lost
+FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side = a.side AND b.player_id = 142100
+JOIN v_match_results c ON c.match_id = a.match_id AND c.side <> a.side AND c.player_id = 141522
+JOIN v_match_results d ON d.match_id = a.match_id AND d.side = c.side AND d.player_id = 142042
+JOIN events e ON e.event_id = a.event_id
+WHERE a.player_id = 160000 AND a.mode = '2v2' ORDER BY a.start_date, a.start_time
+'''
+
+[[conversation]]
+id = "c22"
+title = "two teams after an event's top 8"
+source = "20261122T043945Z-001, turns 6-7, and 20261122T043945Z-002, turn 1"
+measures = ["team_head_to_head", "run_sql or a template when the previous turn's results don't hold the answer"]
+verified = ""
+
+[[conversation.turn]]
+say = "show a 2v2 graphic from autumn championship 2v2 2026 NA"
+expect = """
+The Autumn Championship - North America 2026 - 2v2 (2026-09-27): 1st Pink | Zen and hideawaybh, 2nd Raydish and \
+megD, 3rd Moni- and animefan1266, 4th Marckiem00 and futurebubbles366, 5th Bunny meow and SiB Royalty, and Dragon! \
+and flowerVS, 7th Greedy11z and fakey7, and Hexoo and Savior of NA. The agent draws no graphic: a right answer gives \
+the results. Live, it gave only the bracket link.
+"""
+calls = ["event_results"]
+rows = [[["Pink | Zen / hideawaybh", 141522], 1], [["Raydish / megD", 160000], 2]]
+says = ["Pink | Zen", "Raydish"]
+
+[[conversation.turn.query]]
+purpose = "the event's top 8"
+sql = '''
+SELECT r.placement, r.player_id, p.name FROM v_results r JOIN players p USING (player_id)
+WHERE r.event_id = '774eaef2-3f11-4c7b-f9ab-08ded4cb1c05' AND r.placement <= 8 ORDER BY r.placement, p.name
+'''
+
+[[conversation.turn]]
+say = "raydish and megd vs moni and animefan1266"
+expect = """
+They met once: Raydish and megD beat Moni- and animefan1266 3-2 at the Autumn Championship - North America 2026 - \
+2v2 (2026-09-27), so 1-0 in sets. Live, the agent called no tool and answered from the previous turn's top 8, which \
+holds no sets: "they did not face" each other.
+"""
+players = [160000, 142100, 152572, 146616]
+rows = [[["Raydish and megD", 160000], ["Moni- and animefan1266", 152572], 1, 0, 3, 2]]
+not_says = ["never met", "did not face", "didn't face", "never faced", "not face"]
+
+[[conversation.turn.query]]
+purpose = "Raydish and megD's 2v2 record against Moni- and animefan1266"
+sql = '''
+SELECT player_id, partner_id, opponent1_id, opponent2_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_2v2 WHERE player_id = 160000 AND partner_id = 142100 AND 152572 IN (opponent1_id, opponent2_id)
+AND 146616 IN (opponent1_id, opponent2_id)
+'''
+
+[[conversation.turn]]
+say = "yes they did"
+expect = """
+They did meet, once: Raydish and megD won 3-2 at the Autumn Championship - North America 2026 - 2v2. If turn 2 said \
+so, a right reply confirms it; if it said they never met, it looks again and corrects that. Live, this message went \
+to a new conversation by mistake, where it got "I couldn't look this up in the data, so I won't guess." (c24).
+"""
+rows = [[["Raydish and megD", 160000], ["Moni- and animefan1266", 152572], 1, 0, 3, 2]]
+says_any = ["3-2", "3–2"]
+not_says = ["couldn't look this up", "never met", "did not face", "didn't face"]
+
+[[conversation.turn.query]]
+purpose = "Raydish and megD's 2v2 record against Moni- and animefan1266"
+sql = '''
+SELECT player_id, partner_id, opponent1_id, opponent2_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_2v2 WHERE player_id = 160000 AND partner_id = 142100 AND 152572 IN (opponent1_id, opponent2_id)
+AND 146616 IN (opponent1_id, opponent2_id)
+'''
+
+[[conversation.turn.query]]
+purpose = "the one set between the two teams"
+sql = '''
+SELECT e.tournament_name, e.event_name, a.start_date, a.won, a.games_won, a.games_lost
+FROM v_match_results a
+JOIN v_match_results b ON b.match_id = a.match_id AND b.side = a.side AND b.player_id = 142100
+JOIN v_match_results c ON c.match_id = a.match_id AND c.side <> a.side AND c.player_id = 152572
+JOIN v_match_results d ON d.match_id = a.match_id AND d.side = c.side AND d.player_id = 146616
+JOIN events e ON e.event_id = a.event_id
+WHERE a.player_id = 160000 AND a.mode = '2v2' ORDER BY a.start_date, a.start_time
+'''
+
+[[conversation]]
+id = "c23"
+title = "two teams written without an and"
+source = "20261122T043945Z-002, turn 2"
+measures = ["team_head_to_head for 'X Y vs Z W', which the scope check's team pattern doesn't see"]
+verified = ""
+
+[[conversation.turn]]
+say = "raydish megd vs marckiemoo futurebubble"
+expect = """
+Two teams: Raydish and megD against Marckiem00 and futurebubbles366 (formerly Futurebubble) in 2v2, 5-0 in sets \
+(games 15-5): 3-2 at CEO 2024 Doubles, 3-1 at the Winter Championship - North America 2025 2v2, 3-1 at the Spring \
+Championship - North America 2026 - 2v2, and 3-0 and 3-1 at the Autumn Championship - North America 2026 - 2v2. A \
+right answer reads it as two teams, or says which reading it took. Live, it gave Raydish's 1v1 record against \
+Marckiem00 (6-7) alone.
+"""
+players = [160000, 142100, 146052, 160218]
+rows = [[["Raydish and megD", 160000], ["Marckiem00 and futurebubbles366", 146052], 5, 0, 15]]
+
+[[conversation.turn.query]]
+purpose = "Raydish and megD's 2v2 record against Marckiem00 and futurebubbles366"
+sql = '''
+SELECT player_id, partner_id, opponent1_id, opponent2_id, matches, wins, losses, games_won, games_lost
+FROM v_head_to_head_2v2 WHERE player_id = 160000 AND partner_id = 142100 AND 146052 IN (opponent1_id, opponent2_id)
+AND 160218 IN (opponent1_id, opponent2_id)
+'''
+
+[[conversation]]
+id = "c24"
+title = "a reply with nothing before it"
+source = "20261122T043945Z-002, turn 1"
+measures = ["the give-up: no fact left once the prompt's 'from 2017' was left out"]
+verified = ""
+
+[[conversation.turn]]
+say = "yes they did"
+expect = """
+Nothing comes before it, so there's nothing to look up or confirm: a right answer asks what the user means, and \
+states no fact. Live, the answer asked for a question "about an official event, player, or statistic from 2017 \
+onward". The number check left out that sentence's 2017, the prompt's own fact, and with no fact left the whole \
+answer became "I couldn't look this up in the data, so I won't guess."
+"""
+not_says = ["couldn't look this up", "won't guess"]

@@ -266,14 +266,15 @@ def summarize(rows):
             "misses": [r["id"] for r in labelled if not r["hit"]]}
 
 
-def prompt(question, retrieved):
+def prompt(question, retrieved, calls=True):
     """The question as the model reads it: the retrieved examples first, with what they are, then the question. An
-    example with a template call shows the call and why, instead of its SQL."""
+    example with a template call shows the call and why, instead of its SQL, unless calls is False (arm B, without
+    templates: react.Tools(templates=False))."""
     if not retrieved or not retrieved.get("examples"):
         return question
     parts = [NOTE, ""]
     for n, e in enumerate(retrieved["examples"], 1):
-        shown, why = (e["call"], e["call_note"]) if e.get("call") else (e["sql"], e["note"])
+        shown, why = (e["call"], e["call_note"]) if calls and e.get("call") else (e["sql"], e["note"])
         parts += [f"Example {n}: {e['question']}", shown.strip(), f"Why: {why}", ""]
     return "\n".join(parts + [f"Question: {question}"])
 

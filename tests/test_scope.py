@@ -79,6 +79,16 @@ class ScopeTest(Fixture):
             self.assertEqual(self.lacks(question, "team_results", player_id=1, partner_id=2), [], question)
         self.assertEqual(self.lacks("whats megd's record with partners", "team_results", player_id=1), [])
 
+    def test_two_teams_against_each_other_are_asked_with_team_head_to_head(self):
+        teams = "raydish and megd vs moni and animefan1266"  # live, 2026-11-22: a 1v1 head-to-head
+        self.assertEqual(self.lacks(teams, "head_to_head", player_id=1, opponent_id=3),
+                         ["asks for two 2v2 teams against each other"])
+        self.assertEqual(self.lacks(teams, "team_head_to_head", player_id=1, partner_id=2, opponent_id=3,
+                                    opponent_partner_id=4), [])
+        for question in ("what about megd vs raydish and cody vs phazon", "kyna vs yuz head to head",
+                         "cody travis and phazon vs kyna"):
+            self.assertEqual(self.lacks(question, "head_to_head", player_id=1, opponent_id=3), [], question)
+
     def test_a_head_to_head_without_a_mode_is_its_1v1_record(self):
         self.assertEqual(self.lacks("kyna vs yuz in only 1v1", "head_to_head", player_id=1, opponent_id=2), [])
         self.assertEqual(self.lacks("their 2v2 record", "head_to_head", player_id=1, opponent_id=2),

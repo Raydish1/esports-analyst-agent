@@ -50,6 +50,10 @@ class MmrTest(unittest.TestCase):
         self.assertIn("Example 1: How many official events has blews won?\nplayer_results(player_id=1, top=1)\n"
                       "Why: top=1 counts wins.", text)
         self.assertNotIn("SELECT", text)
+        sql = retrieval.prompt("How many wins has Raydish?", {"examples": [called]}, calls=False)  # arm B: no templates
+        self.assertIn(f"Example 1: How many official events has blews won?\n{called['sql'].strip()}\nWhy: {called['note']}",
+                      sql)
+        self.assertNotIn("player_results", sql)
 
 
 @unittest.skipUnless(CHROMA, "chromadb isn't installed for this Python")

@@ -370,12 +370,20 @@ def kept(entry, fresh, record):
 
 # Running
 
-def run(questions, seeds, examples_on, run_id=None, log=print, model=None):
+def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templates=True, backend="ollama"):
     """Ask every question once per seed, appending each trace as it finishes; a rerun with the same run_id resumes.
-    model is react.MODEL unless given: everything else stays as the agent has it, for a model comparison."""
+    model is the backend's default unless given (react.MODEL on Ollama): everything else stays as the agent has it,
+    for a model comparison. Without templates, the agent has run_sql and the views only (react.Tools(templates=False):
+    arm B of the Sonnet experiment). backend "anthropic" asks the Messages API (agent/anthropic_chat.py), with
+    ANTHROPIC_API_KEY from .env; the API has no seed, so a seed only labels the run."""
     import react
     react.load_env()
-    model = model or react.MODEL
+    if backend == "anthropic":
+        import anthropic_chat
+        chat = anthropic_chat.AnthropicChat()
+        model = model or anthropic_chat.MODEL
+    else:
+        chat, model = react.chat, model or react.MODEL
     retriever = react.retriever_or_exit(examples_on, lambda message: sys.exit(message))
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = RAW / run_id
@@ -383,16 +391,19 @@ def run(questions, seeds, examples_on, run_id=None, log=print, model=None):
     path = out / "traces.jsonl"
     done = {(t["id"], t["seed"]) for t in map(json.loads, path.read_text(encoding="utf-8").splitlines())} if path.exists() else set()
     header = react.run_header(run_id, model=model, seeds=seeds, title=f"Evaluation harness: run {run_id}",
-                              examples=react.examples_header(examples_on))
+                              examples=react.examples_header(examples_on), backend=None if backend == "ollama" else chat)
+    header["backend"] = backend
     header["arm"] = "on" if examples_on else "off"
+    header["templates"] = "on" if templates else "off"
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    tools, todo = react.Tools(), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
-    log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}; {len(todo)} to go")
+    tools, todo = react.Tools(templates=templates), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
+    log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}, templates"
+        f" {header['templates']}; {len(todo)} to go")
     for n, (seed, q) in enumerate(todo, 1):
         for attempt in range(1, TRIES + 1):  # a run that fails isn't written, so the retry starts it afresh
             try:
-                trace = react.run(q["question"], tools, retriever=retriever, log=lambda *_: None, model=model,
-                                  think=True, seed=seed)
+                trace = react.run(q["question"], tools, ask=chat, retriever=retriever, log=lambda *_: None,
+                                  model=model, think=True, seed=seed)
                 break
             # the server unreachable or timed out, or a reply cut off
             except (OSError, ValueError, http.client.HTTPException) as e:
@@ -711,8 +722,13 @@ def main():
     pick.add_argument("--near-clean", action="store_true", help="the held-out set and the near-clean existing questions")
     go.add_argument("--seeds", nargs="+", type=int, default=[0])
     go.add_argument("--examples", choices=["on", "off"], default="on")
+    go.add_argument("--templates", choices=["on", "off"], default="on",
+                    help="off: run_sql and the views only, no template tools (arm B of the Sonnet experiment)")
     go.add_argument("--run", help="a run id to resume")
-    go.add_argument("--model", help="the Ollama model to run (default: the agent's, react.MODEL)")
+    go.add_argument("--model", help="the model to run (default: the agent's, react.MODEL, or on the Anthropic backend"
+                                    " claude-sonnet-5-5)")
+    go.add_argument("--backend", choices=["ollama", "anthropic"], default="ollama",
+                    help="anthropic: the Messages API, with ANTHROPIC_API_KEY from .env (agent/anthropic_chat.py)")
     for name in ("score", "report"):
         p = commands.add_parser(name)
         p.add_argument("runs", nargs="+")
@@ -747,7 +763,8 @@ def main():
             chosen = [q for q in questions if q["set"] == "heldout" or q["id"] in NEAR_CLEAN]
         else:
             chosen = questions
-        print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model))
+        print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model,
+                  templates=args.templates == "on", backend=args.backend))
         return
     db = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     add_views(db)  # as the agent's connections have them: a resolve_event condition can be on v_event_series
