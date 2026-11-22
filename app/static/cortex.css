@@ -57,9 +57,11 @@ button, input { font: inherit; }
   position: sticky; top: 0; height: 100vh; padding: calc(var(--header-h) + 34px) 40px 28px 44px;
   display: flex; flex-direction: column; min-width: 0;
 }
-/* the torn edge is cut 0-14 px into the right column: pull it left by half so the ragged line straddles the centre */
+/* the torn edge: a strip 14 px wide, fixed at the seam and as high as the screen, cut 0-14 px deep (jag.js), so the
+   ragged line sits just left of the right column's own straight edge */
+.seam { position: fixed; top: 0; bottom: 0; left: calc(50% - 13px); width: 14px; background: var(--navy); z-index: 1; pointer-events: none; }
 .right {
-  position: relative; min-height: 100vh; margin-left: -7px; background: var(--navy);
+  position: relative; min-height: 100vh; background: var(--navy);
   padding: var(--header-h) 40px 60vh 52px; display: flex; flex-direction: column; gap: 32px; min-width: 0;
 }
 
@@ -146,6 +148,7 @@ body.chatting .chat-wrap { margin-top: 0; }
 .result .stat-card { border: 0; padding: 0; background: transparent; }
 
 @media (max-width: 960px) {
+  .seam { display: none; }
   .layout { grid-template-columns: 1fr; }
   .left { position: relative; top: 0; height: auto; padding: calc(var(--header-h) + 24px) 18px 0; }
   .chat-wrap { height: 70vh; }

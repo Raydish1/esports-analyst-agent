@@ -60,7 +60,10 @@
       </div>
     </section>
 
-    <section class="right jag" data-jag="torn-left" data-seed="42" id="right" aria-label="Results">
+    <!-- The torn edge between the columns: a screen-high strip fixed at the seam, not a clip on the results column,
+         which grows with every answer past the size a high-DPI screen clips (the edge went straight there). -->
+    <div class="seam jag" data-jag="torn-left" data-seed="42" aria-hidden="true"></div>
+    <section class="right" id="right" aria-label="Results">
       <div class="hero" id="hero">
         <canvas id="particles" aria-hidden="true"></canvas>
         <div class="caption" id="heroName"></div>

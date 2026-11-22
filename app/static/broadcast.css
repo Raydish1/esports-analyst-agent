@@ -309,7 +309,7 @@
 /* Recent placements on the lifetime card (broadcast.js, recentRow): slanted logo boxes, outlined cream with the
    legends' orange offset outline, each placement on a dark slanted plate centred under its box's bottom edge, which
    runs from 0 to 86% of the box's width. */
-.bc-lifetime .bc-recent { position: absolute; left: 990px; top: 722px; width: 910px; }
+.bc-lifetime .bc-recent { position: absolute; left: 896px; top: 722px; width: 930px; }
 .bc-lifetime .bc-recent-title { position: static; margin: 0 0 22px; font-size: 36px; line-height: 1; color: #fff4ec; letter-spacing: 0.03em; }
 .bc-lifetime .bc-recent-row { display: flex; gap: 4px; }
 .bc-lifetime .bc-recent-slot { width: 180px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
