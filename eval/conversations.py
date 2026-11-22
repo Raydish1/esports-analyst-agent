@@ -118,8 +118,10 @@ class Turn:
     def evidence(self):
         """What the number check may cite in this turn's answer: the window's tool results, both questions, and the
         line the page showed after the previous turn, as the agent counts it (react.Conversation.shown). Without the
-        line, qwen3:14b's right "TOP 8: 51" from Phazon's card failed c14 turn 2 (the 2026-11-21 model comparison)."""
+        line, qwen3:14b's right "TOP 8: 51" from Phazon's card failed c14 turn 2 (the 2026-11-21 model comparison).
+        The prompt's own facts about the data count too, as the agent counts them (react.prompt_facts)."""
         found = Evidence()
+        found.state(**react.prompt_facts(react.SNAPSHOT))
         for t in self.window:
             found.ask(t["question"])
             for step in t["steps"]:

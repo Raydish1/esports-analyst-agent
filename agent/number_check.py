@@ -225,6 +225,14 @@ class Evidence:
             elif c.kind == "day":
                 self.days.add(c.value)
 
+    def state(self, years=(), dates=()):
+        """Facts the system prompt states about the data, which any answer may cite (react.prompt_facts): each year as
+        a number, each date as a date only, so a date's day and month aren't numbers it holds."""
+        for year in years:
+            self.number(float(year), None)
+        for y, m, d in dates:
+            self.date(y, m, d)
+
     def observe(self, observation):
         """A tool's result. An error isn't evidence: it repeats what the call asked for."""
         if isinstance(observation, dict) and "error" not in observation:

@@ -48,6 +48,7 @@ import tomllib
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,7 +75,7 @@ REQUEST_SECONDS = 900
 RESULTS = ROOT / "eval" / "results"
 RAW = ROOT / "data" / "experiments"
 
-SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using these
+SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from {first} on), using these
 tools: resolve_player finds the player a name means, resolve_event the events an event name means, the templates answer
 the most common questions with tested queries, and run_sql queries a SQLite database of the results. Every player_id in
 a view is a person's canonical ID. The data's latest results are from {last}, so every event in it has been held,
@@ -432,21 +433,34 @@ def chat(messages, model=MODEL, think=True, seed=0, tools=TOOLS):
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
 
 
-def latest_results(path):
-    """The date of the snapshot's newest results, for the prompt: qwen3:30b answered that EU Summers 2026 hadn't
-    happened yet, "the data only goes up to 2025", its training's end (q15 in the 2026-11-21 model comparison)."""
+@lru_cache(maxsize=None)
+def coverage(path):
+    """The snapshot's first year of results and its newest results' date, which the prompt states (SYSTEM's first and
+    last): qwen3:30b answered that EU Summers 2026 hadn't happened yet, "the data only goes up to 2025", its
+    training's end (q15 in the 2026-11-21 model comparison). Read once per snapshot, which is frozen: the query reads
+    every result, about 5 s on eval-v1, and ran for every question until 2026-11-22."""
     db = connect(path, SQL_SECONDS)
     try:
-        (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
+        (first, last), = db.execute("SELECT MIN(start_date), MAX(start_date) FROM v_results").fetchall()
     finally:
         db.close()
-    return last
+    return int(first[:4]), last
+
+
+def prompt_facts(path):
+    """The prompt's own facts about the data, as evidence any answer may cite (number_check.Evidence.state; the
+    user's decision, 2026-11-22): the first year, and the newest results' date with its year. Live, a reply asking
+    for a question "from 2017 onward" had its 2017 left out as a number no tool returned, and with no fact left the
+    whole answer became NOT_LOOKED_UP. The prompt's other numbers are rules and examples, not facts about the data."""
+    first, last = coverage(path)
+    y, m, d = (int(part) for part in last.split("-"))
+    return {"years": [first, y], "dates": [(y, m, d)]}
 
 
 def prompt(path, steps, templates=True):
     """The system prompt for the snapshot at path, for the tools offered (Tools.templates)."""
-    text = SYSTEM if templates else without_templates(SYSTEM)
-    return text.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=steps, last=latest_results(path))
+    text, (first, last) = SYSTEM if templates else without_templates(SYSTEM), coverage(path)
+    return text.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=steps, first=first, last=last)
 
 
 def without_templates(text):
@@ -649,6 +663,7 @@ class Shown:
         self.resolver, self.words, self.numbers, self.players = resolver, set(), set(), set()
         self.given = set()  # the numbers in the user's questions
         self.evidence, self.earlier = Evidence(), Evidence()  # this question's, and the previous one's
+        self.standing = Evidence()  # the prompt's own facts about the data, in view in every turn (prompt_facts)
         self.seen_now, self.seen_before, self.returned_now, self.returned_before = set(), set(), set(), set()
         self.text_now, self.text_before = "", ""  # the tool results' text, for the claim check's markers
         self.about_now, self.about_before = set(), set()  # the players templates' results are about, by name
@@ -677,7 +692,8 @@ class Shown:
             if len(name) >= 3:
                 names[name.casefold()] = name
         about = self.about_now or self.about_before  # this question's subject, else the previous one's
-        return Window(self.evidence, self.earlier, names=names, subject=next(iter(about)) if len(about) == 1 else None)
+        return Window(self.evidence, self.earlier, self.standing, names=names,
+                      subject=next(iter(about)) if len(about) == 1 else None)
 
     @property
     def seen(self):
@@ -1180,6 +1196,7 @@ class Conversation:
         self.system = {"role": "system", "content": prompt(tools.path, max_steps, tools.templates)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(tools.offered))
+        self.view.standing.state(**prompt_facts(tools.path))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
         self.last = None  # the last trace ask() returned, which shown() adds to
         self.traces = []  # every trace ask() returned, oldest first: a recheck runs again the calls an answer rested on

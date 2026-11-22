@@ -593,8 +593,23 @@ class LoopTest(Fixture):
             self.assertIn("a run_sql query on the views", message)
             self.assertNotIn("template", message)
         with_templates = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).system["content"]
+        first, last = react.coverage(self.path)
         self.assertEqual(with_templates, react.SYSTEM.format(budget=f"{react.TOKEN_BUDGET:,}", seconds=react.SQL_SECONDS,
-                                                             steps=react.MAX_STEPS, last=react.latest_results(self.path)))
+                                                             steps=react.MAX_STEPS, first=first, last=last))
+
+    def test_the_prompts_own_facts_about_the_data_are_evidence_for_every_answer(self):  # live: "from 2017 onward"
+        first, last = react.coverage(self.path)
+        year = last[:4]
+        reply_ = (f"I need a specific question about official results to answer from the data. Please ask about an"
+                  f" official event or player from {first} onward.")
+        trace = react.run("yes they did", self.tools, ask=Scripted(reply(reply_)), log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["steps_used"]), (reply_, 1))  # no check: nothing unsupported
+        window = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).view.window
+        self.assertEqual(window.unsupported(f"The data's latest results are from {last}, in {year}, and start in"
+                                            f" {first}."), [])
+        day = str(int(last[8:]))
+        self.assertEqual([c.text for c in window.unsupported(f"They won {day} sets.")], [day])  # a date's day isn't one
+        self.assertIn(f"from {first} on", react.prompt(self.path, react.MAX_STEPS))
 
     def test_the_prompt_says_when_the_datas_latest_results_are(self):  # q15: "the data only goes up to 2025"
         db = sqlite3.connect(self.path)
