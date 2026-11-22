@@ -13,7 +13,7 @@ fastapi
 uvicorn
 httpx
 # The MCP server (app/server/mcp_server.py) and its stat card images, drawn in the installed Edge or Chrome
-mcp
+mcp>=1.30,<2  # 2.x changed the low-level server API that mcp_server.py uses (tested on 1.30)
 playwright
 pillow
 # The Sonnet backend (agent/anthropic_chat.py), only with ANTHROPIC_API_KEY
