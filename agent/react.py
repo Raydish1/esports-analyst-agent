@@ -1261,12 +1261,14 @@ class Conversation:
       (retrieval.prompt), and the history keeps the bare question. The examples aren't what the conversation has
       shown, so an example's player in an answer is still flagged. A text that carries no question of its own
       ("the first one", "thanks": mentions.asks) retrieves nothing.
-    on_step, if given, gets each step as it finishes."""
+    on_step, if given, gets each step as it finishes. With evidence_only, a turn is the analyst of the three-agent
+    pipeline (pipeline.py): it stops before its answer's checks, with outcome 'evidence' and the model's reply as its
+    draft, and another agent writes the answer from what it looked up."""
 
     def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, on_examples=None,
-                 **model):
+                 evidence_only=False, **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
-        self.retriever, self.on_examples = retriever, on_examples
+        self.retriever, self.on_examples, self.evidence_only = retriever, on_examples, evidence_only
         self.system = {"role": "system", "content": prompt(tools.path, max_steps, tools.templates)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(tools.offered))
@@ -1564,6 +1566,13 @@ class Conversation:
                         break
                     self.finished(step)
                     continue
+                if self.evidence_only:  # the checks above gather evidence; those below judge the answer, which in
+                    # the pipeline is the reporter's to write and the verifier's to check
+                    trace["draft"] = content.strip() or None
+                    trace["outcome"] = "evidence" if outcome == "answered" else outcome
+                    log(f"  evidence: the analyst stops before its answer ({short(content, 200)})")
+                    self.finished(step)
+                    break
                 failed = outcome == "answered" and failed_only(trace)  # every call this turn failed (FAILED)
                 if failed and not failed_told and number < max_steps:
                     failed_told, message = True, FAILED

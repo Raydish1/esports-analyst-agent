@@ -636,6 +636,24 @@ class LoopTest(Fixture):
         self.assertEqual((trace["output_tokens"], trace["largest_context"]), (30, 110))
         self.assertEqual(trace["unreturned_names"], {})  # megD was returned
 
+    def test_the_pipelines_analyst_stops_before_its_answer_with_what_it_looked_up(self):  # Checkpoint 5's analyst
+        draft = "megD and **Kappa** have 7 official results."  # a name and a number no tool returned: not checked
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(draft))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, evidence_only=True)
+        trace = conversation.ask("How many results has megd?")
+        self.assertEqual((trace["outcome"], trace["answer"], trace["draft"]), ("evidence", None, draft))
+        self.assertEqual((len(ask.sent), trace["steps_used"]), (2, 2))
+        self.assertEqual([k for s in trace["steps"] for k in s if k.endswith("_check")], [])
+        self.assertEqual(json.loads(trace["steps"][0]["tool_calls"][0]["observation"])["status"], "confident")
+
+    def test_the_pipelines_analyst_still_looks_up_what_a_no_tool_answer_skipped(self):  # its evidence guards run
+        ask = Scripted(reply("megD has 7 official results."), reply(calls=[("resolve_player", {"name": "megd"})]),
+                       reply("megD has 2 official results."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, evidence_only=True)
+        trace = conversation.ask("How many results has megd?")
+        self.assertEqual(trace["steps"][0]["no_tool_check"]["action"], "sent back")
+        self.assertEqual((trace["outcome"], trace["draft"], trace["steps_used"]), ("evidence", "megD has 2 official results.", 3))
+
     def test_an_answer_naming_a_player_no_tool_returned_goes_back_once(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]),
                        reply("**tike36** has the best record against Marckiem00."), reply("**tike36** has it."))
