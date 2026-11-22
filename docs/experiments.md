@@ -157,8 +157,8 @@ and checks around the model, and how much from the model itself.
 tokens a step, no fallbacks. The API has no seed, so seed 0 only labels the runs. A one-question smoke test first
 (`20261122-sonnet-smoke`, q01: right, 3 steps, about $0.04). Then `harness.py run --ids q01 ... q45 --backend
 anthropic`, without and with `--templates off` (`20261122-sonnet-templates`, `20261122-sonnet-sqlonly`). Retrieval
-still embeds each question with nomic-embed-text on the Ollama server. Every verdict was drafted by hand and is
-"needs review".
+still embeds each question with nomic-embed-text on the Ollama server. Every verdict was drafted by hand, and the
+user confirmed all 90 (2026-11-22).
 
 **Results.** The 45 questions, seed 0, by hand, next to qwen3:30b's seed 0 in the final measurement
 (`20261121-final-questions`):
@@ -447,7 +447,8 @@ it the agent changes only for bugs (the user's decision, 2026-11-21).
     and scored by stage, as on 2026-11-08. The user confirmed all 130 drafted verdicts on 2026-11-22 (the other 5
     are automatic);
   - the 19 conversations, 48 turns (`20261121-final-conversations`). The user verified c1-c13, and c14-c19 aren't
-    verified yet. They're scored by their checks, then by hand where a check misread a right answer;
+    verified yet. They're scored by their checks, then by hand where a check misread a right answer. The user
+    confirmed the hand count (126 of 144) on 2026-11-22;
   - the audit set, 51 questions in 54 turns (`20261121-final-audit`). It isn't verified, and its checks look at how a
     turn went.
 - **Not rerun.** The held-out set's final measurement is 2026-11-17's, since its questions were read after it.
