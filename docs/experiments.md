@@ -2,6 +2,42 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: round seven, the model comparison's fixes, checked offline
+
+**What it asked.** Do the fixes the user approved after the model comparison catch their failures on eval-v1 and in
+replays of the recorded runs, without changing anything else? The user made qwen3:30b the default model and approved
+fixes 1-10, with four more and two for qwen3:30b's answer writing, but not the empty-reply fix. The design is in
+[`agent-mechanisms.md`](agent-mechanisms.md), under round seven.
+
+**Setup.** No model. The tools ran on eval-v1, timed with the agent's x64 Python where time mattered. The checks were
+replayed on the recorded runs (the comparison's, the 2026-11-21 runs and round six's reruns), with no held-out trace.
+
+**Results.**
+
+| Fix | Checked on | Result |
+|---|---|---|
+| qwen3:30b the default | `react.MODEL` | The harness, the runner, `ask.py` and the web app read it |
+| The card line in the scorer's window | the five 2026-11-21 conversation runs, rescored | One check changes: 14b's c14 turn 2 grounded |
+| `says_record` reading a list item with its lead-in | the seven recorded conversation runs | 3 turns change, each c14 turn 1 with a right 1v1 record |
+| c18 turn 1 and c19 turn 2's checks | the five 2026-11-21 conversation runs | c18 passes every right answer and fails 14b's 34-15 and two off-topic ones; c19 passes 30b's `by="rate"` |
+| No default minimum on a player's own records, and the empty-ranking note | eval-v1 | volst by rate: woolala 3-0 first. With `min_sets=5`, the note gives 4 (Bunny meow). q08's side is unchanged |
+| The opponents' side's columns by role, and the record check's side | eval-v1, the unit tests | Raydish's side table gives q40's verified 10, 8, 7 and 6. a28's list shape passes; a reversed record still goes back |
+| `mode` on `head_to_head` and `team_results` | eval-v1 | kyna vs yüz in 1v1: 17-17 (c12 turn 3). Raydish's teams against whoiskyna's in 2v2: 2-3 (c3 turn 2) |
+| `dominant_wins` in two queries | eval-v1 against the committed version, x64 Python | The 6 calls the old one finished give the same observation. Every call takes at most 7.9 s (it took over 30 s) |
+| The audit's six `run_sql` checks | the two 2026-11-21 audit runs | Round six's run passes all six on calls; the earlier run fails those that didn't use the condition |
+| Request words ("analyze") | the 147 texts of the three sets | 3 change, each losing only its request word |
+| A recheck with no call runs the calls the answer rested on | the 16 recorded rechecks that called no tool | c10 turn 2: `team_results` for megD every time. c8 turn 5: a `team_results` call holding the pair's 24 events every time |
+| The data's end in the prompt | eval-v1 | "The data's latest results are from 2026-09-27" |
+| A ranking's measure in a follow-up | c8 turns 1-2 of five runs, settled again | Each turn 2 names "rank_players by wins, in 2v2" and how to keep it |
+| "X's record with Y" read as against each other | the 22 recorded `team_results` calls with a partner | It refuses exactly 14b's c3 turn 1 and 30b's c6 turn 1 |
+| An event name covering a 1v1 and a 2v2 | eval-v1 | The note comes with "bcx 2022", "midseason championship 2026" and "worlds", not with "bcx 2025 1v1" |
+| A misspelled returned name | 921 recorded answers | 3 swaps, all real: "yüx" to yüz (q17), "BballoonBoy" and "BBalloonBoy" to BBBalloonBoy (a51). The first version would also have cut a list's number and a count out of bold names, now excluded |
+
+The 526 unit tests and `retrieval.py check` on the 35 examples pass.
+
+**What it decided.** All of it is built. The reruns with qwen3:30b wait for the user's go-ahead: the 45 questions,
+the 19 conversations and the audit set, seeds 0-2. They're listed in the design note.
+
 ## 2026-11-21: the model comparison, qwen3:8b, qwen3:14b and qwen3:30b in the agent
 
 **What it asked.** Which failures does a bigger model not make? The user asked for it before round six's proposed

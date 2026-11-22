@@ -371,6 +371,61 @@ right answer taken from the previous turn's results for c8. Built offline, and t
   - Rescored offline, the 2026-11-21 run gives 109 of 144 turns, from 103: c8 turns 3 and 5 in all three seeds, and
     no other turn.
 
+## Round seven (2026-11-21): the model comparison's fixes
+
+After the model comparison (in the log), the user made qwen3:30b the default model and approved fixes 1-10, with
+four more and two for qwen3:30b's answer writing. They skipped the empty-reply fix, which only qwen3:14b needed. All
+were built offline, one commit each, from 2cf5fc5 to c80fe6d, and each was replayed on the recorded runs where it
+could be. The reruns wait for the user.
+
+- **The model.** `react.MODEL` is qwen3:30b (d733144). The harness, the conversation runner and `ask.py` read it, and
+  so does the web app (`app/server/runner.py` on claude/web-app), once that branch has the commit.
+- **Scoring**, so the reruns measure what happened:
+  - the conversation scorer's grounded check counts the page's card line as the agent does, through one function
+    both call (`react.page_rows`). That changes one recorded check, 14b's c14 turn 2;
+  - `says_record` reads a list item with the line that introduces it, unless the item names a mode of its own. That
+    changes 3 recorded turns, all c14 turn 1 with a right 1v1 record;
+  - c18 turn 1 asks for the tied top's own figures (34 sets, 15-19 and 17-17) instead of the third pair's 28, and c19
+    turn 2 accepts `by="rate"` with `min_sets=1`, which puts woolala's 3-0 first too. Neither is verified.
+- **M2, the tools:**
+  - `rank_pairs` takes no default minimum on a player's own records. The 5-set default stays for `side="opponents"`,
+    the decided rule q08 rests on. A minimum that empties a ranking gets a note with the most sets any pair has
+    ("4, volst with Bunny meow"), and the advice to call again without it. That covers 14b and 30b setting
+    `min_sets=5` themselves on c19 turn 1;
+  - the opponents' side's record columns say whose they are (`wins_vs_Raydish`, `losses_vs_Raydish`), without the
+    column that always held the player asked about. The record check reads them from both sides, and in a list
+    under such a table it reads each record as the listed player's own (a28's false send-back);
+  - `head_to_head` and `team_results` take `mode`, which qwen3:8b passed 17 times and had refused. `head_to_head`
+    gives one mode's part, and `team_results` refuses 1v1, pointing to `head_to_head`. The scope check reads
+    `head_to_head` without a mode as its 1v1 record;
+  - `dominant_wins` counts its runs in two queries instead of `v_win_runs`' six subqueries per win. The longest call
+    takes 7.9 s with the agent's x64 Python (it took over 30 s), with the same observation as before wherever the old
+    one finished. A stopped template suggests a mode before an event;
+  - `event_results` says when a name covers both a 1v1 and a 2v2 event, to answer for both or say which one (30b's
+    q10 and q19);
+  - the audit's six checks that asked for `run_sql` accept round six's templates.
+- **M1, reading the question:**
+  - the prompt says when the data's latest results are (2026-09-27, read from the snapshot), so no event in it reads
+    as still to come (30b's q15);
+  - two players' record ("X's record with Y", "X and Y's record") reads as against each other unless the question
+    says partners or team, and the answer says which reading it took. The scope check refuses a `team_results` call
+    with a partner once for such a question. Replayed on the 22 recorded calls with a partner, it refuses exactly 14b's
+    c3 turn 1 and 30b's c6 turn 1.
+- **M4, the conversation:**
+  - when a recheck still calls no tool after its one send-back, the loop runs again the calls the questioned answer
+    rested on (`react.rested_on`): `player_results` for each player of a disputed card; else the latest earlier data
+    call whose result holds every disputed number, one naming the dispute's players first; else the previous turn's
+    data calls. Replayed on the 16 recorded rechecks, c10 turn 2 gets `team_results` for megD and c8 turn 5 a
+    `team_results` call holding Cody Travis and Phazon's 24 events, every time;
+  - a follow-up naming players after a ranking keeps its measure: the note names the ranking call ("rank_players by
+    wins, in 2v2") and says to give each one's own figure by it (c8 turn 2, which every model read as a partnership);
+  - request words ("analyze", "break down", "compare") aren't content words, so they're never looked up (c15 turn 2).
+- **M5, answer writing:** a misspelling of a name a tool returned is put right in code, as the names correction is,
+  and traced as a swap. Replayed on 921 recorded answers, it makes 3 swaps, each a real misspelling ("yüx" to yüz,
+  "BballoonBoy" and "BBalloonBoy" to BBBalloonBoy).
+
+The unit tests (526) and `retrieval.py check` (35 examples) pass.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -395,17 +450,14 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 | A characterization such as "dominates" is supported when the record behind it has at least twice as many wins as losses and is at least 2 wins ahead (2026-11-21). | Proposed as the reading of finding 35's "stronger than the record supports", and accepted by the user on 2026-11-21. |
 | A page question with words of doubt is a dispute about the card's figures, and one asking where a figure comes from keeps the page's note (2026-11-21). | c8 turn 4's verified answer checks the figures again with a tool. Finding 32's asks for an explanation, not a defense of the answer. |
 | The scope check, not only the prompt, enforces the opponents' side and a best placement (2026-11-21). | The prompt already said both, and the model didn't follow it. A refusal once is the existing mechanism, and it can't block a call made again. |
+| A recheck with no call has the loop run the calls the answer rested on, found by the disputed numbers, not by the model (2026-11-21). | Every model in the comparison left a recheck unchecked after the send-back. The numbers the user disputes name the result they came from. |
+| Two players' record reads as against each other unless the question says partners, enforced by a refusal once (2026-11-21). | Both verified answers (c3 and c6 turn 1) take the head-to-head. The user asked that the answer name its reading. |
+| A misspelled returned name is corrected in code, never sent back (2026-11-21). | One letter off exactly one player in view, and no player's name itself, it's a typo. Sending back costs a call, and the names correction already works in code. |
+| A follow-up after a ranking gets the ranking's measure in its note, not a new tool (2026-11-21). | `player_results` already gives each player's figure. A rank for a player would need a new argument on `rank_players`. |
 
 ## Waiting on the user
 
-- The fixes from round six's reruns 1-3 and the model comparison (2026-11-21, both in the log). The user had the
-  comparison run before the fixes, to see which failures a bigger model doesn't make. It found:
-  - none of the three models avoids c19 turn 1's 5-set minimum, a recheck that makes no call, or c8 turn 2's reading;
-  - qwen3:14b and qwen3:30b avoid qwen3:8b's records read from the wrong side and its `mode` arguments;
-  - qwen3:14b's empty replies (the answer in its thinking);
-  - qwen3:30b's answer from its training cutoff (q15);
-  - three of the conversation scorer's misreadings.
-  The proposals wait for the user's approval.
+- The go-ahead for round seven's reruns with qwen3:30b (below, under Runs).
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
@@ -427,6 +479,17 @@ point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured
 4. The audit set, seeds 0-2 (`py -3.14 eval/audit.py run --seeds 0 1 2`), then `python eval/audit.py report RUN`.
    This gives the failures by mechanism on questions nothing was tuned on.
 5. `py -3.14 agent/retrieval.py measure`, for the two new examples' effect on retrieval.
+
+### Round seven's reruns
+
+For the user's go-ahead, all with qwen3:30b, now the default, at the latest commit, seeds 0-2, in the worktree with
+its own `data/rag`. The minutes are estimated from the comparison's pace (17.6 s per question, 19.2 s per turn).
+
+1. The 45 questions, by id (never `--all`), about 40 minutes: `py -3.14 eval/harness.py run --ids q01 ... q45 --seeds
+   0 1 2`.
+2. All 19 conversations, about 46 minutes: `py -3.14 eval/conversations.py run --seeds 0 1 2`.
+3. The audit set, 51 questions (54 turns), about 52 minutes: `py -3.14 eval/audit.py run --seeds 0 1 2`, then `python
+   eval/audit.py report RUN`.
 
 ### Round six's reruns
 
