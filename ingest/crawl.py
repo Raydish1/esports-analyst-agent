@@ -302,7 +302,8 @@ def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log
     """
     rows, token = {}, None
     while True:
-        body = api.get(endpoint, {**params, "maxResults": page_size, "nextToken": token}, refresh=refresh)
+        page_params = {**params, "maxResults": page_size, "nextToken": token}
+        body = api.get(endpoint, page_params, refresh=True) if refresh else api.get(endpoint, page_params)
         page = body.get(rows_key) or []
         new = [r for r in page if row_id(r) not in rows]
         rows.update((row_id(r), r) for r in new)
