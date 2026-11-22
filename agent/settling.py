@@ -95,6 +95,7 @@ class Context:
     asked: list = field(default_factory=list)
     shown: str = ""  # what the page last showed beside an answer (react.Conversation.shown), kept until a newer one
     beside: str = ""  # the question, as settled, whose answer that was
+    ranking: str = ""  # the measure of the last ranking it called (ranking), for a follow-up naming players
 
 
 def listed(items):
@@ -232,10 +233,13 @@ def continuing(message, context, names=None):
     if context.events:  # by name: the IDs are in the previous question's results, and some are long slugs
         about.append("the events " + listed([name for name, _ in context.events[:EVENTS]]))
     note = (f'This continues the previous question, "{previous}"'
+            + (f", a ranking ({context.ranking})" if names and context.ranking else "")
             + (f", now about {listed([f'{name} (player_id {pid})' for name, pid in names])}" if names else
                f", about {'; and '.join(about)}" if about else ""))
     if names and context.events:
         note += f", at the events {listed([name for name, _ in context.events[:EVENTS]])}"
+    if names and context.ranking:
+        note += (": keep its measure, " + (KEEP_PAIRS if context.ranking.startswith("rank_pairs") else KEEP_PLAYERS))
     return Settled(f"{message} [{note}.]", f"{previous} {message}",
                    "a follow-up with new names (cues)" if names else "a follow-up (cues)", players=list(players),
                    events=list(context.events))
@@ -282,17 +286,38 @@ def about_page(message, context, names, disputed=False):
 
 # The context after a turn
 
+# A follow-up naming players after a ranking keeps its measure: live, "what about cody travis and phazon?" after the
+# top 5 2v2 players got their record against each other, and in the 2026-11-21 model comparison every model gave their
+# results as partners (c8 turn 2)
+KEEP_PLAYERS = "each one's own figure by it (player_results gives a player's), not a record against or with each other"
+KEEP_PAIRS = "their pair's figures by it (head_to_head for two opponents, team_results for two teammates)"
+
+
+def ranking(name, arguments):
+    """A ranking call's measure as the note writes it ("rank_players by medals, in 2v2"), or "" for another call."""
+    if name not in ("rank_players", "rank_pairs"):
+        return ""
+    of = str(arguments.get("of") or "opponents") if name == "rank_pairs" else ""
+    by = str(arguments.get("by") or ("events" if of == "teammates" else "sets" if of else "wins"))
+    scope = [f"in {arguments['mode']}"] if arguments.get("mode") else []
+    scope += [f"{k} {arguments[k]}" for k in ("year", "since", "until", "region", "event") if arguments.get(k)]
+    return f"{name}{f' of {of}' if of else ''} by {by}" + (f", {', '.join(scope)}" if scope else "")
+
+
 def after(trace, settled):
     """The context the next message may continue, from a turn's trace (react.Conversation.turn) and its settled
     text: the players it carried, resolve_player decided for names the text writes, or a template was about
     (player_results' player, head_to_head's two); the events it carried, or resolve_event or event_results found; and
     the names it asked the user about."""
-    players, events = list(settled.players), list(settled.events)
+    players, events, ranked = list(settled.players), list(settled.events), ""
     for step in trace["steps"]:
         for call in step["tool_calls"]:
             observation = json.loads(call["observation"]) if call.get("observation") else {}
             if not isinstance(observation, dict) or "error" in observation:
                 continue
+            arguments = call.get("arguments")
+            arguments = json.loads(arguments) if isinstance(arguments, str) else arguments or {}
+            ranked = ranking(call["name"], arguments) or ranked
             if (call["name"] == "resolve_player" and observation.get("status") == "confident"
                     and observation.get("candidates") and named(settled.text, observation.get("name") or "")):
                 first = observation["candidates"][0]
@@ -307,4 +332,4 @@ def after(trace, settled):
                 if "event" in t.get("columns", ()) and "event_id" in t["columns"]:
                     i, j = t["columns"].index("event"), t["columns"].index("event_id")
                     events += [(row[i], row[j]) for row in t["rows"]]
-    return Context(settled.text, unique(players), unique(events)[:EVENTS], trace.get("asked") or [])
+    return Context(settled.text, unique(players), unique(events)[:EVENTS], trace.get("asked") or [], ranking=ranked)
