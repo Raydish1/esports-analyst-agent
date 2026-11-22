@@ -330,11 +330,17 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
     return { pos, col, meta };
   }
 
-  function scatterCloud() {  // where the first character gathers from
+  // Where the first character gathers from: each particle a short way from its own place in that character, inside
+  // the box. A cloud of radius 1.4-2.6 around the middle reached past the canvas, so the gathering showed the
+  // canvas's cut-off edges.
+  function scatterCloud(target) {
     const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), meta = new Float32Array(N * 4);
+    const maxX = Math.max(0.2, aspect * 0.92), maxY = 0.92;
+    const clamp = (v, m) => Math.max(-m, Math.min(m, v));
     for (let n = 0; n < N; n++) {
-      const v = Math.random() * 2 - 1, t = Math.random() * Math.PI * 2, r = 1.4 + Math.random() * 1.2, s = Math.sqrt(1 - v * v);
-      pos.set([r * s * Math.cos(t), r * v, r * s * Math.sin(t)], n * 3);
+      const t = Math.random() * Math.PI * 2, r = 0.04 + Math.random() * 0.16;
+      const x = target ? target.pos[n * 3] : 0, y = target ? target.pos[n * 3 + 1] : 0;
+      pos.set([clamp(x + r * Math.cos(t) * 1.4, maxX), clamp(y + r * Math.sin(t), maxY), (Math.random() - 0.5) * 0.4], n * 3);
       col.set([0.45, 0.4, 0.9], n * 3);
     }
     return { pos, col, meta };
@@ -355,7 +361,7 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
   makeRandoms();
   gl.enable(gl.BLEND);
   let shapes = imgs.map((im, i) => sampleImage(im, images[i]));
-  let cloud = scatterCloud();
+  let cloud = scatterCloud(shapes[0]);
   let current = -1, next = 0, phase = "morph", phaseStart = performance.now(), fromIdx = -1;
   let visible = true;
 
@@ -371,7 +377,7 @@ export async function startHero(canvas, caption, hero, settings = "hero/hero.jso
   function resampleAll() {
     N = CONFIG.particleCount;
     shapes = imgs.map((im, i) => sampleImage(im, images[i]));
-    cloud = scatterCloud();
+    cloud = scatterCloud(shapes[0]);
     makeRandoms();
     setPair(fromIdx >= 0 ? shapes[fromIdx] : cloud, shapes[next]);
   }
