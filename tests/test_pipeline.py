@@ -93,6 +93,35 @@ class VerifierTest(Fixture):
         self.assertEqual([(f["check"], f["why"]) for f in failures], [("empty", "no answer was written")])
 
 
+class VerifierReplayTest(Fixture):  # harness.py verify RUN: the verifier alone on a run's recorded answers
+    def test_the_verifier_replays_on_a_runs_answers_resumes_and_counts_its_flags_by_verdict(self):
+        tools = react.Tools(self.path)
+        analyst = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(calls=[("run_sql", {"query": COUNT})]),
+                           reply("megD has 2 official results."))
+        right = react.run(QUESTION, tools, ask=analyst, **QUIET)
+        wrong = {**right, "answer": "megD has 2 official results, as many as **Raydish**."}
+        asked = {**right, "outcome": "suggestions"}
+        traces = [{"id": "q01", "set": "existing", "seed": 0, **right}, {"id": "q01", "set": "existing", "seed": 1, **wrong},
+                  {"id": "q02", "set": "existing", "seed": 0, **asked}, {"id": "h01", "set": "heldout", "seed": 0, **right}]
+        judged = {("on", "q01", 0): {"verdict": "right"}, ("on", "q01", 1): {"verdict": "wrong"}}
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(harness, "RAW", Path(folder)), \
+                mock.patch.object(react, "load_env", lambda: None), mock.patch.object(react, "Tools", lambda: tools):
+            (Path(folder) / "r").mkdir()
+            (Path(folder) / "r" / "header.json").write_text(json.dumps({"model": "m", "arm": "on"}), encoding="utf-8")
+            (Path(folder) / "r" / "traces.jsonl").write_text("".join(json.dumps(t) + "\n" for t in traces), encoding="utf-8")
+            with mock.patch.object(pipeline, "chat", Scripted(verdict(), verdict([("as many as Raydish", "no row")]))):
+                header, records = harness.verified("r", log=lambda *_: None)
+            with mock.patch.object(pipeline, "chat", Scripted()):  # resumed: nothing left to verify
+                _, again = harness.verified("r", log=lambda *_: None)
+        self.assertEqual(([(r["id"], r["seed"]) for r in records], again), ([("q01", 0), ("q01", 1)], records))
+        self.assertEqual([[(f["by"], f["check"]) for f in r["failures"]] for r in records],
+                         [[], [("code", "name"), ("model", "unsupported")]])
+        table = harness.verifier_table(records, judged, header["arm"])
+        self.assertIn("| right | 1 | 0/1 (0%) | 0/1 (0%) | 0/1 (0%) | 0/1 (0%) |", table)
+        self.assertIn("| not right | 1 | 1/1 (100%) | 1/1 (100%) | 1/1 (100%) | 0/1 (0%) |", table)
+        self.assertIn("| code: name | 0 | 1 |", table)
+
+
 class RouteTest(unittest.TestCase):
     def test_return_once_then_pass_or_revise_twice_then_abstain(self):
         failed = [{"by": "model"}]
