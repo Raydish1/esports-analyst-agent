@@ -2,6 +2,52 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: two fixes after the final measurement, replayed on the final run
+
+**What it asked.** The user approved two fixes, one commit each, and asked for the final run to be replayed to show
+what each changes:
+- the tool-name spacing bug: `claim_check.without_tool_talk` cut a tool's name out of an answer with the spaces on
+  both sides, so the words around it fused ("confirmed by thewith top=1");
+- the prompt's own facts as evidence for the number check: the data's first year (2017) and its newest results' date
+  (2026-09-27). This was the question open since 2026-11-18, and it's the known limitation of q34 in the final entry.
+
+**Setup.** No model. Commits 8ba7e18 (spacing) and 7f49596 (facts). Each replay reads the final run's recorded traces:
+the 45 questions, the 19 conversations and the audit set, seeds 0-2, 441 turns. The spacing replay runs every draft
+holding tool talk through the old and the new removal, and finds the old text in the final answers. The facts replay
+takes every number the number check or the no-tool check flagged, and asks whether the two facts now support it. The
+live give-up of 2026-11-22 (20261122T043945Z-002 turn 1) is replayed beside them.
+
+**Results.**
+
+| Fix | Replay | What changes |
+|---|---|---|
+| A space where a tool's name is cut out (8ba7e18) | 40 drafts with tool talk | 5 final answers, each by a space: c1 seed 0 turn 4 ("by theresult"), c8 seed 0 turn 4 ("bywith"), a49 seeds 0 and 2 turn 2 ("by thewith"), a51 seed 0 turn 1 ("biggestare") |
+| The prompt's facts as evidence (7f49596) | 69 check records with flagged numbers | 16 no longer fire, and 2 fire for "$0" only (q05 seed 0, a43 seed 0) |
+
+The 16 records the facts settle:
+- q34 ("Who won the 2016 Brawlhalla World Championship?"), seeds 0-2, 6 records. Seed 0's final answer was "I
+  couldn't confirm this from the data, so I won't guess.", and its draft, which says the data runs from 2017 on, now
+  stands. Seed 1 keeps "Official results begin in 2017."
+- One send-back each of "since 2017", "from 2017" or "2026-09-27" in q37 seed 2, q42 seed 2, c13 seed 1 turn 1, a12
+  seed 2, a14 seeds 0-2, a31 seeds 0-2 and a41 seed 1.
+- The live give-up: the reply asking for a question "from 2017 onward" now stands, instead of "I couldn't look this
+  up in the data, so I won't guess."
+
+What the fixes leave:
+- With its spaces kept, a clause such as "as confirmed by the with top=1" still reads badly once the name is out.
+- a51's draft wrote "biggest `upsets` are", and the cut takes the word itself, since `upsets` is also a template's
+  name.
+- The number check reads where a number came from, not what it means: q34 seed 1's draft calls Worlds 2017 "the
+  earliest recorded event", and that now passes.
+
+The facts come from the snapshot, one query, `react.coverage`, which also formats the prompt, so the two can't
+drift. The conversation scorer's grounded check counts them as the agent does. The query reads every result, about 5
+s on eval-v1, and it's now read once per snapshot: the newest date's query had run for every question since round
+seven.
+
+**What it decided.** Both fixes stand. The targeted run started at 7f49596. The Sonnet experiment is skipped for now,
+with its backend in place (the user's decision).
+
 ## 2026-11-22: run_sql when no template fits, and a backend for a Sonnet experiment, built offline
 
 **What it asked.** Two requests of the user's, after the final measurement, both offline first:
