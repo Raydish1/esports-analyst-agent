@@ -108,8 +108,10 @@ Choosing a tool
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
-- For anything else (the last event entered, a set's details, earnings), use run_sql, with resolve_event for an
-  event's name.
+- If no template fits (the last event entered, a set's details, an event's size), query the views below with
+  run_sql, with resolve_event for an event's name. Every question about the results gets a lookup: never answer one
+  without it, or from earlier results that don't hold the answer, and never say it can't be looked up when a query
+  on the views can answer it.
 
 Reading the question
 - Pass the question's scope to every call it applies to: its mode (1v1 or 2v2), a year, a time window (since,
@@ -297,17 +299,20 @@ PAIRING = ("Before this answer is final: it pairs {pairs}. A player_id belongs t
            " meant, use the player_id resolve_player gives for them, and query again if a query used the other one; if"
            " the player_id is, name them by its name.")
 # The no-tool check: none offers to keep the answer if its facts "come from earlier results", which let three turns of
-# invented head-to-head records stand in the web app's live testing (decided 2026-11-19)
+# invented head-to-head records stand in the web app's live testing (decided 2026-11-19). Each says how to look the
+# results up (LOOK_UP), as the prompt does: live, "raydish and megd vs moni and animefan1266", which no template
+# answered then, was answered from the previous turn's top 8, which held no sets, as "they never met" (2026-11-22)
+LOOK_UP = "the template that fits, or, when none does, a run_sql query on the views"
 NO_TOOL_LOOKUP = ("Before this answer is final: this question called no tool, and no tool result you can see holds {words},"
-                  " so the answer can't rest on them. Look {them} up with the tools first (resolve_player for a player,"
-                  " resolve_event for an event, then a template or run_sql for results), and answer only from what they"
-                  " return.")
+                  " so the answer can't rest on them. Look up what the question asks: resolve_player for each player and"
+                  " resolve_event for an event, then {lookup}. Answer only from what they return, and never give up on a"
+                  " question a query can answer.")
 NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and the answer states {facts}, which no tool"
                  " result you can see holds. Only this question's results and the previous question's count, not earlier"
-                 " answers. Look them up with the tools first (a template or run_sql), and answer only from what they"
-                 " return.")
+                 " answers. Look them up with {lookup}, and answer only from what they return.")
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
-          " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
+          " results are above. Now look up what the question asks with {lookup}, and answer only from what the tools"
+          " return.")
 RECHECKED = ("You answered again without a tool, so the agent ran again the calls the questioned answer rested on: the"
              " results are above. Say from them whether that answer was right, and correct it if it wasn't.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
@@ -971,12 +976,12 @@ def gapped(gap):
 
 
 def no_tool(gap):
-    """The no-tool check's message: look up the question's words no result in view holds, or else the facts."""
+    """The no-tool check's message: look up what the question asks, for its words no result in view holds, or else
+    the facts."""
     if gap.get("words"):
-        return NO_TOOL_LOOKUP.format(words=listed([repr(w) for w in gap["words"]]),
-                                     them="it" if len(gap["words"]) == 1 else "them")
+        return NO_TOOL_LOOKUP.format(words=listed([repr(w) for w in gap["words"]]), lookup=LOOK_UP)
     facts = [f"{kind} ({', '.join(gap[kind])})" for kind in ("players", "numbers") if gap.get(kind)]
-    return NO_TOOL_FACTS.format(facts=listed(facts))
+    return NO_TOOL_FACTS.format(facts=listed(facts), lookup=LOOK_UP)
 
 
 def numbers_message(flagged):
@@ -1620,7 +1625,7 @@ class Conversation:
                 end = c.end
         return kept
 
-    def look_up(self, question, lookups, step, resolved, last, note=FORCED):
+    def look_up(self, question, lookups, step, resolved, last, note=FORCED.format(lookup=LOOK_UP)):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the
         model's calls are, kept in the history as its calls, with a note to answer from them, and in the step marked
         forced. Returns the names from the question they matched only loosely, for suggestions."""

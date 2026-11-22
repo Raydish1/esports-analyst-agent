@@ -985,7 +985,8 @@ class LoopTest(Fixture):
         self.assertEqual([(c["name"], c["forced"]) for c in forced], [("resolve_player", True), ("resolve_event", True)])
         self.assertEqual(json.loads(forced[0]["observation"])["candidates"][0]["player_id"], 11)
         roles = [m["role"] for m in ask.sent[2][-4:]]
-        self.assertEqual((roles, ask.sent[2][-1]["content"]), (["assistant", "tool", "tool", "user"], react.FORCED))
+        self.assertEqual((roles, ask.sent[2][-1]["content"]),
+                         (["assistant", "tool", "tool", "user"], react.FORCED.format(lookup=react.LOOK_UP)))
         self.assertEqual((trace["answer"], trace["answered_without_tools"]), ("Raydish never won worlds.", True))
         page = react.markdown([trace], HEADER)
         self.assertIn("The loop looked up resolve_player({\"name\": \"raydish\"}), resolve_event({\"name\": \"worlds\"})"
@@ -1395,6 +1396,17 @@ class PromptTest(unittest.TestCase):
         for name in templates.TEMPLATES:
             self.assertRegex(choosing, rf"\n  - [^\n]+: {name}\n", name)
         self.assertIn("so don't call resolve_event first", " ".join(choosing.split()))
+
+    def test_the_prompt_and_the_no_tool_check_say_to_query_the_views_when_no_template_fits(self):
+        prompt = " ".join(react.SYSTEM.split())
+        self.assertIn("If no template fits (the last event entered, a set's details, an event's size), query the views"
+                      " below with run_sql", prompt)
+        self.assertIn("never say it can't be looked up when a query on the views can answer it", prompt)
+        for gap in ({"words": ["moni"]}, {"numbers": ["3-2"]}):
+            self.assertIn("the template that fits, or, when none does, a run_sql query on the views",
+                          react.no_tool(gap), gap)
+        self.assertIn("Now look up what the question asks with the template that fits",
+                      react.FORCED.format(lookup=react.LOOK_UP))
 
     def test_the_prompt_keeps_the_comparison_prompts_views_and_counting_rules(self):
         views = mc.PROMPT.split("\nViews\n")[1].split("\n\nCounting rules")[0]
