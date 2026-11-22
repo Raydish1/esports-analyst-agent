@@ -820,6 +820,43 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
     return answer, collapsed(swaps), pairings
 
 
+def one_edit(a, b):
+    """Whether two different strings are one letter apart: one changed, added or dropped."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    short, long = sorted((a, b), key=len)
+    return any(long[:i] + long[i + 1:] == short for i in range(len(long)))
+
+
+def spelled_right(answer, resolver, in_view, words=frozenset()):
+    """The answer with each misspelled name of a player a tool returned put right, and the swaps: a name in it
+    (name_spans) that is no player's name or alias, and not a word the conversation showed, but one letter off the name
+    of exactly one player in view (in_view: canonical IDs). qwen3:30b wrote yüz as "yüx" (q17 in the 2026-11-21 model
+    comparison), which the answer check, reading only names some player has, let through."""
+    targets = {}
+    for pid in in_view:
+        name = resolver.names.get(pid)
+        if name and len(normalize(name)) >= 3:
+            targets.setdefault(normalize(name), (pid, name))
+    swaps = []
+    for span in dict.fromkeys(name_spans(stated(answer))):
+        key = normalize(span)
+        if len(key) < 3 or key in targets or key in words or normalize_full(span) in words or resolver.called(span):
+            continue
+        near = {targets[target] for target in targets if one_edit(key, target)}
+        if len(near) != 1:
+            continue
+        (pid, name), = near
+        if "(" in span or re.sub(r"\D", "", span) != re.sub(r"\D", "", name):  # a count or a list's number with the
+            continue  # name in bold, as "**6 (Cody Travis)**" or "**1. Raydish**", isn't a misspelling
+        pattern = re.compile(rf"(?<!\w){re.escape(span)}(?!\w)")
+        swaps += [{"kind": "a misspelled name", "from": span, "to": name, "player_id": pid}] * len(pattern.findall(answer))
+        answer = pattern.sub(lambda m: name, answer)
+    return answer, swaps
+
+
 def collapsed(swaps):
     """Each swap once, in the order first made, with how many times it was made (times) when more than once. Live,
     one answer listed "Yuz" to "yüz" eleven times, once per mention (docs/web-app-testing-notes.md, finding 20)."""
@@ -1280,8 +1317,10 @@ class Conversation:
                     log("  a reply about the answer, not an answer: the answer it replied about is kept")
                     content, swaps, _ = sent_back
                 elif outcome == "answered":
-                    content, swaps, pairings = correct_names(content, resolved, self.tools.resolver,
-                                                             self.view.returned_now | self.view.returned_before)
+                    in_view = self.view.returned_now | self.view.returned_before
+                    content, swaps, pairings = correct_names(content, resolved, self.tools.resolver, in_view)
+                    content, misspelled = spelled_right(content, self.tools.resolver, in_view, self.view.words)
+                    swaps = collapsed(swaps + misspelled)
                     if swaps:
                         step["name_swaps"] = swaps
                         log("  names corrected: " + ", ".join(f"{x['from']} to {x['to']}" for x in swaps))

@@ -193,6 +193,23 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("7th"), ("confident", [16]))
 
 
+class RespelledTest(Fixture):
+    def test_a_name_one_letter_off_a_returned_players_is_put_right(self):  # q17: qwen3:30b's "yüx" for yüz
+        resolver = react.Tools(self.path).resolver
+        self.assertEqual(react.spelled_right("5th: **Raydsh** and **Zivai**.", resolver, {11, 19}),
+                         ("5th: **Raydish** and **Zivai**.", [{"kind": "a misspelled name", "from": "Raydsh",
+                                                               "to": "Raydish", "player_id": 11}]))
+        self.assertEqual(react.spelled_right("**Raydsh**", resolver, {19})[1], [])  # Raydish isn't in view
+        self.assertEqual(react.spelled_right("**Raydsh**", resolver, {11}, words={"raydsh"})[1], [])  # a word shown
+        self.assertEqual(react.spelled_right("**megD** and **Zivai**", resolver, {7, 11, 19})[1], [])  # real names
+        self.assertEqual(react.spelled_right("**1. Raydish**, **6 (Raydish)**", resolver, {11})[1], [])  # a list's
+        # number and a count, with the name in bold
+
+    def test_one_edit_is_a_letter_changed_added_or_dropped(self):
+        self.assertEqual([react.one_edit("yux", w) for w in ("yuz", "yuzz", "yu", "yux", "ynx", "abc")],
+                         [True, False, True, False, True, False])
+
+
 class UnaskedIdsTest(Fixture):
     def test_an_id_beside_its_players_name_is_taken_out_unless_asked_for_or_needed(self):
         out, removed = react.unasked_ids("1. **Raydish (11)** vs **tike36 (14)**: 3 sets", "biggest rivalry", self.resolver)
