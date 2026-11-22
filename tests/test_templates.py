@@ -385,6 +385,16 @@ class DominantWinsTest(Fixture):
         self.assertTrue(all(r[9] == 0 and r[10] == 0 for t in flawless["tables"] for r in t.get("rows", [])))
         self.assertIn("without a dropped game", " ".join(flawless["notes"]))
 
+    def test_the_runs_are_v_win_runs_ranked_by_the_rule(self):  # counted in two queries: the view took over 30 s
+        db = sqlite3.connect(self.path)
+        expected = db.execute(
+            "SELECT RANK() OVER (ORDER BY sets_played = 0, unscored_sets > 0, games_lost, sets_dropped, games_won DESC),"
+            " player_id, start_date, mode, sets_played, sets_dropped, games_won, games_lost, unscored_sets FROM v_win_runs"
+            " WHERE is_crew_battle = 0").fetchall()
+        db.close()
+        rows = self.rows(self.call("dominant_wins", top=99), "official wins, the most dominant first")
+        self.assertEqual(sorted([r[0], r[2], *r[4:]] for r in rows), sorted(list(e) for e in expected))
+
 
 class PlayerResultsTest(Fixture):
     def test_results_are_counted_by_mode_with_the_first_the_latest_and_the_list(self):

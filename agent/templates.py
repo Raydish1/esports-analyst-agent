@@ -129,7 +129,7 @@ class Template:
             return {"error": str(e)}
         except (sqlite3.Error, sqlite3.Warning) as e:
             if "interrupted" in str(e):
-                return {"error": f"{self.name} was stopped after {SQL_SECONDS} s. Narrow it: an event, a year or a mode."}
+                return {"error": f"{self.name} was stopped after {SQL_SECONDS} s. Narrow it: a mode, a year or an event."}
             return {"error": f"{self.name} failed: {type(e).__name__}: {e}"}
         finally:
             query.close()
@@ -1134,6 +1134,63 @@ def player_sets(query, tools, player_id, result=None, mode="1v1", year=None, sin
 
 # dominant_wins
 
+@dataclass(frozen=True)
+class Run:
+    """One official win with the winner's run: their counted sets in that competition, every phase included, as
+    v_win_runs counts them (games over scored sets only, None when none was scored)."""
+    player_id: int
+    tournament_name: str
+    event_name: str
+    start_date: str
+    mode: str
+    sets_played: int
+    sets_dropped: int
+    games_won: int | None
+    games_lost: int | None
+    unscored_sets: int
+
+
+def win_runs(query, where):
+    """The wins `where` keeps, with their runs, as v_win_runs has them, in two queries: the wins, then every set of
+    their winners in one statement, summed per win here. v_win_runs' six subqueries per win took over 30 s with the
+    agent's Python for every win (a35 in round six's reruns); this takes about 8 s, with the same rows on eval-v1."""
+    wins = query.rows("SELECT w.player_id, w.competition_key, w.tournament_name, w.event_name, w.start_date, w.mode"
+                      " FROM v_official_wins w WHERE " + " AND ".join(where))
+    if not wins:
+        return []
+    sums = {}
+    for player, key, won, games_won, games_lost, scored in query.rows(
+            "SELECT m.player_id, m.competition_key, m.won, m.games_won, m.games_lost, m.is_scored FROM v_match_results m"
+            f" WHERE m.player_id IN ({', '.join(sorted({str(w[0]) for w in wins}))})"):
+        total = sums.setdefault((player, key), [0, 0, 0, 0, 0, 0])  # sets, dropped, games won, lost, unscored, scored
+        total[0] += 1
+        total[1] += 1 - won
+        total[4] += 1 - scored
+        if scored:
+            total[2], total[3], total[5] = total[2] + games_won, total[3] + games_lost, total[5] + 1
+    runs = []
+    for player, key, tournament, event, date, mode in wins:
+        n, dropped, won, lost, unscored, scored = sums.get((player, key), [0, 0, 0, 0, 0, 0])
+        runs.append(Run(player, tournament, event, date, mode, n, dropped, won if scored else None,
+                        lost if scored else None, unscored))
+    return runs
+
+
+def ranked_runs(runs, names):
+    """[(rank, run)] by the decided dominance rule: a run with any unscored set after every fully scored one, a win
+    without counted sets last; then the fewest games lost, the fewest sets dropped, the most games won. Ties share a
+    rank, as RANK() gives it, in date order, then by name."""
+    def key(r):
+        return (r.sets_played == 0, r.unscored_sets > 0, r.games_lost or 0, r.sets_dropped, -(r.games_won or 0))
+    ordered = sorted(runs, key=lambda r: (key(r), r.start_date, names.get(r.player_id) or ""))
+    out, rank = [], 0
+    for i, r in enumerate(ordered):
+        if not i or key(r) != key(ordered[i - 1]):
+            rank = i + 1
+        out.append((rank, r))
+    return out
+
+
 def dominant_wins(query, tools, top=5, mode=None, player_id=None, flawless=False, year=None, since=None, until=None,
                   event=None, region=None):
     """Official wins ranked by the decided dominance rule (v_win_runs): the fewest games lost across the run, then the
@@ -1147,16 +1204,17 @@ def dominant_wins(query, tools, top=5, mode=None, player_id=None, flawless=False
     if narrow.found and not narrow.found.usable:
         return unanswered("dominant_wins", narrow.found, query)
     player, name, given = person(tools, player_id) if player_id is not None else (None, None, None)
-    where = ["w.is_crew_battle = 0"] + ([f"w.mode = '{mode}'"] if mode else []) + narrow.where("w") + (
-        [f"w.player_id = {player}"] if player else []) + (["w.games_lost = 0", "w.unscored_sets = 0"] if flawless else [])
-    rows = query.rows(
-        "WITH ranked AS (SELECT w.*, RANK() OVER (ORDER BY w.unscored_sets > 0, w.games_lost, w.sets_dropped,"
-        " w.games_won DESC) AS rank FROM v_win_runs w WHERE " + " AND ".join(where) + ")"
-        " SELECT ranked.rank, p.name, ranked.player_id, ranked.tournament_name, ranked.event_name, ranked.start_date,"
-        " ranked.mode, ranked.sets_played, ranked.sets_dropped, ranked.games_won, ranked.games_lost,"
-        " ranked.unscored_sets FROM ranked JOIN players p ON p.player_id = ranked.player_id"
-        f"{'' if flawless else f' WHERE ranked.rank <= {top}'} ORDER BY ranked.rank, ranked.start_date, p.name")
-    listed = [[r[0], r[1], r[2], set_event(r[3], r[4]), *r[5:]] for r in rows]
+    where = ["w.format <> 'crew_battle'"] + ([f"w.mode = '{mode}'"] if mode else []) + narrow.where("w") + (
+        [f"w.player_id = {player}"] if player else [])
+    runs = win_runs(query, where)
+    if flawless:
+        runs = [r for r in runs if r.games_lost == 0 and not r.unscored_sets]
+    names = dict(query.rows("SELECT player_id, name FROM players WHERE player_id IN"
+                            f" ({', '.join(sorted({str(r.player_id) for r in runs})) or 'NULL'})"))
+    ranked = ranked_runs(runs, names)
+    rows = ranked if flawless else [(rank, run) for rank, run in ranked if rank <= top]
+    listed = [[rank, names.get(r.player_id), r.player_id, set_event(r.tournament_name, r.event_name), r.start_date,
+               r.mode, r.sets_played, r.sets_dropped, r.games_won, r.games_lost, r.unscored_sets] for rank, r in rows]
     notes = ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
     if given != player:
         notes.append(merged(given, player, name))
@@ -1165,13 +1223,12 @@ def dominant_wins(query, tools, top=5, mode=None, player_id=None, flawless=False
                  " one, and crew battles are left out." + (f" flawless keeps the {len(listed)} wins without a dropped"
                                                            " game." if flawless else ""))
     if not flawless:  # a run with unscored sets that would rank near the top on its scored games alone, in one line
-        unscored = query.rows("SELECT p.name, w.tournament_name, w.event_name, w.games_lost FROM v_win_runs w JOIN"
-                              " players p ON p.player_id = w.player_id WHERE " + " AND ".join(where) +
-                              " AND w.unscored_sets > 0 AND w.games_lost <= " + str(max((r[10] for r in rows if not r[11]),
-                                                                                        default=0)) + " LIMIT 3")
-        if unscored:
+        bar = max((r.games_lost for _, r in rows if not r.unscored_sets and r.games_lost is not None), default=0)
+        buried = [r for _, r in ranked if r.unscored_sets and r.games_lost is not None and r.games_lost <= bar][:3]
+        if buried:
             notes.append("Ranked after them, as their runs have sets with no recorded score, though their scored games"
-                         " would rank near the top: " + "; ".join(f"{n}, {set_event(t, e)}" for n, t, e, _ in unscored)
+                         " would rank near the top: " + "; ".join(
+                             f"{names.get(r.player_id)}, {set_event(r.tournament_name, r.event_name)}" for r in buried)
                          + ". Say so in one line.")
     if not listed:
         notes.append("No official win here fits." if flawless or player or narrow else "No official wins here.")
