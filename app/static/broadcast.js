@@ -160,7 +160,67 @@ export function lifetimeFrame(card, mode = "1v1 and 2v2") {
   const parts = [`${scopeLine(mode, p.crew)}.`];
   if ("earnings" in p && p.earnings.amount !== null) parts.push(`Earnings: career, all modes, ${p.earnings.source}, as of ${p.earnings.as_of}.`);
   frame.append(text("bc-scope", parts.join(" ")));
+  recentRow(frame, p.recent?.[mode], mode);
   return squeezeWords(frame);
+}
+
+// Recent placements, in the lifetime card's empty bottom right: the player's latest official events in the mode shown,
+// newest first, each its tournament's logo in a slanted box (or a badge drawn from its name, when there's no logo or
+// it doesn't load), with the placement on a plate under it.
+const SEASONS = [["autumn", "AUTUMN"], ["summer", "SUMMER"], ["spring", "SPRING"], ["winter", "WINTER"]];
+const REGION_WORDS = [["north america", "NA"], ["south america", "SA"], ["southeast asia", "SEA"], ["europe", "EU"],
+  ["middle east", "MENA"], ["australia", "AUS"], ["oceania", "OCE"], ["japan", "JPN"], ["brazil", "BRZ"]];
+
+// A badge for an event without a logo: its kind (a colour and a word), a short name, and the year.
+export function badgeFor(event, date) {
+  const name = (event || "").toLowerCase();
+  const year = (date || "").slice(2, 4);
+  const region = REGION_WORDS.find(([w]) => name.includes(w))?.[1] || (name.match(/\((na|eu|sa|sea|aus)\)/)?.[1] || "").toUpperCase();
+  const season = SEASONS.find(([w]) => name.includes(w));
+  if (/world championship expo|bcx/.test(name)) return { kind: "worlds", top: "WORLDS", big: "BCX", year };
+  if (/world championship/.test(name)) return { kind: "worlds", top: "WORLDS", big: region || "BWC", year };
+  if (/midseason/.test(name)) return { kind: "midseason", top: "MIDSEASON", big: "MSC", year };
+  if (/crew battle|pro series/.test(name)) return { kind: "crew", top: "CREW BATTLE", big: region || "CB", year };
+  if (season) return { kind: season[0], top: season[1], big: region || "BHC", year };
+  const word = (event || "").replace(/^brawlhalla\s*/i, "").split(/[\s/-]+/).filter(Boolean)[0] || "";
+  return { kind: "other", top: region || "OFFICIAL", big: word.slice(0, 4).toUpperCase(), year };
+}
+
+function badge(event, date) {
+  const b = badgeFor(event, date);
+  const node = el("div", `bc-badge bc-badge-${b.kind}`);
+  node.append(el("span", "bc-badge-top", b.top), el("span", `bc-badge-big${b.big.length > 2 ? " bc-long" : ""}`, b.big));
+  if (b.year) node.append(el("span", "bc-badge-year", `'${b.year}`));
+  return node;
+}
+
+function recentRow(frame, results, mode) {
+  if (!results?.length) return;
+  const box = el("div", "bc-recent");
+  box.append(el("p", "bc-recent-title bc-heavy", `RECENT PLACEMENTS${mode === "1v1 and 2v2" ? "" : ` · ${mode.toUpperCase()}`}`));
+  const row = el("div", "bc-recent-row");
+  for (const r of results) {
+    const slot = el("div", "bc-recent-slot");
+    slot.title = `${r.event} · ${r.date}`;
+    const shape = el("div", "bc-recent-shape");
+    const clip = el("div", "bc-recent-clip");
+    if (r.image) {
+      const img = el("img");
+      img.src = r.image;
+      img.alt = r.event;
+      img.addEventListener("error", () => img.replaceWith(badge(r.event, r.date)));
+      clip.append(img);
+    } else {
+      clip.append(badge(r.event, r.date));
+    }
+    shape.append(clip);
+    const place = el("span", `bc-recent-place bc-heavy${r.placement === 1 ? " bc-gold" : r.placement <= 3 ? " bc-medal" : ""}`,
+      ordinal(r.placement));
+    slot.append(shape, place);
+    row.append(slot);
+  }
+  box.append(row);
+  frame.append(box);
 }
 
 // Head-to-head (reference: Godly vs Bamya). Shapes traced from the reference scaled to 1920 wide; the legends cover

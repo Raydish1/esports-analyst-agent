@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT / "agent"))
 sys.path.insert(0, str(HERE))
 
 from fastapi import FastAPI, HTTPException, Request  # noqa: E402
-from fastapi.responses import StreamingResponse  # noqa: E402
+from fastapi.responses import FileResponse, StreamingResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -174,6 +174,25 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
             if len(found) < 2:
                 raise HTTPException(404, "No sets between these players.")
             return found[1]
+
+    @app.get("/api/event-image")
+    def event_image(id: str):
+        """An event's logo (figures.EventImages), as a 256-pixel WebP made once from the fetched image."""
+        name = cards.images.file(id)
+        if not name:
+            raise HTTPException(404, "No logo for this event.")
+        source = figures.ROOT / "data" / "raw" / "event_images" / name
+        thumb = source.parent / "thumbs" / (source.stem + ".webp")
+        if not thumb.exists():
+            if not source.exists():
+                raise HTTPException(404, "No logo for this event.")
+            from PIL import Image
+            thumb.parent.mkdir(exist_ok=True)
+            with Image.open(source) as im:
+                im = im.convert("RGBA")
+                im.thumbnail((256, 256))
+                im.save(thumb, "WEBP", quality=88)
+        return FileResponse(thumb, media_type="image/webp", headers={"Cache-Control": "max-age=86400"})
 
     @app.middleware("http")
     async def revalidate(request, call_next):

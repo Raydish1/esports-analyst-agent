@@ -305,3 +305,33 @@
 .bc-teams .bc-tamp { left: 392px; transform: translateX(-50%); top: 996px; font-size: 52px; color: var(--bc-orange); }
 .bc-frame :is(.bc-tlabel, .bc-together-sub) { font-family: "BC Small", "BC Text", "Montserrat", system-ui, sans-serif; font-weight: 500; }
 .bc-proxima-cond .bc-frame :is(.bc-theading, .bc-tsets, .bc-together, .bc-tname) { letter-spacing: 0.03em; }
+
+/* Recent placements on the lifetime card (broadcast.js, recentRow): slanted logo boxes, outlined cream with the
+   legends' orange offset outline, each placement on a dark slanted plate centred under its box's bottom edge, which
+   runs from 0 to 86% of the box's width. */
+.bc-lifetime .bc-recent { position: absolute; left: 990px; top: 722px; width: 910px; }
+.bc-lifetime .bc-recent-title { position: static; margin: 0 0 22px; font-size: 36px; line-height: 1; color: #fff4ec; letter-spacing: 0.03em; }
+.bc-lifetime .bc-recent-row { display: flex; gap: 4px; }
+.bc-lifetime .bc-recent-slot { width: 180px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.bc-lifetime .bc-recent-shape { width: 180px; height: 156px;
+  filter: drop-shadow(4px 0 0 #faf2eb) drop-shadow(-4px 0 0 #faf2eb) drop-shadow(0 4px 0 #faf2eb) drop-shadow(0 -4px 0 #faf2eb)
+    drop-shadow(-9px 9px 0 var(--bc-orange)); }
+.bc-lifetime .bc-recent-clip { width: 100%; height: 100%; background: #160c08; clip-path: polygon(14% 0, 100% 0, 86% 100%, 0 100%); }
+.bc-lifetime .bc-recent-clip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bc-lifetime .bc-recent-place { width: 124px; margin-left: 15px; text-align: center; transform: skewX(-12deg); background: #160c08;
+  padding: 7px 0 5px; font-size: 40px; line-height: 1; color: #fff4ec; }
+.bc-lifetime .bc-recent-place.bc-medal { color: #ffb08f; }
+.bc-lifetime .bc-recent-place.bc-gold { color: #f3cd5c; }
+.bc-lifetime .bc-badge { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #fff; background: linear-gradient(160deg, #6e5248, #2c1d17); }
+.bc-lifetime .bc-badge-top { font: 700 14px "Montserrat", sans-serif; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.85); }
+.bc-lifetime .bc-badge-big { font-family: "BC Heavy", "BC Heavy Wide", "Gabarito", sans-serif; font-weight: 900; font-size: 64px; line-height: 1; margin: 2px 0; }
+.bc-lifetime .bc-badge-big.bc-long { font-size: 44px; }
+.bc-lifetime .bc-badge-year { font-family: "BC Heavy", "BC Heavy Wide", "Gabarito", sans-serif; font-weight: 900; font-size: 26px; line-height: 1; opacity: 0.9; }
+.bc-lifetime .bc-badge-autumn { background: linear-gradient(160deg, #d9673f, #8a2f1c); }
+.bc-lifetime .bc-badge-summer { background: linear-gradient(160deg, #e8b23a, #b0661c); }
+.bc-lifetime .bc-badge-spring { background: linear-gradient(160deg, #57b98d, #23704f); }
+.bc-lifetime .bc-badge-winter { background: linear-gradient(160deg, #6fa8d8, #2c4f8a); }
+.bc-lifetime .bc-badge-worlds { background: linear-gradient(160deg, #2a1a12, #0c0705); color: #e9c96b; }
+.bc-lifetime .bc-badge-midseason { background: linear-gradient(160deg, #8c5bc8, #4b2a7e); }
+.bc-lifetime .bc-badge-crew { background: linear-gradient(160deg, #3b3f46, #15171a); }

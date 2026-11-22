@@ -28,6 +28,8 @@ PLAYERS = {
 }
 EARNED = {1: [(1200.0, "Stats API", "2026-10-02")], 2: []}
 TOPS = {1: [("1v1", 8), ("2v2", 3)], 2: [("1v1", 1)]}  # top 32s by mode (figures.TOP32)
+LATEST = {1: [("e3", "Autumn 2026 - 2v2", None, "2026-09-27", 2, "2v2"), ("e2", "Autumn 2026 - 1v1", None, "2026-09-20", 25, "1v1"),
+              ("e1", "Summer 2026 - 1v1", None, "2026-07-19", 5, "1v1")]}  # figures.LATEST, newest first
 
 
 class NoLegends:
@@ -52,6 +54,8 @@ class Stub(figures.Cards):
         self.queried.append(sql)
         if sql == figures.TOP32:
             return TOPS.get(params[0], [])
+        if sql == figures.LATEST:
+            return LATEST.get(params[0], [])
         return EARNED.get(params[0], []) if sql == figures.EARNINGS else self.sets
 
 
@@ -88,6 +92,21 @@ class ChoosingTest(unittest.TestCase):
         self.assertEqual(lifetime["earnings"], {"amount": 1200.0, "source": "Stats API", "as_of": "2026-10-02"})
         self.assertIn("All official events, regional championships included", card["scope"])
         self.assertIn("Crew battles count as 1v1", card["scope"])
+
+    def test_recent_placements_by_mode_newest_first_with_a_logo_or_none(self):
+        class Images:
+            def url(self, event_id):
+                return "api/event-image?id=e2" if event_id == "e2" else None
+        stub = Stub()
+        stub.images = Images()
+        (card,) = stub.build(turn(results(1)))
+        recent = card["player"]["recent"]
+        self.assertEqual([r["event_id"] for r in recent["1v1 and 2v2"]], ["e3", "e2", "e1"])
+        self.assertEqual([(r["placement"], r["image"]) for r in recent["1v1"]], [(25, "api/event-image?id=e2"), (5, None)])
+        self.assertEqual([r["event_id"] for r in recent["2v2"]], ["e3"])
+        self.assertEqual(Stub().build(turn(results(2)))[0]["player"]["recent"], {"1v1 and 2v2": [], "1v1": [], "2v2": []})
+        self.assertIn("Alpha's recent placements, newest first: placement 2 at Autumn 2026 - 2v2 (2026-09-27, 2v2),",
+                      figures.summary([card]))
 
     def test_a_missing_earnings_figure_is_none_not_zero(self):
         (card,) = Stub().build(turn(results(2)))

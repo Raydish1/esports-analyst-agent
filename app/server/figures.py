@@ -29,6 +29,7 @@ earnings query isn't run.
 import csv
 import json
 import re
+import urllib.parse
 from pathlib import Path
 
 import mentions
@@ -78,6 +79,11 @@ TEAM_SCOPE = ("Each player's own figures: all official events, regional champion
               " when the card opens).")
 MOST = 2
 ROOT = Path(__file__).resolve().parent.parent.parent
+# A player's latest official results, for the lifetime card's recent placements: newest first, at most RECENT a mode.
+RECENT = 5
+LATEST = ("SELECT event_id, tournament_name, event_name, start_date, placement, mode FROM v_results"
+          " WHERE player_id = ? AND placement IS NOT NULL ORDER BY start_date DESC, start_time DESC LIMIT 40")
+EVENT_IMAGES = ROOT / "data" / "curated" / "event_images.csv"  # event_id -> its tournament's logo (ingest/event_images.py)
 LEGENDS = ROOT / "data" / "curated" / "player_legends.csv"  # player_id,legend: mains, for cards only
 ART = ROOT / "app" / "static" / "art" / "legends"  # manifest.json and one transparent WebP per legend
 
@@ -143,12 +149,35 @@ def calls(trace, name):
             if c.get("name") == name for data in [observed(c)] if data]
 
 
+class EventImages:
+    """Which events have a logo (data/curated/event_images.csv, from ingest/event_images.py), read again when the file
+    changes. Each logo is served by the app (main.py, /api/event-image), never from the platform's own address."""
+
+    def __init__(self, path=EVENT_IMAGES):
+        self.path, self.stamp, self.files = path, None, {}
+
+    def file(self, event_id):
+        try:
+            stamp = self.path.stat().st_mtime
+        except OSError:
+            return None
+        if stamp != self.stamp:
+            with self.path.open(encoding="utf-8", newline="") as f:
+                self.files = {r["event_id"]: r["file"] for r in csv.DictReader(f) if r.get("file")}
+            self.stamp = stamp
+        return self.files.get(event_id)
+
+    def url(self, event_id):
+        return f"api/event-image?id={urllib.parse.quote(event_id, safe='')}" if self.file(event_id) else None
+
+
 class Cards:
     """Builds the cards for a trace. tools: react.Tools (the snapshot's path and resolvers); earnings: whether cards show
     career earnings."""
 
-    def __init__(self, tools, earnings=True, legends=None):
+    def __init__(self, tools, earnings=True, legends=None, images=None):
         self.tools, self.earnings, self.legends = tools, earnings, legends or Legends()
+        self.images = images or EventImages()
 
     def call(self, name, args):
         out = TEMPLATES[name].call(self.tools, args)
@@ -186,12 +215,20 @@ class Cards:
         card = {"player_id": player.get("player_id", player_id), "name": player.get("name"), "modes": modes,
                 "top32": bool(modes), "crew": any("crew battle" in n for n in out.get("notes", [])),
                 "first": dates[0] if dates else None, "latest": dates[-1] if dates else None,
-                "legend": self.legends.of(player.get("player_id", player_id))}
+                "legend": self.legends.of(player.get("player_id", player_id)),
+                "recent": self.recent(player.get("player_id", player_id))}
         if self.earnings:
             found = self.query(EARNINGS, (card["player_id"],))
             card["earnings"] = ({"amount": found[0][0], "source": found[0][1], "as_of": found[0][2]} if found
                                 else {"amount": None, "source": None, "as_of": None})
         return card
+
+    def recent(self, player_id):
+        """A player's latest RECENT official results in each mode and in both, newest first, each with its event, date,
+        placement and logo (None: the card draws a badge)."""
+        rows = [{"event_id": r[0], "event": set_event(r[1], r[2]), "date": r[3], "placement": r[4], "mode": r[5],
+                 "image": self.images.url(r[0])} for r in self.query(LATEST, (player_id,))]
+        return {"1v1 and 2v2": rows[:RECENT], **{m: [r for r in rows if r["mode"] == m][:RECENT] for m in ("1v1", "2v2")}}
 
     def scope(self, players):
         return SCOPE + (" " + CREW if any(p["crew"] for p in players) else "")
@@ -421,7 +458,7 @@ def summary(cards):
 def card_summary(card):
     kind = card.get("kind")
     if kind == "lifetime":
-        return f"A lifetime card of {player_summary(card['player'])}."
+        return f"A lifetime card of {player_summary(card['player'])}{recent_summary(card['player'])}."
     if kind == "comparison":
         return "A comparison card of " + "; and of ".join(player_summary(p) for p in card["players"]) + "."
     if kind == "head_to_head":
@@ -475,6 +512,15 @@ def player_summary(p):
                  f" {earnings['as_of']})" if earnings.get("amount") is not None
                  else f"; {p['name']}'s career earnings not recorded")
     return said
+
+
+def recent_summary(p):
+    """The lifetime card's recent placements as it opens (both modes), newest first, or ""."""
+    shown = ((p.get("recent") or {}).get("1v1 and 2v2")) or []
+    if not shown:
+        return ""
+    return (f"; {p['name']}'s recent placements, newest first: "
+            + ", ".join(f"placement {r['placement']} at {r['event']} ({r['date']}, {r['mode']})" for r in shown))
 
 
 def set_summary(s):
