@@ -10,8 +10,14 @@ import pipeline  # noqa: E402
 import react  # noqa: E402
 from test_agent import Fixture, Scripted, reply  # noqa: E402
 
+try:
+    import langgraph  # noqa: F401
+    LANGGRAPH = True
+except ImportError:
+    LANGGRAPH = False
 COUNT = "SELECT COUNT(*) AS n FROM v_results WHERE player_id = 7"
 QUESTION = "How many official results has megd?"
+QUIET = {"log": lambda *_: None}
 
 
 def verdict(unsupported=(), answers=True, missing=""):
@@ -81,6 +87,98 @@ class VerifierTest(Fixture):
     def test_an_empty_draft_fails(self):
         failures, _, _, _, _ = self.verify("", verdict())
         self.assertEqual([(f["check"], f["why"]) for f in failures], [("empty", "no answer was written")])
+
+
+class RouteTest(unittest.TestCase):
+    def test_return_once_then_pass_or_revise_twice_then_abstain(self):
+        failed = [{"by": "model"}]
+        self.assertEqual([pipeline.route([], "x", 0, 0), pipeline.route(failed, "x", 2, 0), pipeline.route([], "", 0, 0),
+                          pipeline.route([], "x", 0, 1), pipeline.route(failed, "", 1, 0), pipeline.route(failed, "x", 2, 1)],
+                         ["return", "return", "pass", "pass", "revise", "abstain"])
+
+
+class ReporterPromptTest(Fixture):
+    def test_the_reporter_keeps_the_agents_reading_counting_and_answering_without_its_tools_and_steps(self):
+        prompt = pipeline.reporter_prompt(self.path)
+        for kept in ("Reading the packet", "- A word the question leaves open", "- A medal is a 1st, 2nd or 3rd place.",
+                     "- Take every fact from the evidence packet: never answer from memory.",
+                     "- Never tell the user to query the data", "- Describe a record by its numbers"):
+            self.assertIn(kept, prompt)
+        for dropped in ("Choosing a tool", "Using the tools", "Views", "- Pass the question's scope",
+                        "- You have at most", "[The page showed", "Run every query"):
+            self.assertNotIn(dropped, prompt)
+        self.assertIn(f"from {react.coverage(self.path)[0]} on", " ".join(prompt.split()))
+
+
+@unittest.skipUnless(LANGGRAPH, "langgraph isn't installed for this Python")
+class PipelineTest(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.tools = react.Tools(self.path)
+        self.analyst = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(calls=[("run_sql", {"query": COUNT})]),
+                                reply("The analyst's own draft."))
+
+    def test_a_draft_the_verifier_passes_is_the_answer_and_the_reporter_sees_only_the_question_and_the_packet(self):
+        model = Scripted(reply("megD has 2 official results."), verdict())
+        trace = pipeline.run(QUESTION, self.tools, ask=self.analyst, reply=model, **QUIET)
+        self.assertEqual((trace["outcome"], trace["answer"]), ("answered", "megD has 2 official results."))
+        self.assertEqual(trace["pipeline"], {"path": ["analyst", "reporter", "verifier"], "revisions": 0, "returns": 0,
+                                             "analyst": [{"outcome": "evidence", "draft": "The analyst's own draft.",
+                                                          "settled": None}]})
+        self.assertEqual([(s["step"], s["role"]) for s in trace["steps"]],
+                         [(1, "analyst"), (2, "analyst"), (3, "analyst"), (4, "reporter"), (5, "verifier")])
+        self.assertEqual((trace["steps_used"], trace["output_tokens"]), (5, 50))
+        (system, user), _ = model.sent
+        packet = pipeline.packet_of({"steps": trace["steps"][:3]})
+        self.assertEqual(system["content"], pipeline.reporter_prompt(self.path))
+        self.assertEqual(user["content"], f"Question: {QUESTION}\n\nEvidence packet:\n{pipeline.shown(packet)}")
+        self.assertNotIn("analyst's own draft", json.dumps(model.sent))
+        self.assertEqual(trace["steps"][4]["verifier"]["decision"], "pass")
+
+    def test_a_failed_draft_is_revised_at_most_twice_then_the_pipeline_abstains(self):
+        model = Scripted(reply("megD has 13 official results."), verdict([("13", "the row gives 2")]),
+                         reply("megD has 12 official results."), verdict([("12", "the row gives 2")]),
+                         reply("megD has 11 official results."), verdict([("11", "the row gives 2")]))
+        trace = pipeline.run(QUESTION, self.tools, ask=self.analyst, reply=model, **QUIET)
+        self.assertEqual((trace["outcome"], trace["answer"]), ("abstained", pipeline.ABSTAIN))
+        self.assertEqual(trace["pipeline"]["path"], ["analyst"] + ["reporter", "verifier"] * 3 + ["abstain"])
+        self.assertEqual(trace["pipeline"]["revisions"], 2)
+        draft, fix = model.sent[2][-2:]
+        self.assertEqual(draft, {"role": "assistant", "content": "megD has 13 official results."})
+        self.assertIn('- "13": is a number no result in the packet holds\n- "13": the row gives 2\n', fix["content"])
+        self.assertEqual([s["verifier"]["decision"] for s in trace["steps"] if s["role"] == "verifier"],
+                         ["revise", "revise", "abstain"])
+
+    def test_a_packet_that_cant_answer_goes_back_to_the_analyst_once_and_keeps_both_passes(self):
+        analyst = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("First draft."),
+                           reply(calls=[("run_sql", {"query": COUNT})]), reply("Second draft."))
+        model = Scripted(reply("megD's results weren't found."), verdict(answers=False, missing="megD's official results"),
+                         reply("megD has 2 official results."), verdict(answers=False, missing="still nothing"))
+        trace = pipeline.run(QUESTION, self.tools, ask=analyst, reply=model, **QUIET)
+        self.assertEqual(trace["pipeline"]["path"], ["analyst", "reporter", "verifier"] * 2)
+        self.assertEqual((trace["outcome"], trace["answer"], trace["pipeline"]["returns"]),
+                         ("answered", "megD has 2 official results.", 1))  # once only: then a draft with no failures
+        self.assertIn("[What was looked up doesn't answer this yet: megD's official results. Look up what it still"
+                      " needs.]", analyst.sent[2][-1]["content"])
+        self.assertEqual([m.get("tool_name") for m in analyst.sent[2] if m["role"] == "tool"], ["resolve_player"])  # its
+        # first pass, with what it looked up
+        fresh = model.sent[2]
+        self.assertEqual(len(fresh), 2)  # a fresh draft from both passes' packet, not a revision
+        self.assertIn('[1] resolve_player {"name": "megd"}', fresh[1]["content"])
+        self.assertIn(f'[2] run_sql {{"query": "{COUNT}"}}', fresh[1]["content"])
+
+    def test_names_the_question_matched_loosely_end_the_pipeline_with_suggestions(self):
+        trace = pipeline.run("How many results has impala?", self.tools,
+                             ask=Scripted(reply(calls=[("resolve_player", {"name": "impala"})])), reply=Scripted(), **QUIET)
+        self.assertEqual((trace["outcome"], trace["pipeline"]["path"]), ("suggestions", ["analyst"]))
+        self.assertTrue(trace["answer"])
+
+    def test_the_trace_reads_as_the_loops_does(self):  # the harness writes traces.md with react.markdown
+        trace = pipeline.run(QUESTION, self.tools, ask=self.analyst, reply=Scripted(reply("megD has 2."), verdict()),
+                             **QUIET)
+        header = {"run": "t", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "0",
+                  "snapshot": {"file": "f", "build_id": "b"}}
+        self.assertIn("megD has 2.", react.markdown([{"id": "q1", "number": "q1", "seed": 0, **trace}], header))
 
 
 if __name__ == "__main__":
