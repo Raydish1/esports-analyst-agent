@@ -13,7 +13,8 @@ COPY app app
 COPY curation curation
 COPY ingest ingest
 COPY deploy deploy
-RUN ln -s /data /app/data && sed -i 's/$//' deploy/start.sh && chmod +x deploy/start.sh
+RUN ln -s /data /app/data && sed -i 's/
+$//' deploy/start.sh && chmod +x deploy/start.sh
 $//" deploy/start.sh && chmod +x deploy/start.sh
 
 EXPOSE 8080
