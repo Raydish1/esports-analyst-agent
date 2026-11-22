@@ -243,6 +243,8 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
     async def revalidate(request, call_next):
         """The page's files are checked with the server on every load (an unchanged file costs a 304), so a page
         never keeps running scripts older than the server's."""
+        if request.scope["path"] == "/mcp":  # the MCP server's address works with or without its trailing slash
+            request.scope["path"], request.scope["raw_path"] = "/mcp/", b"/mcp/"
         response = await call_next(request)
         if not request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-cache"
