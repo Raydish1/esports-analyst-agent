@@ -374,6 +374,11 @@ class Pipeline:
         return {"answer": ABSTAIN, "outcome": "abstained", "path": ["abstain"]}
 
 
+# The verifier's decisions (route) as the graph's edges are named, which its diagram shows: an edge named as its node
+# would have no label
+EDGES = {"pass": "pass", "revise": "revise, at most 2", "return": "return, once", "abstain": "limits reached"}
+
+
 def graph(nodes):
     """The pipeline's graph (LangGraph), from the function of each node: analyst, reporter, verifier and abstain. The
     analyst's suggestions or a server error end it; else the reporter drafts and the verifier decides (route)."""
@@ -382,13 +387,19 @@ def graph(nodes):
     for name in ("analyst", "reporter", "verifier", "abstain"):
         built.add_node(name, nodes[name])
     built.add_edge(START, "analyst")
-    built.add_conditional_edges("analyst", lambda s: "ended" if s.get("outcome") else "evidence",
-                                {"evidence": "reporter", "ended": END})
+    built.add_conditional_edges("analyst", lambda s: "suggestions or error" if s.get("outcome") else "evidence",
+                                {"evidence": "reporter", "suggestions or error": END})
     built.add_edge("reporter", "verifier")
-    built.add_conditional_edges("verifier", lambda s: s["next"],
-                                {"pass": END, "revise": "reporter", "return": "analyst", "abstain": "abstain"})
+    built.add_conditional_edges("verifier", lambda s: EDGES[s["next"]], {
+        EDGES["pass"]: END, EDGES["revise"]: "reporter", EDGES["return"]: "analyst", EDGES["abstain"]: "abstain"})
     built.add_edge("abstain", END)
     return built.compile()
+
+
+def diagram():
+    """The graph's Mermaid diagram, drawn by LangGraph from the graph itself, for the slides."""
+    return graph({name: (lambda state: {}) for name in ("analyst", "reporter", "verifier", "abstain")}).get_graph() \
+        .draw_mermaid()
 
 
 def traced(question, state):
@@ -419,3 +430,7 @@ def run(question, tools, ask=react.chat, max_steps=react.MAX_STEPS, log=print, r
     state = built.invoke({"question": question, "packet": [], "draft": None, "failures": [], "missing": "",
                           "revisions": 0, "returns": 0, "steps": [], "analyst": [], "path": []})
     return traced(question, state)
+
+
+if __name__ == "__main__":  # python agent/pipeline.py: the graph's diagram, as Mermaid, for docs/figures
+    print(diagram())

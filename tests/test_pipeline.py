@@ -213,6 +213,13 @@ class PipelineTest(Fixture):
                   "snapshot": {"file": "f", "build_id": "b"}}
         self.assertIn("megD has 2.", react.markdown([{"id": "q1", "number": "q1", "seed": 0, **trace}], header))
 
+    def test_the_diagram_for_the_slides_is_the_graphs_with_every_decision_named(self):  # docs/figures
+        drawn = pipeline.diagram()
+        for label in [*pipeline.EDGES.values(), "evidence", "suggestions or error"]:
+            self.assertIn(f"&nbsp;{label}&nbsp;", drawn)
+        self.assertNotIn(" -.-> ", drawn)  # a decision's edge with no label
+        self.assertEqual(drawn.strip(), (ROOT / "docs" / "figures" / "three-agent-pipeline.mmd").read_text(encoding="utf-8").strip())
+
     def test_the_harness_answers_through_the_pipeline_when_asked(self):  # harness.py run --pipeline three-agent
         header = {"run": "t", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "0",
                   "snapshot": {"file": "f", "build_id": "b"}}

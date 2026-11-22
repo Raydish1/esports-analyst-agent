@@ -1,0 +1,25 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	analyst(analyst)
+	reporter(reporter)
+	verifier(verifier)
+	abstain(abstain)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> analyst;
+	analyst -. &nbsp;suggestions or error&nbsp; .-> __end__;
+	analyst -. &nbsp;evidence&nbsp; .-> reporter;
+	reporter --> verifier;
+	verifier -. &nbsp;pass&nbsp; .-> __end__;
+	verifier -. &nbsp;limits reached&nbsp; .-> abstain;
+	verifier -. &nbsp;return, once&nbsp; .-> analyst;
+	verifier -. &nbsp;revise, at most 2&nbsp; .-> reporter;
+	abstain --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+
