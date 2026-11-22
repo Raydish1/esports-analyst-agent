@@ -39,6 +39,7 @@ import time
 import tomllib
 from collections import Counter
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -370,14 +371,22 @@ def kept(entry, fresh, record):
 
 # Running
 
-def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templates=True, backend="ollama"):
+def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templates=True, backend="ollama",
+        pipeline="single"):
     """Ask every question once per seed, appending each trace as it finishes; a rerun with the same run_id resumes.
     model is the backend's default unless given (react.MODEL on Ollama): everything else stays as the agent has it,
     for a model comparison. Without templates, the agent has run_sql and the views only (react.Tools(templates=False):
     arm B of the Sonnet experiment). backend "anthropic" asks the Messages API (agent/anthropic_chat.py), with
-    ANTHROPIC_API_KEY from .env; the API has no seed, so a seed only labels the run."""
+    ANTHROPIC_API_KEY from .env; the API has no seed, so a seed only labels the run. pipeline "three-agent" answers
+    with Checkpoint 5's analyst, reporter and verifier (agent/pipeline.py), on Ollama, instead of the single agent."""
     import react
     react.load_env()
+    answer = react.run
+    if pipeline == "three-agent":
+        if backend != "ollama":
+            sys.exit("The three-agent pipeline's reporter and verifier run on Ollama only.")
+        import pipeline as three_agent  # its graph needs LangGraph, installed for py -3.14
+        answer = partial(three_agent.run, reply=three_agent.chat)
     if backend == "anthropic":
         import anthropic_chat
         chat = anthropic_chat.AnthropicChat()
@@ -395,15 +404,16 @@ def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templ
     header["backend"] = backend
     header["arm"] = "on" if examples_on else "off"
     header["templates"] = "on" if templates else "off"
+    header["pipeline"] = pipeline
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     tools, todo = react.Tools(templates=templates), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
     log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}, templates"
-        f" {header['templates']}; {len(todo)} to go")
+        f" {header['templates']}, pipeline {pipeline}; {len(todo)} to go")
     for n, (seed, q) in enumerate(todo, 1):
         for attempt in range(1, TRIES + 1):  # a run that fails isn't written, so the retry starts it afresh
             try:
-                trace = react.run(q["question"], tools, ask=chat, retriever=retriever, log=lambda *_: None,
-                                  model=model, think=True, seed=seed)
+                trace = answer(q["question"], tools, ask=chat, retriever=retriever, log=lambda *_: None,
+                               model=model, think=True, seed=seed)
                 break
             # the server unreachable or timed out, or a reply cut off
             except (OSError, ValueError, http.client.HTTPException) as e:
@@ -729,6 +739,9 @@ def main():
                                     " claude-sonnet-5-5)")
     go.add_argument("--backend", choices=["ollama", "anthropic"], default="ollama",
                     help="anthropic: the Messages API, with ANTHROPIC_API_KEY from .env (agent/anthropic_chat.py)")
+    go.add_argument("--pipeline", choices=["single", "three-agent"], default="single",
+                    help="three-agent: Checkpoint 5's analyst, reporter and verifier (agent/pipeline.py), on Ollama;"
+                         " its graph needs LangGraph (py -3.14)")
     for name in ("score", "report"):
         p = commands.add_parser(name)
         p.add_argument("runs", nargs="+")
@@ -764,7 +777,7 @@ def main():
         else:
             chosen = questions
         print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model,
-                  templates=args.templates == "on", backend=args.backend))
+                  templates=args.templates == "on", backend=args.backend, pipeline=args.pipeline))
         return
     db = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     add_views(db)  # as the agent's connections have them: a resolve_event condition can be on v_event_series

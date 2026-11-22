@@ -1,11 +1,15 @@
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "agent"))
+sys.path.insert(0, str(ROOT / "eval"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import harness  # noqa: E402
 import pipeline  # noqa: E402
 import react  # noqa: E402
 from test_agent import Fixture, Scripted, reply  # noqa: E402
@@ -179,6 +183,20 @@ class PipelineTest(Fixture):
         header = {"run": "t", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "0",
                   "snapshot": {"file": "f", "build_id": "b"}}
         self.assertIn("megD has 2.", react.markdown([{"id": "q1", "number": "q1", "seed": 0, **trace}], header))
+
+    def test_the_harness_answers_through_the_pipeline_when_asked(self):  # harness.py run --pipeline three-agent
+        header = {"run": "t", "model": "m", "variant": "v", "think": True, "seeds": [0], "max_steps": 8, "ollama": "0",
+                  "snapshot": {"file": "f", "build_id": "b"}}
+        tools = react.Tools(self.path)
+        model = Scripted(reply("megD has 2 official results."), verdict())
+        with tempfile.TemporaryDirectory() as folder, mock.patch.object(harness, "RAW", Path(folder)),                 mock.patch.object(react, "load_env", lambda: None),                 mock.patch.object(react, "retriever_or_exit", lambda on, fail: None),                 mock.patch.object(react, "run_header", lambda *a, **k: dict(header)),                 mock.patch.object(react, "Tools", lambda templates=True: tools),                 mock.patch.object(react, "chat", self.analyst), mock.patch.object(pipeline, "chat", model):
+            harness.run([{"id": "q01", "set": "existing", "question": QUESTION}], [0], False, run_id="t",
+                        log=lambda *_: None, pipeline="three-agent")
+            written = json.loads((Path(folder) / "t" / "traces.jsonl").read_text(encoding="utf-8"))
+            saved = json.loads((Path(folder) / "t" / "header.json").read_text(encoding="utf-8"))
+        self.assertEqual((written["id"], written["outcome"], written["answer"]),
+                         ("q01", "answered", "megD has 2 official results."))
+        self.assertEqual((written["pipeline"]["path"], saved["pipeline"]), (["analyst", "reporter", "verifier"], "three-agent"))
 
 
 if __name__ == "__main__":
