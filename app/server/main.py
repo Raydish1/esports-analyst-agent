@@ -239,6 +239,15 @@ def live_source(examples, fail):
     return runner.Live(retriever, header, react.RAW / "web", backends=backends)
 
 
+def database(which):
+    """The database the app reads: the live build (data/db/current.json names it), which the updater moves on as new
+    events are fetched, or the frozen evaluation snapshot (eval-v1), which the evaluation's verified answers rest on."""
+    if which == "eval":
+        return react.SNAPSHOT
+    pointer = json.loads((react.ROOT / "data" / "db" / "current.json").read_text(encoding="utf-8"))
+    return react.ROOT / "data" / "db" / pointer["file"]
+
+
 def card_earnings(flag, env):
     """Whether stat cards show earnings: the flag, else CARD_EARNINGS, else on."""
     value = (flag or env or "on").strip().lower()
@@ -261,6 +270,9 @@ def main(argv=None):
                              " variable; the flag wins)")
     parser.add_argument("--preview", action="store_true",
                         help="serve /api/preview/lifetime/{player_id}, for app/dev/compare_card.py (development only)")
+    parser.add_argument("--db", choices=["live", "eval"], default="live",
+                        help="live: the newest published build (default), with every event fetched; eval: the frozen"
+                             " eval-v1 snapshot the evaluation uses")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
@@ -273,7 +285,11 @@ def main(argv=None):
         print(f"Replay mode: {len(source.index.recordings)} recordings. Loading the players' names...")
     earnings = card_earnings(args.card_earnings, os.environ.get("CARD_EARNINGS"))
     print(f"Earnings on stat cards: {'on' if earnings else 'off'}.")
-    tools = runner.ProgressTools()
+    path = database(args.db)
+    print(f"Database: {path.relative_to(react.ROOT).as_posix()}.")
+    if args.mode == "live":  # the transcripts say which database answered
+        source.header["snapshot"] = {**source.header.get("snapshot", {}), "file": path.relative_to(react.ROOT).as_posix()}
+    tools = runner.ProgressTools(path)
     import uvicorn
     uvicorn.run(create_app(source, tools, earnings=earnings, preview=args.preview), host=args.host, port=args.port)
 
