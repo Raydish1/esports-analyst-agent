@@ -117,7 +117,9 @@ class CuesTest(Fixture):
         self.assertEqual(self.settle("show me raydish on a card", plain).how, "as asked")
         self.assertEqual(self.settle("where does that 4 come from?", plain).how, settling.DISPUTED)  # any answer's
         doubted = self.settle("are you sure? you just said raydish has 4 medals in the graphic", card)  # c8 turn 4
-        self.assertEqual(doubted.how, settling.DISPUTED)  # checked again with the tools, about the page's figures
+        self.assertEqual((doubted.how, doubted.card), (settling.DISPUTED, True))  # checked again with the tools, about
+        # the page's figures, so a recheck that calls no tool has player_results run for its players (react.py)
+        self.assertFalse(self.settle("where does that 4 come from?", plain).card)
         self.assertIn('This questions what the page showed beside your answer to the previous question, "cody travis vs'
                       ' phazon head to head"', doubted.text)
 

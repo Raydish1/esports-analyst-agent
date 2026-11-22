@@ -720,6 +720,36 @@ class LoopTest(Fixture):
         self.assertEqual(ask.sent[3][-1]["content"], react.RECHECK + react.DRAFT)
         self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
 
+    def test_a_recheck_that_still_calls_no_tool_has_the_loop_run_the_calls_the_answer_rested_on(self):
+        count = ("run_sql", {"query": "SELECT COUNT(*) AS n FROM v_results WHERE player_id = 11"})
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply(calls=[count]),
+                       reply("Raydish has 6 official results."), reply("Yes, 6, as I said."), reply("Yes, 6."),
+                       reply("Checked again: the count stands."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        trace = conversation.ask("are you sure? that's too many")  # live: c10 turn 2, in every model of the comparison
+        ran = [(c["name"], c["arguments"]) for s in trace["steps"] for c in s["tool_calls"] if c.get("forced")]
+        self.assertEqual(ran, [count])
+        self.assertEqual(trace["steps"][1]["no_tool_check"]["action"], "ran again the calls the answer rested on")
+        self.assertTrue(ask.sent[-1][-1]["content"].startswith(react.RECHECKED))
+        self.assertEqual(trace["answer"], "Checked again: the count stands.")
+
+    def test_the_call_rested_on_is_the_latest_whose_result_holds_the_disputed_numbers(self):
+        def made(*calls):
+            return {"steps": [{"tool_calls": [{"name": n, "arguments": a, "observation": json.dumps(o)}
+                                              for n, a, o in calls]}]}
+        together = ("team_results", {"player_id": 1, "partner_id": 2}, {"tables": [{"rows": [[24, 4]]}]})
+        alone = ("player_results", {"player_id": 1}, {"tables": [{"rows": [[57, 6, 24]]}]})  # a count of 24 too
+        refused = ("player_results", {"player_id": 3}, {"error": "player_id 3 wasn't returned by any tool"})
+        traces = [made(together), made(alone, refused)]  # live: c8 turn 5's 24 came from two turns back
+        self.assertEqual(react.rested_on(traces, "so why did you say they won 24 2v2 tournaments", [1, 2]),
+                         [("team_results", {"player_id": 1, "partner_id": 2})])
+        self.assertEqual(react.rested_on(traces, "so why did you say he won 24 2v2 tournaments", [1]),
+                         [("player_results", {"player_id": 1})])  # the latest holding it, about him
+        self.assertEqual(react.rested_on(traces, "there are not that many events"), [("player_results", {"player_id": 1})])
+        self.assertEqual(react.rested_on(traces, "you said 99 in 2024"), [("player_results", {"player_id": 1})])
+        self.assertEqual(react.rested_on([], "are you sure?"), [])
+
     def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
         lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
         ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("The card shows 4 wins."),

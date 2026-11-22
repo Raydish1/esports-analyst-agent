@@ -73,6 +73,7 @@ class Settled:
     chosen: list = field(default_factory=list)
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
+    card: bool = False  # a dispute about the figures on the page's card, not about the answer's own
 
     def traced(self):
         """For the trace: the text and how, and what else applies."""
@@ -270,7 +271,8 @@ def about_page(message, context, names, disputed=False):
         note = (f'This questions what the page showed beside your answer to {which}, "{previous}"{about}: check the'
                 " figures it asks about with the tools (player_results with no top gives each mode, and both together,"
                 " at once), then say plainly what they are, and whether the user reads them right")
-        return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
+        return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events),
+                       card=True)
     note = (f'This asks what the page showed beside your answer to {which}, "{previous}"{about}: explain'
             " the figure it asks about, from the page's message above, and check it with the tools if needed"
             " (player_results with no top gives each mode, and both together, at once). It doesn't question your"

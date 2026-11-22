@@ -302,6 +302,8 @@ NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and
                  " return.")
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
           " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
+RECHECKED = ("You answered again without a tool, so the agent ran again the calls the questioned answer rested on: the"
+             " results are above. Say from them whether that answer was right, and correct it if it wasn't.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
 # After each check's message: live, a reply to the number check opened "**Corrected Answer:**" and said "the previous
 # answer incorrectly stated ...", a draft the user never saw (docs/web-app-testing-notes.md, finding 34)
@@ -387,6 +389,41 @@ def chat(messages, model=MODEL, think=True, seed=0):
     """One model reply, with the tools offered: the server's /api/chat response."""
     return ollama("/api/chat", {"model": model, "stream": False, "think": think, "tools": TOOLS, "messages": messages,
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
+
+
+def rested_on(traces, message, players=(), most=3):
+    """The data calls (a template or run_sql that ran) an answer the message disputes rested on, for the loop to run
+    again when the model, sent back once, still calls no tool: the latest earlier call whose result holds every number
+    the message disputes ("why did you say ... won 24 2v2 tournaments"), one whose arguments name every player the
+    dispute is about (players: their ids, in its arguments or its result) first, else the previous turn's calls, at most
+    `most`. A player's own results held c8 turn 5's 24 too, as a count, so the call about the pair goes first.
+    Live, the rechecks of c8 turns 4 and 5 and c10 turn 2 called no tool in every model of the 2026-11-21 comparison,
+    and repeated or invented figures."""
+    disputed = [n for n in re.findall(r"(?<![\w.])\d+(?![\w.])", FORMAT.sub(" ", message))
+                if not re.fullmatch(r"(?:19|20)\d\d", n)]
+    turns = []
+    for trace in traces:
+        calls = []
+        for step in trace["steps"]:
+            for c in step["tool_calls"]:
+                text = c.get("observation") or ""
+                if (c["name"] == "run_sql" or c["name"] in TEMPLATES) and text and "error" not in json.loads(text):
+                    calls.append((c["name"], parsed(c["arguments"]), text))
+        turns.append(calls)
+    if disputed:
+        held = [(name, arguments) for calls in reversed(turns) for name, arguments, text in reversed(calls)
+                if all(re.search(rf"(?<![\w.]){n}(?![\w.])", text) for n in disputed)]
+        def names_all(arguments, text):
+            return all(p in arguments.values() or re.search(rf"(?<![\w.]){p}(?![\w.])", text) for p in players)
+        about = [(name, arguments) for calls in reversed(turns) for name, arguments, text in reversed(calls)
+                 if (name, arguments) in held and names_all(arguments, text)]
+        if about or held:
+            return [(about or held)[0]]
+    out = []
+    for name, arguments, _ in turns[-1] if turns else ():
+        if (name, arguments) not in out:
+            out.append((name, arguments))
+    return out[:most]
 
 
 def parsed(arguments):
@@ -1034,6 +1071,7 @@ class Conversation:
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
         self.last = None  # the last trace ask() returned, which shown() adds to
+        self.traces = []  # every trace ask() returned, oldest first: a recheck runs again the calls an answer rested on
         self.carded = False  # whether the page showed a card beside the last answer
 
     @property
@@ -1057,6 +1095,7 @@ class Conversation:
         self.context = settling.after(trace, settled)
         (self.context.shown, self.context.beside), self.carded = card, False
         self.last = trace
+        self.traces.append(trace)
         return trace
 
     def shown(self, summary):
@@ -1276,6 +1315,19 @@ class Conversation:
                     sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
+                if outcome == "answered" and disputed and told and not called and not forced and number < max_steps:
+                    rechecks = ([("player_results", {"player_id": pid}) for _, pid in settled.players[:4]]
+                                if settled.card else rested_on(self.traces, said or question,
+                                                               [pid for _, pid in settled.players]))
+                    if rechecks:
+                        forced = called = True
+                        self.look_up(question, rechecks, step, resolved, number == max_steps - 1, RECHECKED)
+                        step["no_tool_check"] = {"disputed": True, "action": "ran again the calls the answer rested on",
+                                                 "calls": [list(c) for c in rechecks]}
+                        log("  no-tool check: the recheck called no tool again; ran "
+                            + ", ".join(n for n, _ in rechecks) + " again for it")
+                        self.finished(step)
+                        continue
                 gap = self.view.ungrounded(question, content) if outcome == "answered" and not called else {}
                 if gap and not told and number < max_steps:
                     told, message = True, no_tool(gap)
@@ -1504,7 +1556,7 @@ class Conversation:
                 end = c.end
         return kept
 
-    def look_up(self, question, lookups, step, resolved, last):
+    def look_up(self, question, lookups, step, resolved, last, note=FORCED):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the
         model's calls are, kept in the history as its calls, with a note to answer from them, and in the step marked
         forced. Returns the names from the question they matched only loosely, for suggestions."""
@@ -1520,7 +1572,7 @@ class Conversation:
             step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
                                        "seconds": round(time.monotonic() - begun, 3), "forced": True})
             self.current.append({"role": "tool", "tool_name": name, "content": text})
-        self.current.append({"role": "user", "content": FORCED + (" " + LAST_STEP if last else "")})
+        self.current.append({"role": "user", "content": note + (" " + LAST_STEP if last else "")})
         return asked
 
     def suggested(self, trace, step, asked):
