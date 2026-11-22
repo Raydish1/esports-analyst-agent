@@ -54,6 +54,11 @@ BEST = re.compile(r"\b(?:best|highest|peak)\s+(?:(?!\d+\s)[\w-]+\s+){0,2}?(?:pla
 RECORD_WITH = re.compile(r"\brecords?\s+with\b|\band\s+(?:[\w-]+\s+)?[\w-]+['’]s?\s+records?\b", re.I)
 TOGETHER = re.compile(r"\b(?:partners?|partnered|partnership|team(?:s|ed|mates?)?|duos?|together|with\s+each\s+other)\b",
                       re.I)
+# Two 2v2 teams against each other ("raydish and megd vs moni and animefan1266"): a pair on each side of the vs, for
+# team_head_to_head. Live, the question got a 1v1 head-to-head (2026-11-22). "megd vs raydish and cody vs phazon" is
+# two head-to-heads, not two teams
+TEAMS = re.compile(r"\b(?:and|&|\+)\s+(?:[\w'’|!?.-]+\s+){0,2}?(?:vs\.?|versus|v)\s+(?:[\w'’|!?.-]+\s+){0,2}?"
+                   r"(?:and|&|\+)\s+\w", re.I)
 PRESENT = re.compile(r"\b(?:right\s+now|currently|these\s+days|nowadays|lately|recently|at\s+the\s+moment|this\s+season)\b",
                      re.I)
 REGION_WORDS = re.compile(r"\b(?:north\s+american?|south\s+american?|southeast\s+asian?|middle\s+east(?:ern)?|europe(?:an)?"
@@ -75,10 +80,11 @@ class Scope:
     against: bool = False  # the opponents' side of one player's records (AGAINST)
     best: bool = False  # a best placement (BEST)
     pair: bool = False  # two players' record, with no word for partners (RECORD_WITH)
+    teams: bool = False  # two 2v2 teams against each other (TEAMS)
 
     def __bool__(self):
         return bool(self.mode or self.years or self.since or self.until or self.regions or self.present or self.against
-                    or self.best or self.pair)
+                    or self.best or self.pair or self.teams)
 
 
 def scope(question, events):
@@ -102,7 +108,7 @@ def scope(question, events):
     present = PRESENT.search(text)
     return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0],
                  bool(AGAINST.search(text)), bool(BEST.search(text)),
-                 bool(RECORD_WITH.search(text)) and not TOGETHER.search(text))
+                 bool(RECORD_WITH.search(text)) and not TOGETHER.search(text), bool(TEAMS.search(text)))
 
 
 def lacking(asked, name, arguments, parameters, events):
@@ -138,6 +144,8 @@ def lacking(asked, name, arguments, parameters, events):
             and str(arguments.get("side") or "").strip().casefold() not in ("opponents", "opponent", "against")):
         out.append(("asks for the other players' records against that player (who did best against them, or whom they"
                     " lost to)", 'side="opponents"'))
+    if asked.teams and name == "head_to_head":
+        out.append(("asks for two 2v2 teams against each other", "team_head_to_head with the four players' player_ids"))
     if asked.pair and name == "team_results" and arguments.get("partner_id") is not None:
         out.append(("asks for two players' record, which reads as against each other unless it says partners or team",
                     "head_to_head for their record against each other, or this call again if it means them as partners,"
