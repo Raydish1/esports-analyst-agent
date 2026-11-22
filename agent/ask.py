@@ -1,4 +1,4 @@
-"""Ask the agent a question yourself: the ReAct prototype of agent/react.py, with its model (qwen3:8b, thinking on,
+"""Ask the agent a question yourself: the ReAct prototype of agent/react.py, with its model (react.MODEL, thinking on,
 seed 0 unless --seed says otherwise), tools, prompt and retrieved examples (agent/retrieval.py). The Ollama server's
 address is OLLAMA_BASE_URL in .env.
 

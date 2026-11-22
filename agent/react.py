@@ -24,9 +24,10 @@ until the model queries again, and, once, one right after an empty result whose 
 value the query filters on, a likely lookup mistake (diagnose.missing_text). Last, an answer stating a number that no
 tool result holds goes back once, naming it; whatever answer is final then has each claim holding such a number
 replaced by a sentence saying it couldn't be confirmed (number_check.py), so no answer states a number no tool
-returned (decided 2026-11-17). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
-with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
-comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
+returned (decided 2026-11-17). The model is qwen3:30b, the 30B-A3B mixture of experts, with thinking on (decided
+2026-11-21 after the model comparison in the agent, docs/experiments.md: the fastest, with the fewest refused calls,
+and none of qwen3:8b's records read from the wrong side), with its own sampling defaults and a fixed seed. The system
+prompt (SYSTEM) is the comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
 a section on the views that hold each pairing more than once, which tool fits which question, and how to use the tools
 and write the answer.
 
@@ -65,7 +66,7 @@ from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
 from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
                    name_filters, player_ids, run_sql, tables)
 
-MODEL = "qwen3:8b"
+MODEL = "qwen3:30b"  # the web app reads it too (app/server/runner.py on claude/web-app)
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
 # here: the server's qwen3 template keeps every step's thinking in the prompt until the answer
 MAX_STEPS = 8
