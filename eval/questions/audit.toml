@@ -151,8 +151,8 @@ kind = 7
 mechanism = ["M2"]
 [[conversation.turn]]
 say = "who has the most top 8s without ever winning an event"
-expect = "A run_sql query with the condition (rank_players can't take one), its counts from SQL."
-calls = ["run_sql"]
+expect = "rank_players with never_won (round six), or a run_sql query with the condition, its counts from the tool."
+calls_with = [{ tool = "rank_players", never_won = "*" }, { tool = "run_sql" }]
 
 [[conversation]]
 id = "a15"
@@ -161,8 +161,8 @@ kind = 7
 mechanism = ["M1", "M2"]
 [[conversation.turn]]
 say = "best player who never won worlds"
-expect = "A reading of 'best' that the answer names, with the condition in SQL (run_sql), or a ranking whose winners of worlds it leaves out by a query."
-calls = ["run_sql"]
+expect = "A reading of 'best' that the answer names, from rank_players with never_won = 'worlds' (round six), or with the condition in SQL (run_sql)."
+calls_with = [{ tool = "rank_players", never_won = "*" }, { tool = "run_sql" }]
 
 [[conversation]]
 id = "a16"
@@ -295,8 +295,8 @@ kind = 14
 mechanism = ["M2"]
 [[conversation.turn]]
 say = "who has the best record against zivai"
-expect = "run_sql on v_head_to_head_1v1 filtered by Zivai as the opponent, the rate and minimum named (5 matches)."
-calls = ["run_sql"]
+expect = "rank_pairs with Zivai's player_id and side='opponents' (round six), or run_sql on v_head_to_head_1v1 with Zivai as the opponent, the rate and minimum named (5 matches)."
+calls_with = [{ tool = "rank_pairs", side = "opponents" }, { tool = "run_sql" }]
 
 [[conversation]]
 id = "a29"
@@ -354,8 +354,8 @@ kind = 17
 mechanism = ["M2"]
 [[conversation.turn]]
 say = "most dominant worlds win"
-expect = "run_sql on v_win_runs for the worlds events: the fewest games lost, then sets dropped, then games won."
-calls = ["run_sql"]
+expect = "dominant_wins for the worlds events (round six), or run_sql on v_win_runs: the fewest games lost, then sets dropped, then games won."
+calls_with = [{ tool = "dominant_wins", event = "*" }, { tool = "run_sql" }]
 
 [[conversation]]
 id = "a35"
@@ -364,8 +364,8 @@ kind = 17
 mechanism = ["M2"]
 [[conversation.turn]]
 say = "who won an event without dropping a game"
-expect = "run_sql on v_win_runs: wins with games_lost = 0, unscored sets left out and said so."
-calls = ["run_sql"]
+expect = "dominant_wins with flawless (round six), or run_sql on v_win_runs: wins with games_lost = 0, unscored sets left out and said so."
+calls_with = [{ tool = "dominant_wins", flawless = "*" }, { tool = "run_sql" }]
 
 [[conversation]]
 id = "a36"
@@ -404,8 +404,8 @@ kind = 19
 mechanism = ["M2"]
 [[conversation.turn]]
 say = "who did zivai lose to at bcx 2023"
-expect = "run_sql on v_sets_1v1 with Zivai as the loser at BCX 2023's events."
-calls = ["run_sql"]
+expect = "player_sets with Zivai's player_id at BCX 2023 (round six), or run_sql on v_sets_1v1 with Zivai as the loser at its events."
+calls_with = [{ tool = "player_sets", event = "*" }, { tool = "run_sql" }]
 players = [147982]
 
 [[conversation]]
