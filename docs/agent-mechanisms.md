@@ -466,6 +466,15 @@ Three bug fixes followed, at the user's go-ahead, each replayed on the recorded 
 Then the agent was frozen (2026-11-22, the user's decision): no more prompt or check changes, only fixes for bugs
 that break a live answer.
 
+After it, a live comparison brought three changes the user asked for (in the log):
+- M2, the tools: `rank_pairs`' 2v2 refusal points to run_sql on v_match_results, each match's side a team, and
+  worked example ex36 shows that query.
+- M3, facts the model makes: the failed-calls check. An answer after a turn whose every call failed goes back once,
+  then what no tool returned is left out, plain names included (`Shown.named_claims`).
+
+On the question's two phrasings, the queries came right in 4 of 6 runs, but 3 answers made up names for player IDs
+the query returned without names. The answer check doesn't read plain names, nor a bold span of several names.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -498,7 +507,9 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 ## Waiting on the user
 
 - Nothing for the agent. It's frozen since 2026-11-22 (the user's decision): no prompt or check changes, only fixes
-  for bugs that break a live answer.
+  for bugs that break a live answer, and what the user asks for.
+- The live comparison's two proposals: an answer check reading plain names in every answer, replayed first; ex36's
+  note on joining players for names and pairing the sides.
 - Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions is in the
   log, and the Sonnet experiment is skipped for now, with its backend in place (the user's decision).
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the

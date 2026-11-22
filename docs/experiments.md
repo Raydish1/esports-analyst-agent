@@ -2,6 +2,54 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: the live comparison's three changes, checked on two phrasings
+
+**What it asked.** In the user's live comparison, "which two teams have the most 2v2 history in sets" was answered
+right by Sonnet: gdsandstorm and Boomie against Cody Travis and Phazon, 25 sets, from v_match_results grouped by match
+and side. qwen3:30b failed in three steps:
+- `rank_pairs` refused the question and pointed it to mode 1v1;
+- `v_head_to_head_2v2` over every player stopped at 30 s, twice;
+- then it answered "Phazon & Zivai and Cody Travis & Ryno", which no tool returned, and no check caught it.
+
+After the freeze, the user asked for three changes, one commit each with tests, and a check of the question and its
+rewording ("which two teams have the most history in 2v2 sets") with qwen3:30b, seeds 0-2.
+
+**Setup.** Three commits:
+- 20b593d: `rank_pairs`' 2v2 refusal points to run_sql on v_match_results, each match's side a team;
+- c502d16: worked example ex36, "Which two 2v2 teams have played each other the most?". On eval-v1 its query gives
+  the 25 sets in 3.4 s;
+- 572081a: the failed-calls check. An answer after a turn whose every tool call failed goes back once, to say it
+  couldn't get the data. A second such answer has the players and numbers no tool returned left out, plain names
+  included (`Shown.named_claims`).
+
+The check run used qwen3:30b at 572081a, retrieval on, in the run worktree with its own store (run
+`20261122T174158Z`, 5 minutes, 21 GB at 100% GPU).
+
+**Results.** 2 of 6 answers right.
+
+| Seed | Phrasing | Query | Names in the answer | Answer |
+|---|---|---|---|---|
+| 0 | "the most 2v2 history in sets" | Wrong: the sides paired by `side <` and by the teams' order both, 12 sets | Made up for the IDs ("Cody Travis and Phazon against Killa and Zivai") | Wrong |
+| 0 | "the most history in 2v2 sets" | Right, IDs only, 25 sets | Made up ("Frodo and Lego versus Ninja and Spartan") | Wrong |
+| 1 | the first | Wrong: paired by `side <` alone, 16 sets | Looked up (acno? and Blaze, simpLe and hysen) | Wrong |
+| 1 | the rewording | Right, IDs only | Looked up | Right |
+| 2 | the first | Right, with names | From the result | Right |
+| 2 | the rewording | Right, IDs only | Made up beside the right IDs ("Zivai and Phazon (player IDs 74433 and 146606)") | Wrong |
+
+- **The refusal and the example.** Every run called `rank_pairs` first, got the new refusal, then wrote run_sql in
+  ex36's shape, which retrieval put first in all 6. No query timed out, and 4 of 6 returned the right pairing.
+- **The failed-calls check** never fired: each turn had a call that worked. Of 3,004 recorded turns, 10 answered
+  after every call failed, and in the final measurement only c16 seed 0 turn 1, which had already given up.
+- **Not caught: names made up for player IDs** the query returned without names, in 3 runs. The answer check reads
+  only tag-shaped, bold or quoted names, and it takes a bold span of three words ("Frodo and Lego") as one name that
+  isn't a player's. The names correction reads "(player_id X)" but not "(player IDs X and Y)".
+
+**What it decided.** Nothing yet. Two proposals wait for the user:
+1. the answer check reads plain names (`mentions.named`, as the failed-calls check does) in every answer, replayed on
+   the recorded runs first for false alarms;
+2. ex36's note says to join players for the names, and to pair the two sides with `side <>` and the teams' order,
+   never by side.
+
 ## 2026-11-22: the Sonnet experiment, with and without the templates
 
 **What it asked.** The experiment the entry "run_sql when no template fits, and a backend for a Sonnet experiment"
