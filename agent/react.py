@@ -1149,6 +1149,8 @@ def ending(content, done_reason):
     """How a reply without tool calls ends the question."""
     if done_reason == "length":
         return "cut off at the output cap"
+    if done_reason == "refusal":  # the Anthropic backend's safety decline (anthropic_chat.py)
+        return "refused"
     if "<tool_call>" in content:
         return "tool call in the reply text, not parsed"
     return "answered" if content.strip() else "empty reply"
@@ -1357,6 +1359,8 @@ class Conversation:
             step = {"step": number, "seconds": round(time.monotonic() - begun, 2), "prompt_tokens": reply.get("prompt_eval_count"),
                     "cached_tokens": reply.get("prompt_eval_cached_count"), "output_tokens": reply.get("eval_count"),
                     "done_reason": reply.get("done_reason"), "thinking": thinking, "content": content, "tool_calls": []}
+            step.update({k: reply[k] for k in ("usage", "input_transformations") if reply.get(k)})  # another backend's:
+            # its input by price (cache writes, reads, the rest) and any thinking block it dropped (anthropic_chat.py)
             trace["steps"].append(step)
             log(f"  step {number}: {step['seconds']:.1f} s, {step['output_tokens']} tokens, thinking {len(thinking):,} characters")
             if not calls:
@@ -1746,19 +1750,25 @@ def short(text, width):
 
 # Writing the traces
 
-def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None, examples="off"):
+def run_header(run_id, model=MODEL, think=True, seeds=(0,), max_steps=MAX_STEPS, title=None, examples="off",
+               backend=None):
     """What a run or a session was made with: the model and its server, the options, the snapshot, and how it
-    retrieved examples (examples_header)."""
+    retrieved examples (examples_header). backend is another backend than Ollama's, which says how it asks
+    (anthropic_chat.AnthropicChat.describe); the Ollama server then serves only the examples' embeddings."""
     snapshot = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     build = dict(snapshot.execute("SELECT key, value FROM build_info WHERE key IN ('build_id', 'code_commit')"))
     snapshot.close()
-    info = ollama("/api/show", {"model": model}).get("model_info", {})
-    return {"run": run_id, "title": title or f"ReAct prototype traces: run {run_id}",
-            "ollama": ollama("/api/version")["version"], "model": model,
-            "variant": " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)),
-            "think": think, "seeds": list(seeds), "options": OPTIONS, "max_steps": max_steps, "sql_seconds": SQL_SECONDS,
-            "token_budget": TOKEN_BUDGET, "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build},
-            "retrieval": examples}
+    if backend is None:
+        info = ollama("/api/show", {"model": model}).get("model_info", {})
+        variant, options = " ".join(str(info[k]) for k in ("general.basename", "general.size_label") if info.get(k)), OPTIONS
+    else:
+        options = backend.describe()
+        variant = options["backend"]
+    served = ollama("/api/version")["version"] if backend is None or examples != "off" else "not used"
+    return {"run": run_id, "title": title or f"ReAct prototype traces: run {run_id}", "ollama": served, "model": model,
+            "variant": variant, "think": think, "seeds": list(seeds), "options": options, "max_steps": max_steps,
+            "sql_seconds": SQL_SECONDS, "token_budget": TOKEN_BUDGET,
+            "snapshot": {"file": SNAPSHOT.relative_to(ROOT).as_posix(), **build}, "retrieval": examples}
 
 
 def markdown(traces, header):
