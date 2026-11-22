@@ -555,8 +555,11 @@ def player_results(query, tools, player_id, top=None, mode=None, year=None, even
 
 # team_results
 
-def team_results(query, tools, player_id, partner_id=None, year=None, event=None, since=None, until=None,
+def team_results(query, tools, player_id, partner_id=None, mode=None, year=None, event=None, since=None, until=None,
                  region=None):
+    if mode is not None and one_mode(mode) != "2v2":
+        raise Refused("team_results counts 2v2 partners only: for two players' 1v1 record against each other use"
+                      " head_to_head, and for a player's 1v1 results player_results")
     player, name, given = person(tools, player_id)
     partner, other, given_partner = person(tools, partner_id, "partner_id") if partner_id is not None else (None, None, None)
     if partner == player:
@@ -601,7 +604,9 @@ def team_results(query, tools, player_id, partner_id=None, year=None, event=None
 
 # head_to_head
 
-def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, until=None, event=None, region=None):
+def head_to_head(query, tools, player_id, opponent_id, mode=None, year=None, since=None, until=None, event=None,
+                 region=None):
+    mode = None if mode is None else one_mode(mode)
     player, name, given = person(tools, player_id)
     opponent, other, given_other = person(tools, opponent_id, "opponent_id")
     if player == opponent:
@@ -613,9 +618,13 @@ def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, un
     side = ("SELECT s.start_date, s.start_time, s.event_id, s.match_id, s.tournament_name, s.event_name, s.winner_name,"
             " s.winner_id, s.winner_games, s.loser_games, s.is_scored FROM v_sets_1v1 s"
             " WHERE s.winner_id = {} AND s.loser_id = {}" + within)
-    listed = query.rows(f"{side.format(player, opponent)} UNION ALL {side.format(opponent, player)}"
-                        " ORDER BY start_date, start_time, event_id, match_id")  # each side alone: an OR reads every set
-    if narrow:  # the record of the sets in the window, as the view has no dates
+    listed = [] if mode == "2v2" else query.rows(  # each side alone: an OR reads every set
+        f"{side.format(player, opponent)} UNION ALL {side.format(opponent, player)}"
+        " ORDER BY start_date, start_time, event_id, match_id")
+    if mode == "2v2":
+        wins = losses = sets = unscored = 0
+        games_won = games_lost = None
+    elif narrow:  # the record of the sets in the window, as the view has no dates
         scored = [r for r in listed if r[10]]
         wins, sets = sum(r[7] == player for r in listed), len(listed)
         losses, unscored = sets - wins, sets - len(scored)
@@ -625,14 +634,14 @@ def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, un
         (wins, losses, sets, games_won, games_lost, unscored), = query.rows(
             "SELECT wins, losses, matches, games_won, games_lost, unscored_matches FROM v_head_to_head_1v1"
             f" WHERE player_id = {player} AND opponent_id = {opponent}") or [(0, 0, 0, None, None, 0)]
-    (met, won), = query.rows(
+    (met, won), = [(0, 0)] if mode == "1v1" else query.rows(
         "SELECT COUNT(*), COALESCE(SUM(a.won), 0) FROM v_match_results a JOIN v_match_results b ON b.match_id = a.match_id"
         f" AND b.side <> a.side WHERE a.player_id = {player} AND b.player_id = {opponent} AND a.mode = '2v2'"
         + "".join(f" AND {c}" for c in narrow.where("a")))
     notes = [n for n in (merged(given, player, name), merged(given_other, opponent, other)) if n]
     notes += ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
     here = f" {', '.join(narrow.said)}" if narrow else ""
-    if not sets:
+    if not sets and mode != "2v2":
         notes.append(f"{name} and {other} have no counted 1v1 sets against each other at official events{here} (DQs,"
                      " forfeits and ties aren't counted).")
     if unscored:
@@ -642,17 +651,25 @@ def head_to_head(query, tools, player_id, opponent_id, year=None, since=None, un
         notes.append(f"In 1v1, {name} won {wins} and lost {losses} of their {sets} set{'' if sets == 1 else 's'} against"
                      f" {other}; {other} won"
                      f" {losses} and lost {wins}.")
-    notes.append(f"In 2v2, {name} and {other} never met on opposite teams{here}." if not met else
-                 f"In 2v2, {name}'s teams and {other}'s teams met in {met} set{'' if met == 1 else 's'}: {name}'s side won"
-                 f" {won} and lost {met - won}, and {other}'s side won {met - won} and lost {won}. Those aren't in the 1v1"
-                 " record.")
-    record = table(f"{name}'s 1v1 record against {other}, in sets{here}",
-                   ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets", "games_won", "games_lost",
-                    "unscored_sets"], [[name, player, other, opponent, wins, losses, sets, games_won, games_lost, unscored]])
-    each = table("each 1v1 set between them, oldest first", ["event", "date", "winner", "winner_id", "winner_games",
-                                                              "loser_games"],
-                 [[set_event(r[4], r[5]), r[0], *r[6:10]] for r in listed], optional=True) if listed else None
-    return observation("head_to_head", ", ".join([SETS_SCOPE, *narrow.said]), notes, [record, each], query.ran,
+    if mode != "1v1":
+        notes.append(f"In 2v2, {name} and {other} never met on opposite teams{here}." if not met else
+                     f"In 2v2, {name}'s teams and {other}'s teams met in {met} set{'' if met == 1 else 's'}: {name}'s side"
+                     f" won {won} and lost {met - won}, and {other}'s side won {met - won} and lost {won}."
+                     + ("" if mode else " Those aren't in the 1v1 record."))
+    if mode == "2v2":
+        tables = [table(f"{name}'s teams against {other}'s teams in 2v2, in sets{here}",
+                        ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets"],
+                        [[name, player, other, opponent, won, met - won, met]])]
+    else:
+        tables = [table(f"{name}'s 1v1 record against {other}, in sets{here}",
+                        ["player", "player_id", "opponent", "opponent_id", "wins", "losses", "sets", "games_won",
+                         "games_lost", "unscored_sets"],
+                        [[name, player, other, opponent, wins, losses, sets, games_won, games_lost, unscored]]),
+                  table("each 1v1 set between them, oldest first", ["event", "date", "winner", "winner_id",
+                                                                    "winner_games", "loser_games"],
+                        [[set_event(r[4], r[5]), r[0], *r[6:10]] for r in listed], optional=True) if listed else None]
+    scope = SETS_SCOPE if mode != "2v2" else f"{SCOPE}, 2v2 sets between their teams; DQs, forfeits and ties left out"
+    return observation("head_to_head", ", ".join([scope, *narrow.said]), notes, tables, query.ran,
                        player={"player_id": player, "name": name}, opponent={"player_id": opponent, "name": other},
                        event=narrow.found and narrow.found.about)
 
@@ -1208,6 +1225,8 @@ TEMPLATES = {t.name: t for t in (
         {"player_id": {"type": "integer", "description": "the player's player_id, from resolve_player"},
          "partner_id": {"type": "integer", "description": "the partner's player_id, from resolve_player; leave out for"
                                                           " every partner"},
+         "mode": {"type": "string", "enum": ["2v2"], "description": "2v2, the only mode partners have: it can be left"
+                                                                    " out"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
@@ -1225,6 +1244,9 @@ TEMPLATES = {t.name: t for t in (
         {"player_id": {"type": "integer", "description": "the first player's player_id, from resolve_player: the record"
                                                          " is theirs"},
          "opponent_id": {"type": "integer", "description": "the other player's player_id, from resolve_player"},
+         "mode": {"type": "string", "enum": ["1v1", "2v2"], "description": "1v1 alone (the record and each set) or 2v2"
+                                                                           " alone (their teams' meetings); leave out"
+                                                                           " for both"},
          "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
          "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
          "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},

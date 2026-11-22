@@ -68,8 +68,13 @@ class ScopeTest(Fixture):
             self.assertNotIn("asks for a best placement", self.lacks(question, "player_results", player_id=1))
         self.assertEqual(self.lacks("how many top 8 finishes does megd have", "player_results", player_id=1, top=8), [])
 
-    def test_templates_that_cant_take_a_word_arent_checked_for_it(self):
+    def test_a_head_to_head_without_a_mode_is_its_1v1_record(self):
         self.assertEqual(self.lacks("kyna vs yuz in only 1v1", "head_to_head", player_id=1, opponent_id=2), [])
+        self.assertEqual(self.lacks("their 2v2 record", "head_to_head", player_id=1, opponent_id=2),
+                         ["names 2v2"])
+        self.assertEqual(self.lacks("their 2v2 record", "head_to_head", player_id=1, opponent_id=2, mode="2v2"), [])
+
+    def test_templates_that_cant_take_a_word_arent_checked_for_it(self):
         self.assertEqual(self.lacks("who did megd team with in 1v1 events", "team_results", player_id=1), [])
         self.assertEqual(self.lacks("who's #1 in 2024", "power_rankings"), [])
 

@@ -13,8 +13,9 @@ The scope words, read from what the user wrote (scope):
 
 What satisfies each, in a call (lacking): its own argument (mode, year, since or until, region), or the event argument
 naming it ('winters 2023 na 1v1' holds a year, a region and a mode). A template that can't take a word isn't checked
-for it: head_to_head and event_results take no mode, power_rankings no year, and power_rankings is the present
-itself. The present needs a year or a window, which reading is the model's to choose and say (the prompt's rule).
+for it: event_results takes no mode and team_results only 2v2, power_rankings no year, and power_rankings is the
+present itself. head_to_head without a mode counts as 1v1, its record. The present needs a year or a window, which
+reading is the model's to choose and say (the prompt's rule).
 
 A refused call that the model makes again unchanged runs (Turn.call in react.py): the words may not apply to one step
 of a question about several things, and the model has been told why. Events aren't checked: they reach the calls
@@ -101,11 +102,11 @@ def lacking(asked, name, arguments, parameters, events):
         return []
     out, text = [], str(arguments.get("event") or "").casefold()
     takes = set(parameters)
-    if asked.mode and "mode" in takes:
+    if asked.mode and "mode" in takes and name != "team_results":
         given = str(arguments.get("mode") or "").strip().casefold()
         teams = name == "rank_pairs" and str(arguments.get("of", "")).casefold() in ("teammates", "partners", "teams", "duos")
         mode = ({"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}.get(given)
-                or ("2v2" if teams else "1v1" if name in ("rank_pairs", "power_rankings", "upsets") else None))
+                or ("2v2" if teams else "1v1" if name in ("rank_pairs", "power_rankings", "upsets", "head_to_head") else None))
         if mode != asked.mode and asked.mode not in text:
             out.append((f"names {asked.mode}", f'mode="{asked.mode}"'))
     if len(asked.years) == 1 and ("year" in takes or name == "event_results"):

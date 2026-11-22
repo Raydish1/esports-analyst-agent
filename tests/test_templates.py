@@ -502,6 +502,12 @@ class PlayerResultsTest(Fixture):
 
 
 class TeamResultsTest(Fixture):
+    def test_2v2_is_its_one_mode(self):
+        self.assertEqual(self.call("team_results", player_id=A, partner_id=B, mode="2v2"),
+                         self.call("team_results", player_id=A, partner_id=B))
+        self.assertIn("team_results counts 2v2 partners only: for two players' 1v1 record against each other use"
+                      " head_to_head", self.call("team_results", player_id=A, mode="1v1")["error"])
+
     def test_two_partners_events_together_are_counted_with_each_event(self):
         out = self.call("team_results", player_id=A, partner_id=B)  # live, an OR counted 24 events as wins (4)
         self.assertEqual((out["player"], out["partner"], out["scope"]),
@@ -572,6 +578,17 @@ class HeadToHeadTest(Fixture):
                       " lost 1. Those aren't in the 1v1 record.", out["notes"])  # both sides, so it reads as whose
         self.assertIn("In 1v1, A won 0 and lost 1 of their 1 set against C; C won 1 and lost 0.", out["notes"])
 
+    def test_a_mode_keeps_one_of_the_two(self):  # qwen3:8b passed mode 17 times in the model comparison, refused
+        one = self.call("head_to_head", player_id=A, opponent_id=C, mode="1v1")
+        self.assertEqual(self.rows(one, "A's 1v1 record"), [["A", A, "C", C, 0, 1, 1, 0, 3, 0]])
+        self.assertFalse([n for n in one["notes"] if "2v2" in n])
+        two = self.call("head_to_head", player_id=A, opponent_id=C, mode="2v2")
+        self.assertEqual(self.rows(two, "A's teams against C's teams in 2v2"), [["A", A, "C", C, 1, 0, 1]])
+        self.assertEqual(two["notes"], ["In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0, and"
+                                        " C's side won 0 and lost 1."])
+        self.assertIn("2v2 sets between their teams", two["scope"])
+        self.assertIn("mode is '1v1' or '2v2'", self.call("head_to_head", player_id=A, opponent_id=C, mode="3v3")["error"])
+
     def test_unscored_sets_are_flagged_and_players_who_never_met_get_a_record_of_zero(self):
         out = self.call("head_to_head", player_id=A, opponent_id=D)
         self.assertEqual(self.rows(out, "A's 1v1 record"), [["A", A, "D", D, 1, 0, 1, None, None, 1]])
@@ -592,8 +609,8 @@ class HeadToHeadTest(Fixture):
         self.assertIn("opponent_id is the number resolve_player returns, not a name: call resolve_player with 'B'",
                       self.call("head_to_head", player_id=A, opponent_id="B")["error"])
         self.assertEqual(self.call("head_to_head", player_id=A)["error"],
-                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, year, since, until,"
-                         " region, event")
+                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, mode, year, since,"
+                         " until, region, event")
 
 
 class RankPlayersTest(Fixture):
