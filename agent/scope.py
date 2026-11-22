@@ -47,6 +47,13 @@ AGAINST = re.compile(r"\b(?:who\s+(?:has|have|had)\s+|the\s+)(?:[\w-]+\s+){0,2}?
 # count such as "top 8 finishes", which needs its top
 BEST = re.compile(r"\b(?:best|highest|peak)\s+(?:(?!\d+\s)[\w-]+\s+){0,2}?(?:placement|placing|finish|result|showing)s?\b",
                   re.I)
+# Two players' record ("X's record with Y", "X and Y's record") reads as against each other unless the question says
+# they were partners, and the answer says which reading it took (the prompt's rule). In the 2026-11-21 model
+# comparison, qwen3:14b answered c3 turn 1 and qwen3:30b c6 turn 1 with their results as partners, which neither
+# verified answer takes
+RECORD_WITH = re.compile(r"\brecords?\s+with\b|\band\s+(?:[\w-]+\s+)?[\w-]+['’]s?\s+records?\b", re.I)
+TOGETHER = re.compile(r"\b(?:partners?|partnered|partnership|team(?:s|ed|mates?)?|duos?|together|with\s+each\s+other)\b",
+                      re.I)
 PRESENT = re.compile(r"\b(?:right\s+now|currently|these\s+days|nowadays|lately|recently|at\s+the\s+moment|this\s+season)\b",
                      re.I)
 REGION_WORDS = re.compile(r"\b(?:north\s+american?|south\s+american?|southeast\s+asian?|middle\s+east(?:ern)?|europe(?:an)?"
@@ -67,10 +74,11 @@ class Scope:
     present: str | None = None
     against: bool = False  # the opponents' side of one player's records (AGAINST)
     best: bool = False  # a best placement (BEST)
+    pair: bool = False  # two players' record, with no word for partners (RECORD_WITH)
 
     def __bool__(self):
         return bool(self.mode or self.years or self.since or self.until or self.regions or self.present or self.against
-                    or self.best)
+                    or self.best or self.pair)
 
 
 def scope(question, events):
@@ -93,7 +101,8 @@ def scope(question, events):
                                  for found in [events.region(m[0])] if found))
     present = PRESENT.search(text)
     return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0],
-                 bool(AGAINST.search(text)), bool(BEST.search(text)))
+                 bool(AGAINST.search(text)), bool(BEST.search(text)),
+                 bool(RECORD_WITH.search(text)) and not TOGETHER.search(text))
 
 
 def lacking(asked, name, arguments, parameters, events):
@@ -129,6 +138,10 @@ def lacking(asked, name, arguments, parameters, events):
             and str(arguments.get("side") or "").strip().casefold() not in ("opponents", "opponent", "against")):
         out.append(("asks for the other players' records against that player (who did best against them, or whom they"
                     " lost to)", 'side="opponents"'))
+    if asked.pair and name == "team_results" and arguments.get("partner_id") is not None:
+        out.append(("asks for two players' record, which reads as against each other unless it says partners or team",
+                    "head_to_head for their record against each other, or this call again if it means them as partners,"
+                    " and say in the answer which reading you took"))
     if asked.best and name == "player_results" and arguments.get("top") not in (None, ""):
         out.append(("asks for a best placement", "no top: the best column and the results at the best placement"
                     " give it"))

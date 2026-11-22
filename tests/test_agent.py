@@ -307,6 +307,8 @@ class EventResolverTest(Fixture):
                          " question writes it")
         self.assertIn("resolve_event", [t["function"]["name"] for t in react.TOOLS])
         self.assertIn("Don't search event names with LIKE", " ".join(react.SYSTEM.split()))
+        self.assertIn("take it as against each other (head_to_head) unless the question says partner, team, teammate,"
+                      " duo or together, and say in the answer which reading you took", " ".join(react.SYSTEM.split()))
 
 
 

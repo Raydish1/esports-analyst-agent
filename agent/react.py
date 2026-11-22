@@ -118,6 +118,9 @@ Reading the question
   keeps it: a major is an official event, a medal a 1st, 2nd or 3rd place.
 - Words about the present (right now, currently, these days, lately) never mean all time: read them as the official
   Power Rankings (power_rankings) or as results in a recent window (since), and say which.
+- Two players' record ("X's record with Y", "X and Y's record") can mean their record against each other or as
+  partners: take it as against each other (head_to_head) unless the question says partner, team, teammate, duo or
+  together, and say in the answer which reading you took and that the other is there to ask for.
 
 Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
