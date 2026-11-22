@@ -1065,6 +1065,22 @@ class LoopTest(Fixture):
         found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
         self.assertEqual([c.text for c in found], ["Cody Travis"])
 
+    def test_a_plain_name_no_tool_returned_goes_back_with_the_ids_the_results_give_without_names(self):  # live
+        patch_least = patch.object(react, "NAMELESS_LEAST", 1)  # the fixture's player_ids are small
+        patch_least.start()
+        self.addCleanup(patch_least.stop)
+        query = "SELECT 11 AS a1, 19 AS b1, 25 AS sets"  # player IDs only, as the live query gave them
+        right = "The team with the most history is Raydish and Zivai, with 25 sets."
+        ask = Scripted(reply(calls=[("run_sql", {"query": query})]),
+                       reply("The two teams with the most history are Raydish & Zivai and Cody Travis & Dragon!, 25 sets."),
+                       reply(right))
+        trace = react.run("which two teams have the most history in 2v2 sets", self.tools, ask=ask, log=lambda *_: None)
+        sent = trace["steps"][1]["answer_check"]  # Raydish and Zivai are the IDs' players; the other two no tool gave
+        self.assertEqual((sent["action"], sorted(sent["names"])), ("sent back", ["Cody Travis", "Dragon!"]))
+        self.assertTrue(sent["message"].endswith(react.NAMELESS))
+        self.assertNotIn("answer_check", trace["steps"][2])
+        self.assertEqual(trace["answer"], right)
+
     def test_a_word_that_is_some_players_name_reads_as_one_only_where_it_names(self):  # the replay of 2026-11-22
         def named(text, word):
             return react.plainly_named(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text))

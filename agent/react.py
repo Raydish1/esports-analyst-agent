@@ -323,6 +323,10 @@ LAST_STEP = "You have one step left: reply with your answer, without calling a t
 CHECK = ("Before this answer is final: it {what}, which no tool returned in this conversation. If that means a"
          " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
          " the tools return. If it isn't meant as a player, reply with the same answer again.")
+# The answer check's hint when the results in view give player_ids without their names (Shown.nameless): in the check
+# run of 2026-11-22, three answers named the teams of a query's four player_ids with names no tool returned
+NAMELESS = (" If a result gives players as player_ids without their names, look the names up with run_sql (SELECT"
+            " player_id, name FROM players WHERE player_id IN (...)), and name the players by them.")
 PAIRING = ("Before this answer is final: it pairs {pairs}. A player_id belongs to one player: if the name is the player"
            " meant, use the player_id resolve_player gives for them, and query again if a query used the other one; if"
            " the player_id is, name them by its name.")
@@ -404,6 +408,7 @@ NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and f
 # Words an answer writes that are some player's name but never name one there (plainly_named)
 NOT_NAMES = {"january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
              "november", "december", "gold", "golds", "silver", "silvers", "bronze", "bronzes"}
+NAMELESS_LEAST = 10_000  # a smaller player_id may be a count or a year (Shown.nameless); 9,161 of eval-v1's are smaller
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
 QUOTED = re.compile(r'"([^"\n]+)"|“([^”\n]+)”|(?<![\w\'‘’])[\'‘]([^\'‘’\n]+)[\'’](?![\w\'‘’])')
@@ -811,12 +816,21 @@ class Shown:
                 out.append(Claim("player", name, m.start(), m.end(), (name,)))
         return out
 
+    def nameless(self):
+        """The players the results in view return by player_id alone: no result in view writes their name. A query
+        grouping v_match_results returns teams so, unless it joins players. Only IDs of NAMELESS_LEAST or more count:
+        a count or a year can equal a smaller player_id (25 sets; 2017), as 9,161 of eval-v1's are."""
+        returned = sorted(pid for pid in self.returned_now | self.returned_before if pid >= NAMELESS_LEAST)
+        return [pid for pid in returned if (name := " ".join((self.resolver.names.get(pid) or "").split()))
+                and not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", self.in_view, re.I)]
+
     def named_claims(self, answer, question, event_words):
         """Each player an answer names in plain text (mentions.named, as a question's names are found, where it reads
         as a name: plainly_named) that no tool returned, in view or earlier in the conversation, and the question
         doesn't name, at its first mention, as a claim number_check.without can leave out. For a turn whose every call
-        failed (failed_only): name_spans finds a name only when it's shaped like a tag or in bold or quotes, and live,
-        "Phazon & Zivai and Cody Travis & Ryno" passed."""
+        failed (failed_only), and for the answer check after a result that gives players by player_id alone
+        (nameless): name_spans finds a name only when it's shaped like a tag or in bold or quotes, and live, "Phazon &
+        Zivai and Cody Travis & Ryno" passed."""
         said, out = stated(answer), []
         returned, canonical = self.returned_now | self.returned_before, self.resolver.canonical
         asked = {normalize_full(text) for text, _ in mentions.named(question, self.resolver, event_words)}
@@ -1590,9 +1604,16 @@ class Conversation:
                     step["pairing_check"] = {"pairs": pairings, "action": "kept as written: sent back once already"
                                              if paired else "kept as written: no steps left"}
                 names = self.view.unreturned(content) if outcome == "answered" else {}
+                nameless = self.view.nameless() if outcome == "answered" else []
+                if nameless:  # a result gave players by player_id alone, so the players it names plainly are checked
+                    # too (2026-11-22): in the check run, three answers named a query's player_ids with names no tool gave
+                    for c in self.view.named_claims(content, question, self.tools.events.words):
+                        names.setdefault(c.text, sorted(self.tools.resolver.called(c.text))[:5])
                 ids = self.view.unreturned_ids(content) if outcome == "answered" else []
                 if (names or ids) and not checked and not strict and number < max_steps:
                     checked, message = True, CHECK.format(what=unreturned(names, ids))
+                    if nameless:
+                        message += NAMELESS
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
                     step["answer_check"] = {"names": names, "ids": ids, "action": "sent back", "message": message}
