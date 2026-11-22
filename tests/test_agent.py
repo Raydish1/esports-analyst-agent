@@ -309,6 +309,7 @@ class EventResolverTest(Fixture):
         self.assertIn("Don't search event names with LIKE", " ".join(react.SYSTEM.split()))
 
 
+
 class RunSqlTest(Fixture):
     def test_tokens_are_estimated_with_digits_and_json_punctuation_as_one_each(self):
         self.assertEqual(tools.tokens("[12, 345]"), 8)  # 8 marks (brackets, digits, comma) and a space
@@ -551,6 +552,14 @@ class LoopTest(Fixture):
     def setUp(self):
         super().setUp()
         self.tools = react.Tools(self.path)
+
+    def test_the_prompt_says_when_the_datas_latest_results_are(self):  # q15: "the data only goes up to 2025"
+        db = sqlite3.connect(self.path)
+        (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
+        db.close()
+        system = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).system["content"]
+        self.assertIn(f"The data's latest results are from {last}, so every event in it has been held, unless its"
+                      " status says it wasn't:", " ".join(system.split()))
 
     def test_tools_run_until_the_answer_and_every_step_is_traced(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})], thinking="Find megd first."),

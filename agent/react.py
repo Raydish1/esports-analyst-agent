@@ -63,8 +63,8 @@ import settling  # noqa: E402
 from number_check import (Claim, Evidence, Window, claims as number_claims, left_out, restates, stated,  # noqa: E402
                           without)
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
-from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
-                   name_filters, player_ids, run_sql, tables)
+from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, connect,  # noqa: E402
+                   mixed_conditions, name_filters, player_ids, run_sql, tables)
 
 MODEL = "qwen3:30b"  # the web app reads it too (app/server/runner.py on claude/web-app)
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
@@ -77,7 +77,8 @@ RAW = ROOT / "data" / "experiments"
 SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using these
 tools: resolve_player finds the player a name means, resolve_event the events an event name means, the templates answer
 the most common questions with tested queries, and run_sql queries a SQLite database of the results. Every player_id in
-a view is a person's canonical ID.
+a view is a person's canonical ID. The data's latest results are from {last}, so every event in it has been held,
+unless its status says it wasn't: never answer that one is still to come.
 
 Choosing a tool
 - Call resolve_player for every player the question names, first.
@@ -389,6 +390,22 @@ def chat(messages, model=MODEL, think=True, seed=0):
     """One model reply, with the tools offered: the server's /api/chat response."""
     return ollama("/api/chat", {"model": model, "stream": False, "think": think, "tools": TOOLS, "messages": messages,
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
+
+
+def latest_results(path):
+    """The date of the snapshot's newest results, for the prompt: qwen3:30b answered that EU Summers 2026 hadn't
+    happened yet, "the data only goes up to 2025", its training's end (q15 in the 2026-11-21 model comparison)."""
+    db = connect(path, SQL_SECONDS)
+    try:
+        (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
+    finally:
+        db.close()
+    return last
+
+
+def prompt(path, steps):
+    """The system prompt for the snapshot at path."""
+    return SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=steps, last=latest_results(path))
 
 
 def rested_on(traces, message, players=(), most=3):
@@ -1066,7 +1083,7 @@ class Conversation:
                  **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
         self.retriever, self.on_examples = retriever, on_examples
-        self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
+        self.system = {"role": "system", "content": prompt(tools.path, max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
@@ -1871,13 +1888,13 @@ def main():
     (out / "traces.md").write_text(markdown(traces, header) + "\n", encoding="utf-8")
     print(f"\nTraces: data/experiments/{run_id}/traces.md and traces.jsonl")
     if args.target or args.eval:
-        prompt = SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=args.max_steps)
+        system = prompt(SNAPSHOT, args.max_steps)
         RESULTS.mkdir(parents=True, exist_ok=True)
         path = RESULTS / f"{run_id}-react-prototype.json"
         path.write_text(json.dumps({
             **header, "kind": "exploratory: the ReAct prototype on target questions (expected answers from our own"
                               " data; not the formal baseline)",
-            "system_prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16], "system_prompt": prompt,
+            "system_prompt_sha256": hashlib.sha256(system.encode("utf-8")).hexdigest()[:16], "system_prompt": system,
             "tools": TOOLS, "records": [summary(t) for t in traces]}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"Summary: {path.relative_to(ROOT).as_posix()}")
     for t in traces:
