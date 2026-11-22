@@ -213,8 +213,15 @@
   top: 130px; width: 640px; height: 130px; display: flex; align-items: center; white-space: normal; font-size: 54px;
   line-height: 1; color: var(--bc-white);
 }
-.bc-wsets .bc-wsets-side.bc-l { left: 60px; justify-content: flex-end; text-align: right; border-right: 10px solid var(--bc-orange); padding-right: 28px; }
-.bc-wsets .bc-wsets-side.bc-r { left: 1182px; justify-content: flex-start; text-align: left; border-left: 10px solid var(--bc-teal); padding-left: 28px; }
+.bc-wsets .bc-wsets-side { box-sizing: border-box; }
+.bc-wsets .bc-wsets-side.bc-wsets-team { font-size: 36px; overflow-wrap: anywhere; }
+.bc-wsets .bc-wsets-side.bc-l { justify-content: flex-end; text-align: right; border-right: 10px solid var(--bc-orange); padding-right: 28px; }
+.bc-wsets .bc-wsets-side.bc-r { justify-content: flex-start; text-align: left; border-left: 10px solid var(--bc-teal); padding-left: 28px; }
+.bc-wsets .bc-wlegend { top: 46px; width: 200px; height: 250px; }
+.bc-wsets .bc-wlegend.bc-l { --bc-art-outline: var(--bc-orange); }
+.bc-wsets .bc-wlegend.bc-r { --bc-art-outline: var(--bc-teal); }
+.bc-wsets .bc-wlegend img { filter: drop-shadow(3px 0 0 var(--bc-art-outline)) drop-shadow(-3px 0 0 var(--bc-art-outline))
+    drop-shadow(0 3px 0 var(--bc-art-outline)) drop-shadow(0 -3px 0 var(--bc-art-outline)); }
 .bc-wsets .bc-wsets-record { left: 760px; width: 400px; top: 118px; text-align: center; font-size: 140px; line-height: 1; }
 .bc-wsets .bc-wsets-event { left: 120px; width: 1680px; top: 150px; text-align: center; white-space: normal; font-size: 54px; line-height: 1.1; color: var(--bc-white); }
 .bc-wsets .bc-wsets-note { left: 0; width: 1920px; top: 284px; text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 0.08em; color: var(--bc-cream); }

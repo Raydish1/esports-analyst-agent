@@ -279,6 +279,7 @@ export function headToHeadFrame(card, mode = "1v1 and 2v2") {
 // score. A head-to-head's or two teams' sets (card.sides) keep the first side on the left, in orange, the other in teal,
 // as the other cards do, with the record between them in the header; an event's sets name each set's two players.
 // One to four sets fill one row; five to eight two rows; past eight the latest eight, and the header says so.
+const SIDE = { edge: 24, slot: 200, overlap: 100, middle: 760 };  // header: legend slots, and the names' inner edge
 export const TILES = { most: 8, perRow: 4, left: 60, top: 330, width: 1800, height: 710, gap: 30, maxWidth: 430 };
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -361,8 +362,24 @@ export function setsFrame(card) {
   frame.append(text("bc-wsets-heading bc-heavy", heading));
   if (card.sides) {
     const wins = sets.filter((s) => sidedScore(s, card.sides).leftWon).length;
-    frame.append(el("p", "bc-t bc-wsets-side bc-l bc-heavy", card.sides[0].toUpperCase()),
-      el("p", "bc-t bc-wsets-side bc-r bc-heavy", card.sides[1].toUpperCase()));
+    // Each side's legends on the outside of its name (one, or a team's two overlapping), facing the middle.
+    const legends = card.legends || [[null], [null]];
+    const reach = (n) => SIDE.slot + SIDE.overlap * (n - 1);
+    legends.forEach((side, k) => side.forEach((legend, i) => {
+      const slot = legendSlot(legend, k === 1);
+      slot.classList.add("bc-wlegend", k ? "bc-r" : "bc-l");
+      slot.style.left = `${k ? 1920 - SIDE.edge - reach(side.length) + i * SIDE.overlap : SIDE.edge + i * SIDE.overlap}px`;
+      frame.append(slot);
+    }));
+    const left = el("p", "bc-t bc-wsets-side bc-l bc-heavy", card.sides[0].toUpperCase());
+    const right = el("p", "bc-t bc-wsets-side bc-r bc-heavy", card.sides[1].toUpperCase());
+    const inner = (n) => SIDE.edge + reach(n) + 16;  // where a side's name may start, from the frame's edge
+    left.style.left = `${inner(legends[0].length)}px`;
+    left.style.width = `${SIDE.middle - inner(legends[0].length)}px`;
+    right.style.left = `${1920 - SIDE.middle}px`;
+    right.style.width = `${SIDE.middle - inner(legends[1].length)}px`;
+    for (const [node, side] of [[left, legends[0]], [right, legends[1]]]) if (side.length > 1) node.classList.add("bc-wsets-team");
+    frame.append(left, right);
     if (card.sets) {
       const record = el("p", "bc-t bc-wsets-record bc-heavy");
       record.append(el("span", "bc-l", String(wins)), el("span", "bc-dash", "–"), el("span", "bc-r", String(sets.length - wins)));

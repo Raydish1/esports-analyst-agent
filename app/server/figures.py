@@ -229,7 +229,7 @@ class Cards:
         totals = {"1v1": (found.get("row_count") or len(listed or [])) if found else 0, "2v2": len(doubles)}
         sets = None if singles is None else sorted(singles + doubles, key=lambda s: s["date"] or "")  # stable sort
         return [card, {"kind": "sets", "title": f"Sets between {a['name']} and {b['name']}", "sets": sets,
-                       "sides": [a["name"], b["name"]],
+                       "sides": [a["name"], b["name"]], "legends": [[a.get("legend")], [b.get("legend")]],
                        "total": totals["1v1"] + totals["2v2"], "totals": totals, "modes": True,
                        "scope": "Official sets between them, newest first: 1v1 sets with one player a side, and 2v2 sets"
                                 " with the two on opposite teams. DQs, forfeits and ties left out."}]
@@ -277,7 +277,9 @@ class Cards:
                  "winner_games": (r[4] if r[3] else r[5]) if r[6] else None,
                  "loser_games": (r[5] if r[3] else r[4]) if r[6] else None} for r in rows]
         return [card, {"kind": "sets", "title": f"Sets between {names[0]} and {names[1]}", "sets": sets,
-                       "sides": names, "total": len(sets), "mode": "2v2",
+                       "sides": names, "legends": [[p.get("legend") for p in players[:2]],
+                                                   [p.get("legend") for p in players[2:]]],
+                       "total": len(sets), "mode": "2v2",
                        "scope": "Official 2v2 sets between the two teams, newest first. DQs, forfeits and ties left out."}]
 
     def named_teams(self, question):
