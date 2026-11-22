@@ -306,8 +306,11 @@ class Evidence:
         return RULES[claim.kind](claim.value, self)
 
     def unsupported(self, answer):
-        """The claims an answer states (stated) that nothing in the conversation supports."""
-        return [c for c in claims(stated(answer)) if not self.supports(c)]
+        """The claims an answer states (stated) that nothing in the conversation supports, a count word counting a
+        result's rows supported as Window.unsupported supports it (counted)."""
+        said = stated(answer)
+        spans, found = units(said), claims(said)
+        return [c for c in found if not self.supports(c) and not counted(c, said, spans, found, [self])]
 
     def counts(self, n, values=(), top=False):
         """Whether a count word n counts rows of one result: n rows sharing one of the values (a tie, 'the two tied
@@ -386,7 +389,9 @@ class Window:
         - But a player a list writes the record right after ('**Raydish** (3 sets, 2-1 record)', 'Raydish: 2-1'), in
           an answer about one subject who isn't named before it: the subject's record against them, unless the line
           names the player a winner ('Winner: Raydish (2-0)'). Live, volst's list of opponents had his 1-2 against
-          Raydish as 2-1 (docs/web-app-testing-notes.md, finding 34).
+          Raydish as 2-1 (docs/web-app-testing-notes.md, finding 34). Under a rank_pairs(side="opponents") table
+          about the subject, the list is of records against the subject, so each is the listed player's own: in round
+          six's reruns, Marckiem00's right 6-1 against Zivai was sent back as reversed (a28).
         - None if no player is named before it, or a word for losing comes between ('lost 1-2 to'), as people write a
           loss in either order."""
         a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
@@ -413,19 +418,16 @@ class Window:
                                                           and re.search(rf"(?<!\w){re.escape(n)}(?!\w)", after)]
         if (self.subject and name != self.subject and self.subject not in before and LISTED.match(between)
                 and not WINNER.search(before[max(0, start - 20):start])):
-            return self.subject, name  # a list of the subject's opponents
+            return (name, self.subject) if self.against_subject() else (self.subject, name)
         return name, (others[0] if others else None)
 
+    def against_subject(self):
+        """Whether a rank_pairs(side="opponents") table about the subject is in view (its wins_vs_<subject> column)."""
+        key = f"{VS}{self.subject}"
+        return any(c.casefold() == key for e in self.evidence for row in e.rows for c in (row.columns or ()))
+
     def counted(self, claim, said, spans, found):
-        """Whether a count word counts a result's rows (Evidence.counts): after 'top', a ranking of that many rows or
-        more; else that many rows of one result sharing a number its sentence states. Live, "the top two tied at 34
-        sets" was cut for its "two", under a right list (docs/web-app-testing-notes.md, finding 30)."""
-        if claim.kind != "word" or not 2 <= claim.value[0] <= 10:
-            return False
-        top = said[max(0, claim.start - 4):claim.start].casefold() == "top "
-        a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
-        values = [c.value[0] for c in found if a <= c.start < b and c is not claim and c.kind in ("number", "ordinal")]
-        return any(e.counts(claim.value[0], values, top) for e in self.evidence)
+        return counted(claim, said, spans, found, self.evidence)
 
     def about(self, said, claim, spans):
         """(mode, player, names) for the claim's sentence, or (): the one mode it names, 1v1 or 2v2 and not both
@@ -493,6 +495,7 @@ LISTED = re.compile(r"[\s*_\"'`]*(?:\(|:|-|–|—|\|)")  # a name a list writes
 LOSING = re.compile(r"\b(?:lost|loses|lose|losing|loss|fell|falls|beaten|defeated by|trails|trailing|behind)\b")
 WON_LOST = re.compile(r"([^.;:()]+?)\s+won\s+(\d+)\s+and\s+lost\s+(\d+)([^;.]*)")
 AGAINST = re.compile(r"([^.;:()]+?)\s+(\d+)\s*-\s*(\d+)\s+against\s+([^.;:()]+)")
+VS = "wins_vs_"
 SIDES = [(("player", "name", "player_name"), "wins", "losses", ("opponent", "opponent_name")),
          (("player",), "player_wins", "opponent_wins", ("opponent",)),
          (("winner", "winner_name"), "winner_games", "loser_games", ("loser", "loser_name"))]
@@ -519,6 +522,12 @@ def sides(row, names):
             if all(isinstance(cell.get(k), (int, float)) and not isinstance(cell.get(k), bool) for k in (w, l)):
                 a, b, games = who(subject), who(other), w == "winner_games"
                 out += ([(a, b, cell[w], cell[l], games)] if a else []) + ([(b, a, cell[l], cell[w], games)] if b else [])
+        for key in cell:  # rank_pairs(side="opponents"): each row player's record against the player in its columns
+            other = key[len(VS):] if key.startswith(VS) else None
+            w, l = key, f"losses_vs_{other}"
+            if other and all(isinstance(cell.get(k), int) and not isinstance(cell.get(k), bool) for k in (w, l)):
+                a, b = who(("player",)), other.casefold() if other.casefold() in names else None
+                out += ([(a, b, cell[w], cell[l], False)] if a else []) + ([(b, a, cell[l], cell[w], False)] if b else [])
     for text in row.texts:
         t = text.casefold()
         for m in WON_LOST.finditer(t):
@@ -650,6 +659,19 @@ def without(answer, flagged):
         replaced.append({"claim": answer[a:b], "replacement": new, "numbers": [c.text for c in found]})
         out = out[:cut[0]] + new + out[cut[1]:]
     return re.sub(r"\n{3,}", "\n\n", out).strip(), replaced[::-1]
+
+
+def counted(claim, said, spans, found, evidence):
+    """Whether a count word counts a result's rows (Evidence.counts) in any of the evidence: after 'top', a ranking of
+    that many rows or more; else that many rows of one result sharing a number its sentence states. Live, "the top two
+    tied at 34 sets" was cut for its "two", under a right list (docs/web-app-testing-notes.md, finding 30). The
+    agent's check (Window) and the scorers' (Evidence) both read it so."""
+    if claim.kind != "word" or not 2 <= claim.value[0] <= 10:
+        return False
+    top = said[max(0, claim.start - 4):claim.start].casefold() == "top "
+    a, b = next(((a, b) for a, b in spans if a <= claim.start < b), (claim.start, claim.end))
+    values = [c.value[0] for c in found if a <= c.start < b and c is not claim and c.kind in ("number", "ordinal")]
+    return any(e.counts(claim.value[0], values, top) for e in evidence)
 
 
 def restates(replaced, kept):

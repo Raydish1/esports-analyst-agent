@@ -1,0 +1,433 @@
+# Verdicts for the harness's runs (eval/harness.py). stage is the first that failed: name resolution, SQL
+# logic, empty or insufficient data, answer writing, or no answer. review is "auto" for a stage 1 or 2
+# failure the code found, and "needs review" for a verdict drafted by hand, until the user confirms it
+# ("confirmed"). Fill in or correct verdict, stage and note; scoring keeps what's here.
+
+# q04 (retrieval on): What does Impala vs Balloonboy's history look like?
+# Expected: Impala leads BBBalloonBoy 2-1 in 1v1 sets at official events (8-4 in games), DQs and forfeits left out: - Trial of Frigg - North America (Moose Wars), 2024-03-17: Impala won 3-0 - Trial of Skuld - North America, 2024-08-04: Impala won 3-1 - Brawlhalla World Championship Expo 2024 (BCX 2024), 2024-11-15: BBBalloonBoy won 3-2 They never met in 2v2. Both placed at 23 of the same official 1v1 events and 3 of the same 2v2 events.
+
+[[run]]
+arm = "on"
+question = "q04"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Impala and BBBalloonBoy have a 2–1 record in their 1v1 history across three sets. Here's the breakdown:\n\n**1v1 Sets**  \n1. **Trial of Frigg - North America (Moose Wars)** (2024-03-17)  \n   - **Impala** won 3–0  \n2. **Trial of Skuld - North America** (2024-08-04)  \n   - **Impala** won 3–1  \n3. **Brawlhalla World Championship Expo 2024** (2024-11-15)  \n   - **BBBalloonBoy** won 3–2  \n\nThey have never faced each other in 2v2 matches."
+
+[[run]]
+arm = "on"
+question = "q04"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Impala and BBBalloonBoy have a 2-1 record in 1v1 sets against each other, with Impala winning two and losing one. Here's their history:\n\n**1v1 Matches**  \n1. **Trial of Frigg - North America (Moose Wars)** (2024-03-17)  \n   - **Impala** won 3-0  \n2. **Trial of Skuld - North America** (2024-08-04)  \n   - **Impala** won 3-1  \n3. **Brawlhalla World Championship Expo 2024** (2024-11-15)  \n   - **BBBalloonBoy** won 3-2  \n\nThey never faced each other in 2v2 matches."
+
+[[run]]
+arm = "on"
+question = "q04"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Impala and BBBalloonBoy have a 2-1 record in 1v1 sets between them, with Impala winning two and losing one. Here's their head-to-head history:\n\n**1v1 Matches:**\n1. **Trial of Frigg - North America (Moose Wars)** (2024-03-17)  \n   ⚡ **Impala** won 3-0  \n2. **Trial of Skuld - North America** (2024-08-04)  \n   ⚡ **Impala** won 3-1  \n3. **Brawlhalla World Championship Expo 2024** (2024-11-15)  \n   ⚡ **BBBalloonBoy** won 3-2  \n\nThey never faced each other in 2v2 matches. Impala's dominance in 1v1 is evident, with a 66.7% win rate against BBBalloonBoy."
+
+# q05 (retrieval on): List the top 10 highest-earning players in Brawlhalla history.
+# Expected: The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00
+
+[[run]]
+arm = "on"
+question = "q05"
+seed = 0
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "1 query results"
+answer = "The top 10 highest-earning players in Brawlhalla history, based on career earnings data, are:\n\n1. **gdsandstorm** - $258,984.17 \n2. **Zivai** - $214,458.33 \n3. **acno?** - $189,215.00 \n4. **whoiskyna** - $161,110.00 \n5. **SiB | Wess** - $131,481.67 \n6. **yüz** - $131,421.67 \n7. **Blaze** - $120,207.83 \n8. **loreszz** - $102,600.00 \n9. **lFiend** - $94,261.67 \n10. **Raydish** - $83,825.00 \n\n*Note: These names are derived from the `v_career_earnings` view, which includes resolved display names."
+
+[[run]]
+arm = "on"
+question = "q05"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Here are the top 10 highest-earning players in Brawlhalla history, based on career earnings data from the official Stats API:\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\n*Note:* Earnings are derived from the `v_career_earnings` view, which includes players with recorded prize money from official events. Some players may have unlisted earnings if they haven't participated in tracked tournaments."
+
+[[run]]
+arm = "on"
+question = "q05"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Here are the top 10 highest-earning players in Brawlhalla history based on career earnings data (as of the latest recorded figures):\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\n*Note:* Earnings are sourced from the Stats API and may not reflect all players or the most up-to-date figures. Players without recorded earnings are excluded from this list."
+
+# q08 (retrieval on): Who has the best record against marckiemoo?
+# Expected: By 1v1 set win rate against Marckiem00 at official events, among players with at least 5 sets against them (DQs and forfeits left out): 1. V3M_T4NQUIL0: 3-2 (60%) 2. Raydish: 6-7 (46%) 3. gdsandstorm: 4-7 (36%) V3M_T4NQUIL0 is the only one of them with a winning record.
+
+[[run]]
+arm = "on"
+question = "q08"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The player with the best record against **Marckiem00** in **1v1** sets is **V3M_T4NQUIL0**. Here's their record:\n\n- **Sets**: 5  \n- **Wins against Marckiem00**: 3  \n- **Losses to Marckiem00**: 2  \n- **Win rate**: 60%  \n\nThis is the highest win rate among players who faced Marckiem00 in at least 5 sets (minimum threshold for meaningful analysis). Other notable players include **Raydish** (46.2% win rate) and **gdsandstorm** (36.4%)."
+
+[[run]]
+arm = "on"
+question = "q08"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The player with the best record against **Marckiem00** in 1v1 sets is **V3M_T4NQUIL0**. \n\n- **Record**: 3 wins, 2 losses (3-2) in 5 sets  \n- **Win rate**: 60% (0.6)  \n- **Note**: This is the highest win rate among all players with at least 5 sets against Marckiem00.  \n\nThe data excludes DQs, forfeits, and ties."
+
+[[run]]
+arm = "on"
+question = "q08"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The player with the best record against **Marckiem00** (marckiemoo) in 1v1 sets is **V3M_T4NQUIL0**, with a **3-2 record** (60% win rate) across 5 sets. Here are the top 5 records against Marckiem00:\n\n1. **V3M_T4NQUIL0** (3 wins, 2 losses, 60%)  \n2. **Raydish** (6 wins, 7 losses, 46.2%)  \n3. **gdsandstorm** (4 wins, 7 losses, 36.4%)  \n4. **Mounir** (2 wins, 5 losses, 28.6%)  \n5. **yüz** (3 wins, 9 losses, 25%)  \n\n*Note:* Only pairs with at least 5 sets are included, and results exclude DQs, forfeits, and ties."
+
+# q09 (retrieval on): What tournament did sandstorm make the most money from?
+# Expected: The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The data indicates that **gdsandstorm** earned a total of **$258,984.17** through the **Stats API**, but the source does not specify a particular tournament. The earnings figure aggregates all tournaments and events, and no single tournament is highlighted in the records. Thus, the data does not explicitly name a specific tournament as the source of their highest earnings."
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The data does not track earnings per tournament. The `v_career_earnings` view aggregates career earnings by source (e.g., \"Stats API\"), but it does not link earnings to specific tournaments. Therefore, it is not possible to determine which tournament gdsandstorm earned the most from based on the available data."
+
+[[run]]
+arm = "on"
+question = "q09"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The data indicates that **gdsandstorm** (formerly *sandstorm*) made the most money from the **Stats API**, earning **$258,984.17**. However, this figure represents aggregate career earnings from the Stats API, not a specific tournament. The dataset does not explicitly link earnings to individual tournaments."
+
+# q11 (retrieval on): What is Raydish's most dominant tournament win?
+# Expected: By games lost across the run (fewest first, then fewest sets dropped, then most games won): the Trial of Laufey - North America (Moose Wars) (2024-08-25), where Raydish won all 9 sets, 25 games to 2: two 2-0s, then 3-0, 3-1, 3-0, 3-0, 3-0 (Bunny meow), 3-0 and 3-1 (both against BBBalloonBoy). The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship win is left out: its sets are crew against crew, so not comparable.
+
+[[run]]
+arm = "on"
+question = "q11"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish's most dominant tournament win occurred at the **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in **1v1** mode. The run featured **9 sets played**, **0 sets dropped**, **25 games won**, and **2 games lost** (no unscored sets). \n\nThis result adheres to the dominance rule: prioritizing the fewest games lost, then fewest sets dropped, and most games won. Crew battles and unscored runs are excluded from this calculation."
+
+[[run]]
+arm = "on"
+question = "q11"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish's most dominant tournament win occurred at the **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in **1v1** mode.  \n\n**Dominance metrics**:  \n- **Sets played**: 9  \n- **Sets dropped**: 0  \n- **Games won**: 25  \n- **Games lost**: 2  \n- **Unscored sets**: 0  \n\nThis win follows the decided dominance rule: fewest games lost, then fewest sets dropped, and most games won. Crew battles and unscored runs are excluded from this calculation."
+
+[[run]]
+arm = "on"
+question = "q11"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish's most dominant tournament win was in the **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in **1v1** mode. The victory spanned **9 sets** with **0 sets dropped**, securing **25 games won** and **2 games lost**. This result adheres to the dominance criteria: fully scored (no unscored sets), minimizing games lost and sets dropped while maximizing games won."
+
+# q20 (retrieval on): what was the score of the 1v1 grand final at dreamhack valencia 2023
+# Expected: Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the winners' semi-final to luna, came through the losers' side.
+
+[[run]]
+arm = "on"
+question = "q20"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The 1v1 grand final at **DreamHack Valencia 2023** was won by **Zivai** with a score of **3-0** against **Impala**. This result is from the final set where Zivai placed 1st and Impala placed 2nd in the tournament."
+
+[[run]]
+arm = "on"
+question = "q20"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The **1v1 grand final** at **DreamHack Valencia 2023** was won by **Zivai** with a score of **3-0** against **Impala**. This set concluded the tournament, as Zivai secured the victory in straight games."
+
+[[run]]
+arm = "on"
+question = "q20"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The **1v1 grand final** at **DreamHack Valencia 2023** was won by **Zivai** with a score of **3-0** against **Impala**. This set marked the conclusion of the tournament, as Zivai secured the victory in straight games."
+
+# q23 (retrieval on): kingdom | godly vs impala head to head
+# Expected: Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at official events, 12-9 in games to Zivai: - Brawlhalla World Championship Expo 2022 (2022-11-04): Impala won 3-0 and 3-1 - DreamHack San Diego 2023 (2023-04-07): Impala won 3-2 - DreamHack Valencia 2023 (2023-07-07): Zivai won 3-0 - Brawlhalla World Championship Expo 2023 (2023-11-03): Zivai won 3-0 - Brawlhalla World Championship Expo 2024 (2024-11-15): Zivai won 3-0 They never met in 2v2.
+
+[[run]]
+arm = "on"
+question = "q23"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Zivai (formerly Godly) and Impala have a balanced 1v1 head-to-head record in official events:\n\n**1v1 Record:**\n- **Zivai** won **3 sets**, lost **3 sets** (3-3)\n- **Impala** won **3 sets**, lost **3 sets** (3-3)\n- Total sets played: **6** (no unscored sets)\n\n**Key Matches:**\n1. **Brawlhalla World Championship Expo 2022** (2022-11-04)  \n   - Impala won 3-0, 3-1  \n2. **DreamHack San Diego 2023** (2023-04-07)  \n   - Impala won 3-2  \n3. **DreamHack Valencia 2023** (2023-07-07)  \n   - Zivai won 3-0  \n4. **Brawlhalla World Championship Expo 2023** (2023-11-03)  \n   - Zivai won 3-0  \n5. **Brawlhalla World Championship Expo 2024** (2024-11-15)  \n   - Zivai won 3-0  \n\n**2v2:** They never faced each other on opposing teams in official events."
+
+[[run]]
+arm = "on"
+question = "q23"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Zivai (formerly Godly) and Impala have an even 1v1 head-to-head record in official events:  \n\n**1v1 Results:**  \n- **Zivai wins:** 3 sets (DreamHack Valencia 2023, Brawlhalla World Championship Expo 2023, Brawlhalla World Championship Expo 2024)  \n- **Impala wins:** 3 sets (Brawlhalla World Championship Expo 2022, DreamHack San Diego 2023, DreamHack Valencia 2023)  \n\n**Set Breakdown:**  \n1. **2022 Brawlhalla World Championship Expo**  \n   - Impala: 3-0  \n   - Impala: 3-1  \n2. **2023 DreamHack San Diego**  \n   - Impala: 3-1  \n3. **2023 DreamHack Valencia**  \n   - Zivai: 3-0  \n4. **2023 Brawlhalla World Championship Expo**  \n   - Zivai: 3-0  \n5. **2024 Brawlhalla World Championship Expo**  \n   - Zivai: 3-0  \n\n**2v2 History:**  \nNo recorded 2v2 matches between the two players.  \n\nThe record shows 3 wins for each player across 6 sets, with no player holding a clear advantage in the data provided."
+
+[[run]]
+arm = "on"
+question = "q23"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Zivai (formerly Godly) and Impala have an even 1v1 head-to-head record in official events:  \n- **Zivai won 3 sets**, **Impala won 3 sets** (6 total), with no unscored matches.  \n- Their sets spanned **2022–2024**, including:  \n  - **2022**: Impala won 2 sets, Zivai lost both.  \n  - **2023**: Impala won 1, Zivai won 1.  \n  - **2024**: Zivai won 2 sets.  \n\nThey **never faced each other in 2v2**. The rivalry is split evenly, with no clear dominance in either direction."
+
+# q27 (retrieval on): whats bbballoonboy's 1v1 record vs impala
+# Expected: BBBalloonBoy is 1-2 against Impala in 1v1 sets at official events (4-8 in games): lost 0-3 at the Trial of Frigg NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 2024 (2024-11-15).
+
+[[run]]
+arm = "on"
+question = "q27"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "BBBalloonBoy has a 1-2 record against Impala in 1v1 sets, with Impala winning two sets and BBBalloonBoy winning one. Here's the breakdown:\n\n**1v1 Set Results:**\n1. **Trial of Frigg - North America (Moose Wars)** • 2024-03-17 • Impala won 3-0  \n2. **Trial of Skuld - North America** • 2024-08-04 • Impala won 3-1  \n3. **Brawlhalla World Championship Expo 2024** • 2024-11-15 • BBBalloonBoy won 3-2  \n\nThey have never faced each other in 2v2. The data covers official events, excluding DQs, forfeits, and ties."
+
+[[run]]
+arm = "on"
+question = "q27"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "BBBalloonBoy's 1v1 record against Impala in official events includes **1 win and 2 losses** across 3 sets. Here's the breakdown:\n\n1. **Trial of Frigg - North America (Moose Wars)** (2024-03-17)  \n   - **Impala** won 3-0.\n\n2. **Trial of Skuld - North America** (2024-08-04)  \n   - **Impala** won 3-1.\n\n3. **Brawlhalla World Championship Expo 2024** (2024-11-15)  \n   - **BBBalloonBoy** won 3-2.\n\n**Key stats**:  \n- Total sets: 3  \n- Games won by BBBalloonBoy: 4 (1 set)  \n- Games lost: 8 (2 sets)  \n- No 2v2 matchups between them."
+
+[[run]]
+arm = "on"
+question = "q27"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "BBBalloonBoy has a 1v1 record of **1 win, 2 losses** in **3 sets** against Impala. Their head-to-head record stands at **33.3% win rate**.  \n\n### Key Matches:  \n1. **Trial of Frigg - North America (Moose Wars)**, 2024-03-17: Impala won 3-0.  \n2. **Trial of Skuld - North America**, 2024-08-04: Impala won 3-1.  \n3. **Brawlhalla World Championship Expo 2024**, 2024-11-15: BBBalloonBoy won 3-2.  \n\nThey have never faced each other in 2v2."
+
+# q33 (retrieval on): how much money has boomie made from brawlhalla
+# Expected: The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.
+
+[[run]]
+arm = "on"
+question = "q33"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The data does not record career earnings for Boomie. The `v_career_earnings` view only includes players with a Power Ranking (PR) designation, and Boomie’s profile shows no PR entry. Earnings are not tracked for players without a PR, so this information is unavailable in the official results database."
+
+[[run]]
+arm = "on"
+question = "q33"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The data does not record Boomie's career earnings. The official Brawlhalla esports database does not include a career earnings figure for player_id 146606 (Boomie), meaning this information is not available through the tools provided."
+
+[[run]]
+arm = "on"
+question = "q33"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "The data does not record earnings for Boomie. The `v_career_earnings` view only includes players with a Power Ranking (PR) entry, and no row exists for this player_id. Earnings are not tracked for players without a PR ranking."
+
+# q37 (retrieval on): Who has won the most official tournaments?
+# Expected: gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.
+
+[[run]]
+arm = "on"
+question = "q37"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "At official events, the players with the most tournament wins (1st places) are:\n\n1. **gdsandstorm** (48 wins: 30 in 1v1, 18 in 2v2, 2 crew battles)  \n2. **Boomie** (44 wins: 12 in 1v1, 32 in 2v2, 2 crew battles)  \n3. **acno?** (36 wins: 13 in 1v1, 23 in 2v2)  \n4. **TigerBrawlhalla** (34 wins: 26 in 1v1, 8 in 2v2)  \n5. **Zivai** (31 wins: 23 in 1v1, 8 in 2v2)  \n\nNote: Each 1v1 and 2v2 event is counted separately, and crew battles are included in the 1v1 total as they are treated as 1v1 matches in the data."
+
+[[run]]
+arm = "on"
+question = "q37"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "At official events, **gdsandstorm** has won the most tournaments with **48 victories** (30 in 1v1, 18 in 2v2). They are followed by **Boomie** (44 wins) and **acno?** (36 wins). The top 5 players include all ties, and their 1v1/2v2 splits are shown. Crew battles are counted as 1v1 but are separate from standard tournaments."
+
+[[run]]
+arm = "on"
+question = "q37"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "At official events, **gdsandstorm** has won the most tournaments with **48 victories** (30 in 1v1, 18 in 2v2). They are followed by **Boomie** (44 wins: 12 1v1, 32 2v2) and **acno?** (36 wins: 13 1v1, 23 2v2). \n\nNote: Each tournament's 1v1 and 2v2 are separate events, so wins in both modes count individually. Crew battles are counted as 1v1 here."
+
+# q40 (retrieval on): who has raydish lost to the most in 1v1
+# Expected: gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).
+
+[[run]]
+arm = "on"
+question = "q40"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish has lost to **Marckiem00** the most in 1v1 matches. **Marckiem00** has defeated Raydish **7 times** in their 13 total sets, giving Raydish a **6-7** record against them. This is the highest number of losses (opponent wins) for Raydish among all opponents in the ranked list. \n\nOther notable opponents include:  \n\nThe ranking reflects the most dominant records against Raydish, with Marckiem00 holding the highest win count against him.\n\n(I left out some statements I couldn't confirm from the data.)"
+
+[[run]]
+arm = "on"
+question = "q40"
+seed = 1
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish has lost the most to **Marckiem00** in 1v1 matches, with **6 losses** across 13 sets. Other notable players include **BBBalloonBoy** (4 losses in 10 sets) and **gdsandstorm** (3 losses in 13 sets). The data reflects Raydish's head-to-head record against these opponents, with losses counted as the number of times Raydish was defeated."
+
+[[run]]
+arm = "on"
+question = "q40"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish has lost to **gdsandstorm** the most in 1v1 matches. gdsandstorm beat Raydish **10 times** (Raydish's losses) in their head-to-head sets, the highest count among all opponents. Here's the breakdown:\n\n- **gdsandstorm** (10 wins against Raydish)  \n- **Marckiem00** (7 wins against Raydish)  \n- **BBBalloonBoy** (6 wins against Raydish)  \n- **Snowy!!** (3 wins against Raydish)  \n- **Zivai** (3 wins against Raydish)  \n\nThis ranking reflects the opponents with the most wins against Raydish in 1v1 sets, based on official results."
+
+# q44 (retrieval on): How many times did Ahmet finish second to Godly in 2026?
+# Expected: 3 times, all in 1v1 at official events, each won by Zivai (formerly Godly) with Ahmet_ 2nd: the Spring (2026-04-25), Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.
+
+[[run]]
+arm = "on"
+question = "q44"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Ahmet_ (player_id 75405) finished second to Zivai (formerly Godly, player_id 147982) **3 times** in official events during 2026. This was determined by checking events where Ahmet_ placed 2nd and Zivai placed 1st in the same competition."
+
+[[run]]
+arm = "on"
+question = "q44"
+seed = 1
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "2 query results"
+answer = "Ahmet_ (player_id 75405) lost **6 sets** to Zivai (Godly, player_id 147982) in 1v1 matches during 2026. While these losses indicate Zivai beat Ahmet_ in those sets, the data does not directly track placements (e.g., Ahmet_ finishing second in an event). The head-to-head record reflects set outcomes, not overall event rankings. \n\nIf the question refers to Ahmet_ losing to Zivai in 1v1 sets (which could correspond to Ahmet_ finishing second in those events), the answer is **6 times**. However, this assumes a direct correlation between set wins/losses and placement, which may not always align with event-specific standings."
+
+[[run]]
+arm = "on"
+question = "q44"
+seed = 2
+verdict = "wrong"
+stage = "SQL logic"
+review = "auto"
+note = "2 query results"
+answer = "Ahmet_ finished second to Zivai (Godly) **6 times** in 2026. This is based on their 1v1 head-to-head record, where Ahmet_ lost 6 sets to Zivai across 7 total matches. Each loss in a 1v1 match typically corresponds to finishing second in that event's bracket. \n\n**Key details:**\n- **6 losses** to Zivai in 1v1 matches (out of 7 total sets played).\n- The matches occurred at events like the Winter, Spring, and Autumn Championships in Europe 2026.\n- Zivai won all 6 sets where Ahmet_ lost, indicating Ahmet_ placed second in those events."
+
+# q45 (retrieval on): who has earned more money, raydish or impala?
+# Expected: Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).
+
+[[run]]
+arm = "on"
+question = "q45"
+seed = 0
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish has earned **$83,825.00** in career earnings according to the data. Impala does not have a recorded earnings figure in the database. Therefore, **Raydish is the only player with a known earnings total** between the two."
+
+[[run]]
+arm = "on"
+question = "q45"
+seed = 1
+verdict = "wrong"
+stage = "empty or insufficient data"
+review = "needs review"
+note = "answered after an empty result; 2 query results"
+answer = "Raydish has earned **$83,825.00** in career earnings, while Impala's earnings are not recorded in the official data. Therefore, **Raydish has earned more money** based on available information."
+
+[[run]]
+arm = "on"
+question = "q45"
+seed = 2
+verdict = ""
+stage = ""
+review = "needs review"
+note = ""
+answer = "Raydish has earned $83,825.00 in career earnings according to the data. Impala's earnings are not recorded in the available data, meaning their career earnings figure is either not tracked or not publicly listed. Therefore, based on the information provided, Raydish has earned more money than Impala."

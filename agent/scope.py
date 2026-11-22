@@ -13,8 +13,9 @@ The scope words, read from what the user wrote (scope):
 
 What satisfies each, in a call (lacking): its own argument (mode, year, since or until, region), or the event argument
 naming it ('winters 2023 na 1v1' holds a year, a region and a mode). A template that can't take a word isn't checked
-for it: head_to_head and event_results take no mode, power_rankings no year, and power_rankings is the present
-itself. The present needs a year or a window, which reading is the model's to choose and say (the prompt's rule).
+for it: event_results takes no mode and team_results only 2v2, power_rankings no year, and power_rankings is the
+present itself. head_to_head without a mode counts as 1v1, its record. The present needs a year or a window, which
+reading is the model's to choose and say (the prompt's rule).
 
 A refused call that the model makes again unchanged runs (Turn.call in react.py): the words may not apply to one step
 of a question about several things, and the model has been told why. Events aren't checked: they reach the calls
@@ -33,6 +34,26 @@ SINCE = re.compile(rf"\b(?:since|after|from|starting(?:\s+in)?)\s+(?:the\s+(?:st
 UNTIL = re.compile(rf"\b(?:before|until|till|through|thru|up\s+to)\s+(?:the\s+end\s+of\s+)?{YEAR}\b", re.I)
 BETWEEN = re.compile(rf"\bbetween\s+{YEAR}\s+and\s+{YEAR}\b|\b{YEAR}\s*(?:-|–|to)\s*{YEAR}\b", re.I)
 ANY_YEAR = re.compile(rf"\b{YEAR}\b")
+# The opponents' side of one player's records: who did best against them, beat them, or whom they lost to (q08 and
+# q40 asked rank_pairs for the player's own side). A record against them is one nobody owns yet ("who has the best
+# record against X", "the best 1v1 record against X"), not X's own: "X's best record against anyone", "X's record
+# vs Y" (q27) and "he doesnt have big records vs raydish" (c1 turn 3) are X's side
+AGAINST = re.compile(r"\b(?:who\s+(?:has|have|had)\s+|the\s+)(?:[\w-]+\s+){0,2}?(?:record|records|win\s*rate)\s+(?:against"
+                     r"|vs\.?|versus|over)\s+(?!any|every|an?\s+opponent|opponents|other|them\b|their\b)\w|\b(?:lost|loses"
+                     r"|lose|losing)\s+(?:to|against)\b|\bbeaten\s+by\b|\bwho\s+(?:has\s+|have\s+|had\s+)?(?:beat|beats|beaten"
+                     r"|defeated)\s+\w", re.I)
+# A player's best placement: player_results with no top, whose best column and results at the best placement answer
+# it. Live, "best placement" was asked with top=1 and answered "no 1st places" (finding 26; c15, audit a03). Not a
+# count such as "top 8 finishes", which needs its top
+BEST = re.compile(r"\b(?:best|highest|peak)\s+(?:(?!\d+\s)[\w-]+\s+){0,2}?(?:placement|placing|finish|result|showing)s?\b",
+                  re.I)
+# Two players' record ("X's record with Y", "X and Y's record") reads as against each other unless the question says
+# they were partners, and the answer says which reading it took (the prompt's rule). In the 2026-11-21 model
+# comparison, qwen3:14b answered c3 turn 1 and qwen3:30b c6 turn 1 with their results as partners, which neither
+# verified answer takes
+RECORD_WITH = re.compile(r"\brecords?\s+with\b|\band\s+(?:[\w-]+\s+)?[\w-]+['’]s?\s+records?\b", re.I)
+TOGETHER = re.compile(r"\b(?:partners?|partnered|partnership|team(?:s|ed|mates?)?|duos?|together|with\s+each\s+other)\b",
+                      re.I)
 PRESENT = re.compile(r"\b(?:right\s+now|currently|these\s+days|nowadays|lately|recently|at\s+the\s+moment|this\s+season)\b",
                      re.I)
 REGION_WORDS = re.compile(r"\b(?:north\s+american?|south\s+american?|southeast\s+asian?|middle\s+east(?:ern)?|europe(?:an)?"
@@ -51,9 +72,13 @@ class Scope:
     until: str | None = None
     regions: list = field(default_factory=list)
     present: str | None = None
+    against: bool = False  # the opponents' side of one player's records (AGAINST)
+    best: bool = False  # a best placement (BEST)
+    pair: bool = False  # two players' record, with no word for partners (RECORD_WITH)
 
     def __bool__(self):
-        return bool(self.mode or self.years or self.since or self.until or self.regions or self.present)
+        return bool(self.mode or self.years or self.since or self.until or self.regions or self.present or self.against
+                    or self.best or self.pair)
 
 
 def scope(question, events):
@@ -75,7 +100,9 @@ def scope(question, events):
     regions = list(dict.fromkeys(found[0] for m in REGION_WORDS.finditer(text)
                                  for found in [events.region(m[0])] if found))
     present = PRESENT.search(text)
-    return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0])
+    return Scope(mode, list(dict.fromkeys(years)), since, until, regions, present and present[0],
+                 bool(AGAINST.search(text)), bool(BEST.search(text)),
+                 bool(RECORD_WITH.search(text)) and not TOGETHER.search(text))
 
 
 def lacking(asked, name, arguments, parameters, events):
@@ -84,11 +111,11 @@ def lacking(asked, name, arguments, parameters, events):
         return []
     out, text = [], str(arguments.get("event") or "").casefold()
     takes = set(parameters)
-    if asked.mode and "mode" in takes:
+    if asked.mode and "mode" in takes and name != "team_results":
         given = str(arguments.get("mode") or "").strip().casefold()
         teams = name == "rank_pairs" and str(arguments.get("of", "")).casefold() in ("teammates", "partners", "teams", "duos")
         mode = ({"1v1": "1v1", "singles": "1v1", "2v2": "2v2", "doubles": "2v2"}.get(given)
-                or ("2v2" if teams else "1v1" if name in ("rank_pairs", "power_rankings", "upsets") else None))
+                or ("2v2" if teams else "1v1" if name in ("rank_pairs", "power_rankings", "upsets", "head_to_head") else None))
         if mode != asked.mode and asked.mode not in text:
             out.append((f"names {asked.mode}", f'mode="{asked.mode}"'))
     if len(asked.years) == 1 and ("year" in takes or name == "event_results"):
@@ -107,6 +134,17 @@ def lacking(asked, name, arguments, parameters, events):
         if not (given and given[0] == code) and not named:
             out.append((f"names {REGIONS[code]}", f'region="{code}"' if "region" in takes
                         else f"the region in event ('... {code}')"))
+    if (asked.against and name == "rank_pairs" and arguments.get("player_id") is not None
+            and str(arguments.get("side") or "").strip().casefold() not in ("opponents", "opponent", "against")):
+        out.append(("asks for the other players' records against that player (who did best against them, or whom they"
+                    " lost to)", 'side="opponents"'))
+    if asked.pair and name == "team_results" and arguments.get("partner_id") is not None:
+        out.append(("asks for two players' record, which reads as against each other unless it says partners or team",
+                    "head_to_head for their record against each other, or this call again if it means them as partners,"
+                    " and say in the answer which reading you took"))
+    if asked.best and name == "player_results" and arguments.get("top") not in (None, ""):
+        out.append(("asks for a best placement", "no top: the best column and the results at the best placement"
+                    " give it"))
     if asked.present and "since" in takes and not any(arguments.get(k) for k in ("year", "since", "until")):
         out.append((f"asks about the present ('{asked.present}')", "a recent window (since) or year, or the official"
                     " Power Rankings (power_rankings)"))

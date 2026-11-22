@@ -50,7 +50,14 @@ legend legends main mains character characters overall total brawlhalla esports 
 finals grand semifinal semifinals round rounds pool pools seed seeding
 """.split())  # the domain's own words: they give a question its shape, and name nothing to look up. 'brawlhalla',
 # 'link' and 'final' are some players' names too: matched as players, they made q05, q33, q34 and q42 ambiguous
-STOP = FUNCTION | DOMAIN
+REQUEST = set("""
+analyze analyse analyzing analysis break breaking breakdown down explain explaining explanation describe summarize
+summarise summary sum compare comparing comparison check checking find search look lookup calculate compute count
+review overview evaluate assess rate rank breakdowns
+""".split())  # what the user asks done with the data, not something in it: live, the no-tool check looked "analyze" up
+# as an event (c15 turn 2, round six's reruns and qwen3:14b in the 2026-11-21 model comparison), and the answer said
+# no event has that name
+STOP = FUNCTION | DOMAIN | REQUEST
 REGIONS = set("north south america americas europe european asia oceania brazil sea na eu sa oce mena aus jpn jp br brz".split())
 YEAR = re.compile(r"(?:19|20)\d\d")
 FORMAT = re.compile(r"\d+v\d+")

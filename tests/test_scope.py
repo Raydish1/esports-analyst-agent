@@ -50,8 +50,42 @@ class ScopeTest(Fixture):
         self.assertEqual(self.lacks("most wins in north america", "rank_players", by="wins"), ["names North America"])
         self.assertEqual(self.lacks("top 8 of winters 2023 na", "event_results", event="winters 2023 na"), [])
 
-    def test_templates_that_cant_take_a_word_arent_checked_for_it(self):
+    def test_the_opponents_side_of_a_players_records_reaches_rank_pairs(self):
+        for question in ("Who has the best record against marckiemoo?", "who has raydish lost to the most in 1v1",
+                         "who has beaten zivai the most", "Who's got the best 1v1 record against Phazon?"):  # q08, q40
+            self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record")[0][:30],
+                             "asks for the other players' re", question)
+            self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="rate", side="opponents"), [])
+        for question in ("whats volst's best record against anyone", "who does megd beat the most",
+                         "volst's best records vs an opponent", "whats bbballoonboy's 1v1 record vs impala",
+                         "he doesnt have big records vs raydish or java or guichabou etc?"):  # q27, c1 turn 3: X's own
+            self.assertEqual(self.lacks(question, "rank_pairs", player_id=1, by="record"), [], question)
+
+    def test_a_best_placement_is_asked_with_no_top(self):
+        for question in ("what's megd's best placement", "what is renivics best placement in 2v2",
+                         "highest finish flowervs has ever had in 2v2"):  # finding 26, c15, audit a03
+            self.assertIn("asks for a best placement", self.lacks(question, "player_results", player_id=1, top=1))
+            self.assertNotIn("asks for a best placement", self.lacks(question, "player_results", player_id=1))
+        self.assertEqual(self.lacks("how many top 8 finishes does megd have", "player_results", player_id=1, top=8), [])
+
+    def test_two_players_record_reads_as_against_each_other_unless_it_says_partners(self):
+        refused = "asks for two players' record, which reads as against each other unless it says partners or team"
+        for question in ("whats raydish's record with kyna", "whats raydish and megd's record",  # c3 and c6 turn 1
+                         "what is phazon and cody travis's record"):
+            self.assertEqual(self.lacks(question, "team_results", player_id=1, partner_id=2), [refused], question)
+            self.assertEqual(self.lacks(question, "head_to_head", player_id=1, opponent_id=2), [], question)
+        for question in ("whats raydish's record with kyna as partners", "raydish and megd's record as a team",
+                         "how did raydish and kyna do together", "who has megd played with in 2v2"):
+            self.assertEqual(self.lacks(question, "team_results", player_id=1, partner_id=2), [], question)
+        self.assertEqual(self.lacks("whats megd's record with partners", "team_results", player_id=1), [])
+
+    def test_a_head_to_head_without_a_mode_is_its_1v1_record(self):
         self.assertEqual(self.lacks("kyna vs yuz in only 1v1", "head_to_head", player_id=1, opponent_id=2), [])
+        self.assertEqual(self.lacks("their 2v2 record", "head_to_head", player_id=1, opponent_id=2),
+                         ["names 2v2"])
+        self.assertEqual(self.lacks("their 2v2 record", "head_to_head", player_id=1, opponent_id=2, mode="2v2"), [])
+
+    def test_templates_that_cant_take_a_word_arent_checked_for_it(self):
         self.assertEqual(self.lacks("who did megd team with in 1v1 events", "team_results", player_id=1), [])
         self.assertEqual(self.lacks("who's #1 in 2024", "power_rankings"), [])
 

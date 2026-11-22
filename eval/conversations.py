@@ -117,7 +117,9 @@ class Turn:
 
     @cached_property
     def evidence(self):
-        """What the number check may cite in this turn's answer: the window's tool results and both questions."""
+        """What the number check may cite in this turn's answer: the window's tool results, both questions, and the
+        line the page showed after the previous turn, as the agent counts it (react.Conversation.shown). Without the
+        line, qwen3:14b's right "TOP 8: 51" from Phazon's card failed c14 turn 2 (the 2026-11-21 model comparison)."""
         found = Evidence()
         for t in self.window:
             found.ask(t["question"])
@@ -128,6 +130,9 @@ class Turn:
                         found.observe(observation)
                         if "error" not in observation:
                             found.call(c["arguments"])
+        if self.previous and self.previous.get("shown"):
+            for part in react.page_rows(self.previous["shown"]):
+                found.observe({"shown": part})
         return found
 
     @cached_property
@@ -201,14 +206,35 @@ def not_looked_up(turn, words):
 WON_LOST = re.compile(r"\b(?:w[oi]n(?:s|ning)?|lost|los(?:s|ses|ing))\b")
 
 
+ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+MODE = re.compile(r"\b\d+v\d+\b")
+
+
+def record_pieces(answer):
+    """(what a piece is about, the piece) for each sentence or line of the answer. A list item is about what the line
+    introducing its list says too, unless it names a mode of its own: qwen3:14b's right 1v1 record in c14 turn 1 put
+    "1v1 sets" in its lead-in and the record in "- Cody Travis: 1 win (7 games), 5 losses (15 games)" (the 2026-11-21
+    model comparison)."""
+    lead = ""
+    for line in re.sub(r"[*_`]", "", stated(answer)).casefold().split("\n"):
+        if not line.strip():
+            continue
+        if ITEM.match(line):
+            yield (line if MODE.search(line) else f"{lead} {line}"), line
+            continue
+        lead = line
+        for sentence in re.split(r"(?<=[.!?])\s+", line):
+            yield sentence, sentence
+
+
 def says_record(turn, spec):
     """Whether one sentence or list item of the answer has one of spec's `about` words and states its `record` [a, b]:
     'a-b' (or with a dash), or a, then b, with a word for winning or losing. c3 turn 2's right answers wrote the 2v2
     record as "won 2 sets, lost 3 sets" and "2 wins, 3 losses", and a wrong one restated the 1v1 record, whose sets
     hold a 2 and a 3 too (decided 2026-11-20). What the answer asks and its code don't count (number_check.stated)."""
     a, b = map(str, spec["record"])
-    for piece in re.split(r"(?<=[.!?])\s+|\n", re.sub(r"[*_`]", "", stated(turn.answer)).casefold()):
-        if not any(word.casefold() in piece for word in spec["about"]):
+    for about, piece in record_pieces(turn.answer):
+        if not any(word.casefold() in about for word in spec["about"]):
             continue
         if re.search(rf"(?<![\w.]){a}\s*[-–—]\s*{b}(?!\w|\.\d)", piece):
             return True, ""
@@ -307,16 +333,18 @@ def play(spec, conversation):
     return out
 
 
-def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
-    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes."""
+def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print, model=None):
+    """Play every conversation once per seed, appending each as it finishes; a rerun with the same run_id resumes.
+    model is react.MODEL unless given: everything else stays as the agent has it, for a model comparison."""
     react.load_env()
+    model = model or react.MODEL
     retriever = react.retriever_or_exit(examples_on, lambda message: sys.exit(message))
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = harness.RAW / run_id
     out.mkdir(parents=True, exist_ok=True)
     path = out / "conversations.jsonl"
     done = {(r["id"], r["seed"]) for r in map(json.loads, path.read_text(encoding="utf-8").splitlines())} if path.exists() else set()
-    header = react.run_header(run_id, seeds=seeds, title=f"Conversations: run {run_id}",
+    header = react.run_header(run_id, model=model, seeds=seeds, title=f"Conversations: run {run_id}",
                               examples=react.examples_header(examples_on))
     where = Path(set_path).resolve()
     header.update(arm="on" if examples_on else "off", heldout=bool(data.get("heldout")),
@@ -329,7 +357,7 @@ def run(data, set_path, seeds, examples_on, run_id=None, ids=None, log=print):
     for n, (seed, spec) in enumerate(todo, 1):
         for attempt in range(1, harness.TRIES + 1):  # a conversation that fails isn't written, so it starts afresh
             try:
-                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, model=react.MODEL,
+                conversation = react.Conversation(tools, log=lambda *_: None, retriever=retriever, model=model,
                                                   think=True, seed=seed)
                 turns = play(spec, conversation)
                 break
@@ -469,6 +497,7 @@ def main():
     go.add_argument("--examples", choices=["on", "off"], default="on")
     go.add_argument("--ids", nargs="+", help="conversation ids, such as c1 c3")
     go.add_argument("--run", help="a run id to resume")
+    go.add_argument("--model", help="the Ollama model to run (default: the agent's, react.MODEL)")
     scoring = commands.add_parser("score", help="score each turn of a run")
     scoring.add_argument("run")
     reporting = commands.add_parser("report", help="each turn's result per seed, a column per run")
@@ -490,7 +519,7 @@ def main():
             sys.exit(1)
         return
     if args.command == "run":
-        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids))
+        print(run(data, args.set, args.seeds, args.examples == "on", args.run, args.ids, model=args.model))
         return
     db = sqlite3.connect(harness.SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     names = dict(db.execute("SELECT player_id, name FROM players"))

@@ -577,7 +577,7 @@ FROM v_results WHERE player_id IN (117179, 147522) GROUP BY player_id, mode
 
 **Expected:** 4, as partners at official events, of the 24 2v2 events they entered together: the North America - Summer Championship 2020 (2020-06-27), the North America - SteelSeries Championship (2020-08-15), the North America - Autumn Championship 2020 (2020-09-19) and the North America - Winter Championship 2021 (2021-03-13). Live, a run_sql query with an unparenthesized OR counted all 24 events as wins.
 
-**Checks:** says_numbers [4]; players [117179, 147522]; grounded and named (every turn)
+**Checks:** says_numbers [4]; rows [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]; grounded and named (every turn)
 
 **Query 1:** their 2v2 events together: how many, and their wins, medals and top 8s together
 
@@ -626,9 +626,9 @@ FROM v_results WHERE player_id IN (117179, 147522) AND mode = '2v2' GROUP BY pla
 
 ### Turn 5: so why did you say cody travis and phazon have won 24 2v2 tournaments
 
-**Expected:** About the agent's own earlier answer, checked again: they won 4 2v2 events together, of the 24 they entered together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). Live, the loop looked up "say cody travis 24" as an event.
+**Expected:** About the agent's own earlier answer: they won 4 2v2 events together, of the 24 they entered together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). The figures may come from a new call or from the previous turn's results. Live, the loop looked up "say cody travis 24" as an event.
 
-**Checks:** says_numbers [4]; not_looked_up ["say", "24"]; players [117179, 147522]; grounded and named (every turn)
+**Checks:** says_numbers [4]; not_looked_up ["say", "24"]; rows [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]; grounded and named (every turn)
 
 **Query 1:** their 2v2 events together, and their wins together
 
@@ -1164,9 +1164,9 @@ From 20261121T045117Z-002, turn 1.
 
 ### Turn 1: whats the biggest head to head record in 1v1
 
-**Expected:** By the 1v1 sets between two players at official events: SiB | Wess and lFiend, and yüz and whoiskyna, tied at 34 sets (Wess 15-19, yüz 17-17), then gdsandstorm and Boomie, 28 (gdsandstorm 19-9), and Remmy and noeL, 25 (Remmy 10-15). No player IDs beside the names, and no closing line saying something was left out. Live, "the top two tied at 34 sets" was cut for its "two", and every name had its ID.
+**Expected:** By the 1v1 sets between two players at official events: SiB | Wess and lFiend, and yüz and whoiskyna, tied at 34 sets (Wess 15-19, yüz 17-17). The question asks for the biggest, so the next pairs may be left out: gdsandstorm and Boomie, 28 (gdsandstorm 19-9), and Remmy and noeL, 25 (Remmy 10-15). Each record as the rows give it. No player IDs beside the names, and no closing line saying something was left out. Live, "the top two tied at 34 sets" was cut for its "two", and every name had its ID. In the 2026-11-21 model comparison, qwen3:14b read the 34 sets as Wess's wins (34-15).
 
-**Checks:** calls ["rank_pairs"]; says_numbers [34, 28]; not_says ["(37977)", "(148891)", "I left out"]; grounded and named (every turn)
+**Checks:** calls ["rank_pairs"]; says_numbers [34, 15, 19, 17]; not_says ["(37977)", "(148891)", "I left out"]; grounded and named (every turn)
 
 **Query 1:** the pairs with the most 1v1 sets between them
 
@@ -1221,9 +1221,9 @@ GROUP BY opponent ORDER BY wins DESC, losses ASC LIMIT 11
 
 ### Turn 2: whats volsts best records vs an opponent without the 5 set minimum
 
-**Expected:** The same ranking, with no minimum: woolala 3-0, then the nine at 2-0. Any other record it gives is volst's side: 1-2 against Raydish and against antireplay, 0-4 against Bunny meow. No "Corrected Answer" and no talk of a previous answer. Live, it ranked by sets played, wrote volst 2-1 against Raydish and antireplay, and opened "**Corrected Answer:**".
+**Expected:** The same ranking, with no minimum: woolala 3-0, then the nine at 2-0. Ranked by record, or by win rate with no minimum, which puts woolala's 3-0 first too. Any other record it gives is volst's side: 1-2 against Raydish and against antireplay, 0-4 against Bunny meow. No "Corrected Answer" and no talk of a previous answer. Live, it ranked by sets played, wrote volst 2-1 against Raydish and antireplay, and opened "**Corrected Answer:**".
 
-**Checks:** calls_with [{"tool": "rank_pairs", "player_id": 162675, "by": "record"}]; not_says ["Corrected Answer", "previous answer", "[Opponent"]; says_record {"record": [3, 0], "about": ["woolala"]}; grounded and named (every turn)
+**Checks:** calls_with [{"tool": "rank_pairs", "player_id": 162675, "by": "record"}, {"tool": "rank_pairs", "player_id": 162675, "by": "rate", "min_sets": 1}]; not_says ["Corrected Answer", "previous answer", "[Opponent"]; says_record {"record": [3, 0], "about": ["woolala"]}; grounded and named (every turn)
 
 ### Turn 3: what are the three sets that volst vs'd raydish
 

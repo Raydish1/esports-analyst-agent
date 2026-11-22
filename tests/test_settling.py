@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "agent"))
 import settling  # noqa: E402
-from settling import Context  # noqa: E402
+from settling import Context, Settled  # noqa: E402
 from test_agent import Fixture  # noqa: E402  the tiny database: Raydish (11) and Zivai (19) have 6 results, megD (7) 2
 
 RAYDISH, RADSES, RADISH = ({"player_id": 11, "name": "Raydish", "display": "Raydish", "score": 0.85},
@@ -90,6 +90,21 @@ class CuesTest(Fixture):
                           "top 5 2v2 players in brawlhalla history what about cody travis and raydish?"))
         self.assertEqual(self.settle("what about zivai vs godly").players, [("Zivai", 19)])  # Godly is Zivai: once
 
+    def test_a_follow_up_naming_players_after_a_ranking_keeps_its_measure(self):  # c8 turn 2, every model
+        calls = [{"name": "rank_players", "arguments": {"by": "medals", "mode": "2v2", "top": 5},
+                  "observation": json.dumps({"tables": []})}]
+        ranked = settling.after({"steps": [{"tool_calls": calls}]}, Settled("top 5 2v2 players", "top 5 2v2 players"))
+        self.assertEqual(ranked.ranking, "rank_players by medals, in 2v2")
+        settled = self.settle("what about cody travis and raydish?", ranked)
+        self.assertIn('This continues the previous question, "top 5 2v2 players", a ranking (rank_players by medals, in'
+                      ' 2v2), now about Cody Travis (player_id 21) and Raydish (player_id 11): keep its measure, each'
+                      " one's own figure by it (player_results gives a player's), not a record against or with each"
+                      " other.]", settled.text)
+        self.assertEqual(settling.ranking("rank_pairs", {"of": "teammates"}), "rank_pairs of teammates by events")
+        self.assertEqual(settling.ranking("head_to_head", {"player_id": 1}), "")
+        self.assertNotIn("measure", self.settle("what about cody travis and raydish?",
+                                                Context("top 5 2v2 players")).text)  # no ranking was called
+
     def test_a_question_about_the_previous_answer_gets_a_note_to_check_it_again(self):
         partners = Context("who has megd played with in 2v2", players=[("megD", 7)])
         settled = self.settle("there are not that many events", partners)  # live: repeated the answer, no lookup
@@ -116,6 +131,12 @@ class CuesTest(Fixture):
         plain = Context("cody travis vs phazon head to head", players=[("Raydish", 11)])  # the page showed nothing
         self.assertEqual(self.settle("show me raydish on a card", plain).how, "as asked")
         self.assertEqual(self.settle("where does that 4 come from?", plain).how, settling.DISPUTED)  # any answer's
+        doubted = self.settle("are you sure? you just said raydish has 4 medals in the graphic", card)  # c8 turn 4
+        self.assertEqual((doubted.how, doubted.card), (settling.DISPUTED, True))  # checked again with the tools, about
+        # the page's figures, so a recheck that calls no tool has player_results run for its players (react.py)
+        self.assertFalse(self.settle("where does that 4 come from?", plain).card)
+        self.assertIn('This questions what the page showed beside your answer to the previous question, "cody travis vs'
+                      ' phazon head to head"', doubted.text)
 
     def test_a_message_that_names_a_player_or_refers_to_nothing_is_as_asked(self):
         for message in ["rank the top 5 players by official 1v1 wins", "has raydish won worlds", "thanks"]:

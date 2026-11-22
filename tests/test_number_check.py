@@ -215,6 +215,9 @@ VOLST = {"template": "rank_pairs", "tables": [{"what": "volst's opponents", "col
          "opponent", "opponent_id", "sets", "player_wins", "opponent_wins"],
          "rows": [[1, "volst", 162675, "Raydish", 160000, 3, 1, 2], [1, "volst", 162675, "woolala", 170001, 3, 3, 0]]}]}
 SIDE_NAMES = {"volst": "volst", "raydish": "Raydish", "woolala": "woolala"}
+AGAINST_VOLST = {"template": "rank_pairs", "tables": [{"what": "records against volst, each from its player's side",
+                 "columns": ["rank", "player", "player_id", "sets", "wins_vs_volst", "losses_vs_volst"],
+                 "rows": [[1, "Raydish", 160000, 3, 2, 1], [2, "woolala", 170001, 3, 0, 3]]}]}
 
 
 class RecordSideTest(unittest.TestCase):
@@ -230,6 +233,13 @@ class RecordSideTest(unittest.TestCase):
         self.assertEqual(self.flagged("volst and Raydish have a 1-2 record.", VOLST), [])  # the first of them
         self.assertEqual(self.flagged("volst does best against **woolala** (3-0) and **Raydish** (1-2).", VOLST), [])
         self.assertEqual(self.flagged("- **Winner**: Raydish (2-1)", VOLST, subject="volst"), [])  # his own score
+
+    def test_a_list_under_records_against_the_subject_is_read_from_each_listed_players_side(self):
+        listed = "Records against volst:\n1. **Raydish** (3 sets, 2-1)\n2. **woolala** (3 sets, 0-3)"  # a28's shape
+        self.assertEqual(self.flagged(listed, AGAINST_VOLST, subject="volst"), [])
+        self.assertEqual(self.flagged("1. **Raydish** (3 sets, 1-2)", AGAINST_VOLST, subject="volst"), [("1-2", True)])
+        self.assertEqual(self.flagged("volst is 1-2 against Raydish.", AGAINST_VOLST), [])  # both sides are read
+        self.assertEqual(self.flagged("volst is 2-1 against Raydish.", AGAINST_VOLST), [("2-1", True)])
 
     def test_a_record_written_the_other_way_round_for_its_player_goes_back(self):
         self.assertEqual(self.flagged("volst is 2-1 against Raydish.", VOLST), [("2-1", True)])  # live, finding 34

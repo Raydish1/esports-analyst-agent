@@ -297,6 +297,135 @@ Built in round five:
   left-out line (c18); placeholders and woolala's 3-0 (c19 turn 1); `by="record"`, "Corrected Answer" and the
   record (turn 2); "dominates" and "as requested" (turn 3).
 
+## Round six (2026-11-21): the fixes the runs pointed to
+
+The user approved the seven fixes the 2026-11-21 runs point to, the `rank_pairs` regression first, and accepted a
+right answer taken from the previous turn's results for c8. Built offline, and the reruns wait for the user.
+
+- **The opponents' side of a player's records** (q08 3 of 3 lost, q40 2 of 3, audit a28 2 of 3). Round five's
+  `rank_pairs(by="record")` ranks a player's own records, and the model used it for "who has the best record
+  against marckiemoo" and "who has raydish lost to the most", which ask for the other players' records against them.
+  - `rank_pairs` now takes `side="opponents"` with a `player_id`. Each row is another player's record against them,
+    from that player's side. `by="rate"` ranks by win rate, with at least 5 sets unless `min_sets` says otherwise,
+    which is the decided counting rule q08's verified answer rests on.
+  - The prompt maps those questions to it. Its line telling the model to use `run_sql` for them hadn't held, so the
+    scope check also refuses a `rank_pairs` call with a player and no `side="opponents"`, once, when the question
+    asks for that side. That's "record against X", "lost to" or "who beat X", but not "against anyone".
+  - A record against X counts only when nobody owns it yet: "who has the best record against X", "the best 1v1
+    record against X". "X's record vs Y" (q27) and "he doesnt have big records vs raydish" (c1 turn 3) are X's own,
+    so they aren't refused. This was found while choosing the reruns. On the 59 recorded `rank_pairs` calls, the
+    2026-11-21 runs included, both versions refuse the same 6.
+  - On eval-v1 both match their verified answers. Against Marckiem00 by rate it's V3M_T4NQUIL0 3-2 (60%), Raydish 6-7
+    (46%) and gdsandstorm 4-7 (36%). Whom Raydish lost to most is gdsandstorm 10, luna 8, then Marckiem00 7.
+  - Replayed on the 44 distinct recorded `rank_pairs` calls: the rule refuses the 6 of q08, q40 and a28, and nothing
+    else. An empty ranking now says which minimum emptied it.
+- **A best placement asked with no `top`** (audit a03 3 of 3, c15 turn 1 2 of 3). The prompt and the description
+  already said a best placement is `player_results` with no `top`, and the model still asked `top=1`. So the scope
+  check refuses once a `player_results` call with a `top` when the question asks for a best or highest placement,
+  finish or result. It skips counts such as "top 8 finishes", which need their `top`. Replayed on the 85 distinct
+  recorded `player_results` calls, it refuses exactly the two (a03's and c15's `top=1`).
+- **A ranking with a condition** (audit kind 7, 6 of 6). `rank_players` takes `never_won`. It leaves out the players
+  who ever won an official event ("any"), or the events a name means ("worlds"), in the ranking's mode when it has
+  one, and the scope says so. Any other condition stays with `run_sql`. On eval-v1 the most top 8s without a win are
+  sphynx. 36, Goddess 33 and hermisen 32. The most 1v1 wins among players who never won a 1v1 Worlds go to Zivai,
+  with 23, then acno? and whoiskyna with 13. Each takes 0.3 s.
+- **A player's sets at an event** (audit a39, 3 of 3). "who did zivai lose to at bcx 2023" had no tool, so the model
+  called `head_to_head` without an opponent. The new `player_sets` gives one player's sets from their side, each with
+  its event, date, opponent, result and score, oldest first, and a summary of wins and losses. It takes
+  `result="won"` or `"lost"`, 1v1 or 2v2, and the year, window, region and event filters. A long list is left out
+  with its count. On eval-v1, Zivai at BCX 2023 in 1v1 played 10 sets, won 8 and lost 2, both 1-3, to yüz and
+  whoiskyna. The live answer had named Kuroyuri. In 2v2 he won all 8 with Pink | Zen.
+- **Dominance and flawless wins** (audit a35, 3 of 3). "who won an event without dropping a game" was looked up as an
+  event's name. The new `dominant_wins` ranks official wins by the decided rule: the fewest games lost, then the
+  fewest sets dropped, then the most games won. A run with an unscored set comes after every fully scored one, a note
+  names any that would have ranked near the top, and crew battles are left out. `flawless=true` keeps every win
+  without a dropped game. It takes a player, a mode, and the year, window, region and event filters.
+  - On eval-v1, Raydish's most dominant win is Trial of Laufey NA (Moose Wars), 25 games to 2, which is q11's verified
+    answer. The 1v1 wins without a dropped game number 19, among them gdsandstorm's Mammoth Cup 2020 at 29-0.
+  - ex23 shows the call.
+- **Earnings named among the tools** (q05, 2 of 3 lost). The model said no tool covers earnings, though the
+  catch-all line named them under `run_sql`. "Choosing a tool" now has its own line: a player's career earnings or
+  the top earners come from `run_sql` on `v_career_earnings`, one figure per player, and a missing row isn't $0. The
+  catch-all drops what templates now answer, such as records against a player, sets at an event and dominance.
+- **The card kept as long as its note** (c8 turn 4, 3 of 3). The history keeps the page's note with its answer for the
+  rest of the conversation, but the settling context forgot the card after one turn. "are you sure? you just said
+  phazon has 12 medals and cody travis has 6 medals in 2v2 in the graphic" came two turns after the card, so it was
+  settled as a dispute of the previous answer (their 4 wins together), and every seed checked that instead of the
+  card's figures.
+  - The context now keeps the card, and the question it was shown beside, until a newer card. A page question names
+    that question ("beside your answer to an earlier question, ...").
+  - Doubt in a page question ("are you sure", "you just said", "that's wrong") makes it a dispute about the card's
+    figures: checked again with the tools, as every dispute is, then stated plainly, with whether the user reads them
+    right. A question asking where a figure comes from keeps the page's own note (finding 32). So the cues that doubt
+    (`settling.DOUBTS`) are now apart from those that ask for a source ("where does ... come from", "why did you
+    say").
+  - Replayed on the 144 recorded turns of the 2026-11-21 run, only c8 turn 4's note changes, in all three seeds.
+- **c8's check reads the window** (the user's decision, 2026-11-21). c8 turns 3 and 5 answered right in every seed
+  ("4 tournaments", "24 is the events") from the previous turn's `team_results`, with no new call. Their `players`
+  check reads only the turn's own calls, so it failed them. The user accepted a right answer taken from the previous
+  turn's results.
+  - Both turns now have a `rows` check, which reads the window: a row holding either player with their 24 events
+    together and 4 wins. A `players` check on the window would still have failed seed 1, whose row came from Cody
+    Travis's list of every partner, a call that never names Phazon.
+  - Turn 4 keeps `players`: its verified answer checks the card's figures again with a tool.
+  - Rescored offline, the 2026-11-21 run gives 109 of 144 turns, from 103: c8 turns 3 and 5 in all three seeds, and
+    no other turn.
+
+## Round seven (2026-11-21): the model comparison's fixes
+
+After the model comparison (in the log), the user made qwen3:30b the default model and approved fixes 1-10, with
+four more and two for qwen3:30b's answer writing. They skipped the empty-reply fix, which only qwen3:14b needed. All
+were built offline, one commit each, from 2cf5fc5 to c80fe6d, and each was replayed on the recorded runs where it
+could be. The reruns wait for the user.
+
+- **The model.** `react.MODEL` is qwen3:30b (d733144). The harness, the conversation runner and `ask.py` read it, and
+  so does the web app (`app/server/runner.py` on claude/web-app), once that branch has the commit.
+- **Scoring**, so the reruns measure what happened:
+  - the conversation scorer's grounded check counts the page's card line as the agent does, through one function
+    both call (`react.page_rows`). That changes one recorded check, 14b's c14 turn 2;
+  - `says_record` reads a list item with the line that introduces it, unless the item names a mode of its own. That
+    changes 3 recorded turns, all c14 turn 1 with a right 1v1 record;
+  - c18 turn 1 asks for the tied top's own figures (34 sets, 15-19 and 17-17) instead of the third pair's 28, and c19
+    turn 2 accepts `by="rate"` with `min_sets=1`, which puts woolala's 3-0 first too. Neither is verified.
+- **M2, the tools:**
+  - `rank_pairs` takes no default minimum on a player's own records. The 5-set default stays for `side="opponents"`,
+    the decided rule q08 rests on. A minimum that empties a ranking gets a note with the most sets any pair has
+    ("4, volst with Bunny meow"), and the advice to call again without it. That covers 14b and 30b setting
+    `min_sets=5` themselves on c19 turn 1;
+  - the opponents' side's record columns say whose they are (`wins_vs_Raydish`, `losses_vs_Raydish`), without the
+    column that always held the player asked about. The record check reads them from both sides, and in a list
+    under such a table it reads each record as the listed player's own (a28's false send-back);
+  - `head_to_head` and `team_results` take `mode`, which qwen3:8b passed 17 times and had refused. `head_to_head`
+    gives one mode's part, and `team_results` refuses 1v1, pointing to `head_to_head`. The scope check reads
+    `head_to_head` without a mode as its 1v1 record;
+  - `dominant_wins` counts its runs in two queries instead of `v_win_runs`' six subqueries per win. The longest call
+    takes 7.9 s with the agent's x64 Python (it took over 30 s), with the same observation as before wherever the old
+    one finished. A stopped template suggests a mode before an event;
+  - `event_results` says when a name covers both a 1v1 and a 2v2 event, to answer for both or say which one (30b's
+    q10 and q19);
+  - the audit's six checks that asked for `run_sql` accept round six's templates.
+- **M1, reading the question:**
+  - the prompt says when the data's latest results are (2026-09-27, read from the snapshot), so no event in it reads
+    as still to come (30b's q15);
+  - two players' record ("X's record with Y", "X and Y's record") reads as against each other unless the question
+    says partners or team, and the answer says which reading it took. The scope check refuses a `team_results` call
+    with a partner once for such a question. Replayed on the 22 recorded calls with a partner, it refuses exactly 14b's
+    c3 turn 1 and 30b's c6 turn 1.
+- **M4, the conversation:**
+  - when a recheck still calls no tool after its one send-back, the loop runs again the calls the questioned answer
+    rested on (`react.rested_on`): `player_results` for each player of a disputed card; else the latest earlier data
+    call whose result holds every disputed number, one naming the dispute's players first; else the previous turn's
+    data calls. Replayed on the 16 recorded rechecks, c10 turn 2 gets `team_results` for megD and c8 turn 5 a
+    `team_results` call holding Cody Travis and Phazon's 24 events, every time;
+  - a follow-up naming players after a ranking keeps its measure: the note names the ranking call ("rank_players by
+    wins, in 2v2") and says to give each one's own figure by it (c8 turn 2, which every model read as a partnership);
+  - request words ("analyze", "break down", "compare") aren't content words, so they're never looked up (c15 turn 2).
+- **M5, answer writing:** a misspelling of a name a tool returned is put right in code, as the names correction is,
+  and traced as a swap. Replayed on 921 recorded answers, it makes 3 swaps, each a real misspelling ("yüx" to yüz,
+  "BballoonBoy" and "BBalloonBoy" to BBBalloonBoy).
+
+The unit tests (526) and `retrieval.py check` (35 examples) pass.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -318,22 +447,28 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 | Page questions are settled as disputes, which require a re-check with a tool. | The user's direction: a question about what the page showed is one about the agent's own answer. |
 | The possessive retry is built and c9 is left as verified. | The user asked for the retry. c9's change is theirs to make, so it's listed below. |
 | Streaks, upsets and rankings with a condition aren't built. | Streaks and upsets need a definition, and conditions have `run_sql`. They're listed in the audit. |
+| A characterization such as "dominates" is supported when the record behind it has at least twice as many wins as losses and is at least 2 wins ahead (2026-11-21). | Proposed as the reading of finding 35's "stronger than the record supports", and accepted by the user on 2026-11-21. |
+| A page question with words of doubt is a dispute about the card's figures, and one asking where a figure comes from keeps the page's note (2026-11-21). | c8 turn 4's verified answer checks the figures again with a tool. Finding 32's asks for an explanation, not a defense of the answer. |
+| The scope check, not only the prompt, enforces the opponents' side and a best placement (2026-11-21). | The prompt already said both, and the model didn't follow it. A refusal once is the existing mechanism, and it can't block a call made again. |
+| A recheck with no call has the loop run the calls the answer rested on, found by the disputed numbers, not by the model (2026-11-21). | Every model in the comparison left a recheck unchecked after the send-back. The numbers the user disputes name the result they came from. |
+| Two players' record reads as against each other unless the question says partners, enforced by a refusal once (2026-11-21). | Both verified answers (c3 and c6 turn 1) take the head-to-head. The user asked that the answer name its reading. |
+| A misspelled returned name is corrected in code, never sent back (2026-11-21). | One letter off exactly one player in view, and no player's name itself, it's a typo. Sending back costs a call, and the names correction already works in code. |
+| A follow-up after a ranking gets the ranking's measure in its note, not a new tool (2026-11-21). | `player_results` already gives each player's figure. A rank for a player would need a new argument on `rank_players`. |
 
 ## Waiting on the user
 
+- The go-ahead for round seven's reruns with qwen3:30b (below, under Runs).
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
-- One design call of round five to look at: a characterization such as "dominates" is supported when the record has
-  at least twice the losses in wins and is 2 wins ahead. That's my reading of the finding's "stronger than the record
-  supports", not a definition you gave.
+
 - A definition for streaks (events in a row? in one mode?), if that kind should get a template. Upsets were defined
   on 2026-11-21 (round five).
 
-## Runs wanted
+## Runs
 
-None has been made. They wait for the end of the user's live test, and are asked for once, together. Each is
-resumable, and they're listed in the order they're worth:
+All five were made on 2026-11-21, at the user's go-ahead after their live test. The results and the fixes they
+point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured). They were:
 
 1. The before run of c8-c13 at 3d42613, as agreed on 2026-11-20 (`py -3.14 eval/conversations.py run --seeds 0 1 2
    --ids c8 c9 c10 c11 c12 c13`, from a checkout of 3d42613).
@@ -344,3 +479,40 @@ resumable, and they're listed in the order they're worth:
 4. The audit set, seeds 0-2 (`py -3.14 eval/audit.py run --seeds 0 1 2`), then `python eval/audit.py report RUN`.
    This gives the failures by mechanism on questions nothing was tuned on.
 5. `py -3.14 agent/retrieval.py measure`, for the two new examples' effect on retrieval.
+
+### Round seven's reruns
+
+For the user's go-ahead, all with qwen3:30b, now the default, at the latest commit, seeds 0-2, in the worktree with
+its own `data/rag`. The minutes are estimated from the comparison's pace (17.6 s per question, 19.2 s per turn).
+
+1. The 45 questions, by id (never `--all`), about 40 minutes: `py -3.14 eval/harness.py run --ids q01 ... q45 --seeds
+   0 1 2`.
+2. All 19 conversations, about 46 minutes: `py -3.14 eval/conversations.py run --seeds 0 1 2`.
+3. The audit set, 51 questions (54 turns), about 52 minutes: `py -3.14 eval/audit.py run --seeds 0 1 2`, then `python
+   eval/audit.py report RUN`.
+
+### Round six's reruns
+
+Reruns 1-3 ran on 2026-11-21 at 2aecbc7. They don't look right (in the log), so rerun 4 hasn't run. The user had
+the model comparison that was to replace it run anyway at the same agent code, before the fixes (in the log, "the
+model comparison").
+
+Each runs at the latest commit, seeds 0-2, in a worktree with its own `data/rag`, since the example bank changed
+(ex23). The minutes are estimated from the 2026-11-21 runs' pace.
+
+1. The affected conversations, 20 turns, about 22 minutes: `py -3.14 eval/conversations.py run --seeds 0 1 2 --ids
+   c1 c8 c14 c15 c16 c18 c19`.
+   - c8 is for the card and its window check, c15 for a best placement, and c19 for records and a player's sets.
+   - c1 is for the narrowed opponents' side ("records vs raydish"), and c14 for a question about where a card's
+     figure comes from.
+   - c16 and c18 are for the most-played opponents and the biggest head-to-head, which the changed tool lines are
+     near.
+2. The targeted questions and their controls, 13, about 13 minutes: `py -3.14 eval/harness.py run --ids q05 q08 q11
+   q40 q04 q09 q20 q23 q27 q33 q37 q44 q45 --seeds 0 1 2` (never `--all`).
+   - The targets are q05, q08, q11 and q40.
+   - The controls are the earnings questions (q09, q33, q45), the head-to-heads (q04, q23, q27), q20 (a set's
+     details, near `player_sets`), q37 (a ranking with no condition) and q44.
+3. The audit's affected kinds, 16 questions, about 14 minutes: `py -3.14 eval/audit.py run --seeds 0 1 2 --ids a03
+   a04 a14 a15 a28 a29 a50 a32 a33 a51 a34 a35 a38 a39 a42 a43`. These are kinds 2, 7, 14, 16, 17, 19 and 21.
+4. If those look right, the 45 questions in full, about 43 minutes, as the regression check: every question sees
+   the prompt's changed tool lines.

@@ -518,7 +518,9 @@ Championship 2020 (2020-09-19) and the North America - Winter Championship 2021 
 with an unparenthesized OR counted all 24 events as wins.
 """
 says_numbers = [4]
-players = [117179, 147522]
+# a right answer may be taken from the previous turn's results (decided by the user 2026-11-21): the window holds
+# their 24 events together and 4 wins, from either player's side
+rows = [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]
 
 [[conversation.turn.query]]
 purpose = "their 2v2 events together: how many, and their wins, medals and top 8s together"
@@ -556,13 +558,13 @@ FROM v_results WHERE player_id IN (117179, 147522) AND mode = '2v2' GROUP BY pla
 [[conversation.turn]]
 say = "so why did you say cody travis and phazon have won 24 2v2 tournaments"
 expect = """
-About the agent's own earlier answer, checked again: they won 4 2v2 events together, of the 24 they entered \
-together, so an answer that said 24 counted every event they entered (if no answer said 24, it says so). Live, the \
-loop looked up "say cody travis 24" as an event.
+About the agent's own earlier answer: they won 4 2v2 events together, of the 24 they entered together, so an \
+answer that said 24 counted every event they entered (if no answer said 24, it says so). The figures may come from \
+a new call or from the previous turn's results. Live, the loop looked up "say cody travis 24" as an event.
 """
 says_numbers = [4]
 not_looked_up = ["say", "24"]
-players = [117179, 147522]
+rows = [[[147522, "Phazon", 117179, "Cody Travis"], 24, 4]]  # from the window, as turn 3's (2026-11-21)
 
 [[conversation.turn.query]]
 purpose = "their 2v2 events together, and their wins together"
@@ -1028,12 +1030,14 @@ verified = ""
 say = "whats the biggest head to head record in 1v1"
 expect = """
 By the 1v1 sets between two players at official events: SiB | Wess and lFiend, and yüz and whoiskyna, tied at 34 sets \
-(Wess 15-19, yüz 17-17), then gdsandstorm and Boomie, 28 (gdsandstorm 19-9), and Remmy and noeL, 25 (Remmy 10-15). No \
-player IDs beside the names, and no closing line saying something was left out. Live, "the top two tied at 34 sets" \
-was cut for its "two", and every name had its ID.
+(Wess 15-19, yüz 17-17). The question asks for the biggest, so the next pairs may be left out: gdsandstorm and \
+Boomie, 28 (gdsandstorm 19-9), and Remmy and noeL, 25 (Remmy 10-15). Each record as the rows give it. No player IDs \
+beside the names, and no closing line saying something was left out. Live, "the top two tied at 34 sets" was cut for \
+its "two", and every name had its ID. In the 2026-11-21 model comparison, qwen3:14b read the 34 sets as Wess's wins \
+(34-15).
 """
 calls = ["rank_pairs"]
-says_numbers = [34, 28]
+says_numbers = [34, 15, 19, 17]
 not_says = ["(37977)", "(148891)", "I left out"]
 
 [[conversation.turn.query]]
@@ -1073,12 +1077,13 @@ GROUP BY opponent ORDER BY wins DESC, losses ASC LIMIT 11
 [[conversation.turn]]
 say = "whats volsts best records vs an opponent without the 5 set minimum"
 expect = """
-The same ranking, with no minimum: woolala 3-0, then the nine at 2-0. Any other record it gives is volst's side: 1-2 \
-against Raydish and against antireplay, 0-4 against Bunny meow. No "Corrected Answer" and no talk of a previous \
-answer. Live, it ranked by sets played, wrote volst 2-1 against Raydish and antireplay, and opened "**Corrected \
-Answer:**".
+The same ranking, with no minimum: woolala 3-0, then the nine at 2-0. Ranked by record, or by win rate with no \
+minimum, which puts woolala's 3-0 first too. Any other record it gives is volst's side: 1-2 against Raydish and \
+against antireplay, 0-4 against Bunny meow. No "Corrected Answer" and no talk of a previous answer. Live, it ranked by \
+sets played, wrote volst 2-1 against Raydish and antireplay, and opened "**Corrected Answer:**".
 """
-calls_with = [{ tool = "rank_pairs", player_id = 162675, by = "record" }]
+calls_with = [{ tool = "rank_pairs", player_id = 162675, by = "record" },
+              { tool = "rank_pairs", player_id = 162675, by = "rate", min_sets = 1 }]
 not_says = ["Corrected Answer", "previous answer", "[Opponent"]
 says_record = { record = [3, 0], about = ["woolala"] }
 

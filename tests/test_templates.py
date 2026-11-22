@@ -125,6 +125,8 @@ class EventResultsTest(Fixture):
                                                         ["Duos", "e2", "1970-01-01", "2v2", None, None]])
         self.assertEqual(self.rows(out, "each event's winners"), [["Cup", "1970-01-01", "1v1", 1, "A", [A]],
                                                                   ["Duos", "1970-01-01", "2v2", 1, "A / B", [A, B]]])
+        self.assertIn("The name covers both a 1v1 and a 2v2 event: answer for both, or say which one the answer is"
+                      " about.", out["notes"])  # q10 and q19: qwen3:30b gave the 1v1 alone
 
     def test_each_event_comes_with_its_event_id_for_a_query_of_its_sets(self):
         events = next(t for t in self.call("event_results", event="cup 2020")["tables"]
@@ -278,6 +280,23 @@ class RankPairsTest(Fixture):
         self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="medals")["error"])
         self.assertIn("give player_id", self.call("rank_pairs", by="record")["error"])
 
+    def test_the_opponents_side_ranks_the_other_players_records_against_the_player(self):
+        out = self.call("rank_pairs", player_id=B, side="opponents", by="record")  # live: q08 and q40 asked B's side
+        rows = self.rows(out, "records against B")
+        self.assertEqual(out["tables"][0]["columns"], ["rank", "player", "player_id", "sets", "wins_vs_B", "losses_vs_B"])
+        self.assertEqual(rows[0][1:6], ["A", A, 3, 3, 0])  # A beat B in 3 of 3: from A's side, B's column gone
+        self.assertIn("each row is another player's record against B, from that player's side: wins_vs_B are their"
+                      " wins against B (B's losses to them)", " ".join(out["notes"]))
+        rate = self.call("rank_pairs", player_id=B, side="opponents", by="rate")  # the counting rule: 5 sets at least
+        self.assertEqual(rate["tables"], [])
+        self.assertIn("with at least 5 sets or meetings between them, the minimum, so the ranking is empty.",
+                      rate["notes"][-2])
+        self.assertEqual(rate["notes"][-1], "The most sets here is 3 (B with A): if the question sets no minimum, call"
+                                            " again without min_sets.")
+        self.assertEqual(self.rows(self.call("rank_pairs", player_id=B, side="opponents", by="rate", min_sets=1),
+                                   "records against B")[0][-1], 1.0)
+        self.assertIn("side is 'player'", self.call("rank_pairs", player_id=B, side="enemies", by="record")["error"])
+
     def test_one_players_opponents_by_record_the_most_wins_then_the_fewest_losses(self):
         out = self.call("rank_pairs", player_id=A, by="record")  # live, finding 34: "best record" as most sets
         self.assertEqual([r[3] for r in self.rows(out, "A's records against opponents")], ["B", "D", "C"])
@@ -285,6 +304,14 @@ class RankPairsTest(Fixture):
                       " ".join(out["notes"]))
         least = self.call("rank_pairs", player_id=A, by="record", min_sets=2)
         self.assertEqual([r[3] for r in self.rows(least, "A's records")], ["B"])
+
+    def test_a_players_own_records_by_rate_take_no_minimum_the_question_doesnt_set(self):
+        out = self.call("rank_pairs", player_id=A, by="rate")  # live, c19: volst's best records came back empty
+        self.assertEqual([(r[3], r[-1]) for r in self.rows(out, "A's records")], [("B", 1.0), ("D", 1.0), ("C", 0.0)])
+        self.assertIn("with no minimum of sets", " ".join(out["notes"]))  # B's 3-0 before D's 1-0: a tie, more sets
+        empty = self.call("rank_pairs", player_id=A, by="rate", min_sets=4)
+        self.assertEqual(empty["notes"][-1], "The most sets here is 3 (A with B): if the question sets no minimum, call"
+                                             " again without min_sets.")
 
 
 class PowerRankingsTest(Fixture):
@@ -338,6 +365,37 @@ class UpsetsTest(Fixture):
         mine = self.call("upsets", player_id=C)  # C, seed 2, beat A (4) and D (3): no upsets
         self.assertEqual(mine["tables"], [])
         self.assertIn("2v2 upsets need an event or a player_id", self.call("upsets", mode="2v2")["error"])
+
+
+class PlayerSetsTest(Fixture):
+    def test_one_players_sets_from_their_side_and_the_losses_alone(self):
+        out = self.call("player_sets", player_id=A)  # audit a39: whom a player lost to at an event had no tool
+        self.assertEqual(self.rows(out, "A's 1v1 sets here"), [["A", 5, 4, 1]])  # 3 over B, 1 over D, 1 lost to C
+        lost = self.call("player_sets", player_id=A, result="lost")
+        self.assertEqual([r[2:5] for r in self.rows(lost, "A's sets lost")], [["C", C, "lost"]])
+        self.assertIn("Each set is from A's side", lost["notes"][-1])
+        self.assertIn("result is 'won' or 'lost'", self.call("player_sets", player_id=A, result="draws")["error"])
+
+
+class DominantWinsTest(Fixture):
+    def test_wins_by_the_dominance_rule_and_the_flawless_ones(self):
+        rows = self.rows(self.call("dominant_wins", top=10), "official wins, the most dominant first")  # audit a35
+        scored, unscored = [r for r in rows if r[10] == 0], [r for r in rows if r[10] > 0]
+        self.assertEqual(rows, scored + unscored)  # a run with an unscored set after every fully scored one
+        self.assertEqual([r[9] for r in scored], sorted(r[9] for r in scored))  # the fewest games lost first
+        flawless = self.call("dominant_wins", flawless=True)
+        self.assertTrue(all(r[9] == 0 and r[10] == 0 for t in flawless["tables"] for r in t.get("rows", [])))
+        self.assertIn("without a dropped game", " ".join(flawless["notes"]))
+
+    def test_the_runs_are_v_win_runs_ranked_by_the_rule(self):  # counted in two queries: the view took over 30 s
+        db = sqlite3.connect(self.path)
+        expected = db.execute(
+            "SELECT RANK() OVER (ORDER BY sets_played = 0, unscored_sets > 0, games_lost, sets_dropped, games_won DESC),"
+            " player_id, start_date, mode, sets_played, sets_dropped, games_won, games_lost, unscored_sets FROM v_win_runs"
+            " WHERE is_crew_battle = 0").fetchall()
+        db.close()
+        rows = self.rows(self.call("dominant_wins", top=99), "official wins, the most dominant first")
+        self.assertEqual(sorted([r[0], r[2], *r[4:]] for r in rows), sorted(list(e) for e in expected))
 
 
 class PlayerResultsTest(Fixture):
@@ -398,9 +456,18 @@ class PlayerResultsTest(Fixture):
     def test_the_model_reads_that_a_cutoff_counts_only_its_results_and_a_ranking_takes_no_condition(self):
         self.assertTrue(templates.TEMPLATES["player_results"].description.endswith(
             "With top, it counts only those results, not the player's whole record."))
-        self.assertTrue(templates.TEMPLATES["rank_players"].description.endswith(
-            "It can't leave players out or take another condition, such as never having won: use run_sql."))
-        self.assertIn("  - who has the most wins, medals or top 8s, with no other condition: rank_players\n", react.SYSTEM)
+        self.assertTrue(templates.TEMPLATES["rank_players"].description.endswith("Any other condition: use run_sql."))
+        self.assertIn("  - who has the most wins, medals or top 8s, or the most among players who never won (never_won):"
+                      " rank_players\n", react.SYSTEM)
+
+    def test_never_won_leaves_out_every_player_who_won(self):
+        out = self.call("rank_players", by="top8s", never_won="any", top=10)  # audit kind 7: rank_players had no condition
+        names = [r[1] for r in self.rows(out, "players ranked by top 8s")]
+        winners = {r[1] for r in self.rows(self.call("rank_players", by="wins", top=10), "players ranked by wins")}
+        self.assertFalse(set(names) & winners)
+        self.assertIn("players who never won an official event", out["scope"])
+        cup = self.call("rank_players", by="top8s", never_won="cup 2020", top=10)
+        self.assertIn("players who never won at the events 'cup 2020' means", cup["scope"])
 
     def test_a_narrowed_count_says_how_many_results_the_player_has_in_all(self):
         top8 = self.call("player_results", player_id=A, top=8)  # live, volst's 25 2v2 results read as none
@@ -447,6 +514,12 @@ class PlayerResultsTest(Fixture):
 
 
 class TeamResultsTest(Fixture):
+    def test_2v2_is_its_one_mode(self):
+        self.assertEqual(self.call("team_results", player_id=A, partner_id=B, mode="2v2"),
+                         self.call("team_results", player_id=A, partner_id=B))
+        self.assertIn("team_results counts 2v2 partners only: for two players' 1v1 record against each other use"
+                      " head_to_head", self.call("team_results", player_id=A, mode="1v1")["error"])
+
     def test_two_partners_events_together_are_counted_with_each_event(self):
         out = self.call("team_results", player_id=A, partner_id=B)  # live, an OR counted 24 events as wins (4)
         self.assertEqual((out["player"], out["partner"], out["scope"]),
@@ -517,6 +590,17 @@ class HeadToHeadTest(Fixture):
                       " lost 1. Those aren't in the 1v1 record.", out["notes"])  # both sides, so it reads as whose
         self.assertIn("In 1v1, A won 0 and lost 1 of their 1 set against C; C won 1 and lost 0.", out["notes"])
 
+    def test_a_mode_keeps_one_of_the_two(self):  # qwen3:8b passed mode 17 times in the model comparison, refused
+        one = self.call("head_to_head", player_id=A, opponent_id=C, mode="1v1")
+        self.assertEqual(self.rows(one, "A's 1v1 record"), [["A", A, "C", C, 0, 1, 1, 0, 3, 0]])
+        self.assertFalse([n for n in one["notes"] if "2v2" in n])
+        two = self.call("head_to_head", player_id=A, opponent_id=C, mode="2v2")
+        self.assertEqual(self.rows(two, "A's teams against C's teams in 2v2"), [["A", A, "C", C, 1, 0, 1]])
+        self.assertEqual(two["notes"], ["In 2v2, A's teams and C's teams met in 1 set: A's side won 1 and lost 0, and"
+                                        " C's side won 0 and lost 1."])
+        self.assertIn("2v2 sets between their teams", two["scope"])
+        self.assertIn("mode is '1v1' or '2v2'", self.call("head_to_head", player_id=A, opponent_id=C, mode="3v3")["error"])
+
     def test_unscored_sets_are_flagged_and_players_who_never_met_get_a_record_of_zero(self):
         out = self.call("head_to_head", player_id=A, opponent_id=D)
         self.assertEqual(self.rows(out, "A's 1v1 record"), [["A", A, "D", D, 1, 0, 1, None, None, 1]])
@@ -537,8 +621,8 @@ class HeadToHeadTest(Fixture):
         self.assertIn("opponent_id is the number resolve_player returns, not a name: call resolve_player with 'B'",
                       self.call("head_to_head", player_id=A, opponent_id="B")["error"])
         self.assertEqual(self.call("head_to_head", player_id=A)["error"],
-                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, year, since, until,"
-                         " region, event")
+                         "head_to_head needs opponent_id: head_to_head takes player_id, opponent_id, mode, year, since,"
+                         " until, region, event")
 
 
 class RankPlayersTest(Fixture):
@@ -594,7 +678,8 @@ class RankPlayersTest(Fixture):
         self.assertEqual(self.rows(self.call("rank_players", by="Top 8s"), "players ranked by top 8s")[0][:2], [1, "A"])
         self.assertEqual(self.rows(self.call("rank_players", by="titles"), "players ranked by wins")[0][:2], [1, "A"])
         self.assertEqual(self.call("rank_players")["error"],
-                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, region, event")
+                         "rank_players needs by: rank_players takes by, top, mode, year, since, until, region, event,"
+                         " never_won")
         self.assertEqual(self.call("rank_players", by="wins", mode="crew")["error"], "mode is '1v1' or '2v2', not 'crew'")
         out = self.call("rank_players", by="wins", event="league")
         self.assertEqual(([t["what"] for t in out["tables"]], out["ran"]), (["the closest events"], []))

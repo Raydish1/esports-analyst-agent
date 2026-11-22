@@ -72,6 +72,18 @@ class WindowTest(unittest.TestCase):
         follow_up = Turn(trace("and again?", "megD and Raydish are 2-2 in 4 sets."), earlier, NAMES)
         self.assertEqual(checked(follow_up, rows=[[[142100, "megD"], 4, 2]]), {"grounded": True, "named": True, "rows": True})
 
+    def test_the_line_the_page_showed_after_the_previous_turn_is_in_the_window(self):
+        card = ("Stat cards, at official events. A comparison card of Phazon in 2v2 only 63 results, GOLD 12, SILVER 15,"
+                " BRONZE 6, TOP 8 51; Phazon in both modes together 139 results, GOLD 12.")
+        asked = "on the card, where does phazon's 12 gold come from?"
+        answer = "Phazon's 2v2 figures on the card: **GOLD** 12 and **TOP 8**: 51."
+        shown = dict(trace("cody travis vs phazon head to head", "Phazon leads 5-1."), shown=card)
+        self.assertTrue(checked(Turn(trace(asked, answer), shown, NAMES))["grounded"])
+        unshown = trace("cody travis vs phazon head to head", "Phazon leads 5-1.")
+        self.assertFalse(checked(Turn(trace(asked, answer), unshown, NAMES))["grounded"])
+        own = dict(trace(asked, answer), shown=card)  # a turn's own card comes after its answer
+        self.assertFalse(checked(Turn(own, unshown, NAMES))["grounded"])
+
     def test_a_pattern_takes_alternatives_and_a_player_id_counts_as_its_returned_name(self):
         turn = Turn(trace("q", "2-2.", RESOLVED, RECORD), None, NAMES)
         self.assertTrue(checked(turn, rows=[["megD", 4, 2], [["nobody", 160000], 2]])["rows"])
@@ -106,6 +118,18 @@ class AnswerTest(unittest.TestCase):
                  "They met 5 times in 2v2, with Raydish's team winning 2 sets and whoiskyna's team winning 3 sets."]
         wrong = ["Raydish leads 5-2 in 1v1: whoiskyna won 3-2 at BCX 2022. The 2v2 sets (5 total) aren't in it.",
                  "Raydish's side won 2 of them.", "In 2v2, Raydish's team won 3 and lost 2.", "Is it 2-3 in 2v2?"]
+        for answer in right + wrong:
+            turn = Turn(trace("q", answer), None, NAMES)
+            self.assertEqual(checked(turn, grounded=False, says_record=spec)["says_record"], answer in right, answer)
+
+
+    def test_says_record_reads_a_list_item_with_the_line_introducing_its_list(self):
+        spec = {"record": [1, 5], "about": ["1v1", "sets"]}
+        right = ["Cody Travis and Phazon met in **6 official 1v1 sets**. Here's their record:\n\n"
+                 "- **Cody Travis**: 1 win (7 games), 5 losses (15 games)\n- **Phazon**: 5 wins, 1 loss",
+                 "### 1v1 record (6 sets total)\n- Cody Travis: 1 win, 5 losses"]
+        wrong = ["Here's their record:\n- Cody Travis: 1 win, 5 losses",
+                 "They met in 6 sets overall:\n- 2v2: Cody Travis's team won 1 and lost 5"]
         for answer in right + wrong:
             turn = Turn(trace("q", answer), None, NAMES)
             self.assertEqual(checked(turn, grounded=False, says_record=spec)["says_record"], answer in right, answer)

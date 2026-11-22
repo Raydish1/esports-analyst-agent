@@ -43,12 +43,16 @@ MANY = {"they", "them", "their", "theirs"}
 # A message questioning the previous answer: live, "so why did you say cody travis and phazon have won 24 2v2
 # tournaments" was looked up as an event, and "there are not that many events" repeated the answer's numbers without
 # a lookup (docs/web-app-testing-notes.md, findings 10 and 12)
-DISPUTES = re.compile(r"\b(?:are you sure|you sure|why did you (?:say|write|tell|think|claim|put|count)|you (?:just )?"
-                      r"(?:said|wrote|told)|that(?:'s|s| is| was) (?:not right|not true|not correct|wrong|incorrect|false)"
-                      r"|you(?:'re| are) wrong|(?:is|was) that (?:right|true|correct)|not that many|(?:can'?t|cannot)"
-                      r" be right|doesn'?t (?:sound|seem|look) right|too (?:many|few)|double.?check|check (?:that|it|this)"
-                      r" again|where (?:does|do|did|is|are) (?:\S+ ){0,4}(?:come|coming) from|where did you get|how did"
-                      r" you (?:get|count|work out))\b", re.I)
+DOUBT = (r"are you sure|you sure|you (?:just )?(?:said|wrote|told)|that(?:'s|s| is| was) (?:not right|not true|not correct"
+         r"|wrong|incorrect|false)|you(?:'re| are) wrong|(?:is|was) that (?:right|true|correct)|not that many|(?:can'?t"
+         r"|cannot) be right|doesn'?t (?:sound|seem|look) right|too (?:many|few)|double.?check|check (?:that|it|this) again")
+SOURCE = (r"why did you (?:say|write|tell|think|claim|put|count)|where (?:does|do|did|is|are) (?:\S+ ){0,4}(?:come|coming)"
+          r" from|where did you get|how did you (?:get|count|work out)")
+DISPUTES = re.compile(rf"\b(?:{DOUBT}|{SOURCE})\b", re.I)
+# Of them, the cues that doubt an answer, not those asking where a figure came from: on a question about the page,
+# doubt is a dispute about its figures ("are you sure? you just said ... in the graphic", c8 turn 4), and "where does
+# the card's 12 come from?" asks to explain one (finding 32)
+DOUBTS = re.compile(rf"\b(?:{DOUBT})\b", re.I)
 # A message about what the page showed beside the last answer, when it showed something: "on the card, where does
 # phazon's 12 gold come from?" was looked up as the event "come" (docs/web-app-testing-notes.md, finding 23)
 PAGE = re.compile(r"\b(?:on|in|from|about|of) (?:the|this|that|your|those|these) (?:stat )?(?:cards?|graphics?|charts?"
@@ -69,6 +73,7 @@ class Settled:
     chosen: list = field(default_factory=list)
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
+    card: bool = False  # a dispute about the figures on the page's card, not about the answer's own
 
     def traced(self):
         """For the trace: the text and how, and what else applies."""
@@ -88,7 +93,9 @@ class Context:
     players: list = field(default_factory=list)
     events: list = field(default_factory=list)
     asked: list = field(default_factory=list)
-    shown: str = ""  # what the page showed beside the last answer (react.Conversation.shown)
+    shown: str = ""  # what the page last showed beside an answer (react.Conversation.shown), kept until a newer one
+    beside: str = ""  # the question, as settled, whose answer that was
+    ranking: str = ""  # the measure of the last ranking it called (ranking), for a follow-up naming players
 
 
 def listed(items):
@@ -196,7 +203,7 @@ def by_cues(message, context, resolver, event_words=frozenset()):
     names = unique([(c.get("display") or c["name"], c["player_id"]) for _, out in found if out.get("status") == "confident"
                     for c in out["candidates"][:1]])
     if context.shown and PAGE.search(message):  # before the disputes: "where does the card's 12 come from?"
-        return about_page(message, context, names)
+        return about_page(message, context, names, disputed=bool(DOUBTS.search(message)))
     if DISPUTES.search(message):
         return about_answer(message, context, names)
     said = " ".join(words)
@@ -226,10 +233,13 @@ def continuing(message, context, names=None):
     if context.events:  # by name: the IDs are in the previous question's results, and some are long slugs
         about.append("the events " + listed([name for name, _ in context.events[:EVENTS]]))
     note = (f'This continues the previous question, "{previous}"'
+            + (f", a ranking ({context.ranking})" if names and context.ranking else "")
             + (f", now about {listed([f'{name} (player_id {pid})' for name, pid in names])}" if names else
                f", about {'; and '.join(about)}" if about else ""))
     if names and context.events:
         note += f", at the events {listed([name for name, _ in context.events[:EVENTS]])}"
+    if names and context.ranking:
+        note += (": keep its measure, " + (KEEP_PAIRS if context.ranking.startswith("rank_pairs") else KEEP_PLAYERS))
     return Settled(f"{message} [{note}.]", f"{previous} {message}",
                    "a follow-up with new names (cues)" if names else "a follow-up (cues)", players=list(players),
                    events=list(context.events))
@@ -248,16 +258,26 @@ def about_answer(message, context, names):
     return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events))
 
 
-def about_page(message, context, names):
+def about_page(message, context, names, disputed=False):
     """A question about what the page showed beside the last answer ('on the card, where does phazon's 12 gold come
     from?'), with a note to explain the figure it asks about, from the page's message and the tools, and not to
     judge the answer: live, settled as a dispute, the reply opened "The previous answer was correct" and never said
     what GOLD is (docs/web-app-testing-notes.md, finding 32). Its other words are never looked up as an event, as a
-    dispute's aren't, and it needs no re-check (react.py)."""
-    previous = mentions.unnoted(context.question)
+    dispute's aren't, and it needs no re-check (react.py). The card may be an earlier answer's: the page's card stays
+    until a newer one (c8 turn 4 asks about turn 2's). Doubt about it ('are you sure? you just said ... in the
+    graphic') is a dispute about its figures, checked again with the tools."""
+    beside = context.beside or context.question
+    previous = mentions.unnoted(beside)
+    which = "the previous question" if beside == context.question else "an earlier question"
     players = unique(list(context.players) + list(names))
     about = f", about {listed([f'{name} (player_id {pid})' for name, pid in players])}" if players else ""
-    note = (f'This asks what the page showed beside your answer to the previous question, "{previous}"{about}: explain'
+    if disputed:  # "are you sure? you just said ... in the graphic": the figures checked again, with the tools
+        note = (f'This questions what the page showed beside your answer to {which}, "{previous}"{about}: check the'
+                " figures it asks about with the tools (player_results with no top gives each mode, and both together,"
+                " at once), then say plainly what they are, and whether the user reads them right")
+        return Settled(f"{message} [{note}.]", previous, DISPUTED, players=players, events=list(context.events),
+                       card=True)
+    note = (f'This asks what the page showed beside your answer to {which}, "{previous}"{about}: explain'
             " the figure it asks about, from the page's message above, and check it with the tools if needed"
             " (player_results with no top gives each mode, and both together, at once). It doesn't question your"
             " answer, so don't say whether that answer was right")
@@ -266,17 +286,38 @@ def about_page(message, context, names):
 
 # The context after a turn
 
+# A follow-up naming players after a ranking keeps its measure: live, "what about cody travis and phazon?" after the
+# top 5 2v2 players got their record against each other, and in the 2026-11-21 model comparison every model gave their
+# results as partners (c8 turn 2)
+KEEP_PLAYERS = "each one's own figure by it (player_results gives a player's), not a record against or with each other"
+KEEP_PAIRS = "their pair's figures by it (head_to_head for two opponents, team_results for two teammates)"
+
+
+def ranking(name, arguments):
+    """A ranking call's measure as the note writes it ("rank_players by medals, in 2v2"), or "" for another call."""
+    if name not in ("rank_players", "rank_pairs"):
+        return ""
+    of = str(arguments.get("of") or "opponents") if name == "rank_pairs" else ""
+    by = str(arguments.get("by") or ("events" if of == "teammates" else "sets" if of else "wins"))
+    scope = [f"in {arguments['mode']}"] if arguments.get("mode") else []
+    scope += [f"{k} {arguments[k]}" for k in ("year", "since", "until", "region", "event") if arguments.get(k)]
+    return f"{name}{f' of {of}' if of else ''} by {by}" + (f", {', '.join(scope)}" if scope else "")
+
+
 def after(trace, settled):
     """The context the next message may continue, from a turn's trace (react.Conversation.turn) and its settled
     text: the players it carried, resolve_player decided for names the text writes, or a template was about
     (player_results' player, head_to_head's two); the events it carried, or resolve_event or event_results found; and
     the names it asked the user about."""
-    players, events = list(settled.players), list(settled.events)
+    players, events, ranked = list(settled.players), list(settled.events), ""
     for step in trace["steps"]:
         for call in step["tool_calls"]:
             observation = json.loads(call["observation"]) if call.get("observation") else {}
             if not isinstance(observation, dict) or "error" in observation:
                 continue
+            arguments = call.get("arguments")
+            arguments = json.loads(arguments) if isinstance(arguments, str) else arguments or {}
+            ranked = ranking(call["name"], arguments) or ranked
             if (call["name"] == "resolve_player" and observation.get("status") == "confident"
                     and observation.get("candidates") and named(settled.text, observation.get("name") or "")):
                 first = observation["candidates"][0]
@@ -291,4 +332,4 @@ def after(trace, settled):
                 if "event" in t.get("columns", ()) and "event_id" in t["columns"]:
                     i, j = t["columns"].index("event"), t["columns"].index("event_id")
                     events += [(row[i], row[j]) for row in t["rows"]]
-    return Context(settled.text, unique(players), unique(events)[:EVENTS], trace.get("asked") or [])
+    return Context(settled.text, unique(players), unique(events)[:EVENTS], trace.get("asked") or [], ranking=ranked)

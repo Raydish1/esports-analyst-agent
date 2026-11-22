@@ -24,11 +24,12 @@ until the model queries again, and, once, one right after an empty result whose 
 value the query filters on, a likely lookup mistake (diagnose.missing_text). Last, an answer stating a number that no
 tool result holds goes back once, naming it; whatever answer is final then has each claim holding such a number
 replaced by a sentence saying it couldn't be confirmed (number_check.py), so no answer states a number no tool
-returned (decided 2026-11-17). The model is qwen3:8b with thinking on, as decided for development (docs/experiments.md),
-with its own sampling defaults and a fixed seed, as in the model comparison. The system prompt (SYSTEM) is the
-comparison prompt's description of the views and its counting rules, with the name lookup replaced by resolve_player,
-a section on the views that hold each pairing more than once, which tool fits which question, and how to use the tools
-and write the answer.
+returned (decided 2026-11-17). The model is qwen3:30b, the 30B-A3B mixture of experts, with thinking on (decided
+2026-11-21 after the model comparison in the agent, docs/experiments.md: the fastest, with the fewest refused calls,
+and none of qwen3:8b's records read from the wrong side), with its own sampling defaults and a fixed seed. The system
+prompt (SYSTEM) is the comparison prompt's description of the views and its counting rules, with the name lookup
+replaced by resolve_player, a section on the views that hold each pairing more than once, which tool fits which
+question, and how to use the tools and write the answer.
 
 The console shows each step in short. Every step in full (thinking, reply, tool calls and observations, exactly as
 sent) goes to data/experiments/<run>/traces.jsonl and traces.md (git-ignored). A run of target questions also writes
@@ -62,10 +63,10 @@ import settling  # noqa: E402
 from number_check import (Claim, Evidence, Window, claims as number_claims, left_out, restates, stated,  # noqa: E402
                           without)
 from templates import PLAYER_ARGUMENTS, TEMPLATES  # noqa: E402
-from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, mixed_conditions,  # noqa: E402
-                   name_filters, player_ids, run_sql, tables)
+from tools import (CONFIDENT, SNAPSHOT, SQL_SECONDS, TOKEN_BUDGET, EventResolver, Resolver, connect,  # noqa: E402
+                   mixed_conditions, name_filters, player_ids, run_sql, tables)
 
-MODEL = "qwen3:8b"
+MODEL = "qwen3:30b"  # the web app reads it too (app/server/runner.py on claude/web-app)
 OPTIONS = {"num_ctx": 32768, "num_predict": 8192}  # plus the seed. The comparison's 16,384-token context is too small
 # here: the server's qwen3 template keeps every step's thinking in the prompt until the answer
 MAX_STEPS = 8
@@ -76,7 +77,8 @@ RAW = ROOT / "data" / "experiments"
 SYSTEM = """You answer questions about official Brawlhalla esports results (official events only, from 2017 on), using these
 tools: resolve_player finds the player a name means, resolve_event the events an event name means, the templates answer
 the most common questions with tested queries, and run_sql queries a SQLite database of the results. Every player_id in
-a view is a person's canonical ID.
+a view is a person's canonical ID. The data's latest results are from {last}, so every event in it has been held,
+unless its status says it wasn't: never answer that one is still to come.
 
 Choosing a tool
 - Call resolve_player for every player the question names, first.
@@ -88,17 +90,24 @@ Choosing a tool
   - one player's wins, medals, top 8s or placements alone, overall, in a year or at an event: player_results
   - two players as a team, or who a player has played with in 2v2: team_results
   - two players against each other: head_to_head
-  - who has the most wins, medals or top 8s, with no other condition: rank_players
+  - who has the most wins, medals or top 8s, or the most among players who never won (never_won): rank_players
   - who has played whom the most, a player's most-played opponents, or the best duos: rank_pairs
   - a player's best records against their opponents: rank_pairs with player_id and by="record" (min_sets only for a
-    minimum the question sets). Who has the best record against a player is the counting rule below, with run_sql
+    minimum the question sets)
+  - who has the best record against a player, who beat them most, or whom they lost to most: rank_pairs with their
+    player_id and side="opponents", by="rate" for a best record (the counting rule below) or by="record" for the most
+    wins against them
   - the official Power Rankings, a player's PR, or who is ranked #1 in a region: power_rankings
   - the biggest upsets, an event's upsets, or a player's biggest upset wins: upsets
+  - whom a player beat or lost to at an event, or their sets there (result="lost" for the losses): player_sets
+  - the most dominant win, a player's or an event's, or who won without dropping a game (flawless): dominant_wins
+  - a player's career earnings, or the top earners: run_sql on v_career_earnings, one figure per player (a player with
+    no row has no figure, which isn't $0)
 - Give a template an event's name as the question writes it. It finds the events itself, so don't call resolve_event
   first.
 - A template's counts are counted and its ties are all there: don't recount its rows or drop a tied one.
-- For anything else (records against a player, the last event entered, sets at an event, dominance, earnings), use
-  run_sql, with resolve_event for an event's name.
+- For anything else (the last event entered, a set's details, earnings), use run_sql, with resolve_event for an
+  event's name.
 
 Reading the question
 - Pass the question's scope to every call it applies to: its mode (1v1 or 2v2), a year, a time window (since,
@@ -109,6 +118,9 @@ Reading the question
   keeps it: a major is an official event, a medal a 1st, 2nd or 3rd place.
 - Words about the present (right now, currently, these days, lately) never mean all time: read them as the official
   Power Rankings (power_rankings) or as results in a recent window (since), and say which.
+- Two players' record ("X's record with Y", "X and Y's record") can mean their record against each other or as
+  partners: take it as against each other (head_to_head) unless the question says partner, team, teammate, duo or
+  together, and say in the answer which reading you took and that the other is there to ask for.
 
 Using the tools
 - Call resolve_player for every player the question names, before any SQL, and use the player_id it returns, as a
@@ -294,6 +306,8 @@ NO_TOOL_FACTS = ("Before this answer is final: this question called no tool, and
                  " return.")
 FORCED = ("You answered again without looking anything up, so the agent looked up the question's names itself: the"
           " results are above. Answer only from them, and call a template or run_sql for any result they don't give.")
+RECHECKED = ("You answered again without a tool, so the agent ran again the calls the questioned answer rested on: the"
+             " results are above. Say from them whether that answer was right, and correct it if it wasn't.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
 # After each check's message: live, a reply to the number check opened "**Corrected Answer:**" and said "the previous
 # answer incorrectly stated ...", a draft the user never saw (docs/web-app-testing-notes.md, finding 34)
@@ -304,6 +318,12 @@ DRAFT = (" The user hasn't seen the draft above: write the reply as the answer t
 # history ended with one (docs/web-app-testing-notes.md, finding 21)
 PAGE_NOTE = "[The page showed the user beside the answer above: {summary}]"
 PAGE_TAG = re.compile(r"\s*\[The page showed\b[^\]]*\]", re.I)
+
+
+def page_rows(summary):
+    """The page's line as rows of evidence, each sentence or clause of it a row, so a record needs both its numbers in
+    one clause. The conversation scorer counts the same rows (eval/conversations.py), so the two can't drift."""
+    return re.split(r"(?<=[.;:])\s+", " ".join(str(summary).split()))
 NOT_CONFIRMED = "I couldn't confirm this from the data, so I won't guess."  # when leaving claims out leaves no fact
 FACT_KINDS = {"number", "word", "ordinal", "record", "date", "datetime", "month", "day", "time", "money", "percent"}
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
@@ -373,6 +393,57 @@ def chat(messages, model=MODEL, think=True, seed=0):
     """One model reply, with the tools offered: the server's /api/chat response."""
     return ollama("/api/chat", {"model": model, "stream": False, "think": think, "tools": TOOLS, "messages": messages,
                                 "options": {**OPTIONS, "seed": seed}}, timeout=REQUEST_SECONDS)
+
+
+def latest_results(path):
+    """The date of the snapshot's newest results, for the prompt: qwen3:30b answered that EU Summers 2026 hadn't
+    happened yet, "the data only goes up to 2025", its training's end (q15 in the 2026-11-21 model comparison)."""
+    db = connect(path, SQL_SECONDS)
+    try:
+        (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
+    finally:
+        db.close()
+    return last
+
+
+def prompt(path, steps):
+    """The system prompt for the snapshot at path."""
+    return SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=steps, last=latest_results(path))
+
+
+def rested_on(traces, message, players=(), most=3):
+    """The data calls (a template or run_sql that ran) an answer the message disputes rested on, for the loop to run
+    again when the model, sent back once, still calls no tool: the latest earlier call whose result holds every number
+    the message disputes ("why did you say ... won 24 2v2 tournaments"), one whose arguments name every player the
+    dispute is about (players: their ids, in its arguments or its result) first, else the previous turn's calls, at most
+    `most`. A player's own results held c8 turn 5's 24 too, as a count, so the call about the pair goes first.
+    Live, the rechecks of c8 turns 4 and 5 and c10 turn 2 called no tool in every model of the 2026-11-21 comparison,
+    and repeated or invented figures."""
+    disputed = [n for n in re.findall(r"(?<![\w.])\d+(?![\w.])", FORMAT.sub(" ", message))
+                if not re.fullmatch(r"(?:19|20)\d\d", n)]
+    turns = []
+    for trace in traces:
+        calls = []
+        for step in trace["steps"]:
+            for c in step["tool_calls"]:
+                text = c.get("observation") or ""
+                if (c["name"] == "run_sql" or c["name"] in TEMPLATES) and text and "error" not in json.loads(text):
+                    calls.append((c["name"], parsed(c["arguments"]), text))
+        turns.append(calls)
+    if disputed:
+        held = [(name, arguments) for calls in reversed(turns) for name, arguments, text in reversed(calls)
+                if all(re.search(rf"(?<![\w.]){n}(?![\w.])", text) for n in disputed)]
+        def names_all(arguments, text):
+            return all(p in arguments.values() or re.search(rf"(?<![\w.]){p}(?![\w.])", text) for p in players)
+        about = [(name, arguments) for calls in reversed(turns) for name, arguments, text in reversed(calls)
+                 if (name, arguments) in held and names_all(arguments, text)]
+        if about or held:
+            return [(about or held)[0]]
+    out = []
+    for name, arguments, _ in turns[-1] if turns else ():
+        if (name, arguments) not in out:
+            out.append((name, arguments))
+    return out[:most]
 
 
 def parsed(arguments):
@@ -749,6 +820,43 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
     return answer, collapsed(swaps), pairings
 
 
+def one_edit(a, b):
+    """Whether two different strings are one letter apart: one changed, added or dropped."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    short, long = sorted((a, b), key=len)
+    return any(long[:i] + long[i + 1:] == short for i in range(len(long)))
+
+
+def spelled_right(answer, resolver, in_view, words=frozenset()):
+    """The answer with each misspelled name of a player a tool returned put right, and the swaps: a name in it
+    (name_spans) that is no player's name or alias, and not a word the conversation showed, but one letter off the name
+    of exactly one player in view (in_view: canonical IDs). qwen3:30b wrote yüz as "yüx" (q17 in the 2026-11-21 model
+    comparison), which the answer check, reading only names some player has, let through."""
+    targets = {}
+    for pid in in_view:
+        name = resolver.names.get(pid)
+        if name and len(normalize(name)) >= 3:
+            targets.setdefault(normalize(name), (pid, name))
+    swaps = []
+    for span in dict.fromkeys(name_spans(stated(answer))):
+        key = normalize(span)
+        if len(key) < 3 or key in targets or key in words or normalize_full(span) in words or resolver.called(span):
+            continue
+        near = {targets[target] for target in targets if one_edit(key, target)}
+        if len(near) != 1:
+            continue
+        (pid, name), = near
+        if "(" in span or re.sub(r"\D", "", span) != re.sub(r"\D", "", name):  # a count or a list's number with the
+            continue  # name in bold, as "**6 (Cody Travis)**" or "**1. Raydish**", isn't a misspelling
+        pattern = re.compile(rf"(?<!\w){re.escape(span)}(?!\w)")
+        swaps += [{"kind": "a misspelled name", "from": span, "to": name, "player_id": pid}] * len(pattern.findall(answer))
+        answer = pattern.sub(lambda m: name, answer)
+    return answer, swaps
+
+
 def collapsed(swaps):
     """Each swap once, in the order first made, with how many times it was made (times) when more than once. Live,
     one answer listed "Yuz" to "yüz" eleven times, once per mention (docs/web-app-testing-notes.md, finding 20)."""
@@ -1015,11 +1123,13 @@ class Conversation:
                  **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
         self.retriever, self.on_examples = retriever, on_examples
-        self.system = {"role": "system", "content": SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=max_steps)}
+        self.system = {"role": "system", "content": prompt(tools.path, max_steps)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(TOOLS))
         self.context, self.chosen = settling.Context(), {}  # chosen: a spelling asked about -> (it, the player chosen)
         self.last = None  # the last trace ask() returned, which shown() adds to
+        self.traces = []  # every trace ask() returned, oldest first: a recheck runs again the calls an answer rested on
+        self.carded = False  # whether the page showed a card beside the last answer
 
     @property
     def messages(self):
@@ -1038,8 +1148,11 @@ class Conversation:
         self.current[0] = {"role": "user", "content": settled.text}
         content = trace.get("clarifying") or trace["answer"] or f"(No answer: {trace['outcome']}.)"
         self.current.append({"role": "assistant", "content": content})
+        card = self.context.shown, self.context.beside  # the page's last card, kept as its note is (c8 turn 4)
         self.context = settling.after(trace, settled)
+        (self.context.shown, self.context.beside), self.carded = card, False
         self.last = trace
+        self.traces.append(trace)
         return trace
 
     def shown(self, summary):
@@ -1061,10 +1174,12 @@ class Conversation:
                                                    or is_page_note(self.current[-1])):
             return
         self.current.append({"role": "user", "content": PAGE_NOTE.format(summary=summary)})
-        self.context.shown = f"{self.context.shown} {summary}".strip()  # a question about it is about the answer
+        # a question about it is about the answer: this turn's card replaces an older one, a second line adds to it
+        self.context.shown = f"{self.context.shown} {summary}".strip() if self.carded else summary
+        self.context.beside, self.carded = self.context.question, True
         self.view.read(summary)
         self.view.seen_now |= mentions.seen([summary])
-        for part in re.split(r"(?<=[.;:])\s+", summary):
+        for part in page_rows(summary):
             self.view.evidence.observe({"shown": part})
         if self.last is not None:
             self.last["shown"] = (self.last["shown"] + " " if self.last.get("shown") else "") + summary
@@ -1202,8 +1317,10 @@ class Conversation:
                     log("  a reply about the answer, not an answer: the answer it replied about is kept")
                     content, swaps, _ = sent_back
                 elif outcome == "answered":
-                    content, swaps, pairings = correct_names(content, resolved, self.tools.resolver,
-                                                             self.view.returned_now | self.view.returned_before)
+                    in_view = self.view.returned_now | self.view.returned_before
+                    content, swaps, pairings = correct_names(content, resolved, self.tools.resolver, in_view)
+                    content, misspelled = spelled_right(content, self.tools.resolver, in_view, self.view.words)
+                    swaps = collapsed(swaps + misspelled)
                     if swaps:
                         step["name_swaps"] = swaps
                         log("  names corrected: " + ", ".join(f"{x['from']} to {x['to']}" for x in swaps))
@@ -1257,6 +1374,19 @@ class Conversation:
                     sent_back = (content, swaps, message)
                     self.finished(step)
                     continue
+                if outcome == "answered" and disputed and told and not called and not forced and number < max_steps:
+                    rechecks = ([("player_results", {"player_id": pid}) for _, pid in settled.players[:4]]
+                                if settled.card else rested_on(self.traces, said or question,
+                                                               [pid for _, pid in settled.players]))
+                    if rechecks:
+                        forced = called = True
+                        self.look_up(question, rechecks, step, resolved, number == max_steps - 1, RECHECKED)
+                        step["no_tool_check"] = {"disputed": True, "action": "ran again the calls the answer rested on",
+                                                 "calls": [list(c) for c in rechecks]}
+                        log("  no-tool check: the recheck called no tool again; ran "
+                            + ", ".join(n for n, _ in rechecks) + " again for it")
+                        self.finished(step)
+                        continue
                 gap = self.view.ungrounded(question, content) if outcome == "answered" and not called else {}
                 if gap and not told and number < max_steps:
                     told, message = True, no_tool(gap)
@@ -1485,7 +1615,7 @@ class Conversation:
                 end = c.end
         return kept
 
-    def look_up(self, question, lookups, step, resolved, last):
+    def look_up(self, question, lookups, step, resolved, last, note=FORCED):
         """The lookups the loop makes for a model that answered twice without one (mentions.lookups): run as the
         model's calls are, kept in the history as its calls, with a note to answer from them, and in the step marked
         forced. Returns the names from the question they matched only loosely, for suggestions."""
@@ -1501,7 +1631,7 @@ class Conversation:
             step["tool_calls"].append({"name": name, "arguments": arguments, "observation": text,
                                        "seconds": round(time.monotonic() - begun, 3), "forced": True})
             self.current.append({"role": "tool", "tool_name": name, "content": text})
-        self.current.append({"role": "user", "content": FORCED + (" " + LAST_STEP if last else "")})
+        self.current.append({"role": "user", "content": note + (" " + LAST_STEP if last else "")})
         return asked
 
     def suggested(self, trace, step, asked):
@@ -1800,13 +1930,13 @@ def main():
     (out / "traces.md").write_text(markdown(traces, header) + "\n", encoding="utf-8")
     print(f"\nTraces: data/experiments/{run_id}/traces.md and traces.jsonl")
     if args.target or args.eval:
-        prompt = SYSTEM.format(budget=f"{TOKEN_BUDGET:,}", seconds=SQL_SECONDS, steps=args.max_steps)
+        system = prompt(SNAPSHOT, args.max_steps)
         RESULTS.mkdir(parents=True, exist_ok=True)
         path = RESULTS / f"{run_id}-react-prototype.json"
         path.write_text(json.dumps({
             **header, "kind": "exploratory: the ReAct prototype on target questions (expected answers from our own"
                               " data; not the formal baseline)",
-            "system_prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16], "system_prompt": prompt,
+            "system_prompt_sha256": hashlib.sha256(system.encode("utf-8")).hexdigest()[:16], "system_prompt": system,
             "tools": TOOLS, "records": [summary(t) for t in traces]}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"Summary: {path.relative_to(ROOT).as_posix()}")
     for t in traces:

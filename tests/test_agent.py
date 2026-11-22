@@ -193,6 +193,23 @@ class ResolverTest(Fixture):
         self.assertEqual(self.resolve("7th"), ("confident", [16]))
 
 
+class RespelledTest(Fixture):
+    def test_a_name_one_letter_off_a_returned_players_is_put_right(self):  # q17: qwen3:30b's "yüx" for yüz
+        resolver = react.Tools(self.path).resolver
+        self.assertEqual(react.spelled_right("5th: **Raydsh** and **Zivai**.", resolver, {11, 19}),
+                         ("5th: **Raydish** and **Zivai**.", [{"kind": "a misspelled name", "from": "Raydsh",
+                                                               "to": "Raydish", "player_id": 11}]))
+        self.assertEqual(react.spelled_right("**Raydsh**", resolver, {19})[1], [])  # Raydish isn't in view
+        self.assertEqual(react.spelled_right("**Raydsh**", resolver, {11}, words={"raydsh"})[1], [])  # a word shown
+        self.assertEqual(react.spelled_right("**megD** and **Zivai**", resolver, {7, 11, 19})[1], [])  # real names
+        self.assertEqual(react.spelled_right("**1. Raydish**, **6 (Raydish)**", resolver, {11})[1], [])  # a list's
+        # number and a count, with the name in bold
+
+    def test_one_edit_is_a_letter_changed_added_or_dropped(self):
+        self.assertEqual([react.one_edit("yux", w) for w in ("yuz", "yuzz", "yu", "yux", "ynx", "abc")],
+                         [True, False, True, False, True, False])
+
+
 class UnaskedIdsTest(Fixture):
     def test_an_id_beside_its_players_name_is_taken_out_unless_asked_for_or_needed(self):
         out, removed = react.unasked_ids("1. **Raydish (11)** vs **tike36 (14)**: 3 sets", "biggest rivalry", self.resolver)
@@ -307,6 +324,9 @@ class EventResolverTest(Fixture):
                          " question writes it")
         self.assertIn("resolve_event", [t["function"]["name"] for t in react.TOOLS])
         self.assertIn("Don't search event names with LIKE", " ".join(react.SYSTEM.split()))
+        self.assertIn("take it as against each other (head_to_head) unless the question says partner, team, teammate,"
+                      " duo or together, and say in the answer which reading you took", " ".join(react.SYSTEM.split()))
+
 
 
 class RunSqlTest(Fixture):
@@ -388,6 +408,12 @@ class MentionsTest(Fixture):
         self.assertEqual(mentions.words("which two players have the biggest head to head record"), ([], []))  # live: "two"
         self.assertEqual(mentions.words("so why did you say cody travis and phazon have won 24 2v2 tournaments"),
                          (["cody", "travis", "phazon"], []))  # live: looked up as "say cody travis 24"
+
+    def test_request_words_name_nothing(self):
+        self.assertEqual(mentions.words("analyze all of renivic's 2v2 placements"), (["renivic"], []))  # c15 turn 2
+        self.assertEqual(mentions.words("break down volst's results"), (["volst"], []))
+        self.assertEqual(mentions.words("compare boomie and sandstorm"), (["boomie", "sandstorm"], []))
+        self.assertEqual(mentions.words("can you check raydish's 2024 results"), (["raydish"], ["2024"]))
 
     def test_the_players_a_question_names_are_found_in_spans_of_up_to_three_words(self):
         db = sqlite3.connect(self.path)
@@ -545,6 +571,14 @@ class LoopTest(Fixture):
     def setUp(self):
         super().setUp()
         self.tools = react.Tools(self.path)
+
+    def test_the_prompt_says_when_the_datas_latest_results_are(self):  # q15: "the data only goes up to 2025"
+        db = sqlite3.connect(self.path)
+        (last,), = db.execute("SELECT MAX(start_date) FROM v_results").fetchall()
+        db.close()
+        system = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).system["content"]
+        self.assertIn(f"The data's latest results are from {last}, so every event in it has been held, unless its"
+                      " status says it wasn't:", " ".join(system.split()))
 
     def test_tools_run_until_the_answer_and_every_step_is_traced(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})], thinking="Find megd first."),
@@ -714,6 +748,36 @@ class LoopTest(Fixture):
         self.assertEqual(ask.sent[3][-1]["content"], react.RECHECK + react.DRAFT)
         self.assertEqual(trace["answer"], "Yes: Raydish has 6 official results.")
 
+    def test_a_recheck_that_still_calls_no_tool_has_the_loop_run_the_calls_the_answer_rested_on(self):
+        count = ("run_sql", {"query": "SELECT COUNT(*) AS n FROM v_results WHERE player_id = 11"})
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]), reply(calls=[count]),
+                       reply("Raydish has 6 official results."), reply("Yes, 6, as I said."), reply("Yes, 6."),
+                       reply("Checked again: the count stands."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        trace = conversation.ask("are you sure? that's too many")  # live: c10 turn 2, in every model of the comparison
+        ran = [(c["name"], c["arguments"]) for s in trace["steps"] for c in s["tool_calls"] if c.get("forced")]
+        self.assertEqual(ran, [count])
+        self.assertEqual(trace["steps"][1]["no_tool_check"]["action"], "ran again the calls the answer rested on")
+        self.assertTrue(ask.sent[-1][-1]["content"].startswith(react.RECHECKED))
+        self.assertEqual(trace["answer"], "Checked again: the count stands.")
+
+    def test_the_call_rested_on_is_the_latest_whose_result_holds_the_disputed_numbers(self):
+        def made(*calls):
+            return {"steps": [{"tool_calls": [{"name": n, "arguments": a, "observation": json.dumps(o)}
+                                              for n, a, o in calls]}]}
+        together = ("team_results", {"player_id": 1, "partner_id": 2}, {"tables": [{"rows": [[24, 4]]}]})
+        alone = ("player_results", {"player_id": 1}, {"tables": [{"rows": [[57, 6, 24]]}]})  # a count of 24 too
+        refused = ("player_results", {"player_id": 3}, {"error": "player_id 3 wasn't returned by any tool"})
+        traces = [made(together), made(alone, refused)]  # live: c8 turn 5's 24 came from two turns back
+        self.assertEqual(react.rested_on(traces, "so why did you say they won 24 2v2 tournaments", [1, 2]),
+                         [("team_results", {"player_id": 1, "partner_id": 2})])
+        self.assertEqual(react.rested_on(traces, "so why did you say he won 24 2v2 tournaments", [1]),
+                         [("player_results", {"player_id": 1})])  # the latest holding it, about him
+        self.assertEqual(react.rested_on(traces, "there are not that many events"), [("player_results", {"player_id": 1})])
+        self.assertEqual(react.rested_on(traces, "you said 99 in 2024"), [("player_results", {"player_id": 1})])
+        self.assertEqual(react.rested_on([], "are you sure?"), [])
+
     def test_what_the_page_showed_goes_to_the_history_and_counts_for_the_next_answer(self):
         lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
         ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("The card shows 4 wins."),
@@ -747,6 +811,20 @@ class LoopTest(Fixture):
         self.assertEqual(trace["steps"][0]["no_tool_check"]["action"], "sent back")  # about the answer: check again
         forced = [c for s in trace["steps"] for c in s["tool_calls"] if c.get("forced")]
         self.assertEqual(forced, [])  # 'tab', which no result holds, is no event to look up
+
+    def test_the_pages_card_is_kept_until_a_newer_one_while_its_note_is_in_the_history(self):
+        lookup = reply(calls=[("resolve_player", {"name": "raydish"})])
+        ask = Scripted(lookup, reply("Raydish has 6 official results."), lookup, reply("He has 6."), lookup,
+                       reply("The card's 4 is his 2v2 1st places."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None)
+        conversation.ask("how many results has raydish")
+        conversation.shown("Raydish in 2v2 only 3 results, GOLD 4.")
+        conversation.ask("and how many does raydish have overall")  # no card beside this one
+        self.assertEqual(conversation.context.shown, "Raydish in 2v2 only 3 results, GOLD 4.")  # live, c8 turn 4
+        trace = conversation.ask("what is the 4 in the graphic for raydish?")
+        self.assertEqual(trace["settled"]["how"], settling.PAGED)
+        self.assertIn('beside your answer to an earlier question, "how many results has raydish"',
+                      trace["settled"]["text"])  # the answer it was shown beside, two questions back
 
     def test_a_copy_of_the_pages_note_is_taken_out_of_an_answer(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),

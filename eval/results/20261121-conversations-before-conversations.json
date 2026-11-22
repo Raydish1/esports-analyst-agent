@@ -1,0 +1,1310 @@
+[
+ {
+  "id": "c8",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_calls": {
+      "passed": false,
+      "detail": "called head_to_head"
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [27]"
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [117179]"
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [147522]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c9",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "suggestions",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "suggests": {
+      "passed": true,
+      "detail": "suggested 77046 first"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "unconfirmed_at_most": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[77046, 'Mojakin'], 26]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c10",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "check": {
+      "passed": true,
+      "detail": "q06's stage 2 check"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c11",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_any": {
+      "passed": false,
+      "detail": "says none of them"
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[162675, 'volst'], 72]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c12",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about '2v2' or 'team' or 'side' states 11-11"
+     },
+     "unconfirmed_at_most": {
+      "passed": false,
+      "detail": "1 claims replaced"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": false,
+      "detail": "looked up resolve_player('two')"
+     },
+     "says": {
+      "passed": false,
+      "detail": "missing 'lFiend'"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [34]"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c13",
+  "seed": 0,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "suggests": {
+      "passed": false,
+      "detail": "no suggestions"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [9]"
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[88841, 'Dragon!'], 41]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c8",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [117179, 147522]"
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c9",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "suggestions",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "suggests": {
+      "passed": true,
+      "detail": "suggested 77046 first"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "unconfirmed_at_most": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[77046, 'Mojakin'], 26]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c10",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "check": {
+      "passed": true,
+      "detail": "q06's stage 2 check"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c11",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_any": {
+      "passed": true,
+      "detail": "says none of them"
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c12",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": false,
+      "detail": "no sentence about '2v2' or 'team' or 'side' states 11-11"
+     },
+     "unconfirmed_at_most": {
+      "passed": false,
+      "detail": "1 claims replaced"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": false,
+      "detail": "looked up resolve_player('two')"
+     },
+     "says": {
+      "passed": false,
+      "detail": "missing 'lFiend'"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [34]"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c13",
+  "seed": 1,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "suggests": {
+      "passed": false,
+      "detail": "no suggestions"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [88841]"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [41, 9]"
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[88841, 'Dragon!'], 41]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c8",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": true,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows_any": {
+      "passed": false,
+      "detail": "no row holds any of them"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": false,
+      "detail": "didn't use [117179, 147522]"
+     }
+    }
+   },
+   {
+    "turn": 4,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 5,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [4]"
+     },
+     "not_looked_up": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c9",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "suggestions",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "suggests": {
+      "passed": true,
+      "detail": "suggested 77046 first"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_says": {
+      "passed": true,
+      "detail": ""
+     },
+     "unconfirmed_at_most": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[77046, 'Mojakin'], 26]]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c10",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "check": {
+      "passed": true,
+      "detail": "q06's stage 2 check"
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [20]"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c11",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "calls": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_any": {
+      "passed": true,
+      "detail": "says none of them"
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c12",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_record": {
+      "passed": true,
+      "detail": ""
+     },
+     "unconfirmed_at_most": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_looked_up": {
+      "passed": false,
+      "detail": "looked up resolve_player('two')"
+     },
+     "says": {
+      "passed": false,
+      "detail": "missing 'lFiend'"
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [34]"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "not_players": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   }
+  ]
+ },
+ {
+  "id": "c13",
+  "seed": 2,
+  "turns": [
+   {
+    "turn": 1,
+    "outcome": "answered",
+    "passed": true,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "rows": {
+      "passed": true,
+      "detail": ""
+     }
+    }
+   },
+   {
+    "turn": 2,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "suggests": {
+      "passed": false,
+      "detail": "no suggestions"
+     }
+    }
+   },
+   {
+    "turn": 3,
+    "outcome": "answered",
+    "passed": false,
+    "checks": {
+     "grounded": {
+      "passed": true,
+      "detail": ""
+     },
+     "named": {
+      "passed": true,
+      "detail": ""
+     },
+     "players": {
+      "passed": true,
+      "detail": ""
+     },
+     "says_numbers": {
+      "passed": false,
+      "detail": "doesn't state [41, 9]"
+     },
+     "rows": {
+      "passed": false,
+      "detail": "no row holds [[[88841, 'Dragon!'], 41]]"
+     }
+    }
+   }
+  ]
+ }
+]
