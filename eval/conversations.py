@@ -206,14 +206,35 @@ def not_looked_up(turn, words):
 WON_LOST = re.compile(r"\b(?:w[oi]n(?:s|ning)?|lost|los(?:s|ses|ing))\b")
 
 
+ITEM = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+MODE = re.compile(r"\b\d+v\d+\b")
+
+
+def record_pieces(answer):
+    """(what a piece is about, the piece) for each sentence or line of the answer. A list item is about what the line
+    introducing its list says too, unless it names a mode of its own: qwen3:14b's right 1v1 record in c14 turn 1 put
+    "1v1 sets" in its lead-in and the record in "- Cody Travis: 1 win (7 games), 5 losses (15 games)" (the 2026-11-21
+    model comparison)."""
+    lead = ""
+    for line in re.sub(r"[*_`]", "", stated(answer)).casefold().split("\n"):
+        if not line.strip():
+            continue
+        if ITEM.match(line):
+            yield (line if MODE.search(line) else f"{lead} {line}"), line
+            continue
+        lead = line
+        for sentence in re.split(r"(?<=[.!?])\s+", line):
+            yield sentence, sentence
+
+
 def says_record(turn, spec):
     """Whether one sentence or list item of the answer has one of spec's `about` words and states its `record` [a, b]:
     'a-b' (or with a dash), or a, then b, with a word for winning or losing. c3 turn 2's right answers wrote the 2v2
     record as "won 2 sets, lost 3 sets" and "2 wins, 3 losses", and a wrong one restated the 1v1 record, whose sets
     hold a 2 and a 3 too (decided 2026-11-20). What the answer asks and its code don't count (number_check.stated)."""
     a, b = map(str, spec["record"])
-    for piece in re.split(r"(?<=[.!?])\s+|\n", re.sub(r"[*_`]", "", stated(turn.answer)).casefold()):
-        if not any(word.casefold() in piece for word in spec["about"]):
+    for about, piece in record_pieces(turn.answer):
+        if not any(word.casefold() in about for word in spec["about"]):
             continue
         if re.search(rf"(?<![\w.]){a}\s*[-–—]\s*{b}(?!\w|\.\d)", piece):
             return True, ""

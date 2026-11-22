@@ -123,6 +123,18 @@ class AnswerTest(unittest.TestCase):
             self.assertEqual(checked(turn, grounded=False, says_record=spec)["says_record"], answer in right, answer)
 
 
+    def test_says_record_reads_a_list_item_with_the_line_introducing_its_list(self):
+        spec = {"record": [1, 5], "about": ["1v1", "sets"]}
+        right = ["Cody Travis and Phazon met in **6 official 1v1 sets**. Here's their record:\n\n"
+                 "- **Cody Travis**: 1 win (7 games), 5 losses (15 games)\n- **Phazon**: 5 wins, 1 loss",
+                 "### 1v1 record (6 sets total)\n- Cody Travis: 1 win, 5 losses"]
+        wrong = ["Here's their record:\n- Cody Travis: 1 win, 5 losses",
+                 "They met in 6 sets overall:\n- 2v2: Cody Travis's team won 1 and lost 5"]
+        for answer in right + wrong:
+            turn = Turn(trace("q", answer), None, NAMES)
+            self.assertEqual(checked(turn, grounded=False, says_record=spec)["says_record"], answer in right, answer)
+
+
 class CallsTest(unittest.TestCase):
     def test_only_calls_that_ran_count_as_using_a_player(self):
         refused = call("head_to_head", {"player_id": 222222, "opponent_id": 160000},
