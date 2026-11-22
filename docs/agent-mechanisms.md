@@ -475,6 +475,23 @@ After it, a live comparison brought three changes the user asked for (in the log
 On the question's two phrasings, the queries came right in 4 of 6 runs, but 3 answers made up names for player IDs
 the query returned without names. The answer check doesn't read plain names, nor a bold span of several names.
 
+The user then approved the two proposals that followed (in the log):
+- M3, facts the model makes: after a result that gives players as player_ids without their names (`Shown.nameless`,
+  IDs of 10,000 or more), the answer check also reads plain names. Its message then says how to look the names up
+  (`NAMELESS`).
+  - The finder reads a word as a name only where it names (`plainly_named`). It skips a name the results write out,
+    and a player any tool returned in the conversation.
+  - Plain names in every answer were replayed first. Even with the finder tightened, they flag 28 of 2,904 answers,
+    17 of them false alarms ("Streak" in stat cards, names in an example). So the check reads them only after a
+    nameless result. There it flags 7 of 54 answers, all names made up or wrong for a player_id.
+  - That gives up two made-up names on the record that no other check reads: "BBA balloonBoy", and a40's "*Mikael*"
+    as 2017's Worlds winner in the final measurement.
+  - The same tightening keeps the failed-calls check's strict path from leaving out honest sentences ("However",
+    "For example").
+  - It misses a made-up name that opens its line or sentence alone ("5. **Zivai (81144)**").
+- M2, the tools: ex36's note says to join players for the names, and to pair the sides on `side <> side` with the
+  lower team first, never by side.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -508,10 +525,11 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 - Nothing for the agent. It's frozen since 2026-11-22 (the user's decision): no prompt or check changes, only fixes
   for bugs that break a live answer, and what the user asks for.
-- The live comparison's two proposals: an answer check reading plain names in every answer, replayed first; ex36's
-  note on joining players for names and pairing the sides.
-- Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions is in the
-  log, and the Sonnet experiment is skipped for now, with its backend in place (the user's decision).
+- A rerun of the live comparison's two phrasings with qwen3:30b, seeds 0-2 (about 5 minutes). It would measure the
+  answer check's plain names and ex36's note, both built and replayed offline on 2026-11-22.
+- Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions and the
+  Sonnet experiment are in the log. Their drafted verdicts wait for review, and q12's names-correction bug for a
+  decision.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).

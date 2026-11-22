@@ -2,6 +2,100 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: the live comparison's two proposals, replayed on the recorded runs
+
+**What it asked.** The previous entry's two proposals, which the user approved ("do as you recommend"):
+1. an answer check that reads plain names, replayed first for false alarms;
+2. ex36's note on joining players for the names and pairing the sides.
+
+**Setup.** Four commits. Each was replayed without the model on the recorded answers, held-out records skipped
+unread:
+- 777372d, a bug in 572081a: the plain-name finder (`Shown.named_claims`) counted a player as returned only by player
+  ID. So it flagged seed 2's right answer to the first phrasing, whose query wrote the four names out. A name the
+  results in view write out now counts as returned.
+- 85a12dd: ex36's note says how to write the query.
+  - Keep the sides of two players (`HAVING COUNT(*) = 2`).
+  - Join the two sides on `side <> side` with the lower team first, and never pair them by side.
+  - Join players for the four names, since a player_id isn't a name.
+
+  The query is unchanged, and `retrieval.py check` passes all 36 examples. Retrieval embeds only the questions, so
+  the note doesn't change what's retrieved.
+- eac4ee8: a span counts as a name only where it reads as one (`plainly_named`).
+  - It has a capital and no apostrophe. It isn't a number, an ordinal, a month or a medal word, and isn't in a
+    heading.
+  - A single word isn't the first of its sentence, line or label, nor the first of a capitalized term ("Power
+    Rankings").
+  - A name a tool returned earlier in the conversation isn't flagged either.
+- 118c7c7: the answer check reads plain names, but only after a result that gives players as player_ids without their
+  names (`Shown.nameless`).
+  - Only IDs of 10,000 or more count, since a count or a year can equal a smaller ID. 9,161 of eval-v1's players
+    have a smaller one.
+  - Its message then says how to look the names up (`NAMELESS`).
+  - As for the other names it reads, it sends back once, then keeps the answer.
+
+552 unit tests pass.
+
+**Results.**
+- **Plain names in every answer**, replayed to the end on the 2,904 answers recorded by then. The replay behind
+  eac4ee8's and 118c7c7's messages stopped at its 15-minute limit, so their "1,041 of 2,902" is partial.
+  - 777372d's finder flags 1,148, nearly all for ordinary words that are some player's name: "Key" 244 times, "25th"
+    220, "8s" 192, "Note" 135 and "June" 108.
+  - The tightened finder (`plainly_named`) flags 28. 11 are names made up or wrong. The other 17 are false alarms:
+    - ordinary words, 12 times: "Streak" in 6 stat cards, "Example" twice, "Confirmed", "Excel", "Aug", and a table's
+      "Gold | Silver";
+    - names in an example, 3 times ("e.g., ... Zivai?");
+    - names the user gave a turn earlier, twice ("No data was found for **Java** or **Guichabou**").
+
+  So the answer check reads plain names only after a nameless result, where every flag on the record is right.
+- **The narrow check**, in three replays on the 2,902 answers recorded then:
+
+  | Version | Answers after a nameless result | Flagged | Right |
+  |---|---|---|---|
+  | IDs of 1,000 or more, the finder as in 777372d | 113 | 66 | 8 |
+  | IDs of 10,000 or more, with `plainly_named` | 54 | 8 | 7: "Notes" in a heading was a false alarm |
+  | And the heading rule (committed) | 54 | 7 | 7 |
+
+  In the first replay, the other 58 were ordinary words ("25th" 46 times, "Key" 20) and megD, whom the question
+  named as "he". Leaving out the IDs from 1,000 to 9,999 lost no right flag. On the 2,908 answers recorded at the
+  end, the committed check still flags the same 7 of 54.
+- **The 7 flagged are names made up or wrong for a player_id:**
+  - the check run's three answers:
+    - "Cody Travis and Phazon against Killa and Zivai";
+    - "Ninja and Spartan" (beside "Frodo and Lego", which isn't read);
+    - "Zivai and Phazon (player IDs 74433 and 146606) versus Mikael and Sunny";
+  - "Kappa", a placeholder, twice (question 6 seed 4 of 20261023T215750Z, and q40 seed 1 of
+    20261117-grounding-before);
+  - "Zivai" for STING RAY's ID (c1 seed 1 turn 2 of 20261119-conversations-before);
+  - "Lucky" for Zivai's ID (q20 seed 1 of 20261108-eval-on), which the names correction now fixes before any check.
+
+  No answer of the final measurement is flagged.
+- **Missed by the narrow check.** Of the 11 right flags in every answer, 4 come after no nameless result:
+  - the live answer, which the failed-calls check's strict path leaves out;
+  - the quoted "Pharaoh," "Kai," "Numb," and "Mikko" (a38 seed 1 of 20261121-audit), which the answer check
+    already reads in quotes, and sent back once in that run;
+  - "BBA balloonBoy" for BBBalloonBoy (q17 seed 0 of 20261109-step2);
+  - "*Mikael*" as 2017's Worlds 1v1 winner, beside "*Team A*" (a40 seed 2 of 20261121-final-audit). No check caught
+    it in the final measurement.
+
+  The last two are what the narrow scope gives up, against 17 false alarms.
+- **Missed by both:** the next turn of that c1 conversation repeats the made-up name as a list item, "5. **Zivai
+  (81144)**". A single word opening its line doesn't read as a name, which is what keeps "Key Partners" and "Note:"
+  out. The first replay's eighth right flag is that one. In the loop today, turn 2's answer would go back first.
+- **The failed-calls check**, on the 10 recorded answers after every call failed. Before `plainly_named`, the finder
+  flagged 6 of them, 5 for ordinary words such as "However", "example" and "I’ll". After it, the finder flags 2:
+  - the live answer's made-up "Phazon & Zivai and Cody Travis & Ryno", rightly;
+  - an example question that names Cody Travis and "Zivai?" (c16 seed 0 turn 1 of 20261121-r6-conversations), which
+    the strict path would leave out.
+
+  eac4ee8's message gives 8 answers, 6 with a false alarm, from an earlier count. These are the numbers to cite.
+
+**What it decided.** The replay narrowed the first proposal: the answer check reads plain names only after a nameless
+result. In every answer, 2 more right flags would cost 17 false alarms, and the user's direction is the more cautious
+option.
+
+Not measured: whether a send-back with the hint gets the names looked up. A rerun of the two phrasings would measure
+it (qwen3:30b, seeds 0-2, about 5 minutes). It waits for the user's go-ahead.
+
 ## 2026-11-22: the live comparison's three changes, checked on two phrasings
 
 **What it asked.** In the user's live comparison, "which two teams have the most 2v2 history in sets" was answered
