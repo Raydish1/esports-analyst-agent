@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 import sys
 import tempfile
@@ -571,6 +572,29 @@ class LoopTest(Fixture):
     def setUp(self):
         super().setUp()
         self.tools = react.Tools(self.path)
+
+    def test_without_templates_the_model_has_run_sql_and_the_views_only(self):  # arm B of the Sonnet experiment
+        tools = react.Tools(self.path, templates=False)
+        self.assertEqual([t["function"]["name"] for t in tools.offered], ["resolve_player", "resolve_event", "run_sql"])
+        refused = tools.call("player_results", {"player_id": 11})
+        self.assertEqual(refused, {"error": "there is no tool named 'player_results': the tools are resolve_player,"
+                                            " resolve_event and run_sql"})
+        ask = Scripted(reply("**Raydish** won it."), reply("**Raydish** won it."), reply("Raydish never won worlds."))
+        offered = []
+        trace = react.run("has raydish won worlds", tools, ask=lambda m, **model: offered.append(model["tools"]) or ask(m),
+                          log=lambda *_: None)
+        self.assertEqual(offered, [react.SQL_TOOLS] * 3)
+        system = ask.sent[0][0]["content"]
+        self.assertEqual(system, react.prompt(self.path, react.MAX_STEPS, templates=False))
+        self.assertEqual([n for n in templates.TEMPLATES if re.search(rf"\b{n}\b", system)], [])
+        self.assertNotIn("template", system.casefold())
+        self.assertIn("Query the views below with run_sql", system)
+        for message in (trace["steps"][0]["no_tool_check"]["message"], ask.sent[2][-1]["content"]):
+            self.assertIn("a run_sql query on the views", message)
+            self.assertNotIn("template", message)
+        with_templates = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).system["content"]
+        self.assertEqual(with_templates, react.SYSTEM.format(budget=f"{react.TOKEN_BUDGET:,}", seconds=react.SQL_SECONDS,
+                                                             steps=react.MAX_STEPS, last=react.latest_results(self.path)))
 
     def test_the_prompt_says_when_the_datas_latest_results_are(self):  # q15: "the data only goes up to 2025"
         db = sqlite3.connect(self.path)

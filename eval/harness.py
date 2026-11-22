@@ -370,9 +370,11 @@ def kept(entry, fresh, record):
 
 # Running
 
-def run(questions, seeds, examples_on, run_id=None, log=print, model=None):
+def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templates=True):
     """Ask every question once per seed, appending each trace as it finishes; a rerun with the same run_id resumes.
-    model is react.MODEL unless given: everything else stays as the agent has it, for a model comparison."""
+    model is react.MODEL unless given: everything else stays as the agent has it, for a model comparison. Without
+    templates, the agent has run_sql and the views only (react.Tools(templates=False): arm B of the Sonnet
+    experiment)."""
     import react
     react.load_env()
     model = model or react.MODEL
@@ -385,9 +387,11 @@ def run(questions, seeds, examples_on, run_id=None, log=print, model=None):
     header = react.run_header(run_id, model=model, seeds=seeds, title=f"Evaluation harness: run {run_id}",
                               examples=react.examples_header(examples_on))
     header["arm"] = "on" if examples_on else "off"
+    header["templates"] = "on" if templates else "off"
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    tools, todo = react.Tools(), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
-    log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}; {len(todo)} to go")
+    tools, todo = react.Tools(templates=templates), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
+    log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}, templates"
+        f" {header['templates']}; {len(todo)} to go")
     for n, (seed, q) in enumerate(todo, 1):
         for attempt in range(1, TRIES + 1):  # a run that fails isn't written, so the retry starts it afresh
             try:
@@ -711,6 +715,8 @@ def main():
     pick.add_argument("--near-clean", action="store_true", help="the held-out set and the near-clean existing questions")
     go.add_argument("--seeds", nargs="+", type=int, default=[0])
     go.add_argument("--examples", choices=["on", "off"], default="on")
+    go.add_argument("--templates", choices=["on", "off"], default="on",
+                    help="off: run_sql and the views only, no template tools (arm B of the Sonnet experiment)")
     go.add_argument("--run", help="a run id to resume")
     go.add_argument("--model", help="the Ollama model to run (default: the agent's, react.MODEL)")
     for name in ("score", "report"):
@@ -747,7 +753,8 @@ def main():
             chosen = [q for q in questions if q["set"] == "heldout" or q["id"] in NEAR_CLEAN]
         else:
             chosen = questions
-        print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model))
+        print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model,
+                  templates=args.templates == "on"))
         return
     db = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     add_views(db)  # as the agent's connections have them: a resolve_event condition can be on v_event_series
