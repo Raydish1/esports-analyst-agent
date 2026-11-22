@@ -6,7 +6,8 @@ FROM python:3.14-slim-bookworm
 ENV PYTHONUNBUFFERED=1 PYTHONIOENCODING=utf-8 CARD_BROWSER="" PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 WORKDIR /app
 COPY deploy/requirements-hosted.txt deploy/requirements-hosted.txt
-RUN pip install --no-cache-dir -r deploy/requirements-hosted.txt && playwright install --with-deps chromium
+# Playwright's own driver needs libatomic, which the slim image lacks; --with-deps then installs Chromium's libraries
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/* \n    && pip install --no-cache-dir -r deploy/requirements-hosted.txt && playwright install --with-deps chromium
 
 COPY agent agent
 COPY app app
