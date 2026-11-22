@@ -8,6 +8,9 @@
 The worker runs one question at a time, so one shared ProgressTools serves every conversation.
 """
 
+from dataclasses import dataclass
+from typing import Callable
+
 import ask as asking
 import react
 
@@ -35,18 +38,18 @@ class Agent:
     """One conversation. ask(question, emit) answers a question, sending the page its events through emit, and returns
     the answer event."""
 
-    def __init__(self, tools, source, cards=None):
-        self.tools, self.source, self.cards = tools, source, cards
+    def __init__(self, tools, source, cards=None, backend=None):
+        self.tools, self.source, self.cards, self.backend = tools, source, cards, backend
         self.emit, self.number, self.model, self.trace, self.previous = None, 0, None, None, None
         self.start()
 
     def start(self):
         """A conversation from the beginning (also after an error, which can leave it half-way through a turn)."""
-        self.state = self.source.state()
+        self.state = self.source.state(self.backend)
         self.names = {}  # player IDs the conversation's tools returned, to their names: for the progress labels
         self.conversation = react.Conversation(self.tools, ask=self.chat, log=lambda *_: None, on_step=self.stepped,
                                                retriever=self.state.retriever, on_examples=self.examples,
-                                               **self.source.model)
+                                               **(getattr(self.state, "model", None) or self.source.model))
 
     def chat(self, messages, **model):
         self.number += 1
@@ -115,8 +118,11 @@ class Replay:
     def __init__(self, index, speed=0.1, most=2.0):
         self.index, self.speed, self.most = index, speed, most
 
-    def state(self):
+    def state(self, backend=None):
         return ReplayState()
+
+    def choices(self):
+        return []
 
     def begin(self, state, question):
         asked = [*state.asked, question]
@@ -156,23 +162,43 @@ class LiveState:
             self.session.save()
 
 
+@dataclass
+class Backend:
+    """A model the page can pick for a conversation: its label, a maker of its chat (one per conversation, since the
+    Anthropic backend keeps each reply's thinking blocks), and the model settings the loop passes it."""
+    label: str
+    make: Callable
+    model: dict
+
+
 class Live:
     """Live mode: the model server at OLLAMA_BASE_URL (react.chat), with ask.py's settings, and the retriever of worked
-    examples (retrieval.Retriever, or None without examples). Transcripts go to folder/<start>-<n>.md and .jsonl."""
+    examples (retrieval.Retriever, or None without examples). Transcripts go to folder/<start>-<n>.md and .jsonl.
+    backends: the models the page offers, by id, the first the default (default: react.MODEL on Ollama alone); a
+    conversation keeps the one it was opened with."""
 
     mode = "live"
 
-    def __init__(self, retriever, header, folder, chat=react.chat, seed=0):
-        self.retriever, self.header, self.folder, self.chat = retriever, header, folder, chat
+    def __init__(self, retriever, header, folder, chat=react.chat, seed=0, backends=None):
+        self.retriever, self.header, self.folder = retriever, header, folder
         self.model = {"model": react.MODEL, "think": True, "seed": seed}
+        self.backends = backends or {"qwen": Backend(react.MODEL, lambda: chat, self.model)}
         self.count = 0
 
-    def state(self):
+    def choices(self):
+        return [{"id": key, "label": b.label} for key, b in self.backends.items()]
+
+    def state(self, backend=None):
+        key = backend if backend in self.backends else next(iter(self.backends))
+        chosen = self.backends[key]
         self.count += 1
-        return LiveState(self.retriever, self.folder / f"{self.header['run']}-{self.count:03d}", self.header)
+        header = {**self.header, "model": chosen.model["model"], "backend": key}
+        state = LiveState(self.retriever, self.folder / f"{self.header['run']}-{self.count:03d}", header)
+        state.chat, state.model = chosen.make(), chosen.model
+        return state
 
     def begin(self, state, question):
-        return self.chat, None
+        return state.chat, None
 
     def end(self, state, model):
         return None

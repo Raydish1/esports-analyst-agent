@@ -60,6 +60,10 @@ EXAMPLES = [
 ]
 
 
+class Opening(BaseModel):
+    model: str | None = Field(default=None, max_length=40)
+
+
 class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
 
@@ -69,19 +73,23 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
     earnings: whether stat cards show career earnings. preview: serve GET /api/preview/lifetime/{player_id}, a card
     without a question, for rendering and comparing cards (app/dev/compare_card.py); off unless asked for."""
     cards = cards or figures.Cards(tools, earnings=earnings)
-    worker = worker or workers.Worker(lambda: runner.Agent(tools, source, cards)).start()
+    worker = worker or workers.Worker(lambda **o: runner.Agent(tools, source, cards, **o)).start()
+    models = source.choices() if hasattr(source, "choices") else []
     offered = [q for q in examples if source.mode != "replay" or source.index.has(q)]
     app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.worker = worker
 
     @app.get("/api/info")
     def info():
-        return {"mode": source.mode, "examples": offered}
+        return {"mode": source.mode, "examples": offered, "models": models}
 
     @app.post("/api/conversations")
-    def conversation():
+    def conversation(body: Opening | None = None):
+        chosen = body.model if body else None
+        if chosen and chosen not in {m["id"] for m in models}:
+            raise HTTPException(422, f"No model {chosen!r} here.")
         try:
-            return {"conversation_id": worker.open().id}
+            return {"conversation_id": (worker.open(backend=chosen) if chosen else worker.open()).id}
         except workers.Full as e:
             raise HTTPException(503, str(e))
 
@@ -200,7 +208,16 @@ def live_source(examples, fail):
     except (urllib.error.URLError, TimeoutError) as e:
         fail(f"The model server at {os.environ['OLLAMA_BASE_URL']} isn't reachable: {e}")
     retriever = react.retriever_or_exit(examples, fail)
-    return runner.Live(retriever, header, react.RAW / "web")
+    backends = {"qwen": runner.Backend(f"{react.MODEL} (local)", lambda: react.chat,
+                                       {"model": react.MODEL, "think": True, "seed": 0})}
+    try:
+        import anthropic_chat
+        if anthropic_chat.anthropic is not None and os.environ.get("ANTHROPIC_API_KEY"):
+            backends["sonnet"] = runner.Backend(f"{anthropic_chat.MODEL} (API, paid)", anthropic_chat.AnthropicChat,
+                                                {"model": anthropic_chat.MODEL, "think": True, "seed": 0})
+    except ImportError:
+        pass
+    return runner.Live(retriever, header, react.RAW / "web", backends=backends)
 
 
 def card_earnings(flag, env):
@@ -230,7 +247,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.mode == "live":
         source = live_source(args.examples == "on", parser.error)
-        print(f"Live mode: {source.header['model']}, examples {args.examples}. Loading the players' names...")
+        print(f"Live mode: {', '.join(m['label'] for m in source.choices())}, examples {args.examples}."
+              " Loading the players' names...")
     else:
         source = replay_source(args.replay_runs, args.speed)
         print(f"Replay mode: {len(source.index.recordings)} recordings. Loading the players' names...")

@@ -117,7 +117,9 @@ body.chatting .chat-wrap { margin-top: 0; }
 .send { all: unset; cursor: pointer; padding: 0 20px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: var(--ink); background: var(--orange); }
 .send:hover { filter: brightness(1.06); }
 .send[aria-disabled="true"] { opacity: .55; cursor: default; filter: none; }
-.chat-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+.chat-foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 12px; }
+.model-pick { display: flex; align-items: center; gap: 8px; margin-right: auto; font-size: 12.5px; font-weight: 800; letter-spacing: .03em; }
+.model-pick select { font: inherit; font-weight: 700; padding: 6px 8px; border: 2px solid var(--ink-2); background: #fff; color: var(--ink-2); cursor: pointer; }
 .chat-foot button { all: unset; cursor: pointer; font-size: 12.5px; font-weight: 800; color: #fff; background: var(--ink-2); padding: 7px 12px; letter-spacing: .03em; }
 
 /* ---------- hero ---------- */

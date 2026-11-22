@@ -71,7 +71,7 @@ class Worker:
 
     # Conversations
 
-    def open(self):
+    def open(self, **options):
         with self.lock:
             self.sweep()
             if len(self.sessions) >= self.max_conversations:
@@ -79,7 +79,7 @@ class Worker:
                 if not idle:
                     raise Full("Too many conversations are open. Try again in a few minutes.")
                 del self.sessions[min(idle, key=lambda s: s.used).id]
-        session = Session(self.make_agent())
+        session = Session(self.make_agent(**options))
         session.used = self.clock()
         with self.lock:
             self.sessions[session.id] = session

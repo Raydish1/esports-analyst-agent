@@ -16,7 +16,7 @@ const box = $("q");
 const send = form.querySelector(".send");
 const SUGGESTIONS = 4;
 
-const state = { conversation: null, busy: false, results: 0, demo: null, demoAsked: [] };
+const state = { conversation: null, busy: false, results: 0, demo: null, demoAsked: [], model: null };
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -42,7 +42,7 @@ async function api(path, body) {
 }
 
 async function newConversation() {
-  state.conversation = (await api("/api/conversations", {})).conversation_id;
+  state.conversation = (await api("/api/conversations", state.model ? { model: state.model } : {})).conversation_id;
 }
 
 function setBusy(busy) {
@@ -285,7 +285,7 @@ form.addEventListener("submit", (e) => {
   ask(question);
 });
 
-$("restart").addEventListener("click", async () => {
+async function restart() {
   if (state.busy) return;
   messages.querySelectorAll(".msg").forEach((m, i) => { if (i > 0) m.remove(); });  // keep the greeting
   right.querySelectorAll(".shadow-dark").forEach((r) => r.remove());
@@ -295,7 +295,37 @@ $("restart").addEventListener("click", async () => {
   if (!state.demo) await newConversation();
   window.scrollTo({ top: 0, behavior: "smooth" });
   box.focus();
-});
+}
+
+$("restart").addEventListener("click", restart);
+
+// Live mode with more than one model: a picker beside "New conversation". A conversation keeps the model it was
+// opened with, so picking another starts a new one.
+function modelPicker(models) {
+  const label = el("label", "model-pick");
+  label.append(el("span", null, "Model"));
+  const select = el("select");
+  select.id = "model";
+  for (const m of models) {
+    const option = el("option", null, m.label);
+    option.value = m.id;
+    select.append(option);
+  }
+  select.addEventListener("change", async () => {
+    if (state.busy) { select.value = state.model; return; }
+    state.model = select.value;
+    modeBadge(models);
+    await restart();
+  });
+  label.append(select);
+  document.querySelector(".chat-foot").prepend(label);
+}
+
+function modeBadge(models) {
+  const badge = $("mode");
+  const chosen = models.find((m) => m.id === state.model);
+  badge.textContent = chosen && models.length > 1 ? `Live · ${chosen.label.replace(/ \(.*\)$/, "")}` : "Live";
+}
 
 async function init() {
   const narrow = window.matchMedia("(max-width: 960px)");  // one column: the results come after the chat
@@ -312,6 +342,10 @@ async function init() {
       : "Answers are recorded model replies, run again through the agent and its tools.";
     badge.classList.toggle("live", info.mode === "live");
     badge.hidden = false;
+    if (info.mode === "live" && info.models?.length) {
+      state.model = info.models[0].id;
+      if (info.models.length > 1) { modelPicker(info.models); modeBadge(info.models); }
+    }
     const suggest = $("suggest");
     for (const q of info.examples.slice(0, SUGGESTIONS)) {
       const b = el("button", null, q);

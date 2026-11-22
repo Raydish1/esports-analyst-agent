@@ -54,7 +54,7 @@ class AppTest(Fixture):
         return conversation, response.json()["job_id"]
 
     def test_info_offers_only_recorded_examples(self):
-        self.assertEqual(self.client.get("/api/info").json(), {"mode": "replay", "examples": [QUESTION]})
+        self.assertEqual(self.client.get("/api/info").json(), {"mode": "replay", "examples": [QUESTION], "models": []})
 
     def test_a_question_streams_its_progress_then_the_answer(self):
         _, job = self.ask(QUESTION)
@@ -168,7 +168,8 @@ class LiveTest(Fixture):
     def test_live_mode_streams_and_saves_the_transcript(self):
         chat = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply("megD has 2 official results."))
         client = self.client(chat)
-        self.assertEqual(client.get("/api/info").json(), {"mode": "live", "examples": ["any question"]})
+        self.assertEqual(client.get("/api/info").json(), {"mode": "live", "examples": ["any question"],
+                                                          "models": [{"id": "qwen", "label": runner.react.MODEL}]})
         found = self.ask(client, QUESTION)
         answer = next(e for e in found if e["type"] == "answer")
         self.assertEqual((answer["text"], "replay" in answer), ("megD has 2 official results.", False))
@@ -187,6 +188,32 @@ class LiveTest(Fixture):
         self.assertIn(said, agent.conversation.current[-1]["content"])
         (transcript,) = self.folder.glob("*.jsonl")
         self.assertIn(said, json.loads(transcript.read_text(encoding="utf-8"))["shown"])
+
+    def test_a_conversation_keeps_the_model_it_was_opened_with(self):
+        qwen = Scripted(reply("from qwen"))
+        made = []
+
+        def sonnet():  # a chat per conversation, as the Anthropic backend needs
+            made.append(Scripted(reply("from sonnet")))
+            return made[-1]
+
+        backends = {"qwen": runner.Backend("qwen", lambda: qwen, {"model": "q", "think": True, "seed": 0}),
+                    "sonnet": runner.Backend("sonnet", sonnet, {"model": "s", "think": True, "seed": 0})}
+        source = runner.Live(None, HEADER, self.folder, backends=backends)
+        client = TestClient(main.create_app(source, self.tools, examples=["any question"], static=self.folder / "none"))
+        self.assertEqual([m["id"] for m in client.get("/api/info").json()["models"]], ["qwen", "sonnet"])
+
+        def answer(body):
+            conversation = client.post("/api/conversations", json=body).json()["conversation_id"]
+            job = client.post(f"/api/conversations/{conversation}/questions", json={"question": "hi there"}).json()
+            return next(e for e in read(client, job["job_id"]) if e["type"] == "answer")
+
+        self.assertEqual(answer({"model": "sonnet"})["text"], "from sonnet")
+        self.assertEqual(answer({})["text"], "from qwen")  # the first is the default
+        self.assertEqual(len(made), 1)
+        self.assertEqual(client.post("/api/conversations", json={"model": "gpt"}).status_code, 422)
+        headers = [json.loads(p.read_text(encoding="utf-8")) for p in self.folder.glob("*.jsonl")]
+        self.assertTrue(headers)
 
     def test_the_model_server_address_never_reaches_the_page(self):
         def down(messages, **model):
