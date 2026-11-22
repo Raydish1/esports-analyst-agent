@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920">
+  <title>Card Render</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@800;900&family=Montserrat:wght@500;600;700&display=block">
+  <link rel="stylesheet" href="broadcast.css">
+  <style>html, body { margin: 0; background: #000; } #out { width: 1920px; height: 1080px; position: relative; overflow: hidden; }</style>
+</head>
+<body>
+  <!-- The MCP server's renderer (app/server/mcp_server.py): window.draw(card, mode) puts one card's frame here at
+       1920x1080, unscaled, and resolves once its fonts and images have loaded, for a screenshot. -->
+  <div id="out"></div>
+  <script type="module">
+    import { fontsReady, headToHeadFrame, lifetimeFrame, setsFrame, teamsFrame } from "./broadcast.js";
+    window.draw = async (card, mode) => {
+      const frame = card.kind === "lifetime" ? lifetimeFrame(card, mode || "1v1 and 2v2")
+        : card.kind === "head_to_head" || card.kind === "comparison" ? headToHeadFrame(card, mode || "1v1 and 2v2")
+        : card.kind === "team" || card.kind === "teams" ? teamsFrame(card, mode || "2v2")
+        : setsFrame(card).frame;
+      document.getElementById("out").replaceChildren(frame);
+      await document.fonts.ready;
+      await fontsReady;
+      await Promise.all([...document.images].map((im) => im.complete ? null : new Promise((r) => { im.onload = im.onerror = r; })));
+      return true;
+    };
+    document.body.dataset.ready = "true";
+  </script>
+</body>
+</html>
