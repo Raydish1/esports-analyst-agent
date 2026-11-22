@@ -175,8 +175,10 @@ class Cards:
     """Builds the cards for a trace. tools: react.Tools (the snapshot's path and resolvers); earnings: whether cards show
     career earnings."""
 
-    def __init__(self, tools, earnings=True, legends=None, images=None):
-        self.tools, self.earnings, self.legends = tools, earnings, legends or Legends()
+    def __init__(self, tools, earnings=True, legends=None, images=None, sources=None):
+        """sources: the earnings sources cards may show (v_career_earnings.source), or None for every one; a public
+        page shows only the Stats API's, which DATA.md's permission covers."""
+        self.tools, self.earnings, self.legends, self.sources = tools, earnings, legends or Legends(), sources
         self.images = images or EventImages()
 
     def call(self, name, args):
@@ -218,7 +220,7 @@ class Cards:
                 "legend": self.legends.of(player.get("player_id", player_id)),
                 "recent": self.recent(player.get("player_id", player_id))}
         if self.earnings:
-            found = self.query(EARNINGS, (card["player_id"],))
+            found = [f for f in self.query(EARNINGS, (card["player_id"],)) if not self.sources or f[1] in self.sources]
             card["earnings"] = ({"amount": found[0][0], "source": found[0][1], "as_of": found[0][2]} if found
                                 else {"amount": None, "source": None, "as_of": None})
         return card

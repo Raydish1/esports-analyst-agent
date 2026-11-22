@@ -46,6 +46,7 @@ import worker as workers  # noqa: E402
 
 STATIC = HERE.parent / "static"
 KEEPALIVE = 15  # seconds between comments on a quiet stream, so proxies keep it open
+PER_VISITOR = 30  # public mode: questions a visitor may ask in an hour (by the address the tunnel reports)
 # The example questions, one of each kind the page shows: a template's answer, a query's, suggestions, a follow-up,
 # an event that wasn't held. In replay mode only those with a recording are offered.
 EXAMPLES = [
@@ -68,15 +69,43 @@ class Question(BaseModel):
     question: str = Field(min_length=1, max_length=500)
 
 
-def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, earnings=True, preview=False, cards=None):
+def visitor(request):
+    """Who asked: the address Cloudflare's tunnel reports (CF-Connecting-IP), else the one that connected."""
+    return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+
+
+class Limiter:
+    """At most `most` questions per visitor in any hour."""
+
+    def __init__(self, most=PER_VISITOR, window=3600, clock=None):
+        import time
+        self.most, self.window, self.clock, self.asked = most, window, clock or time.monotonic, {}
+
+    def allow(self, who):
+        now = self.clock()
+        recent = [t for t in self.asked.get(who, []) if now - t < self.window]
+        if len(recent) >= self.most:
+            self.asked[who] = recent
+            return False
+        self.asked[who] = recent + [now]
+        return True
+
+
+def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, earnings=True, preview=False, cards=None,
+               public=False, mcp=None):
     """The app around one source of models (runner.Replay or runner.Live) and one shared runner.ProgressTools.
+    public: the page is open to anyone (a tunnel): each visitor's questions are limited (Limiter), and cards show only
+    the Stats API's earnings. mcp: an MCP server app (mcp_server.py) mounted at /mcp.
     earnings: whether stat cards show career earnings. preview: serve GET /api/preview/lifetime/{player_id}, a card
     without a question, for rendering and comparing cards (app/dev/compare_card.py); off unless asked for."""
-    cards = cards or figures.Cards(tools, earnings=earnings)
+    cards = cards or figures.Cards(tools, earnings=earnings, sources=("Stats API",) if public else None)
+    limiter = Limiter() if public else None
     worker = worker or workers.Worker(lambda **o: runner.Agent(tools, source, cards, **o)).start()
     models = source.choices() if hasattr(source, "choices") else []
     offered = [q for q in examples if source.mode != "replay" or source.index.has(q)]
-    app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None)
+    asgi, lifespan = mcp if mcp is not None else (None, None)
+    app = FastAPI(title="Brawlhalla esports analyst", docs_url=None, redoc_url=None, openapi_url=None,
+                  lifespan=(lambda _: lifespan()) if lifespan else None)
     app.state.worker = worker
 
     @app.get("/api/info")
@@ -94,7 +123,9 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
             raise HTTPException(503, str(e))
 
     @app.post("/api/conversations/{conversation_id}/questions")
-    def ask(conversation_id: str, body: Question):
+    def ask(conversation_id: str, body: Question, request: Request):
+        if limiter and not limiter.allow(visitor(request)):
+            raise HTTPException(429, f"That's {PER_VISITOR} questions this hour, the most one visitor can ask. Try again later.")
         question = " ".join(body.question.split())
         if not question:
             raise HTTPException(422, "The question is empty.")
@@ -203,6 +234,8 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
             response.headers["Cache-Control"] = "no-cache"
         return response
 
+    if asgi is not None:
+        app.mount("/mcp", asgi)
     if static.exists():
         app.mount("/", StaticFiles(directory=static, html=True), name="static")
     return app
@@ -215,7 +248,7 @@ def replay_source(runs=None, speed=0.1):
     return runner.Replay(index, speed=speed)
 
 
-def live_source(examples, fail):
+def live_source(examples, fail, public=False):
     """Live mode's source: the model server must be reachable, as ask.py requires."""
     load_env()
     start = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -230,8 +263,8 @@ def live_source(examples, fail):
     backends = {"qwen": runner.Backend(f"{react.MODEL} (local)", lambda: react.chat,
                                        {"model": react.MODEL, "think": True, "seed": 0})}
     try:
-        import anthropic_chat
-        if anthropic_chat.anthropic is not None and os.environ.get("ANTHROPIC_API_KEY"):
+        import anthropic_chat  # never offered in public mode: it costs the key's owner per question
+        if not public and anthropic_chat.anthropic is not None and os.environ.get("ANTHROPIC_API_KEY"):
             backends["sonnet"] = runner.Backend(f"{anthropic_chat.MODEL} (API, paid)", anthropic_chat.AnthropicChat,
                                                 {"model": anthropic_chat.MODEL, "think": True, "seed": 0})
     except ImportError:
@@ -273,11 +306,16 @@ def main(argv=None):
     parser.add_argument("--db", choices=["live", "eval"], default="live",
                         help="live: the newest published build (default), with every event fetched; eval: the frozen"
                              " eval-v1 snapshot the evaluation uses")
+    parser.add_argument("--public", action="store_true",
+                        help="open to anyone (behind a tunnel): no paid model, Stats API earnings only, and at most"
+                             f" {PER_VISITOR} questions a visitor an hour")
+    parser.add_argument("--mcp", action="store_true",
+                        help="also serve the tools and stat cards as an MCP server at /mcp (mcp_server.py)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
     if args.mode == "live":
-        source = live_source(args.examples == "on", parser.error)
+        source = live_source(args.examples == "on", parser.error, public=args.public)
         print(f"Live mode: {', '.join(m['label'] for m in source.choices())}, examples {args.examples}."
               " Loading the players' names...")
     else:
@@ -291,7 +329,14 @@ def main(argv=None):
         source.header["snapshot"] = {**source.header.get("snapshot", {}), "file": path.relative_to(react.ROOT).as_posix()}
     tools = runner.ProgressTools(path)
     import uvicorn
-    uvicorn.run(create_app(source, tools, earnings=earnings, preview=args.preview), host=args.host, port=args.port)
+    mcp = None
+    if args.mcp:
+        import mcp_server
+        mcp = mcp_server.build(path, f"http://127.0.0.1:{args.port}",
+                               earnings_sources=("Stats API",) if args.public else None)
+        print("MCP server at /mcp.")
+    uvicorn.run(create_app(source, tools, earnings=earnings, preview=args.preview, public=args.public, mcp=mcp),
+                host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

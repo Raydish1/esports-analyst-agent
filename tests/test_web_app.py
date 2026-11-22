@@ -53,6 +53,26 @@ class AppTest(Fixture):
         self.assertEqual(response.status_code, 200, response.text)
         return conversation, response.json()["job_id"]
 
+    def test_public_mode_limits_each_visitor(self):
+        source = runner.Replay(replay.Index([]), speed=0)
+        with patch.object(main.Limiter.__init__, "__defaults__", (2, 3600, None)):  # 2 questions an hour
+            client = TestClient(main.create_app(source, self.tools, examples=[], static=Path(self.tmp.name) / "none",
+                                                public=True))
+            conversation = client.post("/api/conversations").json()["conversation_id"]
+            codes = [client.post(f"/api/conversations/{conversation}/questions", json={"question": f"q{i}"},
+                                 headers={"CF-Connecting-IP": "1.2.3.4"}).status_code for i in range(3)]
+            other = client.post(f"/api/conversations/{conversation}/questions", json={"question": "q"},
+                                headers={"CF-Connecting-IP": "5.6.7.8"}).status_code
+        self.assertEqual(codes[2], 429)
+        self.assertNotEqual(other, 429)
+
+    def test_the_limiter_forgets_after_its_window(self):
+        now = [0.0]
+        limiter = main.Limiter(most=1, window=60, clock=lambda: now[0])
+        self.assertEqual((limiter.allow("a"), limiter.allow("a"), limiter.allow("b")), (True, False, True))
+        now[0] = 61
+        self.assertTrue(limiter.allow("a"))
+
     def test_info_offers_only_recorded_examples(self):
         self.assertEqual(self.client.get("/api/info").json(), {"mode": "replay", "examples": [QUESTION], "models": []})
 

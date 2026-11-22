@@ -113,6 +113,12 @@ class ChoosingTest(unittest.TestCase):
         self.assertEqual(card["player"]["earnings"]["amount"], None)
         self.assertNotIn("Crew battles", card["scope"])
 
+    def test_a_public_page_shows_only_the_sources_it_may(self):
+        stub = Stub()
+        stub.sources = ("Esports Earnings",)  # Alpha's figure is the Stats API's, so it's left out
+        (card,) = stub.build(turn(results(1)))
+        self.assertEqual(card["player"]["earnings"]["amount"], None)
+
     def test_earnings_off_leaves_them_out_and_runs_no_query(self):
         stub = Stub(earnings=False)
         (card,) = stub.build(turn(results(1)))
