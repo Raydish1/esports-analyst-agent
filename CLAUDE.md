@@ -145,6 +145,19 @@ Python, LangGraph, SQLite or Postgres, a local open-source model via Ollama as t
   - M1: the prompt says the data's latest results are from the snapshot's newest date (2026-09-27), so no event reads as still to come; two players' record reads as against each other unless the question says partners or team, the answer saying which, with a refusal once of `team_results` with a partner (`scope.RECORD_WITH`);
   - M4: a recheck that still calls no tool has the loop run the calls the questioned answer rested on (`react.rested_on`: the call whose result holds the disputed numbers, or `player_results` for a disputed card); a follow-up naming players after a ranking keeps its measure (`settling.ranking`); request words such as "analyze" aren't content words (`mentions.REQUEST`);
   - M5: a misspelling of a name a tool returned is put right in code and traced (`react.spelled_right`): on 921 recorded answers, 3 swaps, all real.
+- **The final measurement** (2026-11-21, qwen3:30b at 0b7ee3d, seeds 0-2; the log's entry "the final measurement, and a summary of the results", which the report cites). **After it the agent changes only for bugs** (the user's decision).
+  - The 45 questions by hand: 113 of 135 runs right (84%), 14 partly; 34 of 45 right in every seed. On 2026-11-08 (qwen3:8b): 94 of 135 (70%) and 25 of 45. Automatic stages 129 of 135; 20.0 s of model time per run.
+  - The 19 conversations: 120 of 144 turns pass every check (83%), 126 of 144 right by hand; c1-c7 55 of 60. 110 of 144 on 2026-11-21 morning, rescored with today's checks.
+  - The audit set: 158 of 162 turns (98%), from 137.
+  - The known limitations, by mechanism, are in the entry. Among them:
+    - no template for a set's details or an event's size (q20, q42);
+    - set scores put at the wrong event;
+    - "best record" with a minimum the model sets itself;
+    - the card's golds called medals;
+    - a team string split at a name's pipe ("SiB | Wess");
+    - totals left unstated;
+    - the number check not counting the prompt's own facts (q34).
+  - Two bugs in round seven's recheck, found in the final run, were fixed after it (40996f9). A recheck's template SQL reached the model and wasn't in the trace. An answer after a recheck was checked as if the turn had looked nothing up.
 
 **The evaluation set is verified** (2026-10-19): 45 questions in `eval/questions/questions.toml`, with candidate answers computed from eval-v1 (drafted 2026-10-10).
 - The user's verdicts: 42 yes, some with a note, and 3 partly (q05, q31, q44), each with what's right.
@@ -412,7 +425,9 @@ Decisions so far: the domain definitions below, plus these.
   - Outside NA, flag the high-impact cases the user may not know well, so they can ask someone from that scene.
 - SEA League Week 1/4 (2026-10-06): start.gg's standings put 24 entrants in 1st place, so `events.csv` marks it `placements_unreliable` (see the domain definitions). It needs no check exception: the winners check skips such an event.
 
-Next step: **the user's go-ahead for round seven's reruns with qwen3:30b** (the design note's "Round seven's reruns"): the 45 questions by id (never `--all`), all 19 conversations and the audit set, seeds 0-2, in the run worktree with its own `data/rag` (`C:\Users\Rayhan\esports-analyst-agent-runs`, to be moved to the latest commit). The web app's servers share `data/rag/chroma`, so a run of a different example bank gets a store of its own (a worktree with its own `data/rag`), and a restart of the web app rebuilds its store. Time templates with the agent's x64 Python (`py -3.14`), which is slower than the ARM64 one.
+Next step: **the report**, citing the log's final entry ("the final measurement, and a summary of the results"). The agent is frozen except for bug fixes.
+- Still open: the user's review of the drafted verdicts (`eval/results/20261121-final-questions-judgments.toml`, all "needs review"), and verifying c14-c19.
+- The run worktree (`C:\Users\Rayhan\esports-analyst-agent-runs`) can be removed (`git worktree remove --force`). The web app's servers share `data/rag/chroma`, so a run of a different example bank gets a store of its own (a worktree with its own `data/rag`), and a restart of the web app rebuilds its store. Time templates with the agent's x64 Python (`py -3.14`), which is slower than the ARM64 one.
 - From the number check's measurement (2026-11-18), still open: whether the prompt's own facts count as claims (q36 seed 0's "from 2017"; seed 1's `top=1` is settled by fix 3, as inline code), the replacement's wording, stage 2 for a query that filters on a player without selecting it (q45 seed 0), and whether q15's and q44's gains hold in another run. From the held-out set's final measurement, still not acted on: long set lists misread (h04) and h13's Pro Series finals. The user's review of the drafted verdicts (`eval/results/202611*-judgments.toml`) is still pending.
 - Still open from before the templates: step 3 of the fixes, `resolve_event` leading with a cancelled or unreliable status, for `run_sql` questions; step 4's answer-check wording (q03), its worked example for a set's two players being ex29 now; step 5, an answer verifier replayed on the recorded runs first; and a `format` filter holding a mode in a COUNT, which no diagnosis catches (q44 seed 2 in step 2; h09 and h11 with retrieval off).
 - For the harness: draft the retrieval-off arm's 16 runs left (q14 seed 1 is automatic since the name fix) and read its 11 unread machine verdicts.

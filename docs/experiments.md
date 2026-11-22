@@ -2,6 +2,125 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-21: the final measurement, and a summary of the results
+
+**What it is.** The agent's final measurement, which the report cites, with a summary of every round before it. After
+it the agent changes only for bugs (the user's decision, 2026-11-21).
+
+**Setup.**
+- **The agent at 0b7ee3d.** qwen3:30b (the 30B-A3B mixture of experts) with thinking on, retrieval of worked examples
+  on, and the eval-v1 snapshot.
+- **The server.** Ollama 0.40.16 on a 24 GB GPU. Every `ollama ps` sample shows 21 GB at 100% GPU with a context of
+  32768, nomic-embed-text beside it, and no reload.
+- **The sets**, each at seeds 0-2, in a worktree with its own `data/rag`:
+  - the evaluation set, the 45 questions the user verified (`20261121-final-questions`). Every run was drafted by hand
+    ("needs review") and scored by stage, as on 2026-11-08;
+  - the 19 conversations, 48 turns (`20261121-final-conversations`). The user verified c1-c13, and c14-c19 aren't
+    verified yet. They're scored by their checks, then by hand where a check misread a right answer;
+  - the audit set, 51 questions in 54 turns (`20261121-final-audit`). It isn't verified, and its checks look at how a
+    turn went.
+- **Not rerun.** The held-out set's final measurement is 2026-11-17's, since its questions were read after it.
+- **Two bugs found in the final run** were fixed after it (40996f9). Both are in round seven's recheck, and the numbers
+  below include them.
+
+**Headline numbers.**
+
+| Set | Measure | Final, qwen3:30b | Earlier |
+|---|---|---|---|
+| The 45 questions | Runs right by hand | 113 of 135 (84%), 14 partly | 94 of 135 (70%), 18 partly, on 2026-11-08 (qwen3:8b) |
+| | Questions right in every seed | 34 of 45 (76%) | 25 of 45 on 2026-11-08 |
+| | Automatic stages | 129 of 135 | 130 of 135, qwen3:8b in the comparison |
+| | Model time per run | 20.0 s, 3.0 steps | 17.6 s for qwen3:30b in the comparison, 18.4 s for qwen3:8b |
+| The 19 conversations | Turns passing every check | 120 of 144 (83%) | 110 of 144 on 2026-11-21 (qwen3:8b, at 8b59815), rescored with today's checks |
+| | Turns right by hand | 126 of 144 (88%) | |
+| | Conversations passing in every turn | 33 of 57 | 31 of 57 |
+| | c1-c7, turns passing | 55 of 60 | 38 before the web app fixes (2026-11-19), 47 after, 51 on 2026-11-21 |
+| | c8-c13 and c14-c19, turns passing | 40 of 48 and 25 of 36 | 35 and 24 on 2026-11-21 |
+| | Model time per turn | 19.2 s | 19.2 s for qwen3:30b in the comparison, 24.1 s for qwen3:8b |
+| The audit set | Turns passing every check | 158 of 162 (98%) | 137 of 162 on 2026-11-21 (qwen3:8b), rescored |
+
+- **The 45 questions** by stage: 22 runs not right, 16 failing first at answer writing, 5 at SQL logic and 1 at name
+  resolution. The 1 is q32 seed 2, which is right by hand: the event it never looked up wasn't needed.
+- **The conversations' check misreadings** are the 6 right answers from the previous turn's results, which the user
+  decided count for c8 (2026-11-21). c15 turn 2 and c19 turn 2 each ask for a call in the turn, though the previous
+  turn's result already holds the answer.
+
+**The model comparison** (in its entry), the 45 questions and the 19 conversations at round six's code, seed 0
+(qwen3:8b on seeds 0-2 too):
+
+| | qwen3:8b | qwen3:14b | qwen3:30b |
+|---|---|---|---|
+| Questions right by hand, seed 0 (right, partly, wrong) | 36, 7, 2 | 32, 6, 7 | 36, 6, 3 |
+| Conversation turns passing, seed 0 | 34 of 48 | 38 of 48 | 37 of 48 |
+| Model time per question | 18.4 s | 25.1 s | 17.6 s |
+| Tool calls refused | 30 of 328 | 10 of 164 | 2 of 156 |
+| Loaded on the GPU | 10.0 GB | 14 GB | 21 GB |
+
+- qwen3:14b wrote its answer inside its thinking in 6 of 45 answers, which left the reply empty.
+- qwen3:30b answered one question from its training's end. qwen3:8b read records from the wrong side and passed
+  arguments the templates refuse.
+- qwen3:30b became the default for being the fastest, with the fewest refused calls and none of qwen3:8b's
+  wrong-side records.
+
+**What each round changed.** Each row is one entry of this log, oldest first, with the measurement it made. Rounds
+marked offline were checked without the model, and their effect is in the next measured row.
+
+| Date | Round | What it changed | Measured |
+|---|---|---|---|
+| 2026-10-10 | One-prompt text-to-SQL, the model comparison | No agent: one prompt, one query per target question | qwen3:8b with thinking and qwen3:4b 8 of 10 target questions, qwen3:8b without thinking 2 of 10. Most misses were name resolution |
+| 2026-10-18 | The ReAct prototype | Two tools, `resolve_player` and `run_sql`, at most 8 steps | Questions 4, 6 and 8: every query right (3 of 3, against 1 of 3), but 1 of 3 answers |
+| 2026-10-19 | The prototype's fixes, then the result-size fixes | IDs refused by `resolve_player`, an answer check, answer guidance; a 4,000-token result budget | Seeds 0-5: question 4 5 of 6, question 6 0 of 6, question 8 3 then 4 of 6 |
+| 2026-10-23 | Checkpoint 2's lookup changes | Match scores, suggestions for a loose match, a diagnosis for an empty result | Questions 4, 6, 8, q21 and q22: 6, 0, 3, 3 and 0 of 6 |
+| 2026-10-25 | `resolve_event`, the lookup check, the ID and no-tool checks | Events looked up, not searched with LIKE | q21 5 of 6, q22 6 of 6, the Worlds follow-ups 6 and 5 of 6 |
+| 2026-10-25 | Checkpoint 3, retrieval of worked examples | 28 examples retrieved by meaning (nomic-embed-text, Chroma, MMR) | Question 6 0 to 6 of 6, question 4 5 to 6, question 8 3 to 5, q21 4 to 0. A helpful shape in the top 3 for 32 of 39 questions |
+| 2026-11-08 | The full evaluation | The 45 verified questions and a held-out set of 16, seeds 0-2, scored by stage | By hand, 130 of 183 runs right (71%), the 45 questions 94 of 135 (70%), the held-out 36 of 48. Retrieval off: 32 of 87 against 53 on |
+| 2026-11-09 | Steps 1 and 2 | Earnings and what the data doesn't cover in the prompt; names: clear-cut shared names, the display, corrections in code | Their targets 3 to 16 of 21 runs right, and 3 to 8 of 12 |
+| 2026-11-17 | The template tools | Two views and four templates, so the model writes less SQL | Automatic stages 124 to 130 of 135. `run_sql` calls per run 0.95 to 0.28, model time per run 25.0 s to 14.3 s. The targets 1 to 9 of 12 by hand |
+| 2026-11-17 | The held-out set's final measurement | None (a measurement) | 32 of 48 runs right, against 36 on 2026-11-08. The set is spent for tuning |
+| 2026-11-18 | Grounding | The number check, the name filter, `player_results`' counts | Automatic stages 127 to 131 of 135 |
+| 2026-11-19 | The web app testing notes' fixes | Settling of follow-ups (cues), suggestions answered, the event check, names for IDs | The conversations 38 to 47 of 60 turns; the 45 questions 130 of 135 automatic |
+| 2026-11-20 and 21 | Rounds four and five (offline) | Fixes by mechanism: the claim check, the agreement check, the scope check, `Narrowing`, `rank_pairs`, `power_rankings`, the page's note, IDs and tool talk out of answers, `upsets` | Measured on 2026-11-21: 109 of 144 conversation turns (after c8's rescoring), 123 of 135 questions automatic, 137 of 162 audit turns. The questions lost 9 runs to a `rank_pairs` regression (q08, q40) and q05 |
+| 2026-11-21 | Round six | The opponents' side, a best placement, `never_won`, `player_sets`, `dominant_wins`, the card kept | Reruns: the 13 questions 30 to 35 of 39 automatic, but 7 conversations 37 to 34 of 60 and 16 audit questions 29 to 27 of 48 |
+| 2026-11-21 | The model comparison | None (qwen3:8b, qwen3:14b and qwen3:30b at round six's code) | Seed 0 by hand: 36, 32 and 36 of 45 right. Conversations at seed 0: 34, 38 and 37 of 48 turns. qwen3:30b fastest, 17.6 s per question |
+| 2026-11-21 | Round seven (offline) | qwen3:30b the default, and fixes 1-10 with six more (in its entry) | The final measurement, above: 113 of 135 questions right by hand, 120 of 144 conversation turns and 158 of 162 audit turns passing |
+
+**Known limitations, by mechanism**, from the final runs:
+- **M1, reading the question.**
+  - Questions: q12 (2 runs) gives flowerVS's first 1v1 top 8 without the earlier 2v2 one the decided rule mentions.
+  - Conversations: "biggest records ... like set/game count" read as the best rate or the most wins, not the most
+    sets (c1 turn 2, 2 runs); "who has the biggest head to head record" read as a rate, then the answer left out
+    entirely (c16 turn 1); "autumn 2022" read as the season, with BCX 2022 in it (c4 turn 1).
+- **M2, the tools.**
+  - No template gives a set's details or an event's size. "the score of the 1v1 grand final" is answered "3-0" with no
+    players (q20, all 3 runs, failing stage 2). "the biggest official tournament" is answered "the data doesn't track
+    size" (q42, 2 runs), though run_sql found it in the third.
+  - c5 turn 3 looked the North America Crew Battle Invitational up but never got its results.
+- **M3, facts the model makes.**
+  - Set scores put at the wrong event (q23, 2 runs), a 1v1 win listed among the 2v2 ones (q21), and V3M_T4NQUIL0's
+    earnings said to be unrecorded with no lookup (q32).
+  - c8 turn 4 (3 runs): after the recheck called `player_results` for both players, the answers agreed that the
+    card's 12 and 6 golds are its "medals", where their 2v2 medals are 33 and 27.
+  - c1 turn 3 left one of the three players named out of its lookups, and c10 turn 2's seed 1 summed the partners'
+    events itself.
+  - The number check doesn't count the prompt's own facts: q34's "the data starts in 2017" is left out (3 runs, a
+    question open since 2026-11-18).
+- **M4, the conversation.** A question about the card (c14 turn 2, 3 runs) is explained from the page's line without
+  the tool check its expected answer asks for.
+- **M5, answer writing.**
+  - A team string read wrong: "SiB | Wess / V3M_T4NQUIL0" became "SiB and Wess", leaving V3M_T4NQUIL0 out (q16,
+    2 runs).
+  - Lists cut short or with a figure wrong: megD's partners (q06, 3 runs), and the tied top pairs without their
+    records (c18 turn 1).
+  - Totals not stated: Mojakin's 26 results (c9 turn 2), Dragon!'s 9 top 8s (c13 turn 3), and c10 turn 2's partner
+    figures (2 runs).
+  - q05's "only players with a figure" left out (seed 0), and a score written from the loser's side (q27).
+- **The audit set**, 4 failing turns.
+  - "whats volst's best record against anyone" (a50, all 3 runs) is asked with a 5-set minimum the model sets
+    itself. The answers give the empty ranking's note (at most 4 sets, with Bunny meow), not a record, though the note
+    says to call again without the minimum (M1).
+  - a45, seed 2, says Zivai's career earnings aren't given, with no lookup (M3).
+- **Every set's runs** took at most 20,254 tokens of context, and no reply reached the output cap.
+
 ## 2026-11-21: round seven, the model comparison's fixes, checked offline
 
 **What it asked.** Do the fixes the user approved after the model comparison catch their failures on eval-v1 and in

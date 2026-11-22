@@ -457,7 +457,8 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 
 ## Waiting on the user
 
-- The go-ahead for round seven's reruns with qwen3:30b (below, under Runs).
+- Nothing for the agent. The final measurement ran on 2026-11-21 (in the log), and after it the agent changes only
+  for bugs.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).
@@ -482,8 +483,9 @@ point to are in `docs/experiments.md` (2026-11-21, the mechanism rounds measured
 
 ### Round seven's reruns
 
-For the user's go-ahead, all with qwen3:30b, now the default, at the latest commit, seeds 0-2, in the worktree with
-its own `data/rag`. The minutes are estimated from the comparison's pace (17.6 s per question, 19.2 s per turn).
+They ran on 2026-11-21 at 0b7ee3d as the final measurement (in the log, "the final measurement, and a summary of the
+results"). 113 of 135 questions were right by hand, and 120 of 144 conversation turns and 158 of 162 audit turns
+passed. All three ran with qwen3:30b, seeds 0-2, in the worktree with its own `data/rag`:
 
 1. The 45 questions, by id (never `--all`), about 40 minutes: `py -3.14 eval/harness.py run --ids q01 ... q45 --seeds
    0 1 2`.

@@ -1,0 +1,6696 @@
+[
+ {
+  "id": "q01",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "What was the last tournament Boomie entered?",
+  "expected": "Boomie last entered an official event on 2024-03-10: the Winter Doubles Championship - North America (2v2), placing 2nd. Boomie's last 1v1 event was the Brawlhalla World Championship Expo 2023 (BCX 2023, 2023-11-03), 49th.",
+  "outcome": "answered",
+  "answer": "The last tournament Boomie entered was the **Winter Doubles Championship - North America**, specifically the **Brawlhalla Championship 2v2** event.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Boomie: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "last_event",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.825
+   ],
+   [
+    "ex24",
+    "empty_result",
+    0.744
+   ],
+   [
+    "ex25",
+    "empty_result",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 30.3,
+  "output_tokens": 1376,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q02",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many majors has Raydish won?",
+  "expected": "6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Raydish has won 6 official events (majors) in total, all in 1v1 mode. This includes 6 first-place finishes across 1v1 competitions (with one being a crew battle, which counts as 1v1), and no wins in 2v2. Their earliest win was at the North America - Summer Championship 2022, and their most recent win was at the Eternal Sports Crew Battle Championship 2026 - North America.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.815
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.766
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.742
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 15.7,
+  "output_tokens": 1338,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q03",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "Has Hexo ever placed top 8 in 1v1?",
+  "expected": "Yes, once at an official event: Hexoo placed 5th at Brawlhalla Community Tournament #2 (2025-09-28). Community events aren't in the data, so top 8s there aren't counted.",
+  "outcome": "answered",
+  "answer": "Yes, Hexoo (formerly known as Hexo) has placed in the top 8 in 1v1. They achieved a 5th-place finish at the Brawlhalla Community Tournament #2 on 2025-09-28. This is their only top 8 placement in 1v1, as recorded in official results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Hexo: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex12",
+    "medals",
+    0.768
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.762
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.76
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.4,
+  "output_tokens": 1249,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q04",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 0,
+  "arm": "on",
+  "question": "What does Impala vs Balloonboy's history look like?",
+  "expected": "Impala leads BBBalloonBoy 2-1 in 1v1 sets at official events (8-4 in games), DQs and forfeits left out: - Trial of Frigg - North America (Moose Wars), 2024-03-17: Impala won 3-0 - Trial of Skuld - North America, 2024-08-04: Impala won 3-1 - Brawlhalla World Championship Expo 2024 (BCX 2024), 2024-11-15: BBBalloonBoy won 3-2 They never met in 2v2. Both placed at 23 of the same official 1v1 events and 3 of the same 2v2 events.",
+  "outcome": "answered",
+  "answer": "Impala's 1v1 record against BBBalloonBoy (formerly BalloonBoy) is **2 wins, 1 loss** across 3 sets. They faced each other at three events:  \n- **Trial of Frigg - North America (Moose Wars)** on 2024-03-17 (Impala won 3-0)  \n- **Trial of Skuld - North America** on 2024-08-04 (Impala won 3-1)  \n- **Brawlhalla World Championship Expo 2024** on 2024-11-15 (BBBalloonBoy won 3-2)  \n\nThe pair never met in 2v2.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Impala: queried with it; Balloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex05",
+    "head_to_head",
+    0.742
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 20.8,
+  "output_tokens": 1794,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q05",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "List the top 10 highest-earning players in Brawlhalla history.",
+  "expected": "The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00",
+  "outcome": "answered",
+  "answer": "The top 10 highest-earning players in Brawlhalla history, based on official career earnings from the Stats API, are:\n\n1. **gdsandstorm** – $258,984.17  \n2. **Zivai** – $214,458.33  \n3. **acno?** – $189,215.00  \n4. **whoiskyna** – $161,110.00  \n5. **SiB | Wess** – $131,481.67  \n6. **yüz** – $131,421.67  \n7. **Blaze** – $120,207.83  \n8. **loreszz** – $102,600.00  \n9. **lFiend** – $94,261.67  \n10. **Raydish** – $83,825.00  \n\n*Note: Earnings reflect official tournament prize money only.\n\n(I left out a statement I couldn't confirm from the data.)",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.735
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.708
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.704
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "number check, claims replaced": 1
+  },
+  "steps": 3,
+  "model_seconds": 27.5,
+  "output_tokens": 2459,
+  "name_swaps": 0,
+  "tools": {
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q06",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who has megd played with in 2v2 tournaments, and how did they place?",
+  "expected": "megD has had 17 partners at official 2v2 events. The most frequent: - Raydish: 20 events, best 2nd - hardymj: 4 events, best 9th - Winged_Shell: 3 events, best 17th - bestjava and buko pandan: 2 events each, best 5th - Walshy and Moni-: 2 events each, best 7th - JuicyDiaper: 2 events, best 25th and nine more with one event each: Snowy!! (7th), Anon Alex, Cody Travis and flowerVS (9th), Ultra and warmsink26 (13th), wubz (17th), iLLu and .kira (25th).",
+  "outcome": "answered",
+  "answer": "megD has played with 17 different 2v2 partners across 46 official events. Her most frequent partner was **Raydish** (20 events), achieving 3 medals (all 2nd places) with a best placement of 2nd. Other notable partnerships include **hardymj** (4 events, 0 medals, best placement 9th) and **Winged_Shell** (3 events, 0 medals, best placement 17th).\n\n(I left out a statement I couldn't confirm from the data.)",
+  "stage1": {
+   "result": "pass",
+   "detail": "megd: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "teammates",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.808
+   ],
+   [
+    "ex08",
+    "teammates",
+    0.801
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.801
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "number check, claims replaced": 1
+  },
+  "steps": 4,
+  "model_seconds": 24.0,
+  "output_tokens": 2054,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "team_results": 1
+  }
+ },
+ {
+  "id": "q07",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many medals does Balloonboy have?",
+  "expected": "27 medals (top-3 placements at official events) for BBBalloonBoy: - 1v1: 2 gold, 8 silver, 5 bronze (15), including a crew battle silver, a team result - 2v2: 5 gold, 3 silver, 4 bronze (12) Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy has a total of 27 medals (placements 1st, 2nd, or 3rd) across official events, with 15 in 1v1 and 12 in 2v2. This includes one crew battle medal counted under 1v1. The most recent medal was a 1st place at the Autumn Championship - North America 2026 - 1v1 on 2026-09-20.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Balloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex12",
+    "medals",
+    0.825
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.79
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.7,
+  "output_tokens": 1663,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q08",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who has the best record against marckiemoo?",
+  "expected": "By 1v1 set win rate against Marckiem00 at official events, among players with at least 5 sets against them (DQs and forfeits left out): 1. V3M_T4NQUIL0: 3-2 (60%) 2. Raydish: 6-7 (46%) 3. gdsandstorm: 4-7 (36%) V3M_T4NQUIL0 is the only one of them with a winning record.",
+  "outcome": "answered",
+  "answer": "V3M_T4NQUIL0 has the best record against Marckiem00, with a win rate of 60% (3 wins, 2 losses in 5 sets). This is based on official 1v1 sets between players with at least 5 matches, as required by the ranking criteria. The next closest players were Raydish (46.2%, 6-7) and gdsandstorm (36.4%, 4-7).",
+  "stage1": {
+   "result": "pass",
+   "detail": "marckiemoo: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "best_record",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.761
+   ],
+   [
+    "ex31",
+    "stats",
+    0.707
+   ],
+   [
+    "ex20",
+    "opponents",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 17.0,
+  "output_tokens": 1472,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "rank_pairs": 1
+  }
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track tournament-specific earnings; it only provides a single total career earnings figure per player in the `v_career_earnings` view. There is no prize money breakdown per tournament. The player `gdsandstorm` has a career earnings figure recorded in the data, but the data does not indicate which tournament contributed the most to their total earnings.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.755
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 11.0,
+  "output_tokens": 957,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q10",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "Give me the bracket link of BCX 2022.",
+  "expected": "BCX 2022 is the Brawlhalla World Championship Expo 2022 (2022-11-04), with two events: - 1v1: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets - 2v2: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets",
+  "outcome": "answered",
+  "answer": "The bracket links for BCX 2022 are:\n\n- **1v1**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets)\n- **2v2**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets)",
+  "stage1": {
+   "result": "pass",
+   "detail": "BCX 2022: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_facts",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex04",
+    "event_facts",
+    0.763
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.754
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.733
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 10.9,
+  "output_tokens": 958,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q11",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "What is Raydish's most dominant tournament win?",
+  "expected": "By games lost across the run (fewest first, then fewest sets dropped, then most games won): the Trial of Laufey - North America (Moose Wars) (2024-08-25), where Raydish won all 9 sets, 25 games to 2: two 2-0s, then 3-0, 3-1, 3-0, 3-0, 3-0 (Bunny meow), 3-0 and 3-1 (both against BBBalloonBoy). The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship win is left out: its sets are crew against crew, so not comparable.",
+  "outcome": "answered",
+  "answer": "Raydish's most dominant tournament win was at **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in 1v1 mode. The victory featured a flawless run with **0 sets dropped** (9 sets played, 25 games won, 2 games lost), ranking as the most dominant win based on the official dominance criteria (fewest games lost, fewest sets dropped, most games won).",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "dominance",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex23",
+    "dominance",
+    0.823
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.753
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.1,
+  "output_tokens": 1681,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "dominant_wins": 1
+  }
+ },
+ {
+  "id": "q12",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "What was flowers' first top 8?",
+  "expected": "flowerVS's first 1v1 top 8 at an official event was 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15). An earlier top 8 came in 2v2: 7th at the Summer Doubles Championship - North America (2024-07-21). \"flowers\" is taken as flowerVS; another player, Flowers (156897), has that display name.",
+  "outcome": "answered",
+  "answer": "flowerVS's first top 8 was at **Worlds 2024** (Brawlhalla World Championship Expo 2024 / 1v1), where they placed 7th on 2024-11-15.",
+  "stage1": {
+   "result": "pass",
+   "detail": "flowers: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.761
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.735
+   ],
+   [
+    "ex05",
+    "head_to_head",
+    0.709
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 32.4,
+  "output_tokens": 2769,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q13",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won winters 2023 na 1v1",
+  "expected": "Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.",
+  "outcome": "answered",
+  "answer": "Raydish won the 1v1 division at the North America - Winter Championship 2023 (held on 2023-02-05), as confirmed by the official event results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "winters 2023 na 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.869
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.783
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.772
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 10.8,
+  "output_tokens": 936,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q14",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who made top 8 at Trial of Laufey NA?",
+  "expected": "Trial of Laufey - North America (Moose Wars), 1v1, 2024-08-25: - 1st: Raydish - 2nd: BBBalloonBoy - 3rd: Marckiem00 - 4th: gdsandstorm - 5th: Bunny meow and wrenchd - 7th: STING RAY and antireplay",
+  "outcome": "answered",
+  "answer": "The top 8 finishers at Trial of Laufey NA (held on 2024-08-25, 1v1 mode) were:  \n1st: Raydish  \n2nd: BBBalloonBoy  \n3rd: Marckiem00  \n4th: gdsandstorm  \n5th: Bunny meow, wrenchd  \n7th: STING RAY, antireplay  \n\nNote: The event had ties for 5th and 7th places, with two players each sharing those placements.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Trial of Laufey NA: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "event_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.805
+   ],
+   [
+    "ex29",
+    "event_final",
+    0.756
+   ],
+   [
+    "ex02",
+    "event_winner",
+    0.754
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 28.9,
+  "output_tokens": 2572,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q15",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "did godly win eu summers 2026",
+  "expected": "Yes, both events. Zivai (formerly Kingdom | Godly) won the Summer Championship - Europe 2026 - 1v1 (2026-07-18), ahead of Ahmet_, and the 2v2 (2026-07-25) with bamya, ahead of acno? and Blaze.",
+  "outcome": "answered",
+  "answer": "Zivai (formerly Godly) won the 1v1 event at EU Summers 2026. The event \"Summer Championship - Europe 2026 - 1v1\" (held July 18, 2026) had Zivai as the champion with a placement of 1. The 2v2 event was won by Zivai and partner bamya, but the question refers to a solo victory, which was achieved in the 1v1 division.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first; eu summers 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex03",
+    "event_top8",
+    0.804
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.745
+   ],
+   [
+    "ex25",
+    "empty_result",
+    0.779
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 46.1,
+  "output_tokens": 3890,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q16",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won sa 2v2 springs 2026",
+  "expected": "SiB | Wess and V3M_T4NQUIL0 (vem) won the Spring Championship - South America 2026 - 2v2 (2026-05-02), ahead of loreszz and whoiskyna.",
+  "outcome": "answered",
+  "answer": "The winners of the SA 2v2 Springs 2026 event were **SiB | Wess / V3M_T4NQUIL0**. This team secured victory at the Spring Championship - South America 2026 - 2v2 tournament held on May 2, 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sa 2v2 springs 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.851
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.811
+   ],
+   [
+    "ex02",
+    "event_winner",
+    0.783
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 27.8,
+  "output_tokens": 2696,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q17",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "top 8 at bcx 2025 1v1?",
+  "expected": "Brawlhalla World Championship Expo 2025 - 1v1 (2025-11-22): - 1st: Marckiem00 - 2nd: BBBalloonBoy - 3rd: Raydish - 4th: STING RAY - 5th: V3M_T4NQUIL0 and Zivai - 7th: Mounir and yüz",
+  "outcome": "answered",
+  "answer": "The top 8 players at BCX 2025 1v1 (officially named *Brawlhalla World Championship Expo 2025 - 1v1*) are:\n\n1. **Marckiem00**  \n2. **BBBalloonBoy**  \n3. **Raydish**  \n4. **STING RAY**  \n5. **V3M_T4NQUIL0**  \n5. **Zivai**  \n7. **Mounir**  \n7. **yüz**  \n\n*Note: Ties are included as listed (e.g., two players tied for 5th place, two for 7th). The event was held on 2025-11-22.*",
+  "stage1": {
+   "result": "pass",
+   "detail": "bcx 2025 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.83
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.827
+   ],
+   [
+    "ex12",
+    "medals",
+    0.77
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 15.8,
+  "output_tokens": 1549,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q18",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won 2v2 at autumns 2023 NA?",
+  "expected": "bestjava and fakey7 won the North America - Autumn Championship 2023 2v2 (2023-10-01); megD and Raydish were 2nd.",
+  "outcome": "answered",
+  "answer": "bestjava and fakey7 won the 2v2 event at the North America Autumn Championship 2023.",
+  "stage1": {
+   "result": "pass",
+   "detail": "autumns 2023 NA: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.856
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.842
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.854
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 41.5,
+  "output_tokens": 4001,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q19",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who won the Midseason Championship 2026?",
+  "expected": "BBBalloonBoy won both events (2026-06-12): the 1v1, ahead of Marckiem00, and the 2v2 with Mounir, ahead of loreszz and whoiskyna.",
+  "outcome": "answered",
+  "answer": "The Midseason Championship 2026 featured both 1v1 and 2v2 events. The 1v1 winner was **BBBalloonBoy**, and the 2v2 winners were **BBBalloonBoy** and **Mounir**.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Midseason Championship 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.793
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.74
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 9.8,
+  "output_tokens": 970,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q20",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "what was the score of the 1v1 grand final at dreamhack valencia 2023",
+  "expected": "Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the winners' semi-final to luna, came through the losers' side.",
+  "outcome": "answered",
+  "answer": "The score of the 1v1 grand final at DreamHack Valencia 2023 was 3-0.",
+  "stage1": {
+   "result": "pass",
+   "detail": "dreamhack valencia 2023: IDs in a query"
+  },
+  "stage2": {
+   "result": "fail",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_final",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex29",
+    "event_final",
+    0.854
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.83
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.771
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 16.3,
+  "output_tokens": 1613,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q21",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "how many official events has baloonboy won?",
+  "expected": "BBBalloonBoy has won 7 official events: 5 in 2v2 and 2 in 1v1. - 2v2: Autumn Doubles Championship - North America (2024-10-06), Winter Championship - North America 2025 (2025-03-02), Winter Championship - North America 2026 (2026-03-01), Midseason Championship 2026 (2026-06-12), Summer Championship - North America 2026 (2026-07-26) - 1v1: Midseason Championship 2026 (2026-06-12), Autumn Championship - North America 2026 (2026-09-20)",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy has won 7 official events in total: 2 in 1v1 and 5 in 2v2. Their wins occurred at the following events:  \n- **2v2**: Autumn Doubles Championship (2024-10-06), Winter Championship (2025-03-02), Winter Championship (2026-03-01), Midseason Championship (2026-06-12), Summer Championship (2026-07-26).  \n- **1v1**: Midseason Championship (2026-06-12), Autumn Championship (2026-09-20).",
+  "stage1": {
+   "result": "pass",
+   "detail": "baloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.879
+   ],
+   [
+    "ex12",
+    "medals",
+    0.791
+   ],
+   [
+    "ex13",
+    "placements",
+    0.777
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 15.2,
+  "output_tokens": 1474,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q22",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "did markiemoo ever win worlds",
+  "expected": "Yes: Marckiem00 won the 1v1 at the Brawlhalla World Championship Expo 2025 (worlds 2025, 2025-11-22), ahead of BBBalloonBoy. Marckiem00's other world championship results: 7th in the 2025 2v2, and 3rd in both the 1v1 and the 2v2 at BCX 2024.",
+  "outcome": "suggestions",
+  "answer": "I couldn't find a player named \"markiemoo\", so I won't guess. The closest names in the data:\n1. Marckiem00: 47 official results, 2022 to 2026 (matched \"marckiemoo\", similar spelling)\n2. Markled: 2 official results, 2020 (matched \"Markled\", similar spelling)\n3. Arklem: 1 official result, 2018 (matched \"Arklem\", similar spelling)\nWhich one did you mean?",
+  "stage1": {
+   "result": "pass",
+   "detail": "markiemoo: suggested [146052, 101849, 104811]"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "asked the user instead of querying"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "series_results",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.809
+   ],
+   [
+    "ex22",
+    "series_results",
+    0.793
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.766
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 1,
+  "model_seconds": 4.1,
+  "output_tokens": 420,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q23",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 0,
+  "arm": "on",
+  "question": "kingdom | godly vs impala head to head",
+  "expected": "Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at official events, 12-9 in games to Zivai: - Brawlhalla World Championship Expo 2022 (2022-11-04): Impala won 3-0 and 3-1 - DreamHack San Diego 2023 (2023-04-07): Impala won 3-2 - DreamHack Valencia 2023 (2023-07-07): Zivai won 3-0 - Brawlhalla World Championship Expo 2023 (2023-11-03): Zivai won 3-0 - Brawlhalla World Championship Expo 2024 (2024-11-15): Zivai won 3-0 They never met in 2v2.",
+  "outcome": "answered",
+  "answer": "Zivai (formerly Godly) and Impala have a 3-3 head-to-head record in 1v1 sets across six official matches, with their most recent encounter at the 2024 Brawlhalla World Championship Expo. They have never faced each other in 2v2 formats. Their sets were split evenly, with Zivai winning three matches (including a 3-0 victory at the 2024 World Championship Expo) and Impala winning three (including two 3-0 wins at the 2022 World Championship Expo).",
+  "stage1": {
+   "result": "pass",
+   "detail": "kingdom | godly: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 23.1,
+  "output_tokens": 2261,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q24",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won msi 1v1",
+  "expected": "Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational: luna won its 1v1 (2022-06-12), ahead of megD. If another midseason event was meant: BBBalloonBoy won the Midseason Championship 2026 1v1.",
+  "outcome": "answered",
+  "answer": "The winner of the 2022 MSI (Midseason Invitational) 1v1 event was **luna**. This refers to the official Brawlhalla Midseason Championship held on June 12, 2022.",
+  "stage1": {
+   "result": "pass",
+   "detail": "msi: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.827
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.796
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.78
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 25.9,
+  "output_tokens": 2523,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q25",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "how many official tournaments has RAYDISH won",
+  "expected": "6, all counted as 1v1: the NA Summer Championship 2022, the NA Winter Championship 2023, the Trials of Ymir, Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: a team result, counted as 1v1).",
+  "outcome": "answered",
+  "answer": "Raydish has won 6 official tournaments, all in 1v1 (with one win in a crew battle, which counts as a 1v1 result). This includes their first win at the North America - Summer Championship 2022 and their most recent win at the Eternal Sports Crew Battle Championship 2026 - North America.",
+  "stage1": {
+   "result": "pass",
+   "detail": "RAYDISH: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.843
+   ],
+   [
+    "ex13",
+    "placements",
+    0.755
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.766
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 12.5,
+  "output_tokens": 1206,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q26",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+  "expected": "27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy (formerly M30W | BalloonBoy) has finished in the top 3 (1st, 2nd, or 3rd place) **27 times** at official events, with 15 of those in 1v1 (including one crew battle) and 12 in 2v2. This count includes all placements since their first result in 2024-08-04 up to their latest result in 2026-09-20.",
+  "stage1": {
+   "result": "pass",
+   "detail": "M30W | BalloonBoy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.819
+   ],
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.782
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.9,
+  "output_tokens": 1395,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q27",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 0,
+  "arm": "on",
+  "question": "whats bbballoonboy's 1v1 record vs impala",
+  "expected": "BBBalloonBoy is 1-2 against Impala in 1v1 sets at official events (4-8 in games): lost 0-3 at the Trial of Frigg NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 2024 (2024-11-15).",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy's 1v1 record against Impala is 1 win and 2 losses across 3 sets. Their sets were played at three events: Impala won 3-0 at *Trial of Frigg - North America (Moose Wars)*, 3-1 at *Trial of Skuld - North America*, and BBBalloonBoy secured the sole win with a 3-2 victory at *Brawlhalla World Championship Expo 2024*.",
+  "stage1": {
+   "result": "pass",
+   "detail": "bbballoonboy: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex05",
+    "head_to_head",
+    0.763
+   ],
+   [
+    "ex19",
+    "best_record",
+    0.762
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.758
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 20.4,
+  "output_tokens": 1948,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q28",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won worlds 2019 1v1",
+  "expected": "gdsandstorm won the 2019 World Championship 1v1 (DreamHack Atlanta 2019, 2019-11-15); simpLe was 2nd.",
+  "outcome": "answered",
+  "answer": "gdsandstorm won the Worlds 2019 1v1 event. The tournament was held on November 15, 2019, as the DreamHack Atlanta 2019 / Brawlhalla World Championship 1v1.",
+  "stage1": {
+   "result": "pass",
+   "detail": "worlds 2019 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.896
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.79
+   ],
+   [
+    "ex34",
+    "ranking_in_window",
+    0.808
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 19.2,
+  "output_tokens": 1905,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q29",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who won the 1v1 at DreamHack Atlanta 2019?",
+  "expected": "gdsandstorm won DreamHack Atlanta 2019's 1v1, the Brawlhalla World Championship 1v1 (2019-11-15); simpLe was 2nd.",
+  "outcome": "answered",
+  "answer": "gdsandstorm won the 1v1 at DreamHack Atlanta 2019.",
+  "stage1": {
+   "result": "pass",
+   "detail": "DreamHack Atlanta 2019: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.861
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.814
+   ],
+   [
+    "ex32",
+    "most_played_pair",
+    0.786
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 8.6,
+  "output_tokens": 846,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q30",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "who won ceo dreamland 2020",
+  "expected": "Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.",
+  "outcome": "answered",
+  "answer": "The event \"CEO Dreamland 2020\" refers to two held tournaments: the online **Brawlhalla CEO Dreamland ONLINE** (March 2020). The **1v1 event** was won by **gdsandstorm**, while the **2v2 event** was won by the team **Boomie / gdsandstorm**. The original \"CEO Dreamland 2020\" (cancelled due to COVID-19) had no results. The answer refers to the 1v1 winner, as it is the standard mode for individual victory questions.",
+  "stage1": {
+   "result": "pass",
+   "detail": "ceo dreamland 2020: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.711
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.708
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.705
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 38.1,
+  "output_tokens": 3666,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q31",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who won SEA League Week 1/4?",
+  "expected": "In SEA League (Week 1/4)'s matches (2017-04-22), TigerBrawlhalla was the only player who didn't lose a set: 6-0.",
+  "outcome": "answered",
+  "answer": "The event \"SEA League Week 1/4\" (officially named \"SEA League (Week 1/4) / Brawlhalla Singles\" on 2017-04-22) has **unreliable placements** due to incorrect standings on start.gg (24 entrants incorrectly listed as 1st, 37 players who competed missing from standings). As a result, no reliable winner can be determined from official results. However, the only undefeated player in the bracket with a 6-0 record was **TigerBrawlhalla**.",
+  "stage1": {
+   "result": "pass",
+   "detail": "SEA League Week 1/4: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.765
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.749
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.714
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 18.5,
+  "output_tokens": 1799,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q32",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "how much prize money did vem win at max mode 2025",
+  "expected": "The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 (2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.",
+  "outcome": "answered",
+  "answer": "The data does not track prize money per tournament. The question asks for prize money earned at a specific event (MAX Mode 2025), but the database only records **total career earnings** via `v_career_earnings`, not per-event amounts. There is no per-event prize money data available for any official event, including MAX Mode 2025. \n\nFor reference, V3M_T4NQUIL0 (player_id 71736, known as V3M_T4NQUIL0) has 77 official results, but their career earnings total is not recorded in the database (a player with no row in `v_career_earnings` has no figure, which is not $0). The query cannot answer the question as posed because the data does not support it.",
+  "stage1": {
+   "result": "pass",
+   "detail": "vem: resolved first; max mode 2025: name and year in a result"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex27",
+    "per_year",
+    0.75
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.732
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.73
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 15.1,
+  "output_tokens": 1471,
+  "name_swaps": 1,
+  "tools": {
+   "resolve_player": 1,
+   "resolve_event": 1
+  }
+ },
+ {
+  "id": "q33",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "how much money has boomie made from brawlhalla",
+  "expected": "The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.",
+  "outcome": "answered",
+  "answer": "The data does not record Boomie's career earnings. The Stats API only includes earnings figures for players with an official Power Rankings (PR) ranking, and Boomie has no entry in the `v_career_earnings` view. This means their earnings are not recorded in the official data, not that they earned $0.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": true,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.706
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.706
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 11.2,
+  "output_tokens": 1102,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q34",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who won the 2016 Brawlhalla World Championship?",
+  "expected": "The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.",
+  "outcome": "answered",
+  "answer": "I couldn't confirm this from the data, so I won't guess.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex35",
+    "upsets",
+    0.803
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.762
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.762
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "number check, claims replaced": 1,
+   "event check": 3
+  },
+  "steps": 4,
+  "model_seconds": 29.3,
+  "output_tokens": 2947,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1
+  }
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which legend (character) a player main. The player \"godly\" refers to Zivai (formerly Godly), but the official Brawlhalla esports results database tracks tournament placements, match records, and earnings—not player preferences for specific legends. This information is not available in the provided data.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 9.8,
+  "output_tokens": 976,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data does not include community tournaments, as specified in the guidelines (\"Community tournaments aren't in the data\"). Therefore, there is no count of wins in community tournaments for any player, including Raydish. The dataset only tracks official events.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 15.8,
+  "output_tokens": 1556,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q37",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who has won the most official tournaments?",
+  "expected": "gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most official tournaments with a total of 48 wins (30 in 1v1, 18 in 2v2), as counted across all official events. This includes both individual and team tournament victories, with crew battles (2) counted as part of the 1v1 wins.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.84
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.83
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.814
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 12.2,
+  "output_tokens": 1215,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q38",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "rank the top 5 players by official 1v1 wins",
+  "expected": "1. gdsandstorm, 30 (2 of them crew battles) 2. TigerBrawlhalla, 26 3. Zivai, 23 (1 crew battle) 4. Kylar Alice, 19 5. yüz, 14 (1 crew battle) Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.",
+  "outcome": "answered",
+  "answer": "The top 5 players by official 1v1 wins (1st places) are:\n\n1. **gdsandstorm** (30 wins)  \n2. **TigerBrawlhalla** (26 wins)  \n3. **Zivai** (23 wins)  \n4. **Kylar Alice** (19 wins)  \n5. **yüz** (14 wins)  \n\nThis ranking is based on official 1v1 placements across all events, with crew battle results (counted as 1v1) included in the win totals.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.814
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.793
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.802
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 10.2,
+  "output_tokens": 1009,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q39",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "who has more medals, boomie or sandstorm?",
+  "expected": "Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69: - Boomie: 1v1 12 gold, 11 silver, 11 bronze (34); 2v2 32, 8 and 6 (46) - gdsandstorm: 1v1 30, 6 and 6 (42); 2v2 18, 4 and 5 (27) gdsandstorm has more wins (48 to 44), and Boomie more medals.",
+  "outcome": "answered",
+  "answer": "Boomie has 80 medals (34 in 1v1, 46 in 2v2), while gdsandstorm has 69 medals (42 in 1v1, 27 in 2v2). Therefore, Boomie has more medals than gdsandstorm.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it; sandstorm: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "6 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 5,
+  "model_seconds": 27.6,
+  "output_tokens": 2314,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "player_results": 2
+  }
+ },
+ {
+  "id": "q40",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "who has raydish lost to the most in 1v1",
+  "expected": "gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).",
+  "outcome": "answered",
+  "answer": "Raydish has lost the most to **gdsandstorm** in 1v1 matches, with a record of **10 wins against Raydish** (out of 13 sets played) according to official events. This is determined by ranking opponents based on their wins against Raydish (the highest number of wins against Raydish being the top result).",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "opponents",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.827
+   ],
+   [
+    "ex19",
+    "best_record",
+    0.791
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.776
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 22.1,
+  "output_tokens": 2010,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "rank_pairs": 1
+  }
+ },
+ {
+  "id": "q41",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "Who has won the most 1v1 world championships?",
+  "expected": "gdsandstorm, with 3: 2018 (DreamHack Atlanta 2018), 2019 (DreamHack Atlanta 2019) and 2020, when the World Championship was held separately in five regions (gdsandstorm won North America's). yüz has 2 (BCX 2023 and 2024). Counting only the single worldwide championships, leaving out 2020 and 2021's regional ones, gdsandstorm and yüz tie at 2.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most 1v1 World Championships with 3 wins, across all official Worlds events (including regional championships held in 2020 and 2021).\n\n(I left out a statement I couldn't confirm from the data.)",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.863
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.835
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.858
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "number check, claims replaced": 1
+  },
+  "steps": 3,
+  "model_seconds": 22.3,
+  "output_tokens": 2117,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q42",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "what was the biggest official brawlhalla tournament ever?",
+  "expected": "By entrants in one event, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.",
+  "outcome": "answered",
+  "answer": "The data does not include metrics to determine the \"biggest\" tournament (e.g., prize pool, participants), so this question cannot be answered from the provided results. Official major tournaments are named in the data (e.g., \"Worlds,\" \"BCX\"), but their relative scale is not recorded.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "fail",
+   "detail": "0 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex35",
+    "upsets",
+    0.873
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.74
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.739
+   ]
+  ],
+  "checks": [],
+  "fired": {
+   "claim check": 1
+  },
+  "steps": 2,
+  "model_seconds": 13.8,
+  "output_tokens": 1355,
+  "name_swaps": 0,
+  "tools": {}
+ },
+ {
+  "id": "q43",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "what was megd's first major win?",
+  "expected": "megD's first official event win was the Summer Championship - North America 2026 - 1v1 (2026-07-19). The second came on 2026-08-30, at the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle).",
+  "outcome": "answered",
+  "answer": "megD's first official win was at the Summer Championship - North America 2026 - 1v1 on July 19, 2026. This was their earliest victory in the official tournament results, with no earlier wins recorded in their career.",
+  "stage1": {
+   "result": "pass",
+   "detail": "megd: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_win",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex23",
+    "dominance",
+    0.769
+   ],
+   [
+    "ex15",
+    "first_win",
+    0.716
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.759
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 13.3,
+  "output_tokens": 1258,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q44",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 0,
+  "arm": "on",
+  "question": "How many times did Ahmet finish second to Godly in 2026?",
+  "expected": "3 times, all in 1v1 at official events, each won by Zivai (formerly Godly) with Ahmet_ 2nd: the Spring (2026-04-25), Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.",
+  "outcome": "answered",
+  "answer": "Ahmet_ finished second to Zivai (formerly Godly) 3 times in 2026, based on official event placements where Zivai secured 1st place and Ahmet_ placed 2nd in the same event during that year.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Ahmet: queried with it; Godly: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "placements",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.757
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.741
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 36.4,
+  "output_tokens": 3444,
+  "name_swaps": 1,
+  "tools": {
+   "resolve_player": 2,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q45",
+  "set": "existing",
+  "category": "partial",
+  "seed": 0,
+  "arm": "on",
+  "question": "who has earned more money, raydish or impala?",
+  "expected": "Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).",
+  "outcome": "answered",
+  "answer": "Raydish has a recorded career earnings total of $83,825. Impala's career earnings are not recorded in the official database (a player with no entry in v_career_earnings has no recorded figure).",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1
+  },
+  "steps": 5,
+  "model_seconds": 19.2,
+  "output_tokens": 1814,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q01",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "What was the last tournament Boomie entered?",
+  "expected": "Boomie last entered an official event on 2024-03-10: the Winter Doubles Championship - North America (2v2), placing 2nd. Boomie's last 1v1 event was the Brawlhalla World Championship Expo 2023 (BCX 2023, 2023-11-03), 49th.",
+  "outcome": "answered",
+  "answer": "The last tournament Boomie entered was the Winter Doubles Championship - North America, held on March 10, 2024, featuring the Brawlhalla Championship 2v2 event.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Boomie: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "last_event",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.825
+   ],
+   [
+    "ex24",
+    "empty_result",
+    0.744
+   ],
+   [
+    "ex25",
+    "empty_result",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 16.9,
+  "output_tokens": 1616,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q02",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many majors has Raydish won?",
+  "expected": "6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Raydish has won 6 official events (majors), all in 1v1 format. This includes 6 first-place finishes across 1v1 competitions, with no wins in 2v2. The wins span from 2022 to 2026, including events like the North America - Summer Championship 2022 and the Eternal Sports Crew Battle Championship 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.815
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.766
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.742
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 16.3,
+  "output_tokens": 1546,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q03",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "Has Hexo ever placed top 8 in 1v1?",
+  "expected": "Yes, once at an official event: Hexoo placed 5th at Brawlhalla Community Tournament #2 (2025-09-28). Community events aren't in the data, so top 8s there aren't counted.",
+  "outcome": "answered",
+  "answer": "Yes, Hexoo has placed top 8 in 1v1 once, finishing 5th at the Brawlhalla Community Tournament #2 on 2025-09-28. This is their only top 8 placement in 1v1 events.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Hexo: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex12",
+    "medals",
+    0.768
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.762
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.76
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 17.0,
+  "output_tokens": 1604,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q04",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 1,
+  "arm": "on",
+  "question": "What does Impala vs Balloonboy's history look like?",
+  "expected": "Impala leads BBBalloonBoy 2-1 in 1v1 sets at official events (8-4 in games), DQs and forfeits left out: - Trial of Frigg - North America (Moose Wars), 2024-03-17: Impala won 3-0 - Trial of Skuld - North America, 2024-08-04: Impala won 3-1 - Brawlhalla World Championship Expo 2024 (BCX 2024), 2024-11-15: BBBalloonBoy won 3-2 They never met in 2v2. Both placed at 23 of the same official 1v1 events and 3 of the same 2v2 events.",
+  "outcome": "answered",
+  "answer": "Impala's 1v1 record against BBBalloonBoy (formerly BalloonBoy) is 2 wins and 1 loss across 3 sets. Their matches occurred at:\n- Trial of Frigg (March 17, 2024): Impala won 3-0\n- Trial of Skuld (August 4, 2024): Impala won 3-1\n- Brawlhalla World Championship Expo 2024 (November 15, 2024): BBBalloonBoy won 3-2\n\nThey have never faced each other in 2v2.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Impala: queried with it; Balloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex05",
+    "head_to_head",
+    0.742
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 22.7,
+  "output_tokens": 2161,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q05",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "List the top 10 highest-earning players in Brawlhalla history.",
+  "expected": "The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00",
+  "outcome": "answered",
+  "answer": "The top 10 highest-earning players in Brawlhalla history, based on official career earnings from the Stats API as of the latest data, are:\n\n1. **gdsandstorm** - $258,984.17  \n2. **Zivai** - $214,458.33  \n3. **acno?** - $189,215.00  \n4. **whoiskyna** - $161,110.00  \n5. **SiB | Wess** - $131,481.67  \n6. **yüz** - $131,421.67  \n7. **Blaze** - $120,207.83  \n8. **loreszz** - $102,600.00  \n9. **lFiend** - $94,261.67  \n10. **Raydish** - $83,825.00  \n\n*Note: Earnings data is sourced from the official Stats API, and players without an entry in the `v_career_earnings` view (e.g., those with no recorded earnings) are excluded.*",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.735
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.708
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.704
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 14.2,
+  "output_tokens": 1375,
+  "name_swaps": 0,
+  "tools": {
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q06",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who has megd played with in 2v2 tournaments, and how did they place?",
+  "expected": "megD has had 17 partners at official 2v2 events. The most frequent: - Raydish: 20 events, best 2nd - hardymj: 4 events, best 9th - Winged_Shell: 3 events, best 17th - bestjava and buko pandan: 2 events each, best 5th - Walshy and Moni-: 2 events each, best 7th - JuicyDiaper: 2 events, best 25th and nine more with one event each: Snowy!! (7th), Anon Alex, Cody Travis and flowerVS (9th), Ultra and warmsink26 (13th), wubz (17th), iLLu and .kira (25th).",
+  "outcome": "answered",
+  "answer": "megD has played with 17 different 2v2 partners across 46 official events. Her most frequent partner was **Raydish**, with whom she competed in 20 events, earning 3 medals (placing 2nd or better in 9 events, with a best placement of 2nd). All other partners appeared in 4 or fewer events, with no additional medals recorded. The next most frequent partners were **hardymj** (4 events) and **Winged_Shell** (3 events), but neither partner earned medals with megD.",
+  "stage1": {
+   "result": "pass",
+   "detail": "megd: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "teammates",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.808
+   ],
+   [
+    "ex08",
+    "teammates",
+    0.801
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.801
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 12.6,
+  "output_tokens": 1161,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "team_results": 1
+  }
+ },
+ {
+  "id": "q07",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many medals does Balloonboy have?",
+  "expected": "27 medals (top-3 placements at official events) for BBBalloonBoy: - 1v1: 2 gold, 8 silver, 5 bronze (15), including a crew battle silver, a team result - 2v2: 5 gold, 3 silver, 4 bronze (12) Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy (formerly BalloonBoy) has a total of **27 medals** across official events, with 15 in 1v1 (2 gold, 8 silver, 5 bronze) and 12 in 2v2 (5 gold, 3 silver, 4 bronze). This includes 1 crew battle result counted under 1v1.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Balloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex12",
+    "medals",
+    0.825
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.79
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.1,
+  "output_tokens": 1758,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q08",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who has the best record against marckiemoo?",
+  "expected": "By 1v1 set win rate against Marckiem00 at official events, among players with at least 5 sets against them (DQs and forfeits left out): 1. V3M_T4NQUIL0: 3-2 (60%) 2. Raydish: 6-7 (46%) 3. gdsandstorm: 4-7 (36%) V3M_T4NQUIL0 is the only one of them with a winning record.",
+  "outcome": "answered",
+  "answer": "V3M_T4NQUIL0 has the best record against Marckiem00, with a 60% win rate (3 wins, 2 losses) in 5 official 1v1 sets, meeting the minimum of 5 sets required for the best record calculation. This is based on the official Power Rankings' counting rule for the highest win rate among players with at least 5 matches against Marckiem00.",
+  "stage1": {
+   "result": "pass",
+   "detail": "marckiemoo: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "best_record",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.761
+   ],
+   [
+    "ex31",
+    "stats",
+    0.707
+   ],
+   [
+    "ex20",
+    "opponents",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.2,
+  "output_tokens": 1802,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "rank_pairs": 1
+  }
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track earnings per tournament; it only records a player's total career earnings in the `v_career_earnings` view. For player **gdsandstorm**, the total career earnings are not broken down by tournament. Since the question asks for the tournament where they earned the most money, but the data lacks per-tournament earnings figures, this information cannot be determined from the available results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.755
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 11.2,
+  "output_tokens": 1061,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q10",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "Give me the bracket link of BCX 2022.",
+  "expected": "BCX 2022 is the Brawlhalla World Championship Expo 2022 (2022-11-04), with two events: - 1v1: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets - 2v2: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets",
+  "outcome": "answered",
+  "answer": "The bracket links for BCX 2022 are:\n\n- **1v1 event**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets)  \n- **2v2 event**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets)  \n\nBoth events were held on 2022-11-04.",
+  "stage1": {
+   "result": "pass",
+   "detail": "BCX 2022: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_facts",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex04",
+    "event_facts",
+    0.763
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.754
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.733
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 18.7,
+  "output_tokens": 1761,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q11",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "What is Raydish's most dominant tournament win?",
+  "expected": "By games lost across the run (fewest first, then fewest sets dropped, then most games won): the Trial of Laufey - North America (Moose Wars) (2024-08-25), where Raydish won all 9 sets, 25 games to 2: two 2-0s, then 3-0, 3-1, 3-0, 3-0, 3-0 (Bunny meow), 3-0 and 3-1 (both against BBBalloonBoy). The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship win is left out: its sets are crew against crew, so not comparable.",
+  "outcome": "answered",
+  "answer": "Raydish's most dominant tournament win was at **Trial of Laufey - North America (Moose Wars)** on **2024-08-25** in 1v1. The victory required **9 sets played** with **0 sets dropped** (all sets won without surrendering any), resulting in **25 games won** and **2 games lost**. This win ranked as the most dominant per the official dominance criteria (fewest sets dropped, then fewest games lost, then most games won).",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "dominance",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex23",
+    "dominance",
+    0.823
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.753
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.3,
+  "output_tokens": 1332,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "dominant_wins": 1
+  }
+ },
+ {
+  "id": "q12",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "What was flowers' first top 8?",
+  "expected": "flowerVS's first 1v1 top 8 at an official event was 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15). An earlier top 8 came in 2v2: 7th at the Summer Doubles Championship - North America (2024-07-21). \"flowers\" is taken as flowerVS; another player, Flowers (156897), has that display name.",
+  "outcome": "answered",
+  "answer": "flowerVS's first top 8 finish was at the **Brawlhalla World Championship Expo 2024** on 2024-11-15, where they placed **7th** in 1v1. This is the earliest top 8 result in their official 1v1 career (placement ≤ 8).",
+  "stage1": {
+   "result": "pass",
+   "detail": "flowers: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.761
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.735
+   ],
+   [
+    "ex05",
+    "head_to_head",
+    0.709
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 30.5,
+  "output_tokens": 2799,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q13",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "who won winters 2023 na 1v1",
+  "expected": "Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.",
+  "outcome": "answered",
+  "answer": "Raydish won the 1v1 event at the North America - Winter Championship 2023 (held on 2023-02-05), as confirmed by the official results for \"winters 2023 na 1v1\".",
+  "stage1": {
+   "result": "pass",
+   "detail": "winters 2023 na 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.869
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.783
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.772
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 15.2,
+  "output_tokens": 1399,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q14",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who made top 8 at Trial of Laufey NA?",
+  "expected": "Trial of Laufey - North America (Moose Wars), 1v1, 2024-08-25: - 1st: Raydish - 2nd: BBBalloonBoy - 3rd: Marckiem00 - 4th: gdsandstorm - 5th: Bunny meow and wrenchd - 7th: STING RAY and antireplay",
+  "outcome": "answered",
+  "answer": "The top 8 players at Trial of Laufey NA (held August 25, 2024, in 1v1 format) were:\n\n1. Raydish  \n2. BBBalloonBoy  \n3. Marckiem00  \n4. gdsandstorm  \n5. Bunny meow (tied)  \n5. wrenchd (tied)  \n7. STING RAY (tied)  \n7. antireplay (tied)",
+  "stage1": {
+   "result": "pass",
+   "detail": "Trial of Laufey NA: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "event_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.805
+   ],
+   [
+    "ex29",
+    "event_final",
+    0.756
+   ],
+   [
+    "ex02",
+    "event_winner",
+    0.754
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 20.5,
+  "output_tokens": 1877,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q15",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "did godly win eu summers 2026",
+  "expected": "Yes, both events. Zivai (formerly Kingdom | Godly) won the Summer Championship - Europe 2026 - 1v1 (2026-07-18), ahead of Ahmet_, and the 2v2 (2026-07-25) with bamya, ahead of acno? and Blaze.",
+  "outcome": "answered",
+  "answer": "Zivai (formerly Godly) won the 1v1 event at EU Summers 2026. The winner of the 1v1 event (held July 18, 2026) was Zivai, while they also won the 2v2 event (held July 25, 2026) partnering with bamya. The question refers to the 1v1 event as the primary competition, so the answer is yes.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first; eu summers 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex03",
+    "event_top8",
+    0.804
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.745
+   ],
+   [
+    "ex25",
+    "empty_result",
+    0.779
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 36.7,
+  "output_tokens": 3328,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q16",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "who won sa 2v2 springs 2026",
+  "expected": "SiB | Wess and V3M_T4NQUIL0 (vem) won the Spring Championship - South America 2026 - 2v2 (2026-05-02), ahead of loreszz and whoiskyna.",
+  "outcome": "answered",
+  "answer": "The winner of the SA 2v2 Spring Championship 2026 was the team of **SiB** and **Wess**. This event, officially titled \"Spring Championship - South America 2026 - 2v2,\" was held on May 2, 2026, with no reported issues affecting the results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sa 2v2 springs 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.851
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.811
+   ],
+   [
+    "ex02",
+    "event_winner",
+    0.783
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 19.0,
+  "output_tokens": 1804,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q17",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "top 8 at bcx 2025 1v1?",
+  "expected": "Brawlhalla World Championship Expo 2025 - 1v1 (2025-11-22): - 1st: Marckiem00 - 2nd: BBBalloonBoy - 3rd: Raydish - 4th: STING RAY - 5th: V3M_T4NQUIL0 and Zivai - 7th: Mounir and yüz",
+  "outcome": "answered",
+  "answer": "The top 8 players at the BCX 2025 1v1 event (Brawlhalla World Championship Expo 2025 - 1v1, held on 2025-11-22) are as follows:\n\n1. **Marckiem00**  \n2. **BBBalloonBoy**  \n3. **Raydish**  \n4. **STING RAY**  \n5. **V3M_T4NQUIL0** and **Zivai** (tied)  \n7. **Mounir** and **yüz** (tied)  \n\nNote: The name \"yü\" in the event results was resolved to the canonical name \"yüz\" (formerly \"Yu\") using the player resolver. Tied placements are accounted for as per official results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "bcx 2025 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.83
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.827
+   ],
+   [
+    "ex12",
+    "medals",
+    0.77
+   ]
+  ],
+  "checks": [
+   "answer_check"
+  ],
+  "fired": {
+   "answer check": 1
+  },
+  "steps": 4,
+  "model_seconds": 33.9,
+  "output_tokens": 3117,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1,
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q18",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "who won 2v2 at autumns 2023 NA?",
+  "expected": "bestjava and fakey7 won the North America - Autumn Championship 2023 2v2 (2023-10-01); megD and Raydish were 2nd.",
+  "outcome": "answered",
+  "answer": "The winners of the 2v2 event at the North America Autumn Championship 2023 were **bestjava** and **fakey7**. This was the official 2v2 championship held on October 1, 2023, with the bracket available at the provided link.",
+  "stage1": {
+   "result": "pass",
+   "detail": "autumns 2023 NA: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.856
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.842
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.854
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 25.4,
+  "output_tokens": 2328,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q19",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who won the Midseason Championship 2026?",
+  "expected": "BBBalloonBoy won both events (2026-06-12): the 1v1, ahead of Marckiem00, and the 2v2 with Mounir, ahead of loreszz and whoiskyna.",
+  "outcome": "answered",
+  "answer": "The Midseason Championship 2026 had separate 1v1 and 2v2 events. In the 1v1 division, BBBalloonBoy won. In the 2v2 division, BBBalloonBoy and Mounir won together.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Midseason Championship 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.793
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.74
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 8.5,
+  "output_tokens": 780,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q20",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "what was the score of the 1v1 grand final at dreamhack valencia 2023",
+  "expected": "Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the winners' semi-final to luna, came through the losers' side.",
+  "outcome": "answered",
+  "answer": "The score of the 1v1 grand final at DreamHack Valencia 2023 was 3-0.",
+  "stage1": {
+   "result": "pass",
+   "detail": "dreamhack valencia 2023: IDs in a query"
+  },
+  "stage2": {
+   "result": "fail",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_final",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex29",
+    "event_final",
+    0.854
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.83
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.771
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 16.4,
+  "output_tokens": 1521,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q21",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "how many official events has baloonboy won?",
+  "expected": "BBBalloonBoy has won 7 official events: 5 in 2v2 and 2 in 1v1. - 2v2: Autumn Doubles Championship - North America (2024-10-06), Winter Championship - North America 2025 (2025-03-02), Winter Championship - North America 2026 (2026-03-01), Midseason Championship 2026 (2026-06-12), Summer Championship - North America 2026 (2026-07-26) - 1v1: Midseason Championship 2026 (2026-06-12), Autumn Championship - North America 2026 (2026-09-20)",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy has won 7 official events: 2 in 1v1 and 5 in 2v2.",
+  "stage1": {
+   "result": "pass",
+   "detail": "baloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.879
+   ],
+   [
+    "ex12",
+    "medals",
+    0.791
+   ],
+   [
+    "ex13",
+    "placements",
+    0.777
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.0,
+  "output_tokens": 1274,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q22",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "did markiemoo ever win worlds",
+  "expected": "Yes: Marckiem00 won the 1v1 at the Brawlhalla World Championship Expo 2025 (worlds 2025, 2025-11-22), ahead of BBBalloonBoy. Marckiem00's other world championship results: 7th in the 2025 2v2, and 3rd in both the 1v1 and the 2v2 at BCX 2024.",
+  "outcome": "suggestions",
+  "answer": "I couldn't find a player named \"markiemoo\", so I won't guess. The closest names in the data:\n1. Marckiem00: 47 official results, 2022 to 2026 (matched \"marckiemoo\", similar spelling)\n2. Markled: 2 official results, 2020 (matched \"Markled\", similar spelling)\n3. Arklem: 1 official result, 2018 (matched \"Arklem\", similar spelling)\nWhich one did you mean?",
+  "stage1": {
+   "result": "pass",
+   "detail": "markiemoo: suggested [146052, 101849, 104811]"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "asked the user instead of querying"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "series_results",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.809
+   ],
+   [
+    "ex22",
+    "series_results",
+    0.793
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.766
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 1,
+  "model_seconds": 5.8,
+  "output_tokens": 574,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q23",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 1,
+  "arm": "on",
+  "question": "kingdom | godly vs impala head to head",
+  "expected": "Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at official events, 12-9 in games to Zivai: - Brawlhalla World Championship Expo 2022 (2022-11-04): Impala won 3-0 and 3-1 - DreamHack San Diego 2023 (2023-04-07): Impala won 3-2 - DreamHack Valencia 2023 (2023-07-07): Zivai won 3-0 - Brawlhalla World Championship Expo 2023 (2023-11-03): Zivai won 3-0 - Brawlhalla World Championship Expo 2024 (2024-11-15): Zivai won 3-0 They never met in 2v2.",
+  "outcome": "answered",
+  "answer": "Zivai (formerly Godly) has a 3-3 head-to-head record against Impala in 1v1, with each player winning three sets across six official matches. Their encounters include three wins by Impala (3-0, 3-1, 3-2) and three wins by Zivai (all 3-0) at events like the Brawlhalla World Championship Expo (2022–2024) and DreamHack tournaments. They have never faced each other in 2v2.",
+  "stage1": {
+   "result": "pass",
+   "detail": "kingdom | godly: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 25.5,
+  "output_tokens": 2395,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q24",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "who won msi 1v1",
+  "expected": "Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational: luna won its 1v1 (2022-06-12), ahead of megD. If another midseason event was meant: BBBalloonBoy won the Midseason Championship 2026 1v1.",
+  "outcome": "answered",
+  "answer": "luna won the 2022 Brawlhalla Midseason Championship (officially named \"Brawlhalla Midseason Championship / Brawlhalla Championship 1v1\"), which is referred to as \"MSI\" in the question. The event was held on June 12, 2022, and luna secured the 1st place victory.",
+  "stage1": {
+   "result": "pass",
+   "detail": "msi: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.827
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.796
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.78
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 28.6,
+  "output_tokens": 2677,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q25",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "how many official tournaments has RAYDISH won",
+  "expected": "6, all counted as 1v1: the NA Summer Championship 2022, the NA Winter Championship 2023, the Trials of Ymir, Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: a team result, counted as 1v1).",
+  "outcome": "answered",
+  "answer": "Raydish has won 6 official tournaments, all in 1v1 mode. Their victories occurred at the following events: North America - Summer Championship 2022 (2022-07-31), North America - Winter Championship 2023 (2023-02-05), Trial of Ymir (2024-02-18), Trial of Heimdall (2024-07-14), Trial of Laufey (2024-08-25), and Eternal Sports Crew Battle Championship 2026 (2026-08-30). One of these wins (the 2026 event) was a crew battle, but it is counted as a 1v1 result per official data.",
+  "stage1": {
+   "result": "pass",
+   "detail": "RAYDISH: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.843
+   ],
+   [
+    "ex13",
+    "placements",
+    0.755
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.766
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.7,
+  "output_tokens": 1367,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q26",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+  "expected": "27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy (formerly BalloonBoy) has finished in the top 3 (1st, 2nd, or 3rd place) at official events a total of 27 times. This includes 15 placements in 1v1 (with one being a crew battle counted as 1v1) and 12 placements in 2v2, across all official events from 2024 to 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "M30W | BalloonBoy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.819
+   ],
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.782
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.6,
+  "output_tokens": 1763,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q27",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 1,
+  "arm": "on",
+  "question": "whats bbballoonboy's 1v1 record vs impala",
+  "expected": "BBBalloonBoy is 1-2 against Impala in 1v1 sets at official events (4-8 in games): lost 0-3 at the Trial of Frigg NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 2024 (2024-11-15).",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy's 1v1 record against Impala is 1 win and 2 losses in 3 sets. Their most recent encounter at the Brawlhalla World Championship Expo 2024 saw BBBalloonBoy win 3-2, though Impala secured the first two sets (3-0 and 3-1) in earlier matches.",
+  "stage1": {
+   "result": "pass",
+   "detail": "bbballoonboy: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex05",
+    "head_to_head",
+    0.763
+   ],
+   [
+    "ex19",
+    "best_record",
+    0.762
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.758
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 18.9,
+  "output_tokens": 1712,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q28",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "who won worlds 2019 1v1",
+  "expected": "gdsandstorm won the 2019 World Championship 1v1 (DreamHack Atlanta 2019, 2019-11-15); simpLe was 2nd.",
+  "outcome": "answered",
+  "answer": "The winner of the 1v1 event at Worlds 2019 (officially titled *DreamHack Atlanta 2019 / Brawlhalla World Championship 1v1*) was **gdsandstorm**.",
+  "stage1": {
+   "result": "pass",
+   "detail": "worlds 2019 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.896
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.79
+   ],
+   [
+    "ex34",
+    "ranking_in_window",
+    0.808
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 6.7,
+  "output_tokens": 614,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q29",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who won the 1v1 at DreamHack Atlanta 2019?",
+  "expected": "gdsandstorm won DreamHack Atlanta 2019's 1v1, the Brawlhalla World Championship 1v1 (2019-11-15); simpLe was 2nd.",
+  "outcome": "answered",
+  "answer": "gdsandstorm won the 1v1 at DreamHack Atlanta 2019.",
+  "stage1": {
+   "result": "pass",
+   "detail": "DreamHack Atlanta 2019: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.861
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.814
+   ],
+   [
+    "ex32",
+    "most_played_pair",
+    0.786
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 11.1,
+  "output_tokens": 1036,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q30",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "who won ceo dreamland 2020",
+  "expected": "Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.",
+  "outcome": "answered",
+  "answer": "The event \"CEO Dreamland 2020\" as written refers to a cancelled tournament (status: cancelled due to COVID-19), but the held event matching the name and year is **Brawlhalla CEO Dreamland ONLINE / Brawlhalla Championship 1v1** (held March 29, 2020). The winner of this 1v1 event was **gdsandstorm**. The 2v2 event at the same tournament was won by the team **Boomie / gdsandstorm**, but the question asks for a single winner, so the 1v1 result applies. The cancelled \"CEO Dreamland 2020\" event has no official results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "ceo dreamland 2020: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.711
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.708
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.705
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 29.4,
+  "output_tokens": 2671,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q31",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who won SEA League Week 1/4?",
+  "expected": "In SEA League (Week 1/4)'s matches (2017-04-22), TigerBrawlhalla was the only player who didn't lose a set: 6-0.",
+  "outcome": "answered",
+  "answer": "The event \"SEA League Week 1/4\" (officially named \"SEA League (Week 1/4) / Brawlhalla Singles\") was held on 2017-04-22, but its placements are marked as **unreliable** due to incorrect standings on start.gg (e.g., 24 entrants incorrectly listed as 1st place). As a result, **no official winner can be determined** from the data. However, the only undefeated player in the event was **TigerBrawlhalla**, who went 6-0 in matches.",
+  "stage1": {
+   "result": "pass",
+   "detail": "SEA League Week 1/4: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.765
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.749
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.714
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 13.7,
+  "output_tokens": 1265,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q32",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "how much prize money did vem win at max mode 2025",
+  "expected": "The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 (2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.",
+  "outcome": "answered",
+  "answer": "The data does not track prize money per event; it only records total career earnings. V3M_T4NQUIL0 (player ID 71736) has a total career earnings figure of $40,975.00 in the official data, but this represents their cumulative earnings across all events, not prize money from \"MAX MODE 2025\" specifically. The event \"MAX MODE 2025\" exists in the data (as 1v1 and 2v2 formats), but no per-event prize breakdown is available.",
+  "stage1": {
+   "result": "pass",
+   "detail": "vem: queried with it; max mode 2025: name and year in a result"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex27",
+    "per_year",
+    0.75
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.732
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.73
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 27.8,
+  "output_tokens": 2431,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "resolve_event": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q33",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "how much money has boomie made from brawlhalla",
+  "expected": "The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.",
+  "outcome": "answered",
+  "answer": "The data does not record career earnings for Boomie. A player with no row in `v_career_earnings` has no recorded earnings figure, which is not $0.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": true,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.706
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.706
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.4,
+  "output_tokens": 1244,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q34",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who won the 2016 Brawlhalla World Championship?",
+  "expected": "The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.",
+  "outcome": "answered",
+  "answer": "The 2016 Brawlhalla World Championship is not an official event in the recorded Brawlhalla esports data.\n\n(I left out a statement I couldn't confirm from the data.)",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex35",
+    "upsets",
+    0.803
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.762
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.762
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "number check, claims replaced": 1,
+   "event check": 3
+  },
+  "steps": 4,
+  "model_seconds": 42.2,
+  "output_tokens": 3779,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1
+  }
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which legends (characters) players main. Even after resolving \"godly\" to Zivai (formerly Godly), the tournament results database contains no information about player character preferences or main legends. The available data focuses solely on tournament placements, wins, head-to-head records, and rankings, with no fields tracking character choices.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 12.6,
+  "output_tokens": 1136,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data provided only includes official Brawlhalla esports events. Community tournaments (including those named with \"Community\" or \"Open\") are not tracked in the official results database. Even though Raydish is a valid player in the data, the question references community tournaments, which are excluded from the dataset. Therefore, the question cannot be answered as phrased—there are no community tournament results available for any player.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 17.7,
+  "output_tokens": 1575,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q37",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who has won the most official tournaments?",
+  "expected": "gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most official tournaments with 48 total wins (30 in 1v1 and 18 in 2v2), according to the official rankings as of the latest data. This count includes all official 1v1 and 2v2 tournament wins across all events.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.84
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.83
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.814
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 10.5,
+  "output_tokens": 912,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q38",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "rank the top 5 players by official 1v1 wins",
+  "expected": "1. gdsandstorm, 30 (2 of them crew battles) 2. TigerBrawlhalla, 26 3. Zivai, 23 (1 crew battle) 4. Kylar Alice, 19 5. yüz, 14 (1 crew battle) Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.",
+  "outcome": "answered",
+  "answer": "The top 5 players by official 1v1 wins (1st places) are:\n\n1. **gdsandstorm** (30 wins)  \n2. **TigerBrawlhalla** (26 wins)  \n3. **Zivai** (23 wins)  \n4. **Kylar Alice** (19 wins)  \n5. **yüz (formerly Yu)** (14 wins)  \n\nThis ranking is based on all-time official 1v1 results (including crew battles counted as 1v1), with ties included in the top 5. The name \"yüz\" is the current display name for player ID 73254 (previously known as \"Yu\").",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.814
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.793
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.802
+   ]
+  ],
+  "checks": [
+   "answer_check"
+  ],
+  "fired": {
+   "answer check": 1
+  },
+  "steps": 4,
+  "model_seconds": 36.0,
+  "output_tokens": 3161,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1,
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q39",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "who has more medals, boomie or sandstorm?",
+  "expected": "Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69: - Boomie: 1v1 12 gold, 11 silver, 11 bronze (34); 2v2 32, 8 and 6 (46) - gdsandstorm: 1v1 30, 6 and 6 (42); 2v2 18, 4 and 5 (27) gdsandstorm has more wins (48 to 44), and Boomie more medals.",
+  "outcome": "answered",
+  "answer": "Boomie has 80 medals (34 in 1v1 and 46 in 2v2), while gdsandstorm has 69 medals (42 in 1v1 and 27 in 2v2). Therefore, Boomie has more medals than gdsandstorm.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it; sandstorm: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "6 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 5,
+  "model_seconds": 30.9,
+  "output_tokens": 2247,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "player_results": 2
+  }
+ },
+ {
+  "id": "q40",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "who has raydish lost to the most in 1v1",
+  "expected": "gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).",
+  "outcome": "answered",
+  "answer": "Raydish has lost to **gdsandstorm** the most in 1v1, with 10 losses (gdsandstorm's 10 wins against Raydish). This is based on their 13 total 1v1 sets, where gdsandstorm won 10 and lost 3. The next closest was luna (8 wins), but gdsandstorm leads with the highest count.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "opponents",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.827
+   ],
+   [
+    "ex19",
+    "best_record",
+    0.791
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.776
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 30.5,
+  "output_tokens": 2558,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "rank_pairs": 1
+  }
+ },
+ {
+  "id": "q41",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "Who has won the most 1v1 world championships?",
+  "expected": "gdsandstorm, with 3: 2018 (DreamHack Atlanta 2018), 2019 (DreamHack Atlanta 2019) and 2020, when the World Championship was held separately in five regions (gdsandstorm won North America's). yüz has 2 (BCX 2023 and 2024). Counting only the single worldwide championships, leaving out 2020 and 2021's regional ones, gdsandstorm and yüz tie at 2.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most 1v1 World Championships with 3 wins, including 1 victory at regional championships (2020 and 2021). This count includes all official Worlds events, with regional championships (2020 and 2021) counted as part of the series.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.863
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.835
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.858
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 12.5,
+  "output_tokens": 1088,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q42",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "what was the biggest official brawlhalla tournament ever?",
+  "expected": "By entrants in one event, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.",
+  "outcome": "answered",
+  "answer": "The data provided does not include metrics for tournament size, such as participant count, prize pool, or prestige ranking. The available tools and tables track results, placements, and player statistics, but not event scale. Therefore, it's impossible to determine which official Brawlhalla tournament was the \"biggest\" based on the provided data. The question asks for a metric not recorded in the database.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "fail",
+   "detail": "0 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex35",
+    "upsets",
+    0.873
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.74
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.739
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 1,
+  "model_seconds": 7.5,
+  "output_tokens": 689,
+  "name_swaps": 0,
+  "tools": {}
+ },
+ {
+  "id": "q43",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "what was megd's first major win?",
+  "expected": "megD's first official event win was the Summer Championship - North America 2026 - 1v1 (2026-07-19). The second came on 2026-08-30, at the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle).",
+  "outcome": "answered",
+  "answer": "megD's first major win was at the Summer Championship - North America 2026 on July 19, 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "megd: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_win",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex23",
+    "dominance",
+    0.769
+   ],
+   [
+    "ex15",
+    "first_win",
+    0.716
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.759
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 34.4,
+  "output_tokens": 2994,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q44",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 1,
+  "arm": "on",
+  "question": "How many times did Ahmet finish second to Godly in 2026?",
+  "expected": "3 times, all in 1v1 at official events, each won by Zivai (formerly Godly) with Ahmet_ 2nd: the Spring (2026-04-25), Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.",
+  "outcome": "answered",
+  "answer": "Ahmet_ (player_id 75405) finished second to Zivai (formerly Godly, player_id 147982) in 3 official 1v1 events during 2026. This count is based on events where Ahmet_ placed 2nd and Zivai placed 1st in the same tournament, filtered to 2026 results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Ahmet: queried with it; Godly: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "placements",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.757
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.741
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 37.5,
+  "output_tokens": 3153,
+  "name_swaps": 1,
+  "tools": {
+   "resolve_player": 2,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q45",
+  "set": "existing",
+  "category": "partial",
+  "seed": 1,
+  "arm": "on",
+  "question": "who has earned more money, raydish or impala?",
+  "expected": "Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).",
+  "outcome": "answered",
+  "answer": "Raydish has earned $83,825.00 in official career earnings, as recorded in the data. Impala's earnings are not listed in the career earnings database (a player with no row has no figure recorded).",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1
+  },
+  "steps": 5,
+  "model_seconds": 20.4,
+  "output_tokens": 1846,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q01",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "What was the last tournament Boomie entered?",
+  "expected": "Boomie last entered an official event on 2024-03-10: the Winter Doubles Championship - North America (2v2), placing 2nd. Boomie's last 1v1 event was the Brawlhalla World Championship Expo 2023 (BCX 2023, 2023-11-03), 49th.",
+  "outcome": "answered",
+  "answer": "The last tournament Boomie entered was the **Winter Doubles Championship - North America** (specifically the \"Brawlhalla Championship 2v2\" event) on **2024-03-10**.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Boomie: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "last_event",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.825
+   ],
+   [
+    "ex24",
+    "empty_result",
+    0.744
+   ],
+   [
+    "ex25",
+    "empty_result",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 16.7,
+  "output_tokens": 1534,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q02",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many majors has Raydish won?",
+  "expected": "6 official event wins, all counted as 1v1: - North America - Summer Championship 2022 (2022-07-31) - North America - Winter Championship 2023 (2023-02-05) - Trial of Ymir - North America (2024-02-18) - Trial of Heimdall - North America (NSIG) (2024-07-14) - Trial of Laufey - North America (Moose Wars) (2024-08-25) - Eternal Sports Crew Battle Championship 2026 - North America (2026-08-30), a crew battle: a team result, counted as 1v1 No 2v2 wins.",
+  "outcome": "answered",
+  "answer": "Raydish has won 6 official events (majors), all in 1v1 mode. This includes 6 first-place finishes across 1v1 events, with no wins in 2v2. One of these wins was a crew battle (counted as 1v1), and the wins occurred at events including the North America - Summer Championship 2022 and the Eternal Sports Crew Battle Championship 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.815
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.766
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.742
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 11.9,
+  "output_tokens": 1063,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q03",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "Has Hexo ever placed top 8 in 1v1?",
+  "expected": "Yes, once at an official event: Hexoo placed 5th at Brawlhalla Community Tournament #2 (2025-09-28). Community events aren't in the data, so top 8s there aren't counted.",
+  "outcome": "answered",
+  "answer": "Yes, Hexoo has placed in the top 8 in 1v1. They achieved a 5th-place finish at the Brawlhalla Community Tournament #2 on 2025-09-28, which counts as their only top 8 placement in 1v1.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Hexo: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex12",
+    "medals",
+    0.768
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.762
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.76
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 13.3,
+  "output_tokens": 1205,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q04",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 2,
+  "arm": "on",
+  "question": "What does Impala vs Balloonboy's history look like?",
+  "expected": "Impala leads BBBalloonBoy 2-1 in 1v1 sets at official events (8-4 in games), DQs and forfeits left out: - Trial of Frigg - North America (Moose Wars), 2024-03-17: Impala won 3-0 - Trial of Skuld - North America, 2024-08-04: Impala won 3-1 - Brawlhalla World Championship Expo 2024 (BCX 2024), 2024-11-15: BBBalloonBoy won 3-2 They never met in 2v2. Both placed at 23 of the same official 1v1 events and 3 of the same 2v2 events.",
+  "outcome": "answered",
+  "answer": "Impala's 1v1 record against BBBalloonBoy (formerly BalloonBoy) is 2-1, with two wins and one loss across three sets. They faced each other at three events: Impala won 3-0 at Trial of Frigg, 3-1 at Trial of Skuld, and lost 3-2 at Brawlhalla World Championship Expo 2024. The two players have never played against each other in 2v2.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Impala: queried with it; Balloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex05",
+    "head_to_head",
+    0.742
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 32.1,
+  "output_tokens": 2889,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q05",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "List the top 10 highest-earning players in Brawlhalla history.",
+  "expected": "The top 10 among the 4,981 players with a career earnings figure (Stats API, as of 2026-10-02): 1. gdsandstorm, $258,984.17 2. Zivai, $214,458.33 3. acno?, $189,215.00 4. whoiskyna, $161,110.00 5. SiB | Wess, $131,481.67 6. yüz, $131,421.67 7. Blaze, $120,207.83 8. loreszz, $102,600.00 9. lFiend, $94,261.67 10. Raydish, $83,825.00",
+  "outcome": "answered",
+  "answer": "The top 10 highest-earning players in Brawlhalla history, based on career earnings from the official Stats API (as of the latest data), are:\n\n1. **gdsandstorm** – $258,984.17  \n2. **Zivai** – $214,458.33  \n3. **acno?** – $189,215.00  \n4. **whoiskyna** – $161,110.00  \n5. **SiB | Wess** – $131,481.67  \n6. **yüz** – $131,421.67  \n7. **Blaze** – $120,207.83  \n8. **loreszz** – $102,600.00  \n9. **lFiend** – $94,261.67  \n10. **Raydish** – $83,825.00  \n\n*Note: Earnings are sourced from the official Stats API, and only players with recorded career earnings are included (no entries for players without a row in the data).*",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.735
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.708
+   ],
+   [
+    "ex11",
+    "wins_list",
+    0.704
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 14.0,
+  "output_tokens": 1310,
+  "name_swaps": 0,
+  "tools": {
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q06",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who has megd played with in 2v2 tournaments, and how did they place?",
+  "expected": "megD has had 17 partners at official 2v2 events. The most frequent: - Raydish: 20 events, best 2nd - hardymj: 4 events, best 9th - Winged_Shell: 3 events, best 17th - bestjava and buko pandan: 2 events each, best 5th - Walshy and Moni-: 2 events each, best 7th - JuicyDiaper: 2 events, best 25th and nine more with one event each: Snowy!! (7th), Anon Alex, Cody Travis and flowerVS (9th), Ultra and warmsink26 (13th), wubz (17th), iLLu and .kira (25th).",
+  "outcome": "answered",
+  "answer": "megD has played with 17 different partners in 2v2 tournaments, with Raydish being her most frequent partner across 20 events. Together, they secured 3 medals (top 3 placements), 9 top 8 finishes, and achieved their best placement of 2nd. Other notable partners include hardymj (4 events, no medals), bestjava (2 events, 1 top 8), and Buko Pandan (2 events, 1 top 8), but none of her other partners earned medals or top 8 placements. The remaining 12 partners each competed with megD in 1–2 events, all without securing wins, medals, or top 8 results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "megd: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "teammates",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex17",
+    "ranking",
+    0.808
+   ],
+   [
+    "ex08",
+    "teammates",
+    0.801
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.801
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 23.1,
+  "output_tokens": 2088,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "team_results": 1
+  }
+ },
+ {
+  "id": "q07",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many medals does Balloonboy have?",
+  "expected": "27 medals (top-3 placements at official events) for BBBalloonBoy: - 1v1: 2 gold, 8 silver, 5 bronze (15), including a crew battle silver, a team result - 2v2: 5 gold, 3 silver, 4 bronze (12) Silvers in Brawlball and Triples (both 2026) don't count: those formats count toward neither mode.",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy (formerly BalloonBoy) has a total of 27 medals at official events, with 15 in 1v1 and 12 in 2v2. This includes all placements of 1st, 2nd, or 3rd across both modes.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Balloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex12",
+    "medals",
+    0.825
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.79
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 17.7,
+  "output_tokens": 1558,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q08",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who has the best record against marckiemoo?",
+  "expected": "By 1v1 set win rate against Marckiem00 at official events, among players with at least 5 sets against them (DQs and forfeits left out): 1. V3M_T4NQUIL0: 3-2 (60%) 2. Raydish: 6-7 (46%) 3. gdsandstorm: 4-7 (36%) V3M_T4NQUIL0 is the only one of them with a winning record.",
+  "outcome": "answered",
+  "answer": "V3M_T4NQUIL0 has the best record against Marckiem00 with a 3-2 win-loss record (60% win rate) in 5 sets, based on the highest win rate among players with at least 5 matches against him at official events.",
+  "stage1": {
+   "result": "pass",
+   "detail": "marckiemoo: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "best_record",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.761
+   ],
+   [
+    "ex31",
+    "stats",
+    0.707
+   ],
+   [
+    "ex20",
+    "opponents",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 25.4,
+  "output_tokens": 2307,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "rank_pairs": 1
+  }
+ },
+ {
+  "id": "q09",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "What tournament did sandstorm make the most money from?",
+  "expected": "The data can't say: the database has no prize money per tournament, only career totals. gdsandstorm's career earnings are $258,984.17 (Stats API, as of 2026-10-02), but not which tournaments they came from. Results (such as gdsandstorm's 48 official wins) don't tell how much each paid.",
+  "outcome": "answered",
+  "answer": "The data does not track earnings per tournament; career earnings are listed as a single figure in the `v_career_earnings` view. There is no prize money breakdown by event, so it is impossible to determine which tournament contributed the most to gdsandstorm's earnings.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sandstorm: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex21",
+    "last_event",
+    0.757
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.756
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.755
+   ]
+  ],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1,
+   "claim check": 1
+  },
+  "steps": 4,
+  "model_seconds": 24.6,
+  "output_tokens": 2208,
+  "name_swaps": 1,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q10",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "Give me the bracket link of BCX 2022.",
+  "expected": "BCX 2022 is the Brawlhalla World Championship Expo 2022 (2022-11-04), with two events: - 1v1: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets - 2v2: https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets",
+  "outcome": "answered",
+  "answer": "The bracket links for BCX 2022 are:\n\n- **1v1 bracket**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/1v1/brackets)\n- **2v2 bracket**: [https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets](https://www.start.gg/tournament/brawlhalla-world-championship-expo-2022/event/2v2/brackets)",
+  "stage1": {
+   "result": "pass",
+   "detail": "BCX 2022: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_facts",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex04",
+    "event_facts",
+    0.763
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.754
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.733
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 7.9,
+  "output_tokens": 695,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q11",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "What is Raydish's most dominant tournament win?",
+  "expected": "By games lost across the run (fewest first, then fewest sets dropped, then most games won): the Trial of Laufey - North America (Moose Wars) (2024-08-25), where Raydish won all 9 sets, 25 games to 2: two 2-0s, then 3-0, 3-1, 3-0, 3-0, 3-0 (Bunny meow), 3-0 and 3-1 (both against BBBalloonBoy). The other wins: Trial of Heimdall (10 sets, 27-7 in games), NA Winter Championship 2023 (10 sets, 25-7), Trial of Ymir (10 sets, 27-8), NA Summer Championship 2022 (15 sets, one dropped, 37-9). The 2026 NA Crew Battle Championship win is left out: its sets are crew against crew, so not comparable.",
+  "outcome": "answered",
+  "answer": "Raydish's most dominant tournament win was at **Trial of Laufey - North America (Moose Wars)** on **2024-08-25**, where they achieved a **25-2 victory without dropping any sets** (sets_dropped = 0). This win ranks as the most dominant in their career based on the official dominance criteria (fewest games lost, then fewest sets dropped, then most games won).",
+  "stage1": {
+   "result": "pass",
+   "detail": "Raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "dominance",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex23",
+    "dominance",
+    0.823
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.753
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.757
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 30.4,
+  "output_tokens": 2694,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "dominant_wins": 1
+  }
+ },
+ {
+  "id": "q12",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "What was flowers' first top 8?",
+  "expected": "flowerVS's first 1v1 top 8 at an official event was 7th at the Brawlhalla World Championship Expo 2024 (BCX 2024, 2024-11-15). An earlier top 8 came in 2v2: 7th at the Summer Doubles Championship - North America (2024-07-21). \"flowers\" is taken as flowerVS; another player, Flowers (156897), has that display name.",
+  "outcome": "answered",
+  "answer": "flowerVS's first top 8 was at the Summer Doubles Championship - North America / Brawlhalla Championship 2v2 on 2024-07-21, where they placed 7th in the 2v2 format. This was their earliest top 8 placement across all official events.",
+  "stage1": {
+   "result": "pass",
+   "detail": "flowers: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.761
+   ],
+   [
+    "ex16",
+    "first_top8",
+    0.735
+   ],
+   [
+    "ex05",
+    "head_to_head",
+    0.709
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 18.4,
+  "output_tokens": 1589,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q13",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "who won winters 2023 na 1v1",
+  "expected": "Raydish won the North America - Winter Championship 2023 1v1 (2023-02-05); STING RAY was 2nd.",
+  "outcome": "answered",
+  "answer": "Raydish won the Winters 2023 NA 1v1 event, held on February 5, 2023, with a placement of 1st.",
+  "stage1": {
+   "result": "pass",
+   "detail": "winters 2023 na 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.869
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.783
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.772
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 12.1,
+  "output_tokens": 1063,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q14",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who made top 8 at Trial of Laufey NA?",
+  "expected": "Trial of Laufey - North America (Moose Wars), 1v1, 2024-08-25: - 1st: Raydish - 2nd: BBBalloonBoy - 3rd: Marckiem00 - 4th: gdsandstorm - 5th: Bunny meow and wrenchd - 7th: STING RAY and antireplay",
+  "outcome": "answered",
+  "answer": "The top 8 players at Trial of Laufey NA (held on 2024-08-25, 1v1 mode) were:\n\n1st: Raydish  \n2nd: BBBalloonBoy  \n3rd: Marckiem00  \n4th: gdsandstorm  \n5th: Bunny meow, wrenchd  \n7th: STING RAY, antireplay",
+  "stage1": {
+   "result": "pass",
+   "detail": "Trial of Laufey NA: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "event_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.805
+   ],
+   [
+    "ex29",
+    "event_final",
+    0.756
+   ],
+   [
+    "ex02",
+    "event_winner",
+    0.754
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "number check, claims replaced": 1
+  },
+  "steps": 4,
+  "model_seconds": 21.8,
+  "output_tokens": 1880,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q15",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "did godly win eu summers 2026",
+  "expected": "Yes, both events. Zivai (formerly Kingdom | Godly) won the Summer Championship - Europe 2026 - 1v1 (2026-07-18), ahead of Ahmet_, and the 2v2 (2026-07-25) with bamya, ahead of acno? and Blaze.",
+  "outcome": "answered",
+  "answer": "Zivai (formerly Godly, player_id 147982) won both the 1v1 and 2v2 events at EU Summers 2026. In the 1v1 bracket (held July 18, 2026), Zivai secured the victory as the sole winner. In the 2v2 bracket (held July 25, 2026), Zivai partnered with bamya to claim the championship. The event's official results confirm Zivai's wins in both modes.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first; eu summers 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex03",
+    "event_top8",
+    0.804
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.745
+   ],
+   [
+    "ex25",
+    "empty_result",
+    0.779
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 48.8,
+  "output_tokens": 4208,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q16",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "who won sa 2v2 springs 2026",
+  "expected": "SiB | Wess and V3M_T4NQUIL0 (vem) won the Spring Championship - South America 2026 - 2v2 (2026-05-02), ahead of loreszz and whoiskyna.",
+  "outcome": "answered",
+  "answer": "The winner of the SA 2v2 Springs 2026 event (officially named \"Spring Championship - South America 2026 - 2v2\") was the team consisting of SiB and Wess.",
+  "stage1": {
+   "result": "pass",
+   "detail": "sa 2v2 springs 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.851
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.811
+   ],
+   [
+    "ex02",
+    "event_winner",
+    0.783
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 32.1,
+  "output_tokens": 2843,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q17",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "top 8 at bcx 2025 1v1?",
+  "expected": "Brawlhalla World Championship Expo 2025 - 1v1 (2025-11-22): - 1st: Marckiem00 - 2nd: BBBalloonBoy - 3rd: Raydish - 4th: STING RAY - 5th: V3M_T4NQUIL0 and Zivai - 7th: Mounir and yüz",
+  "outcome": "answered",
+  "answer": "The top 8 players at BCX 2025 1v1 were:\n\n1. Marckiem00  \n2. BBBalloonBoy  \n3. Raydish  \n4. STING RAY  \n5. V3M_T4NQUIL0  \n5. Zivai  \n7. Mounir  \n7. yüz  \n\nNote: Ties at 5th and 7th places (two players each) are included as per official results.",
+  "stage1": {
+   "result": "pass",
+   "detail": "bcx 2025 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_top8",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.83
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.827
+   ],
+   [
+    "ex12",
+    "medals",
+    0.77
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 13.1,
+  "output_tokens": 1169,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q18",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "who won 2v2 at autumns 2023 NA?",
+  "expected": "bestjava and fakey7 won the North America - Autumn Championship 2023 2v2 (2023-10-01); megD and Raydish were 2nd.",
+  "outcome": "answered",
+  "answer": "The winners of the 2v2 event at the Autumn Championship 2023 NA were **bestjava** and **fakey7**. This was the North America - Autumn Championship 2023 / Brawlhalla Championship 2v2 event, held on 2023-10-01.",
+  "stage1": {
+   "result": "pass",
+   "detail": "autumns 2023 NA: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.856
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.842
+   ],
+   [
+    "ex03",
+    "event_top8",
+    0.854
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 30.7,
+  "output_tokens": 2684,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q19",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who won the Midseason Championship 2026?",
+  "expected": "BBBalloonBoy won both events (2026-06-12): the 1v1, ahead of Marckiem00, and the 2v2 with Mounir, ahead of loreszz and whoiskyna.",
+  "outcome": "answered",
+  "answer": "The Midseason Championship 2026 had separate 1v1 and 2v2 events. The 1v1 winner was **BBBalloonBoy** (player ID 149305), and the 2v2 winners were **BBBalloonBoy** (player ID 149305) and **Mounir** (player ID 79853). Both events were held on 2026-06-12.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Midseason Championship 2026: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.793
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.74
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.727
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 10.3,
+  "output_tokens": 920,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q20",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "what was the score of the 1v1 grand final at dreamhack valencia 2023",
+  "expected": "Zivai (formerly Godly) beat Impala 3-0 in the 1v1 grand final of DreamHack Valencia 2023. There was no bracket reset: Zivai came from the winners' side without losing a set (8-0 at the event), and Impala, who had lost the winners' semi-final to luna, came through the losers' side.",
+  "outcome": "answered",
+  "answer": "The score of the 1v1 grand final at DreamHack Valencia 2023 was 3-0, with the winner securing all three games without dropping any.",
+  "stage1": {
+   "result": "pass",
+   "detail": "dreamhack valencia 2023: IDs in a query"
+  },
+  "stage2": {
+   "result": "fail",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_final",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex29",
+    "event_final",
+    0.854
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.83
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.771
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.2,
+  "output_tokens": 1699,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q21",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "how many official events has baloonboy won?",
+  "expected": "BBBalloonBoy has won 7 official events: 5 in 2v2 and 2 in 1v1. - 2v2: Autumn Doubles Championship - North America (2024-10-06), Winter Championship - North America 2025 (2025-03-02), Winter Championship - North America 2026 (2026-03-01), Midseason Championship 2026 (2026-06-12), Summer Championship - North America 2026 (2026-07-26) - 1v1: Midseason Championship 2026 (2026-06-12), Autumn Championship - North America 2026 (2026-09-20)",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy has won 7 official events, with 2 victories in 1v1 and 5 in 2v2. Their wins include the Autumn Doubles Championship (2024), Winter Championship (2025), Winter Championship (2026), Midseason Championship (2026), and Autumn Championship (2026) in 2v2, plus two 1v1 wins at the Midseason Championship (2026) and Autumn Championship (2026).",
+  "stage1": {
+   "result": "pass",
+   "detail": "baloonboy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.879
+   ],
+   [
+    "ex12",
+    "medals",
+    0.791
+   ],
+   [
+    "ex13",
+    "placements",
+    0.777
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 13.8,
+  "output_tokens": 1207,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q22",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "did markiemoo ever win worlds",
+  "expected": "Yes: Marckiem00 won the 1v1 at the Brawlhalla World Championship Expo 2025 (worlds 2025, 2025-11-22), ahead of BBBalloonBoy. Marckiem00's other world championship results: 7th in the 2025 2v2, and 3rd in both the 1v1 and the 2v2 at BCX 2024.",
+  "outcome": "suggestions",
+  "answer": "I couldn't find a player named \"markiemoo\", so I won't guess. The closest names in the data:\n1. Marckiem00: 47 official results, 2022 to 2026 (matched \"marckiemoo\", similar spelling)\n2. Markled: 2 official results, 2020 (matched \"Markled\", similar spelling)\n3. Arklem: 1 official result, 2018 (matched \"Arklem\", similar spelling)\nWhich one did you mean?",
+  "stage1": {
+   "result": "pass",
+   "detail": "markiemoo: suggested [146052, 101849, 104811]"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "asked the user instead of querying"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "series_results",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.809
+   ],
+   [
+    "ex22",
+    "series_results",
+    0.793
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.766
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 1,
+  "model_seconds": 7.5,
+  "output_tokens": 700,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q23",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 2,
+  "arm": "on",
+  "question": "kingdom | godly vs impala head to head",
+  "expected": "Zivai (formerly Kingdom | Godly) and Impala are even at 3-3 in 1v1 sets at official events, 12-9 in games to Zivai: - Brawlhalla World Championship Expo 2022 (2022-11-04): Impala won 3-0 and 3-1 - DreamHack San Diego 2023 (2023-04-07): Impala won 3-2 - DreamHack Valencia 2023 (2023-07-07): Zivai won 3-0 - Brawlhalla World Championship Expo 2023 (2023-11-03): Zivai won 3-0 - Brawlhalla World Championship Expo 2024 (2024-11-15): Zivai won 3-0 They never met in 2v2.",
+  "outcome": "answered",
+  "answer": "Zivai (formerly known as \"godly\") has a 3-3 record against Impala in official 1v1 sets, with no 2v2 meetings between them. Their six matches include three wins for each player:\n\n- **Impala** won 3-0 at Brawlhalla World Championship Expo 2022 (2022-11-04) and 3-1 at DreamHack San Diego 2023 (2023-04-07).\n- **Zivai** secured three 3-0 victories at DreamHack Valencia 2023 (2023-07-07), Brawlhalla World Championship Expo 2023 (2023-11-03), and Brawlhalla World Championship Expo 2024 (2024-11-15), the most recent encounter.",
+  "stage1": {
+   "result": "pass",
+   "detail": "kingdom | godly: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 17.3,
+  "output_tokens": 1522,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q24",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "who won msi 1v1",
+  "expected": "Taking MSI as the 2022 Brawlhalla Midseason Championship, which people call the Midseason Invitational: luna won its 1v1 (2022-06-12), ahead of megD. If another midseason event was meant: BBBalloonBoy won the Midseason Championship 2026 1v1.",
+  "outcome": "answered",
+  "answer": "luna won the 2022 MSI 1v1 event (Brawlhalla Midseason Championship / Brawlhalla Championship 1v1), held on June 12, 2022.",
+  "stage1": {
+   "result": "pass",
+   "detail": "msi: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.827
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.796
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.78
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 19.4,
+  "output_tokens": 1710,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q25",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "how many official tournaments has RAYDISH won",
+  "expected": "6, all counted as 1v1: the NA Summer Championship 2022, the NA Winter Championship 2023, the Trials of Ymir, Heimdall and Laufey (NA, 2024), and the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle: a team result, counted as 1v1).",
+  "outcome": "answered",
+  "answer": "Raydish has won 6 official tournaments, all in 1v1 mode (with one of those wins being a crew battle, which is counted as a 1v1 result). This includes victories at events like the North America - Summer Championship 2022, North America - Winter Championship 2023, and the Eternal Sports Crew Battle Championship 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "RAYDISH: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "official_wins",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.843
+   ],
+   [
+    "ex13",
+    "placements",
+    0.755
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.766
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.7,
+  "output_tokens": 1287,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q26",
+  "set": "existing",
+  "category": "player_record",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many times has M30W | BalloonBoy finished top 3 at an official event?",
+  "expected": "27 times, in 1v1 and 2v2: 15 in 1v1 (2 wins, 8 seconds, 5 thirds, a crew battle second included) and 12 in 2v2 (5, 3 and 4). Seconds in Brawlball and Triples aren't counted.",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy (formerly M30W | BalloonBoy) has finished in the top 3 (earned a medal) **27 times** at official events. This includes 15 medals in 1v1 (with one being a crew battle) and 12 medals in 2v2. The most recent top 3 finish was a 1st place in the 1v1 division at the Autumn Championship - North America 2026 on 2026-09-20.",
+  "stage1": {
+   "result": "pass",
+   "detail": "M30W | BalloonBoy: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "medals",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.819
+   ],
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.782
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 14.8,
+  "output_tokens": 1253,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q27",
+  "set": "existing",
+  "category": "head_to_head",
+  "seed": 2,
+  "arm": "on",
+  "question": "whats bbballoonboy's 1v1 record vs impala",
+  "expected": "BBBalloonBoy is 1-2 against Impala in 1v1 sets at official events (4-8 in games): lost 0-3 at the Trial of Frigg NA (2024-03-17) and 1-3 at the Trial of Skuld NA (2024-08-04), won 3-2 at BCX 2024 (2024-11-15).",
+  "outcome": "answered",
+  "answer": "BBBalloonBoy's 1v1 record against Impala is 1 win and 2 losses across 3 sets. They met at three events:  \n- Lost 0-3 to Impala at *Trial of Frigg - North America (Moose Wars)* (2024-03-17)  \n- Lost 1-3 to Impala at *Trial of Skuld - North America* (2024-08-04)  \n- Won 2-3 against Impala at *Brawlhalla World Championship Expo 2024* (2024-11-15)  \n\nThis record reflects all official 1v1 sets played between them, with no DQs or forfeits.",
+  "stage1": {
+   "result": "pass",
+   "detail": "bbballoonboy: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "head_to_head",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex05",
+    "head_to_head",
+    0.763
+   ],
+   [
+    "ex19",
+    "best_record",
+    0.762
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.758
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 20.7,
+  "output_tokens": 1785,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "head_to_head": 1
+  }
+ },
+ {
+  "id": "q28",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "who won worlds 2019 1v1",
+  "expected": "gdsandstorm won the 2019 World Championship 1v1 (DreamHack Atlanta 2019, 2019-11-15); simpLe was 2nd.",
+  "outcome": "answered",
+  "answer": "gdsandstorm won the 1v1 event at the Brawlhalla World Championship 2019 (held in Atlanta on November 15, 2019).",
+  "stage1": {
+   "result": "pass",
+   "detail": "worlds 2019 1v1: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.896
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.79
+   ],
+   [
+    "ex34",
+    "ranking_in_window",
+    0.808
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 21.0,
+  "output_tokens": 1877,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q29",
+  "set": "existing",
+  "category": "event_result",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who won the 1v1 at DreamHack Atlanta 2019?",
+  "expected": "gdsandstorm won DreamHack Atlanta 2019's 1v1, the Brawlhalla World Championship 1v1 (2019-11-15); simpLe was 2nd.",
+  "outcome": "answered",
+  "answer": "gdsandstorm won the 1v1 at DreamHack Atlanta 2019.",
+  "stage1": {
+   "result": "pass",
+   "detail": "DreamHack Atlanta 2019: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "2 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.861
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.814
+   ],
+   [
+    "ex32",
+    "most_played_pair",
+    0.786
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 12.3,
+  "output_tokens": 1096,
+  "name_swaps": 0,
+  "tools": {
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q30",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "who won ceo dreamland 2020",
+  "expected": "Nobody: CEO Dreamland 2020 (planned for 2020-03-13) wasn't held. It was cancelled due to COVID-19. Brawlhalla CEO Dreamland ONLINE followed on 2020-03-28 and 29: gdsandstorm won the 1v1, and gdsandstorm and Boomie the 2v2.",
+  "outcome": "answered",
+  "answer": "The event \"CEO Dreamland 2020\" refers to a cancelled tournament (status: \"cancelled due to COVID-19\"). The actual held event under the same name was \"Brawlhalla CEO Dreamland ONLINE,\" which occurred on 2020-03-29 for 1v1 and 2020-03-28 for 2v2. The 1v1 winner was **gdsandstorm**, and the 2v2 winners were **Boomie** and **gdsandstorm** (player_ids 146606 and 74433). Since the question does not specify mode, the primary 1v1 result is provided.",
+  "stage1": {
+   "result": "pass",
+   "detail": "ceo dreamland 2020: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.711
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.708
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.705
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 25.4,
+  "output_tokens": 2219,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q31",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who won SEA League Week 1/4?",
+  "expected": "In SEA League (Week 1/4)'s matches (2017-04-22), TigerBrawlhalla was the only player who didn't lose a set: 6-0.",
+  "outcome": "answered",
+  "answer": "The event \"SEA League Week 1/4\" (officially named *SEA League (Week 1/4) / Brawlhalla Singles*, held on 2017-04-22) has **unreliable placements** due to incorrect standings on Start.gg. The data notes that 24 entrants were incorrectly listed as 1st place (with conflicts like 8 players at 9th place and 5 at 17th), and 37 players who competed were missing from the standings. As a result, **no reliable winner can be determined** from the official results. While TigerBrawlhalla was the only undefeated player (6-0), the placement data cannot be trusted to confirm a champion.",
+  "stage1": {
+   "result": "pass",
+   "detail": "SEA League Week 1/4: IDs in a query"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "event_winner",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex01",
+    "event_winner",
+    0.765
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.749
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.714
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 15.9,
+  "output_tokens": 1403,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 1,
+   "event_results": 1
+  }
+ },
+ {
+  "id": "q32",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "how much prize money did vem win at max mode 2025",
+  "expected": "The data can't say: the database has no prize money per tournament. V3M_T4NQUIL0 (vem) won the MAX MODE 2025 1v1 (2025-04-26) and was 2nd in the 2v2 (2025-04-25) with SiB | Wess, but how much either paid isn't recorded.",
+  "outcome": "answered",
+  "answer": "V3M_T4NQUIL0 has career earnings of $40,975.00 as of 2026-10-02, according to the official Stats API data. The data does not track prize money per tournament or event (including \"Max Mode 2025\"), so this figure represents their total career earnings across all official events. The question's reference to \"Max Mode 2025\" cannot be reconciled with per-event prize data, as the database explicitly states there is no prize money per tournament.",
+  "stage1": {
+   "result": "fail",
+   "detail": "vem: queried with it; max mode 2025: not found"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex27",
+    "per_year",
+    0.75
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.732
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.73
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 22.3,
+  "output_tokens": 1973,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q33",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "how much money has boomie made from brawlhalla",
+  "expected": "The database's career earnings figures come from the Stats API (as of 2026-10-02), which has them only for the 4,981 players with a PR ranking. Boomie has no PR ranking.",
+  "outcome": "answered",
+  "answer": "The data does not record Boomie's career earnings, as there is no entry for player_id 146606 in the `v_career_earnings` view. This indicates his earnings are not tracked in the official Stats API data, which only includes players with a Power Rankings (PR) ranking.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": true,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.706
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.706
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 13.8,
+  "output_tokens": 1225,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q34",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who won the 2016 Brawlhalla World Championship?",
+  "expected": "The data can't say: it starts in February 2017 (the first official events are on 2017-02-04), so 2016's World Championship isn't in it.",
+  "outcome": "answered",
+  "answer": "The 2016 Brawlhalla World Championship is not included in the official Brawlhalla esports database, which only contains results from 2017 onward. The earliest recorded event in the dataset is the 2017 Brawlhalla World Championship (BCX 2017), so there is no winner listed for 2016.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex35",
+    "upsets",
+    0.803
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.762
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.762
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1,
+   "event check": 2
+  },
+  "steps": 5,
+  "model_seconds": 28.0,
+  "output_tokens": 2520,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_event": 2
+  }
+ },
+ {
+  "id": "q35",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "what legend does godly main",
+  "expected": "The data can't say: the database has no legend (character) data. Godly is Zivai (147982).",
+  "outcome": "answered",
+  "answer": "The data does not record which character (legend) a player usually picks. Official Brawlhalla esports results track tournament placements, wins, and match statistics, but not player preferences for specific characters. The question's scope falls outside the database's coverage.",
+  "stage1": {
+   "result": "pass",
+   "detail": "godly: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 8.1,
+  "output_tokens": 721,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q36",
+  "set": "existing",
+  "category": "unanswerable",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many community tournaments has raydish won?",
+  "expected": "The data can't say: it covers official events only, with no community tournaments. Raydish has 6 official event wins. (\"Brawlhalla Community Tournament #2\", 2025, is an official event despite its name, and Raydish didn't enter it.)",
+  "outcome": "answered",
+  "answer": "The data only includes official Brawlhalla esports events. Community tournaments (including those named with \"Community\" or \"Open\") are not part of the official results database, as explicitly stated in the data documentation. Therefore, the question about \"community tournaments\" cannot be answered from the available data.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: resolved first"
+  },
+  "stage2": {
+   "result": "n/a",
+   "detail": "the right answer needs no query result"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "none (no query answers it)",
+  "needs_data": false,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex10",
+    "official_wins",
+    0.813
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.752
+   ],
+   [
+    "ex13",
+    "placements",
+    0.736
+   ]
+  ],
+  "checks": [
+   "no_tool_check"
+  ],
+  "fired": {
+   "no-tool check": 1
+  },
+  "steps": 3,
+  "model_seconds": 14.5,
+  "output_tokens": 1191,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1
+  }
+ },
+ {
+  "id": "q37",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who has won the most official tournaments?",
+  "expected": "gdsandstorm, with 48 official event wins, a tournament's 1v1 and 2v2 counted separately: 30 in 1v1 (2 of them crew battles, team results) and 18 in 2v2. Next: Boomie 44, acno? 36, TigerBrawlhalla 34 and Zivai 31.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most official tournaments with 48 total wins (30 in 1v1, 18 in 2v2). This count includes all 1st-place finishes across both modes, with crew battles counted as part of 1v1 wins.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex30",
+    "ranking",
+    0.84
+   ],
+   [
+    "ex17",
+    "ranking",
+    0.83
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.814
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1
+  },
+  "steps": 3,
+  "model_seconds": 19.1,
+  "output_tokens": 1716,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q38",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "rank the top 5 players by official 1v1 wins",
+  "expected": "1. gdsandstorm, 30 (2 of them crew battles) 2. TigerBrawlhalla, 26 3. Zivai, 23 (1 crew battle) 4. Kylar Alice, 19 5. yüz, 14 (1 crew battle) Crew battles count as 1v1, though they're team results. Without them: gdsandstorm 28, TigerBrawlhalla 26, Zivai 22, Kylar Alice 19, then acno?, whoiskyna and yüz tied at 13.",
+  "outcome": "answered",
+  "answer": "The top 5 players by official 1v1 wins (including crew battle placements as 1v1 wins) are:\n\n1. **gdsandstorm** (30 wins)  \n2. **TigerBrawlhalla** (26 wins)  \n3. **Zivai** (23 wins)  \n4. **Kylar Alice** (19 wins)  \n5. **yüz** (14 wins)  \n\nThis ranking reflects all official 1v1 wins across all events, with crew battle placements counted as 1v1 wins.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.814
+   ],
+   [
+    "ex33",
+    "power_rankings",
+    0.793
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.802
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 13.3,
+  "output_tokens": 1211,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q39",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "who has more medals, boomie or sandstorm?",
+  "expected": "Boomie, with 80 medals (top-3 placements at official events) to gdsandstorm's 69: - Boomie: 1v1 12 gold, 11 silver, 11 bronze (34); 2v2 32, 8 and 6 (46) - gdsandstorm: 1v1 30, 6 and 6 (42); 2v2 18, 4 and 5 (27) gdsandstorm has more wins (48 to 44), and Boomie more medals.",
+  "outcome": "answered",
+  "answer": "Boomie has 80 total medals (34 in 1v1, 46 in 2v2), while gdsandstorm (Sandstorm) has 69 total medals (42 in 1v1, 27 in 2v2). Therefore, Boomie has more medals.",
+  "stage1": {
+   "result": "pass",
+   "detail": "boomie: queried with it; sandstorm: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "6 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 5,
+  "model_seconds": 27.3,
+  "output_tokens": 2100,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "player_results": 2
+  }
+ },
+ {
+  "id": "q40",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "who has raydish lost to the most in 1v1",
+  "expected": "gdsandstorm: 10 of Raydish's 1v1 set losses at official events came against gdsandstorm (Raydish is 3-10 against them). Next: luna 8 (1-8), Marckiem00 7 (6-7) and BBBalloonBoy 6 (4-6).",
+  "outcome": "answered",
+  "answer": "Raydish has lost to **gdsandstorm** the most in 1v1 matches, with a total of 10 losses. This is based on their official head-to-head record across all 1v1 events.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "opponents",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.827
+   ],
+   [
+    "ex19",
+    "best_record",
+    0.791
+   ],
+   [
+    "ex23",
+    "dominance",
+    0.776
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 26.0,
+  "output_tokens": 2232,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q41",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "Who has won the most 1v1 world championships?",
+  "expected": "gdsandstorm, with 3: 2018 (DreamHack Atlanta 2018), 2019 (DreamHack Atlanta 2019) and 2020, when the World Championship was held separately in five regions (gdsandstorm won North America's). yüz has 2 (BCX 2023 and 2024). Counting only the single worldwide championships, leaving out 2020 and 2021's regional ones, gdsandstorm and yüz tie at 2.",
+  "outcome": "answered",
+  "answer": "gdsandstorm has won the most 1v1 World Championships with 3 titles (3 wins in the official \"worlds\" series, including 1 at regional championships held as part of the 2020 and 2021 World Championships). The next highest is yüz with 2 wins.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex32",
+    "most_played_pair",
+    0.863
+   ],
+   [
+    "ex30",
+    "ranking",
+    0.835
+   ],
+   [
+    "ex01",
+    "event_winner",
+    0.858
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 2,
+  "model_seconds": 13.9,
+  "output_tokens": 1237,
+  "name_swaps": 0,
+  "tools": {
+   "rank_players": 1
+  }
+ },
+ {
+  "id": "q42",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "what was the biggest official brawlhalla tournament ever?",
+  "expected": "By entrants in one event, the North America - SteelSeries Championship 1v1 (2020-08-22), with 7,240. Next: Low Tier City Midseason Online (NA) 1v1 (2020-07-18), 6,972, and the Europe - SteelSeries Championship 1v1 (2020-08-23), 6,160.",
+  "outcome": "answered",
+  "answer": "The biggest official Brawlhalla tournament by participant count was the **North America - SteelSeries Championship** (specifically its \"Brawlhalla Championship 1v1\" event), with **7,240 entries** recorded in the database. This count represents the largest number of players who entered a single official event, based on the data provided.",
+  "stage1": {
+   "result": "n/a",
+   "detail": "names no player or event"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "existing, new shape",
+  "label": "ranking",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex35",
+    "upsets",
+    0.873
+   ],
+   [
+    "ex27",
+    "per_year",
+    0.74
+   ],
+   [
+    "ex21",
+    "last_event",
+    0.739
+   ]
+  ],
+  "checks": [
+   "number_check"
+  ],
+  "fired": {
+   "number check, sent back": 1
+  },
+  "steps": 3,
+  "model_seconds": 22.8,
+  "output_tokens": 2065,
+  "name_swaps": 0,
+  "tools": {
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q43",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "what was megd's first major win?",
+  "expected": "megD's first official event win was the Summer Championship - North America 2026 - 1v1 (2026-07-19). The second came on 2026-08-30, at the Eternal Sports Crew Battle Championship 2026 - North America (a crew battle).",
+  "outcome": "answered",
+  "answer": "megD's first major win was at the Summer Championship 2026 on July 19, 2026. This victory occurred in the 1v1 format at the event's North America regional competition.",
+  "stage1": {
+   "result": "pass",
+   "detail": "megd: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "3 query results"
+  },
+  "shape": "known shape",
+  "group": "existing, known shape",
+  "label": "first_win",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex23",
+    "dominance",
+    0.769
+   ],
+   [
+    "ex15",
+    "first_win",
+    0.716
+   ],
+   [
+    "ex35",
+    "upsets",
+    0.759
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 3,
+  "model_seconds": 22.1,
+  "output_tokens": 1966,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 1,
+   "player_results": 1
+  }
+ },
+ {
+  "id": "q44",
+  "set": "existing",
+  "category": "multi_step",
+  "seed": 2,
+  "arm": "on",
+  "question": "How many times did Ahmet finish second to Godly in 2026?",
+  "expected": "3 times, all in 1v1 at official events, each won by Zivai (formerly Godly) with Ahmet_ 2nd: the Spring (2026-04-25), Summer (2026-07-18) and Autumn (2026-09-19) Championships - Europe 2026.",
+  "outcome": "answered",
+  "answer": "Ahmet_ finished second to Zivai (formerly Godly) in 3 official events during 2026.",
+  "stage1": {
+   "result": "pass",
+   "detail": "Ahmet: queried with it; Godly: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "known shape",
+  "group": "tuned",
+  "label": "placements",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [
+   [
+    "ex13",
+    "placements",
+    0.786
+   ],
+   [
+    "ex18",
+    "ranking",
+    0.757
+   ],
+   [
+    "ex10",
+    "official_wins",
+    0.741
+   ]
+  ],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 29.9,
+  "output_tokens": 2626,
+  "name_swaps": 1,
+  "tools": {
+   "resolve_player": 2,
+   "run_sql": 1
+  }
+ },
+ {
+  "id": "q45",
+  "set": "existing",
+  "category": "partial",
+  "seed": 2,
+  "arm": "on",
+  "question": "who has earned more money, raydish or impala?",
+  "expected": "Raydish's career earnings are $83,825 (Stats API, as of 2026-10-02).",
+  "outcome": "answered",
+  "answer": "Raydish has recorded career earnings of $83,825.00, as shown in the official Stats API data. Impala's career earnings are not recorded in the data (no row exists in v_career_earnings for their player ID), which means their earnings figure is not available.",
+  "stage1": {
+   "result": "pass",
+   "detail": "raydish: queried with it; impala: queried with it"
+  },
+  "stage2": {
+   "result": "pass",
+   "detail": "1 query results"
+  },
+  "shape": "new shape",
+  "group": "tuned",
+  "label": "comparison",
+  "needs_data": true,
+  "ended_empty": false,
+  "examples": [],
+  "checks": [],
+  "fired": {},
+  "steps": 4,
+  "model_seconds": 19.6,
+  "output_tokens": 1753,
+  "name_swaps": 0,
+  "tools": {
+   "resolve_player": 2,
+   "run_sql": 1
+  }
+ }
+]
