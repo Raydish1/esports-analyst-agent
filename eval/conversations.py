@@ -117,7 +117,9 @@ class Turn:
 
     @cached_property
     def evidence(self):
-        """What the number check may cite in this turn's answer: the window's tool results and both questions."""
+        """What the number check may cite in this turn's answer: the window's tool results, both questions, and the
+        line the page showed after the previous turn, as the agent counts it (react.Conversation.shown). Without the
+        line, qwen3:14b's right "TOP 8: 51" from Phazon's card failed c14 turn 2 (the 2026-11-21 model comparison)."""
         found = Evidence()
         for t in self.window:
             found.ask(t["question"])
@@ -128,6 +130,9 @@ class Turn:
                         found.observe(observation)
                         if "error" not in observation:
                             found.call(c["arguments"])
+        if self.previous and self.previous.get("shown"):
+            for part in react.page_rows(self.previous["shown"]):
+                found.observe({"shown": part})
         return found
 
     @cached_property

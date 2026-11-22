@@ -72,6 +72,18 @@ class WindowTest(unittest.TestCase):
         follow_up = Turn(trace("and again?", "megD and Raydish are 2-2 in 4 sets."), earlier, NAMES)
         self.assertEqual(checked(follow_up, rows=[[[142100, "megD"], 4, 2]]), {"grounded": True, "named": True, "rows": True})
 
+    def test_the_line_the_page_showed_after_the_previous_turn_is_in_the_window(self):
+        card = ("Stat cards, at official events. A comparison card of Phazon in 2v2 only 63 results, GOLD 12, SILVER 15,"
+                " BRONZE 6, TOP 8 51; Phazon in both modes together 139 results, GOLD 12.")
+        asked = "on the card, where does phazon's 12 gold come from?"
+        answer = "Phazon's 2v2 figures on the card: **GOLD** 12 and **TOP 8**: 51."
+        shown = dict(trace("cody travis vs phazon head to head", "Phazon leads 5-1."), shown=card)
+        self.assertTrue(checked(Turn(trace(asked, answer), shown, NAMES))["grounded"])
+        unshown = trace("cody travis vs phazon head to head", "Phazon leads 5-1.")
+        self.assertFalse(checked(Turn(trace(asked, answer), unshown, NAMES))["grounded"])
+        own = dict(trace(asked, answer), shown=card)  # a turn's own card comes after its answer
+        self.assertFalse(checked(Turn(own, unshown, NAMES))["grounded"])
+
     def test_a_pattern_takes_alternatives_and_a_player_id_counts_as_its_returned_name(self):
         turn = Turn(trace("q", "2-2.", RESOLVED, RECORD), None, NAMES)
         self.assertTrue(checked(turn, rows=[["megD", 4, 2], [["nobody", 160000], 2]])["rows"])

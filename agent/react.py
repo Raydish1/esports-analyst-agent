@@ -311,6 +311,12 @@ DRAFT = (" The user hasn't seen the draft above: write the reply as the answer t
 # history ended with one (docs/web-app-testing-notes.md, finding 21)
 PAGE_NOTE = "[The page showed the user beside the answer above: {summary}]"
 PAGE_TAG = re.compile(r"\s*\[The page showed\b[^\]]*\]", re.I)
+
+
+def page_rows(summary):
+    """The page's line as rows of evidence, each sentence or clause of it a row, so a record needs both its numbers in
+    one clause. The conversation scorer counts the same rows (eval/conversations.py), so the two can't drift."""
+    return re.split(r"(?<=[.;:])\s+", " ".join(str(summary).split()))
 NOT_CONFIRMED = "I couldn't confirm this from the data, so I won't guess."  # when leaving claims out leaves no fact
 FACT_KINDS = {"number", "word", "ordinal", "record", "date", "datetime", "month", "day", "time", "money", "percent"}
 TOO_BIG_ANSWER = ("Your last query's result was too large to show, so no rows reached you and an answer can't rest on"
@@ -1076,7 +1082,7 @@ class Conversation:
         self.context.beside, self.carded = self.context.question, True
         self.view.read(summary)
         self.view.seen_now |= mentions.seen([summary])
-        for part in re.split(r"(?<=[.;:])\s+", summary):
+        for part in page_rows(summary):
             self.view.evidence.observe({"shown": part})
         if self.last is not None:
             self.last["shown"] = (self.last["shown"] + " " if self.last.get("shown") else "") + summary
