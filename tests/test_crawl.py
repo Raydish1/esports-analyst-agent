@@ -20,8 +20,9 @@ class FakeApi:
         self.routes, self.calls, self.task = routes, [], None
         self.requests_made = self.cache_hits = 0
 
-    def get(self, endpoint, params):
+    def get(self, endpoint, params, refresh=False):
         self.calls.append((endpoint, tuple(sorted((k, str(v)) for k, v in params.items()))))
+        self.refreshed = getattr(self, "refreshed", 0) + bool(refresh)
         self.requests_made += 1
         answer = self.routes[endpoint](params)
         if isinstance(answer, Exception):
@@ -74,6 +75,20 @@ class CrawlTest(unittest.TestCase):
 
     def statuses(self, stage):
         return dict(self.db.execute("SELECT status, COUNT(*) FROM tasks WHERE stage = ? GROUP BY status", (stage,)))
+
+    def test_events_refresh_asks_again_for_the_full_listings_and_this_year(self):
+        known = [{"id": "old", "host": "SGG", "startTime": 1}]
+        api = FakeApi({"/event": lambda params: {"tournaments": known}})
+        self.assertEqual(self.run_stage(api, "events"), "finished")
+        self.assertEqual(api.refreshed, 0)
+        known.append({"id": "new", "host": "CM", "startTime": 2})
+        again = FakeApi({"/event": lambda params: {"tournaments": known}})
+        self.assertEqual(self.run_stage(again, "events"), "finished")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM crawl_events WHERE event_id = 'new'").fetchone()[0], 0)
+        self.args.refresh = True
+        self.assertEqual(self.run_stage(again, "events"), "finished")
+        self.assertEqual(again.refreshed, 4)  # each mode's full listing and this year's, asked again
+        self.assertEqual({r[0] for r in self.db.execute("SELECT event_id FROM crawl_events")}, {"old", "new"})
 
     def test_stopping_and_rerunning_never_repeats_a_finished_task(self):
         api = FakeApi({"/pr": pr_route})

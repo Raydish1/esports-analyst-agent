@@ -2,6 +2,7 @@
 
     python ingest/crawl.py status                  progress of every stage
     python ingest/crawl.py events                  stage 0: every official event
+    python ingest/crawl.py events --refresh        stage 0 again for new events: the full listings and this year's
     python ingest/crawl.py pr                      stage 1: the PR lists, which seed the players
     python ingest/crawl.py profiles                stage 2: profiles of known players
     python ingest/crawl.py lookups                 stage 2b: the Stats API record of every platform player
@@ -290,7 +291,7 @@ def migrate(db):
             db.executemany("UPDATE tasks SET status = 'pending', updated_at = ? WHERE task_key = ?", [(now(), k) for k in keys])
 
 
-def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log=print):
+def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log=print, refresh=False):
     """Every row of a listing paged by timestamp tokens, working around the tie bug.
 
     The next page starts strictly before the token, so rows sharing the boundary timestamp
@@ -300,7 +301,7 @@ def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log
     """
     rows, token = {}, None
     while True:
-        body = api.get(endpoint, {**params, "maxResults": page_size, "nextToken": token})
+        body = api.get(endpoint, {**params, "maxResults": page_size, "nextToken": token}, refresh=refresh)
         page = body.get(rows_key) or []
         new = [r for r in page if row_id(r) not in rows]
         rows.update((row_id(r), r) for r in new)
@@ -315,10 +316,10 @@ def walk_pages(api, endpoint, params, rows_key, row_id, row_time, page_size, log
             return list(rows.values())
 
 
-def list_events(api, mode, year=None, log=print):
-    """Every official event in one mode, and optionally one year."""
+def list_events(api, mode, year=None, log=print, refresh=False):
+    """Every official event in one mode, and optionally one year; refresh asks the API again instead of the cache."""
     return walk_pages(api, "/event", {"gameMode": mode, "isOfficial": True, "year": year},
-                      "tournaments", lambda e: e["id"], lambda e: e["startTime"], PAGE_SIZE, log)
+                      "tournaments", lambda e: e["id"], lambda e: e["startTime"], PAGE_SIZE, log, refresh)
 
 
 def placement_pages(api, player_ids, mode, log):
@@ -349,14 +350,21 @@ def chosen_events(db, host, args):
 # Stage 0: events
 
 def plan_events(db, queue, args):
+    """Every listing once. With --refresh (for new events, docs/build-plan.md §5), each mode's full listing and this
+    year's run again, asking the API instead of the cache; earlier years' listings stay as they were."""
+    this_year = datetime.now(timezone.utc).year
     for mode in MODES:
         queue.add("events", "event_list", f"events:{mode}", {"mode": mode})
-        for year in range(FIRST_YEAR, datetime.now(timezone.utc).year + 1):
+        for year in range(FIRST_YEAR, this_year + 1):
             queue.add("events", "event_list", f"events:{mode}:{year}", {"mode": mode, "year": year})
+        if getattr(args, "refresh", False):
+            for key, params in ((f"events:{mode}", {"mode": mode}), (f"events:{mode}:{this_year}", {"mode": mode, "year": this_year})):
+                db.execute("UPDATE tasks SET status = 'pending', params = ?, updated_at = ? WHERE task_key = ?",
+                           (json.dumps({**params, "refresh": True}), now(), key))
 
 
 def fetch_event_list(api, p, log):
-    return list_events(api, p["mode"], p.get("year"), log)
+    return list_events(api, p["mode"], p.get("year"), log, refresh=bool(p.get("refresh")))
 
 
 def apply_event_list(db, p, events):
@@ -1278,6 +1286,8 @@ def main():
                         help="brackets, cm, lookups, proseries: only this event (repeat for more); for a pilot")
     parser.add_argument("--max-pools", type=int, metavar="N",
                         help="brackets: only the first N pools of each phase of an event fetched pool by pool")
+    parser.add_argument("--refresh", action="store_true",
+                        help="events only: fetch the full listings and this year's again, to find new events")
     parser.add_argument("--retry-rejected", action="store_true",
                         help="put this stage's rejected tasks back in the queue first, once their cause is fixed")
     args = parser.parse_args()
@@ -1288,6 +1298,8 @@ def main():
         return
     if args.event and args.stage not in EVENT_STAGES:
         parser.error(f"--event works with {', '.join(sorted(EVENT_STAGES))}")
+    if args.refresh and args.stage != "events":
+        parser.error("--refresh works with events only")
     if args.top is not None and args.stage != "legends":
         parser.error("--top works with legends only")
     if args.max_pools is not None and args.stage != "brackets":
