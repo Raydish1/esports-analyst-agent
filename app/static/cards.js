@@ -1,4 +1,4 @@
-import { headToHeadFrame, lifetimeFrame, recordIn, scaled, setsFrame } from "./broadcast.js";
+import { headToHeadFrame, lifetimeFrame, recordIn, scaled, setsFrame, teamsFrame } from "./broadcast.js";
 
 // Stat cards (app/server/figures.py), drawn as broadcast frames (broadcast.js): lifetime figures, a head-to-head or
 // comparison, and set lists. Every number comes from the figures event; a missing one reads "not recorded", never 0.
@@ -26,14 +26,14 @@ function earningsNote(e) {
   return `Career, all modes · ${e.source}, as of ${e.as_of}`;
 }
 
-function modeSwitch(onPick) {
+function modeSwitch(onPick, initial = MODES[0][0]) {
   const group = el("div", "mode-switch");
   group.setAttribute("role", "group");
   group.setAttribute("aria-label", "Mode");
   for (const [key, label] of MODES) {
     const b = el("button", null, label);
     b.type = "button";
-    b.setAttribute("aria-pressed", String(key === MODES[0][0]));
+    b.setAttribute("aria-pressed", String(key === initial));
     b.addEventListener("click", () => {
       group.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       onPick(key);
@@ -86,6 +86,32 @@ function versus(card) {
   return node;
 }
 
+// 2v2: two teams, or one partnership (the elimination final's frame). It opens on 2v2, as the broadcast shows it; the
+// switch changes each player's own figures, never the teams' record or their results together, which are 2v2 only.
+
+function teams(card) {
+  const node = el("section", "stat-card broadcast");
+  const holder = el("div", "bc-holder");
+  const draw = (mode) => holder.replaceChildren(scaled(teamsFrame(card, mode)));
+  draw(card.mode);
+  const notes = [card.scope];
+  if (card.kind === "team") {
+    const t = card.together;
+    const [a, b] = card.players;
+    notes.push(`Together: ${a.name} and ${b.name}'s official 2v2 events with each other, ${t.events} in all; WINS are 1st` +
+      " places, MEDALS top 3s, BEST their best placement. The mode switch changes only each player's own figures.");
+  } else {
+    const r = card.record;
+    notes.push(r.sets ? `${card.names[0]} ${r.wins}–${r.losses} against ${card.names[1]} in sets` +
+      (absent(r.games_won) ? "" : `, ${r.games_won}–${r.games_lost} in games`) + ". The mode switch changes only each player's own figures."
+      : `No official 2v2 sets between ${card.names[0]} and ${card.names[1]}.`);
+  }
+  node.append(holder, scopeBox(notes.join(" ")), modeSwitch(draw, card.mode));
+  return node;
+}
+
+function absent(v) { return v === null || v === undefined; }
+
 // c. Sets: the "Matches" sidebar frame, with the same sets as a plain list below it for reading and screen readers
 
 function setRow(s) {
@@ -136,7 +162,7 @@ function sets(card) {
 }
 
 export function renderCards(cards) {
-  const make = { lifetime, head_to_head: versus, comparison: versus, sets };
+  const make = { lifetime, head_to_head: versus, comparison: versus, team: teams, teams, sets };
   const out = document.createDocumentFragment();
   for (const card of cards) {
     if (make[card.kind]) out.append(make[card.kind](card));

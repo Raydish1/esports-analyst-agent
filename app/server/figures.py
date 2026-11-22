@@ -2,7 +2,8 @@
 
 The turn's successful template calls say which players and event the answer is about. The cards' figures then come
 from calling the template functions again with no top, year or event, so the model's arguments can't change them, and
-from two queries of the app's own: career earnings, and an event's sets between its top 8 players. Nothing is read from
+from queries of the app's own: career earnings, top 32s, a 2v2 head-to-head's sets, and an event's sets between
+its top 8 players. Nothing is read from
 the model's text.
 
 Cards, at most two per answer:
@@ -11,6 +12,11 @@ Cards, at most two per answer:
   sets in both modes, each marked with its mode, which the page's mode switch filters;
 - comparison: two players' lifetime figures, for a turn that called player_results for two players;
 - lifetime: one player's, for a player_results call without year or event;
+- teams: two 2v2 teams, each player's lifetime figures, and the teams' record against each other (2v2 sets with each
+  team's two players on one side, from TEAMS); followed by sets, those sets. For a turn that called team_results for
+  two partnerships with no players in common;
+- team: one partnership, each partner's lifetime figures and their 2v2 results together (team_results with no year or
+  event), for a turn that called team_results for one;
 - sets for an event: the 1v1 sets between its top 8 players, for one held 1v1 event.
 
 A missing value is None ("not recorded" on the page), never 0. With earnings off, cards have no "earnings" key and the
@@ -29,6 +35,10 @@ COUNTS = ("results", "first", "second", "third", "top8", "top32")
 SCOPE = "All official events, regional championships included. 1v1 and 2v2 counted together unless you pick one."
 CREW = "Crew battles count as 1v1."
 EARNINGS = "SELECT earnings_usd, source, as_of FROM v_career_earnings WHERE player_id = ?"
+# Top 32s by mode, counted on v_results as player_results counts its top 8s (agent/ is frozen for the final runs, so the
+# column isn't added there: the model's observations stay the same). Placements are bucketed (17, 25, 33 on start.gg;
+# 22, 27, 32 on some Challengermode events), so <= 32 is the top 32 on both.
+TOP32 = "SELECT mode, SUM(placement <= 32) FROM v_results WHERE player_id = ? GROUP BY mode"
 EVENT_SETS = ("SELECT start_date, winner_name, winner_id, winner_placement, loser_name, loser_id, loser_placement,"
               " winner_games, loser_games, is_scored FROM v_sets_1v1 WHERE event_id = ? AND winner_placement <= 8"
               " AND loser_placement <= 8 ORDER BY start_date, start_time, match_id")
@@ -43,6 +53,18 @@ TWOS = ("SELECT a.start_date, e.tournament_name, e.event_name, a.won, a.games_wo
         " JOIN v_events e ON e.event_id = a.event_id"
         " WHERE a.player_id = ? AND b.player_id = ? AND a.mode = '2v2'"
         " ORDER BY a.start_date, a.start_time, a.match_id")
+# Each 2v2 set with one team's two players on one side and the other's two on the other, from the first team's side:
+# parameters (first team's partner, second team's player, second team's partner, first team's player). 0.1-0.5 s.
+TEAMS = ("SELECT a.start_date, e.tournament_name, e.event_name, a.won, a.games_won, a.games_lost, a.is_scored"
+         " FROM v_match_results a"
+         " JOIN v_match_results a2 ON a2.match_id = a.match_id AND a2.side = a.side AND a2.player_id = ?"
+         " JOIN v_match_results b ON b.match_id = a.match_id AND b.side <> a.side AND b.player_id = ?"
+         " JOIN v_match_results b2 ON b2.match_id = a.match_id AND b2.side = b.side AND b2.player_id = ?"
+         " JOIN v_events e ON e.event_id = a.event_id"
+         " WHERE a.player_id = ? AND a.mode = '2v2' ORDER BY a.start_date, a.start_time, a.match_id")
+NARROWING = ("year", "event", "since", "until", "region")  # a call with any of these is about part of a career
+TEAM_SCOPE = ("Each player's own figures: all official events, regional championships included, in the mode picked (2v2"
+              " when the card opens).")
 MOST = 2
 ROOT = Path(__file__).resolve().parent.parent.parent
 LEGENDS = ROOT / "data" / "curated" / "player_legends.csv"  # player_id,legend: mains, for cards only
@@ -142,12 +164,16 @@ class Cards:
         modes = {}
         for row in summary.get("rows") or []:
             cells = dict(zip(columns, row))
-            modes[cells["mode"]] = {k: cells.get(k) for k in COUNTS}  # top32 None until the summary has the column
+            modes[cells["mode"]] = {k: cells.get(k) for k in COUNTS}
+        if "top32" not in columns and modes:  # the app's own count (TOP32), the combined row their sum
+            top32 = dict(self.query(TOP32, (player_id,)))
+            for mode, m in modes.items():
+                m["top32"] = sum(top32.get(x) or 0 for x in ("1v1", "2v2")) if mode == "1v1 and 2v2" else top32.get(mode) or 0
         ends = table_with(out, "which", "date")
         dates = sorted(d for d in (dict(zip(ends["columns"], r)).get("date") for r in ends.get("rows") or []) if d) if ends else []
         player = out.get("player") or {}
         card = {"player_id": player.get("player_id", player_id), "name": player.get("name"), "modes": modes,
-                "top32": "top32" in columns, "crew": any("crew battle" in n for n in out.get("notes", [])),
+                "top32": bool(modes), "crew": any("crew battle" in n for n in out.get("notes", [])),
                 "first": dates[0] if dates else None, "latest": dates[-1] if dates else None,
                 "legend": self.legends.of(player.get("player_id", player_id))}
         if self.earnings:
@@ -158,6 +184,9 @@ class Cards:
 
     def scope(self, players):
         return SCOPE + (" " + CREW if any(p["crew"] for p in players) else "")
+
+    def team_scope(self, players):
+        return TEAM_SCOPE + (" " + CREW if any(p["crew"] for p in players) else "")
 
     def head_to_head(self, player_id, opponent_id):
         out = self.call("head_to_head", {"player_id": player_id, "opponent_id": opponent_id})
@@ -202,6 +231,42 @@ class Cards:
                 "scope": "The event's 1v1 sets in which both players placed top 8, by date as recorded. Not bracket"
                          " order: the data has no rounds."}
 
+    def team(self, player_id, partner_id):
+        """One partnership: each partner's lifetime figures, and their results together from team_results."""
+        out = self.call("team_results", {"player_id": player_id, "partner_id": partner_id})
+        players = [self.lifetime(player_id), self.lifetime(partner_id)]
+        if out is None or None in players:
+            return None
+        found = table_with(out, "events", "wins", "medals", "top8s")
+        row = dict(zip(found["columns"], found["rows"][0])) if found and found.get("rows") else {}
+        ends = table_with(out, "which", "date")
+        dates = sorted(d for d in (dict(zip(ends["columns"], r)).get("date") for r in ends.get("rows") or []) if d) if ends else []
+        together = {k: row.get(k, 0 if k != "best" else None) for k in ("events", "wins", "medals", "top8s", "best")}
+        together.update(first=dates[0] if dates else None, latest=dates[-1] if dates else None)
+        return {"kind": "team", "players": players, "together": together, "mode": "2v2",
+                "scope": self.team_scope(players) + " Together: their 2v2 results with each other at official events."}
+
+    def teams(self, first, second):
+        """Two teams (each a (player_id, partner_id) pair): the four players' lifetime figures and the teams' 2v2 sets
+        against each other, from the first team's side; then those sets."""
+        players = [self.lifetime(p) for p in (*first, *second)]
+        if None in players:
+            return []
+        rows = self.query(TEAMS, (first[1], second[0], second[1], first[0]))
+        names = [" & ".join(p["name"] for p in players[:2]), " & ".join(p["name"] for p in players[2:])]
+        card = {"kind": "teams", "teams": [players[:2], players[2:]], "names": names, "record": tally(rows),
+                "mode": "2v2", "scope": self.team_scope(players) + f" The record: official 2v2 sets with {names[0]} on"
+                                        f" one side and {names[1]} on the other, from the first team's side."}
+        if not rows:
+            return [card]
+        sets = [{"date": r[0], "event": set_event(r[1], r[2]), "mode": "2v2", "first_won": bool(r[3]),
+                 "winner": names[0] if r[3] else names[1], "loser": names[1] if r[3] else names[0],
+                 "winner_games": (r[4] if r[3] else r[5]) if r[6] else None,
+                 "loser_games": (r[5] if r[3] else r[4]) if r[6] else None} for r in rows]
+        return [card, {"kind": "sets", "title": f"Sets between {names[0]} and {names[1]}", "sets": sets,
+                       "total": len(sets), "mode": "2v2",
+                       "scope": "Official 2v2 sets between the two teams, oldest first. DQs, forfeits and ties left out."}]
+
     # Choosing the cards
 
     def build(self, trace):
@@ -215,6 +280,19 @@ class Cards:
             if None not in ids:
                 return self.head_to_head(*ids)[:MOST]
         cards = []
+        pairs = []  # the partnerships the turn looked up, each once, in order
+        for args, out in calls(trace, "team_results"):
+            pair = ((out.get("player") or {}).get("player_id"), (out.get("partner") or {}).get("player_id"))
+            if None not in pair and not any(args.get(k) for k in NARROWING) and set(pair) not in [set(q) for q in pairs]:
+                pairs.append(pair)
+        if len(pairs) >= 2 and not set(pairs[0]) & set(pairs[1]):
+            found = self.teams(pairs[0], pairs[1])
+            if found:
+                return found[:MOST]
+        if pairs:
+            one = self.team(*pairs[0])
+            if one:
+                cards.append(one)
         players = list(dict.fromkeys(
             (out.get("player") or {}).get("player_id") for args, out in calls(trace, "player_results")
             if not args.get("year") and not args.get("event")))
@@ -301,6 +379,18 @@ def card_summary(card):
                    f"; no 2v2 sets with {a['name']} and {b['name']} on opposite teams")
         return (f"A head-to-head card: {record}; with the lifetime figures of {player_summary(a)}; and of"
                 f" {player_summary(b)}.")
+    if kind == "teams":
+        r, (one, two) = card["record"], card["names"]
+        record = (f"their 2v2 record, {one} {r['wins']}-{r['losses']} against {two} in {r['sets']} sets"
+                  if r.get("sets") else f"no 2v2 sets between {one} and {two}")
+        figures = "; and of ".join(player_summary(p) for team in card["teams"] for p in team)
+        return f"A team card: {record}; with the lifetime figures of {figures}."
+    if kind == "team":
+        a, b = card["players"]
+        t = card["together"]
+        together = (f"{a['name']} and {b['name']} together in 2v2: {t['events']} events, {t['wins']} wins,"
+                    f" {t['medals']} medals, {t['top8s']} top 8s, best placement {t['best']}")
+        return f"A partnership card: {together}; with the lifetime figures of {player_summary(a)}; and of {player_summary(b)}."
     if kind == "sets":
         sets, total = card.get("sets"), card.get("total")
         where = f" at {card['event']}" if card.get("event") else ""
@@ -317,7 +407,8 @@ def player_summary(p):
         m = (p.get("modes") or {}).get(mode)  # live, "in 1v1 and 2v2 ... GOLD 12" was read as a 1v1 figure
         if m and m.get("results"):
             figures.append(f"{p['name']} {said} {m['results']} results, GOLD {m['first']}, SILVER {m['second']},"
-                           f" BRONZE {m['third']}, TOP 8 {m['top8']}")
+                           f" BRONZE {m['third']}, TOP 8 {m['top8']}"
+                           + (f", TOP 32 {m['top32']}" if m.get("top32") is not None else ""))
     said = "; ".join(figures) or f"{p['name']} with no official results"
     if p.get("first"):
         said += f"; {p['name']}'s first result {p['first']}, latest {p['latest']}"

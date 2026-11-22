@@ -61,7 +61,7 @@ What B misses, and how the proposal handles each:
 |---|---|---|
 | Earnings | No template returns them | One query of the app's own on `v_career_earnings` by player_id, in figures.py, tested on eval-v1. Behind a setting (see Earnings). |
 | An event's sets | No template lists an event's sets | One query of the app's own: `v_sets_1v1` for the event, with both players among its top 8 in `v_results`. |
-| Top 32 | `player_results`' summary has no `top32` column yet | The card reads columns by name: it shows Top 32 once the column exists, and only Top 8 until then. |
+| Top 32 | `player_results`' summary has no `top32` column | Built (2026-11-21): the app counts it itself (`figures.TOP32`, `placement <= 32` on `v_results`, as `player_results` counts top 8s), since `agent/` is frozen for the final runs and an extra column would change the model's observations. It matches the broadcast table below (Raydish 82, Zivai 74). |
 | A long set list | A template drops an optional list's rows when it's over the token budget (about 100 sets for `head_to_head`), and B calls the same code | The card shows the record and "N sets: too many to list here". No pair in the evaluation set comes near that. |
 | Crew battles' count, 2v2 meetings | `player_results` and `head_to_head` give these only in their notes' text | The card states the rule ("crew battles count as 1v1") without a count, and leaves the 2v2 meetings out: it doesn't parse numbers from notes. |
 | Coupling | figures.py depends on the templates' output shape (column names), which `agent/` owns | figures.py finds tables by their columns, not their titles. Its tests run the real templates on eval-v1, so a change in `agent/` that breaks a card fails a test. |
@@ -187,11 +187,20 @@ sketches, not to scale.
   top 8, by date and time as the data has them. The card puts them in no bracket order and names no rounds.
 - At phone width, each set is two lines: the date and event, then the score line.
 
-### d. Later: 2v2 team comparison
+### d. 2v2: teams and partnerships (built 2026-11-21)
 
-Two teams, each as a pair of lifetime columns, with their meetings between them. It needs data no template gives yet:
-a pair's results together (`v_team_results`), their 2v2 sets against another pair (`v_match_results`), and prize money
-per team (half to each player). It waits for a template of its own.
+The North America elimination final's frame (Moni & AnimeFan1266 vs Raydish & megD): four player columns, each the
+player's own earnings, medals (bronze, silver, gold, the reference's order) and placements, with the row headings
+between the teams. It opens on 2v2, as the broadcast shows it; the mode switch changes only the players' own figures.
+- **Two teams** (a turn that called `team_results` for two partnerships with no player in common): the record between
+  the teams under the headings, from `figures.TEAMS` (2v2 sets with each team's two players on one side), then the sets
+  as a second card. On eval-v1, Raydish & megD 1-0 (3-2 in games) against Moni- & animefan1266, the elimination final.
+- **One partnership** (one `team_results` call with a partner): the partners on the left; on the right their results
+  together from `team_results` (events, wins, medals, top 8s, best).
+- A `team_results` call with a year, event, window or region makes no team card, as `player_results` makes no lifetime
+  card. Prize money per team isn't shown: eval-v1 has no per-event payouts.
+- Against the reference, each player's 2v2 figures are the broadcast's plus their Autumn 2026 placement, which the
+  broadcast predates (megD 0/2/1, top 8 15, top 32 44 against 0/1/1, 14, 43).
 
 ## Which questions show which card
 

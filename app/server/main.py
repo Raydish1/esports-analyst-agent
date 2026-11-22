@@ -142,6 +142,20 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
                 raise HTTPException(404, "No such players.")
             return found[0]
 
+        @app.get("/api/preview/team/{player_id}/{partner_id}")
+        def preview_team(player_id: int, partner_id: int):
+            found = cards.team(player_id, partner_id)
+            if found is None:
+                raise HTTPException(404, "No such players.")
+            return found
+
+        @app.get("/api/preview/teams/{a}/{b}/{c}/{d}")
+        def preview_teams(a: int, b: int, c: int, d: int):
+            found = cards.teams((a, b), (c, d))
+            if not found:
+                raise HTTPException(404, "No such players.")
+            return found[0]
+
         @app.get("/api/preview/sets/{player_id}/{opponent_id}")
         def preview_sets(player_id: int, opponent_id: int):
             found = cards.head_to_head(player_id, opponent_id)

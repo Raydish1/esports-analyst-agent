@@ -239,3 +239,39 @@
 .bc-frame :is(.bc-eyebrow, .bc-bar-text, .bc-strip-text, .bc-label, .bc-mlabel, .bc-plabel, .bc-circle, .bc-entry-name,
   .bc-sets-subject, .bc-scope, .bc-sets-scope) { font-family: "BC Small", "BC Text", "Montserrat", system-ui, sans-serif; font-weight: 500; }
 .bc-frame :is(.bc-bar-text, .bc-strip-text) { letter-spacing: 0.04em; }
+
+/* 2v2 (reference: the North America elimination final). Positions from the reference scaled by 1920/1206: four
+   columns 309 wide, centered on x 199, 586, 1334 and 1721, with the row headings between the teams on x 960. */
+.bc-teams { --bc-teal: #6cbc99; }
+.bc-teams .bc-strip-text { left: 0; width: 1920px; top: 10px; text-align: center; font-size: 20px; font-weight: 500; color: var(--bc-ink); }
+.bc-teams .bc-tmoney {
+  position: absolute; top: 135px; height: 97px; display: flex; align-items: center; justify-content: center;
+  font-size: 70px; color: #fff; line-height: 1;
+}
+.bc-teams .bc-tmoney.bc-l, .bc-teams .bc-tbox.bc-l .bc-tnum { background: var(--bc-orange); }
+.bc-teams .bc-tmoney.bc-r, .bc-teams .bc-tbox.bc-r .bc-tnum { background: var(--bc-teal); }
+.bc-teams .bc-tmoney .bc-missing { font-size: 30px; font-style: italic; font-weight: 700; }
+.bc-teams .bc-tbox { position: absolute; height: 98px; }
+.bc-teams .bc-tbox > span { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.bc-teams .bc-tnum { top: 0; height: 64px; font-size: 52px; color: #fff; }
+.bc-teams .bc-tnum.bc-missing { font-size: 20px; font-style: italic; font-weight: 600; }
+.bc-teams .bc-tlabel { top: 64px; height: 34px; background: var(--bc-dark); color: #fff; font-size: 20px; letter-spacing: 0.02em; }
+.bc-teams .bc-theading, .bc-teams .bc-tsets {
+  left: 0; width: 1920px; text-align: center; font-size: 52px; color: #fff; text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+.bc-teams .bc-tlegend { top: 600px; width: 360px; height: 330px; }
+.bc-teams .bc-tlegend.bc-l { --bc-art-outline: var(--bc-orange); }
+.bc-teams .bc-tlegend.bc-r { --bc-art-outline: var(--bc-teal); }
+.bc-teams .bc-tname { top: 990px; transform: translateX(-50%); font-size: 60px; color: #fff; }
+.bc-teams .bc-vs { left: 960px; transform: translateX(-50%); top: 930px; font-size: 140px; color: var(--bc-orange); text-shadow: 8px 0 0 var(--bc-teal); letter-spacing: -4px; }
+.bc-teams .bc-tsets { top: 640px; }
+.bc-teams .bc-tscore { left: 960px; transform: translateX(-50%); top: 706px; font-size: 120px; color: #fff; }
+.bc-teams .bc-tscore .bc-l { color: var(--bc-orange); }
+.bc-teams .bc-tscore .bc-r { color: var(--bc-teal); }
+.bc-teams .bc-tscore .bc-dash { margin: 0 24px; }
+.bc-teams .bc-tnone { left: 0; width: 1920px; text-align: center; top: 730px; font-size: 30px; font-weight: 700; color: #fff; }
+.bc-teams .bc-together { left: 1180px; width: 696px; text-align: center; top: 140px; font-size: 64px; color: #fff; }
+.bc-teams .bc-together-sub { left: 1180px; width: 696px; text-align: center; top: 214px; font-size: 24px; color: #fff; letter-spacing: 0.04em; }
+.bc-teams .bc-tamp { left: 392px; transform: translateX(-50%); top: 996px; font-size: 52px; color: var(--bc-orange); }
+.bc-frame :is(.bc-tlabel, .bc-together-sub) { font-family: "BC Small", "BC Text", "Montserrat", system-ui, sans-serif; font-weight: 500; }
+.bc-proxima-cond .bc-frame :is(.bc-theading, .bc-tsets, .bc-together, .bc-tname) { letter-spacing: 0.03em; }

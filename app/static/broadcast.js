@@ -326,8 +326,8 @@ export function setsFrame(card) {
   if (!sets.length) frame.append(text("bc-sets-empty", card.sets === null ? `${card.total} SETS: TOO MANY TO LIST`
     : card.mode && card.mode !== "1v1 and 2v2" ? `NO ${card.mode.toUpperCase()} SETS` : "NO SETS RECORDED"));
   const foot = el("div", "bc-sets-foot");  // the title and what it counts, stacked, so a long title can't overlap
-  const heading = !card.modes || card.mode === "1v1" ? "OFFICIAL 1V1 SETS"
-    : card.mode === "2v2" ? "OFFICIAL 2V2 SETS" : "OFFICIAL SETS";
+  const heading = card.mode === "2v2" ? "OFFICIAL 2V2 SETS"  // a head-to-head in 2v2, or two teams' sets
+    : !card.modes || card.mode === "1v1" ? "OFFICIAL 1V1 SETS" : "OFFICIAL SETS";
   foot.append(el("p", "bc-sets-title bc-heavy", card.event ? card.title.toUpperCase() : heading),
     el("p", "bc-sets-scope", card.scope));
   frame.append(foot);
@@ -337,4 +337,113 @@ export function setsFrame(card) {
     frame.append(rule);
   }
   return { frame: squeezeWords(frame), width };
+}
+
+// 2v2 (reference: the North America elimination final, Moni & AnimeFan1266 vs Raydish & megD, scaled to 1920 wide).
+// Four player columns, each with its own earnings, medals (bronze, silver, gold, as the reference orders them) and
+// placements, and the row headings between the teams. kind "teams": two teams, with the record between them under the
+// headings. kind "team": one partnership on the left, and their results together on the right.
+const TEAMS = { x: [199, 586, 1334, 1721], w: 309,
+  strip: "0,931 70,921 150,934 214,912 300,926 360,918 470,936 540,915 640,928 760,909 840,926 960,914 1080,926 1160,909 1280,928 1380,915 1450,936 1560,918 1620,926 1706,912 1770,934 1850,921 1920,931 1920,1080 0,1080" };
+const RAISED = TEAMS.strip.replace(/(\d+),(\d+)/g, (all, x, y) => (Number(y) < 1000 ? `${x},${Number(y) - 14}` : all));
+
+// A row of number boxes, each a colored number over a dark label, spanning `span` px centered on x.
+function boxes(frame, x, top, cells, side, span = TEAMS.w, gap = 6) {
+  const width = (span - gap * (cells.length - 1)) / cells.length;
+  cells.forEach(([label, value], i) => {
+    const box = el("div", `bc-tbox bc-${side}`);
+    box.style.left = `${x - span / 2 + i * (width + gap)}px`;
+    box.style.top = `${top}px`;
+    box.style.width = `${width}px`;
+    box.append(absent(value) ? el("span", "bc-tnum bc-missing", "not recorded") : el("span", "bc-tnum bc-heavy", String(value)),
+      el("span", "bc-tlabel", label));
+    frame.append(box);
+  });
+}
+
+function column(frame, p, i, mode, side) {
+  const x = TEAMS.x[i];
+  const m = p.modes[mode] || {};
+  if ("earnings" in p) {
+    const box = el("div", `bc-tmoney bc-${side}`);
+    box.style.left = `${x - TEAMS.w / 2}px`;
+    box.style.width = `${TEAMS.w}px`;
+    box.append(absent(p.earnings.amount) ? el("span", "bc-missing", "not recorded")
+      : el("span", "bc-heavy", money.format(p.earnings.amount)));
+    frame.append(box);
+  }
+  boxes(frame, x, 288, [["BRONZE", m.third], ["SILVER", m.second], ["GOLD", m.first]], side);
+  boxes(frame, x, 452, [...(p.top32 ? [["TOP 32", m.top32]] : []), ["TOP 8", m.top8]], side);
+  const legend = legendSlot(p.legend, side === "r");
+  legend.classList.add("bc-tlegend", `bc-${side}`);
+  legend.style.left = `${x - 180}px`;
+  frame.append(legend);
+}
+
+function teamNames(frame, players) {
+  players.forEach((p, i) => {
+    const name = (p.name || "").toUpperCase();
+    const node = el("p", "bc-t bc-tname bc-heavy", name);
+    node.style.left = `${TEAMS.x[i]}px`;
+    if (name.length > 9) node.style.fontSize = `${Math.max(30, Math.round((60 * 9) / name.length))}px`;
+    frame.append(node);
+  });
+}
+
+function ordinal(n) {
+  const tens = n % 100;
+  return `${n}${tens >= 11 && tens <= 13 ? "TH" : ({ 1: "ST", 2: "ND", 3: "RD" }[n % 10] || "TH")}`;
+}
+
+export function teamsFrame(card, mode = "2v2") {
+  const team = card.kind === "team";
+  const players = team ? card.players : card.teams.flat();
+  const frame = el("div", "bc-frame bc-teams");
+  frame.setAttribute("role", "img");
+  frame.setAttribute("aria-label", team ? `${players[0].name} and ${players[1].name} as a team`
+    : `${card.names[0]} against ${card.names[1]}`);
+  frame.append(shapes([["0,0 1920,0 1920,37 0,37", "var(--bc-cream)"]]));
+  const strip = [`players: ${scopeLine(mode, players.some((p) => p.crew))}`,
+    team ? "together: official 2v2 results" : "record: official 2v2 sets between the teams"];
+  frame.append(text("bc-strip-text", strip.join(" · ").toUpperCase()));
+
+  players.forEach((p, i) => column(frame, p, i, mode, team || i < 2 ? "l" : "r"));
+  // The bottom strip goes over the legends' feet, its border orange under the left team and teal under the right.
+  frame.append(shapes([[RAISED, "var(--bc-orange)"]]));
+  if (!team) {
+    const teal = shapes([[RAISED, "var(--bc-teal)"]]);
+    teal.style.clipPath = "inset(0 0 0 50%)";
+    frame.append(teal);
+  }
+  frame.append(shapes([[TEAMS.strip, "var(--bc-dark)"]]));
+  teamNames(frame, players);
+
+  const headings = [["EARNINGS", 152], ["MEDALS", 300], ["PLACEMENTS", 464]];
+  if (!players.some((p) => "earnings" in p)) headings.shift();
+  for (const [word, top] of headings) {
+    const h = text("bc-theading bc-heavy", word);
+    h.style.top = `${top}px`;
+    frame.append(h);
+  }
+
+  if (team) {
+    const t = card.together;
+    const [from, to] = [t.first?.slice(0, 4), t.latest?.slice(0, 4)];
+    const span = from ? (from === to ? from : `${from}–${to}`) : null;
+    frame.append(text("bc-together bc-heavy", "TOGETHER"), text("bc-together-sub", `2V2${span ? ` · ${span}` : ""}`));
+    boxes(frame, 1528, 288, [["EVENTS", t.events], ["WINS", t.wins], ["MEDALS", t.medals]], "l", 696, 10);
+    boxes(frame, 1528, 452, [["TOP 8", t.top8s], ["BEST", absent(t.best) ? null : ordinal(t.best)]], "l", 696, 10);
+    frame.append(text("bc-tamp bc-heavy", "&"));
+  } else {
+    const r = card.record;
+    frame.append(text("bc-vs bc-heavy", "VS"), text("bc-tsets bc-heavy", "2V2 SETS"));
+    if (r.sets) {
+      const score = el("p", "bc-t bc-tscore bc-heavy");
+      score.append(el("span", "bc-l", String(r.wins)), el("span", "bc-dash", "–"), el("span", "bc-r", String(r.losses)));
+      frame.append(score);
+    } else {
+      frame.append(text("bc-tnone", "NO SETS BETWEEN THEM"));
+    }
+  }
+  return squeezeWords(frame);
 }

@@ -15,7 +15,7 @@
        ?player=ID&mode=1v1 (or 2v2, or nothing for both); &opponent=ID for a head-to-head -->
   <div id="out"></div>
   <script type="module">
-    import { fontsReady, headToHeadFrame, lifetimeFrame, setsFrame } from "./broadcast.js";
+    import { fontsReady, headToHeadFrame, lifetimeFrame, setsFrame, teamsFrame } from "./broadcast.js";
     const q = new URLSearchParams(location.search);
     const mode = q.get("mode") || "1v1 and 2v2";
     const id = (name) => encodeURIComponent(q.get(name));
@@ -27,7 +27,11 @@
       return e?.file ? { url: `art/legends/${e.file}`, name: e.name, offset_x: e.offset_x, offset_y: e.offset_y, scale: e.scale } : null;
     };
     await document.fonts.ready;
-    if (q.get("sets")) {  // the set list of a head-to-head: &sets=1 with player and opponent
+    if (q.get("team") || q.get("teams")) {  // &team=ID,ID for a partnership; &teams=ID,ID,ID,ID for two teams
+      const ids = (q.get("team") || q.get("teams")).split(",").map(encodeURIComponent).join("/");
+      const card = await (await fetch(`/api/preview/${q.get("team") ? "team" : "teams"}/${ids}`)).json();
+      document.getElementById("out").append(teamsFrame(card, q.get("mode") || "2v2"));
+    } else if (q.get("sets")) {  // the set list of a head-to-head: &sets=1 with player and opponent
       const card = await (await fetch(`/api/preview/sets/${id("player")}/${id("opponent")}`)).json();
       document.getElementById("out").append(setsFrame(card).frame);
     } else if (q.get("opponent")) {

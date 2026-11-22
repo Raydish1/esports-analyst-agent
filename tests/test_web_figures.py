@@ -27,6 +27,7 @@ PLAYERS = {
                             ["Beta", "1v1 and 2v2", 3, 0, 0, 0, 0, 9]])),
 }
 EARNED = {1: [(1200.0, "Stats API", "2026-10-02")], 2: []}
+TOPS = {1: [("1v1", 8), ("2v2", 3)], 2: [("1v1", 1)]}  # top 32s by mode (figures.TOP32)
 
 
 class NoLegends:
@@ -49,6 +50,8 @@ class Stub(figures.Cards):
 
     def query(self, sql, params):
         self.queried.append(sql)
+        if sql == figures.TOP32:
+            return TOPS.get(params[0], [])
         return EARNED.get(params[0], []) if sql == figures.EARNINGS else self.sets
 
 
@@ -79,8 +82,9 @@ class ChoosingTest(unittest.TestCase):
         self.assertEqual(stub.asked, [("player_results", {"player_id": 1})])  # the model's top=1 isn't passed on
         lifetime = card["player"]
         self.assertEqual(lifetime["modes"]["1v1 and 2v2"], {"results": 14, "first": 2, "second": 1, "third": 1, "top8": 7,
-                                                            "top32": None})
-        self.assertEqual((lifetime["first"], lifetime["latest"], lifetime["top32"]), ("2020-04-25", "2026-09-27", False))
+                                                            "top32": 11})  # 8 + 3, the app's own count
+        self.assertEqual((lifetime["modes"]["1v1"]["top32"], lifetime["modes"]["2v2"]["top32"]), (8, 3))
+        self.assertEqual((lifetime["first"], lifetime["latest"], lifetime["top32"]), ("2020-04-25", "2026-09-27", True))
         self.assertEqual(lifetime["earnings"], {"amount": 1200.0, "source": "Stats API", "as_of": "2026-10-02"})
         self.assertIn("All official events, regional championships included", card["scope"])
         self.assertIn("Crew battles count as 1v1", card["scope"])
@@ -94,7 +98,7 @@ class ChoosingTest(unittest.TestCase):
         stub = Stub(earnings=False)
         (card,) = stub.build(turn(results(1)))
         self.assertNotIn("earnings", card["player"])
-        self.assertEqual(stub.queried, [])
+        self.assertNotIn(figures.EARNINGS, stub.queried)
 
     def test_a_call_for_a_year_or_an_event_gets_no_lifetime_card(self):
         self.assertEqual(Stub().build(turn(results(1, top=1, year=2025))), [])
@@ -156,6 +160,66 @@ class ChoosingTest(unittest.TestCase):
         self.assertEqual(Stub().build(turn(failed)), [])
 
 
+def partnership(pid, partner, row=(20, 0, 3, 9, 2), **args):
+    out = {"template": "team_results", "player": {"player_id": pid}, "partner": {"player_id": partner},
+           "tables": [{"columns": ["player", "partner", "events", "wins", "medals", "top8s", "best"],
+                       "rows": [["x", "y", *row]]},
+                      {"columns": ["which", "date", "event", "placement"],
+                       "rows": [["first", "2022-11-04", "e", 17], ["latest", "2026-09-27", "f", 2]]}]}
+    return call("team_results", {"player_id": pid, "partner_id": partner, **args}, out), out
+
+
+class TeamStub(Stub):
+    """A Stub whose team_results calls return the partnership given for that pair."""
+
+    def __init__(self, outs, sets=()):
+        super().__init__(players={**PLAYERS, 3: PLAYERS[1], 4: PLAYERS[2]}, sets=sets)
+        self.outs = outs
+
+    def call(self, name, args):
+        if name == "team_results":
+            self.asked.append((name, args))
+            return self.outs.get((args["player_id"], args["partner_id"]))
+        return super().call(name, args)
+
+
+class TeamCardsTest(unittest.TestCase):
+    def test_two_partnerships_get_the_teams_card_and_their_sets(self):
+        (c1, o1), (c2, o2) = partnership(1, 2), partnership(3, 4)
+        stub = TeamStub({(1, 2): o1, (3, 4): o2}, sets=[("2026-09-27", "T", None, 1, 3, 2, 1), ("2025-01-01", "U", None, 0, 1, 3, 1)])
+        card, listed = stub.build(turn(c1, c2))
+        self.assertEqual((card["kind"], card["mode"], card["names"]), ("teams", "2v2", ["Alpha & Beta", "Alpha & Beta"]))
+        self.assertEqual({k: card["record"][k] for k in ("wins", "losses", "sets", "games_won", "games_lost")},
+                         {"wins": 1, "losses": 1, "sets": 2, "games_won": 4, "games_lost": 5})
+        self.assertIn(figures.TEAMS, stub.queried)
+        self.assertEqual([(s["winner_games"], s["loser_games"], s["first_won"]) for s in listed["sets"]],
+                         [(3, 2, True), (3, 1, False)])
+        self.assertEqual(listed["mode"], "2v2")
+
+    def test_one_partnership_gets_the_team_card(self):
+        c1, o1 = partnership(1, 2)
+        (card,) = TeamStub({(1, 2): o1}).build(turn(c1))
+        self.assertEqual(card["kind"], "team")
+        self.assertEqual(card["together"], {"events": 20, "wins": 0, "medals": 3, "top8s": 9, "best": 2,
+                                            "first": "2022-11-04", "latest": "2026-09-27"})
+        self.assertIn("2v2 when the card opens", card["scope"])
+
+    def test_a_narrowed_call_or_a_shared_player_doesnt_make_a_teams_card(self):
+        c1, o1 = partnership(1, 2, year=2025)
+        self.assertEqual(TeamStub({(1, 2): o1}).build(turn(c1)), [])
+        (a, oa), (b, ob) = partnership(1, 2), partnership(1, 3)
+        (card,) = TeamStub({(1, 2): oa, (1, 3): ob}).build(turn(a, b))
+        self.assertEqual(card["kind"], "team")  # the first partnership only
+
+    def test_the_line_for_the_agent(self):
+        (c1, o1), (c2, o2) = partnership(1, 2), partnership(3, 4)
+        cards = TeamStub({(1, 2): o1, (3, 4): o2}, sets=[("2026-09-27", "T", None, 1, 3, 2, 1)]).build(turn(c1, c2))
+        self.assertIn("A team card: their 2v2 record, Alpha & Beta 1-0 against Alpha & Beta in 1 sets;", figures.summary(cards))
+        (card,) = TeamStub({(1, 2): o1}).build(turn(c1))
+        self.assertIn("Alpha and Beta together in 2v2: 20 events, 0 wins, 3 medals, 9 top 8s, best placement 2;",
+                      figures.summary([card]))
+
+
 class LegendsTest(unittest.TestCase):
     """A card's legend: the player's main, if the manifest lists it and its file exists; never a guess."""
 
@@ -203,7 +267,8 @@ class RealTest(unittest.TestCase):
     def test_lifetime_figures(self):
         raydish = self.cards.lifetime(160000)
         self.assertEqual(raydish["modes"]["1v1 and 2v2"], {"results": 98, "first": 6, "second": 7, "third": 9, "top8": 43,
-                                                           "top32": None})
+                                                           "top32": 82})  # the stat cards proposal's table
+        self.assertEqual((raydish["modes"]["1v1"]["top32"], raydish["modes"]["2v2"]["top32"]), (45, 37))
         self.assertEqual(raydish["earnings"], {"amount": 83825.0, "source": "Stats API", "as_of": "2026-10-02"})
         self.assertTrue(raydish["crew"])
         self.assertIsNone(self.cards.lifetime(168635)["earnings"]["amount"])  # Impala: unranked, no figure
@@ -237,11 +302,21 @@ class RealTest(unittest.TestCase):
         self.assertEqual(figures.summary([]), "")
         raydish = self.cards.lifetime(160000)
         line = figures.summary([{"kind": "lifetime", "player": raydish}])
-        self.assertIn("Raydish in both modes together 98 results, GOLD 6, SILVER 7, BRONZE 9, TOP 8 43;", line)
+        self.assertIn("Raydish in both modes together 98 results, GOLD 6, SILVER 7, BRONZE 9, TOP 8 43, TOP 32 82;", line)
         self.assertIn("career earnings $83,825 (Stats API, as of 2026-10-02)", line)
         many = {"kind": "sets", "title": "Sets between top 8 players", "event": "X", "total": 20,
                 "sets": [{"date": "2020-01-01", "winner": "a", "loser": "b", "winner_games": 3, "loser_games": 0}] * 20}
         self.assertIn("A list, Sets between top 8 players at X, of 20 sets.", figures.summary([many]))
+
+    def test_teams_and_a_partnership(self):
+        card, listed = self.cards.teams((160000, 142100), (152572, 146616))  # Raydish & megD, Moni- & animefan1266
+        self.assertEqual({k: card["record"][k] for k in ("wins", "losses", "games_won", "games_lost")},
+                         {"wins": 1, "losses": 0, "games_won": 3, "games_lost": 2})  # Autumn NA 2026, elimination final
+        self.assertEqual([p["modes"]["2v2"]["top8"] for team in card["teams"] for p in team], [16, 15, 8, 8])
+        self.assertEqual(listed["sets"][0]["winner"], "Raydish & megD")
+        team = self.cards.team(160000, 142100)
+        self.assertEqual({k: team["together"][k] for k in ("events", "wins", "medals", "top8s", "best")},
+                         {"events": 20, "wins": 0, "medals": 3, "top8s": 9, "best": 2})
 
     def test_an_events_top_8_sets(self):
         card = self.cards.event_sets({"event_id": "tournament/dreamhack-atlanta-2019/event/brawlhalla-1v1", "name": "x",
