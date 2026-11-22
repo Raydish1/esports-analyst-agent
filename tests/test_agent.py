@@ -1041,6 +1041,34 @@ class LoopTest(Fixture):
         self.assertIn("The loop looked up resolve_player({\"name\": \"raydish\"}), resolve_event({\"name\": \"worlds\"})"
                       " for the model.", page)
 
+    def test_an_answer_after_every_call_failed_goes_back_then_has_what_no_tool_returned_left_out(self):  # live
+        invented = "The two teams with the most history are Raydish & Zivai and Cody Travis & Boomie, with 24 sets."  # plain
+        ask = Scripted(reply(calls=[("rank_pairs", {"of": "opponents", "mode": "2v2", "top": 1})]),
+                       reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
+                       reply(invented), reply(invented.replace(", with 24 sets", "")))
+        trace = react.run("which two teams have the most history in 2v2 sets", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([s.get("failed_calls_check", {}).get("action") for s in trace["steps"]],
+                         [None, None, "sent back", "left out what no tool returned: sent back once already"])
+        self.assertTrue(ask.sent[3][-1]["content"].startswith(react.FAILED))
+        self.assertEqual((trace["answer"], trace["answered_after_failed_calls"]), (react.NOT_LOOKED_UP, True))
+        self.assertEqual(trace["steps"][3]["number_check"]["action"],
+                         "replaced: every tool call failed; no fact left, so the whole answer")
+
+    def test_a_reply_saying_it_couldnt_get_the_data_stands_after_every_call_failed(self):
+        honest = "I couldn't get the data: the ranking was refused and the query failed, so I can't say which teams."
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
+                       reply("Raydish & Zivai, with 24 sets."), reply(honest))
+        trace = react.run("which two teams have the most history in 2v2 sets", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), (honest, []))
+
+    def test_a_turn_with_a_call_that_worked_gets_no_failed_calls_check(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),
+                       reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
+                       reply("Raydish has 6 official results."))
+        trace = react.run("how many official results has raydish?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertFalse(any(s.get("failed_calls_check") for s in trace["steps"]))
+        self.assertEqual(trace["answer"], "Raydish has 6 official results.")
+
     def test_without_a_step_to_look_it_up_an_answer_that_rests_on_no_tool_is_replaced(self):
         ask = Scripted(reply("**megD** is 3-1 against **Raydish**."), reply("**megD** is 3-1 against **Raydish**."))
         trace = react.run("what about megd vs raydish", self.tools, ask=ask, max_steps=2, log=lambda *_: None)
