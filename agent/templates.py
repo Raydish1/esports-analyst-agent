@@ -52,7 +52,7 @@ BY = {"wins": 1, "medals": 3, "top8s": 8}  # what rank_players counts, and the p
 BY_WORDS = {"wins": {"wins", "win", "titles", "title"}, "medals": {"medals", "medal", "podiums", "podium"},
             "top8s": {"top8s", "top8", "top8finishes"}}  # as a model may write them, without spaces or punctuation
 RANKED_AT_MOST = 30  # rows of a ranking listed; a tie group past them is counted instead
-PLAYER_ARGUMENTS = ("player_id", "opponent_id", "partner_id")  # the arguments that take a player, which person() reads
+PLAYER_ARGUMENTS = ("player_id", "opponent_id", "partner_id", "opponent_partner_id")  # the arguments that take a player, which person() reads
 # An event name that says only the mode, which a list of 1v1 sets leaves out (set_event): 'Brawlhalla Championship
 # 1v1', 'Brawlhalla Singles (1v1)', '1v1'. 'World Championship 1v1' says more, and stays
 GENERIC_EVENT = re.compile(r"(?:brawlhalla\s*)?(?:championship\s*)?(?:singles|1v1)?\s*(?:\(1v1\))?", re.I)
@@ -678,6 +678,144 @@ def head_to_head(query, tools, player_id, opponent_id, mode=None, year=None, sin
                        event=narrow.found and narrow.found.about)
 
 
+# team_head_to_head
+
+def team_head_to_head(query, tools, player_id, partner_id, opponent_id, opponent_partner_id=None, year=None, since=None,
+                      until=None, event=None, region=None):
+    """One 2v2 team's record against another, in sets: each set with the first two players on one side and the other
+    two on the other, DQs, forfeits and ties left out (v_match_results). Without opponent_partner_id, the sets against
+    the opponent with any partner, each naming that partner. Live, "raydish and megd vs moni and animefan1266" got a
+    1v1 head-to-head, or no tool and "they never met", though they met in the Autumn NA 2026 2v2 (2026-11-21)."""
+    a, a_name, a_given = person(tools, player_id)
+    b, b_name, b_given = person(tools, partner_id, "partner_id")
+    c, c_name, c_given = person(tools, opponent_id, "opponent_id")
+    d, d_name, d_given = (person(tools, opponent_partner_id, "opponent_partner_id") if opponent_partner_id is not None
+                          else (None, None, None))
+    if len({a, b, c} | ({d} if d else set())) < (4 if d else 3):
+        raise Refused("player_id and partner_id are one team, opponent_id and opponent_partner_id the other: four"
+                      " different players")
+    narrow = narrowing(tools, year, since, until, event, region)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("team_head_to_head", narrow.found, query)
+    within = "".join(f" AND {condition}" for condition in narrow.where("a"))
+    rows = query.rows(
+        "SELECT a.start_date, a.start_time, a.match_id, e.tournament_name, e.event_name, a.won, a.games_won,"
+        " a.games_lost, a.is_scored"
+        + ("" if d else ", (SELECT o.player_id FROM v_match_results o WHERE o.match_id = a.match_id AND o.side = c.side"
+                         " AND o.player_id <> c.player_id LIMIT 1)")
+        + " FROM v_match_results a"
+        f" JOIN v_match_results b ON b.match_id = a.match_id AND b.side = a.side AND b.player_id = {b}"
+        f" JOIN v_match_results c ON c.match_id = a.match_id AND c.side <> a.side AND c.player_id = {c}"
+        + (f" JOIN v_match_results d ON d.match_id = a.match_id AND d.side = c.side AND d.player_id = {d}" if d else "")
+        + f" JOIN events e ON e.event_id = a.event_id WHERE a.player_id = {a} AND a.mode = '2v2'{within}"
+        " ORDER BY a.start_date, a.start_time, a.match_id")
+    partners = {} if d else dict(query.rows(
+        "SELECT player_id, name FROM players WHERE player_id IN"
+        f" ({', '.join(str(r[9]) for r in rows if r[9] is not None) or 'NULL'})"))
+    team, other = f"{a_name} and {b_name}", f"{c_name} and {d_name}" if d else f"{c_name}, with any partner"
+    sets, wins = len(rows), sum(r[5] for r in rows)
+    scored = [r for r in rows if r[8]]
+    unscored = sets - len(scored)
+    games_won = sum(r[6] for r in scored) if scored else None
+    games_lost = sum(r[7] for r in scored) if scored else None
+    notes = [n for n in (merged(a_given, a, a_name), merged(b_given, b, b_name), merged(c_given, c, c_name),
+                         d and merged(d_given, d, d_name)) if n]
+    notes += ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
+    here = f" {', '.join(narrow.said)}" if narrow else ""
+    if not sets:
+        notes.append(f"{team} never met {other} at official events{here}, with each pair on its own side of a 2v2 set"
+                     " (DQs, forfeits and ties aren't counted).")
+    else:  # from both sides, so an answer can name whose record it is
+        notes.append(f"In 2v2, {team} won {wins} and lost {sets - wins} of their {sets} set{'' if sets == 1 else 's'}"
+                     f" against {other}; {c_name if not d else other} won {sets - wins} and lost {wins}.")
+    if unscored:
+        notes.append(f"{unscored} of the {sets} sets {'has' if unscored == 1 else 'have'} no recorded score, so the games"
+                     f" leave {'it' if unscored == 1 else 'them'} out: say the record includes sets with no recorded score.")
+    record = table(f"{team}'s 2v2 record against {other}, in sets{here}",
+                   ["team", "player_ids", "opponents", "opponent_ids", "wins", "losses", "sets", "games_won",
+                    "games_lost", "unscored_sets"],
+                   [[team, [a, b], other, [c, d] if d else [c], wins, sets - wins, sets, games_won, games_lost, unscored]])
+    each = table("each 2v2 set between them, oldest first",
+                 ["event", "date", "winner", "team_games", "opponent_games"]
+                 + ([] if d else ["opponent_partner", "opponent_partner_id"]),
+                 [[set_event(r[3], r[4]), r[0], team if r[5] else (other if d else f"{c_name} and {partners.get(r[9])}"),
+                   r[6], r[7]] + ([] if d else [partners.get(r[9]), r[9]]) for r in rows],
+                 optional=True) if rows else None
+    scope = ", ".join([f"{SCOPE}, 2v2 sets between the two teams; DQs, forfeits and ties left out", *narrow.said])
+    return observation("team_head_to_head", scope, notes, [record, each], query.ran,
+                       player={"player_id": a, "name": a_name}, partner={"player_id": b, "name": b_name},
+                       opponent={"player_id": c, "name": c_name},
+                       opponent_partner=d and {"player_id": d, "name": d_name}, event=narrow.found and narrow.found.about)
+
+
+def team_opponents(query, tools, player_id, partner_id, by=None, top=5, mode=None, min_sets=None, side=None, of=None,
+                   year=None, since=None, until=None, event=None, region=None):
+    """rank_pairs with partner_id: the teams one duo faced in 2v2, by the sets between them, or by the duo's record or
+    win rate against them, with no minimum unless min_sets gives one (the rule for a player's own records)."""
+    if str(of or "opponents").strip().lower() not in ("opponents", "opponent", "rivals"):
+        raise Refused("partner_id ranks the teams a duo faced (of='opponents'); for a player's partners, leave partner_id"
+                      " out")
+    if mode is not None and one_mode(mode) != "2v2":
+        raise Refused("a team plays 2v2: pass mode 2v2 or leave it out")
+    if side is not None and str(side).strip().lower() not in ("player", "own", "theirs"):
+        raise Refused("a team's opposing teams are ranked from the team's side: leave side out")
+    word = str(by or "").strip().lower()
+    rate = word in ("rate", "win rate", "winrate", "win_rate", "best record")
+    record = rate or word in ("record", "records", "wins")
+    if by is not None and not record and word not in ("sets", "meetings", "matches", "played", "most"):
+        raise Refused(f"a team's opposing teams are ranked by the sets between them, or by 'record' or 'rate', not {by!r}")
+    top = whole(top, "top")
+    least = None if min_sets is None else whole(min_sets, "min_sets")
+    a, a_name, a_given = person(tools, player_id)
+    b, b_name, b_given = person(tools, partner_id, "partner_id")
+    if a == b:
+        raise Refused(f"player_id and partner_id are both {a_name}: pass the two players of the team")
+    narrow = narrowing(tools, year, since, until, event, region)
+    if narrow.found and not narrow.found.usable:
+        return unanswered("rank_pairs", narrow.found, query)
+    within = "".join(f" AND {condition}" for condition in narrow.where("t"))
+    ranked = (f"WITH sets AS (SELECT t.match_id, t.side, t.won FROM v_match_results t JOIN v_match_results p"
+              f" ON p.match_id = t.match_id AND p.side = t.side AND p.player_id = {b}"
+              f" WHERE t.player_id = {a} AND t.mode = '2v2'{within}),"
+              " faced AS (SELECT s.match_id, s.won, MIN(o.player_id) AS a, MAX(o.player_id) AS b, COUNT(*) AS players"
+              " FROM sets s JOIN v_match_results o ON o.match_id = s.match_id AND o.side <> s.side"
+              " GROUP BY s.match_id, s.won),"
+              " pairs AS (SELECT a, b, COUNT(*) AS n, SUM(won) AS w FROM faced WHERE players = 2 GROUP BY a, b)")
+    order = "1.0 * w / n DESC, n DESC" if rate else "w DESC, n - w ASC" if record else "n DESC"
+    rows = query.rows(
+        f"{ranked}, ranked AS (SELECT *, RANK() OVER (ORDER BY {order}) AS rank FROM pairs"
+        f"{f' WHERE n >= {least}' if least else ''})"
+        " SELECT ranked.rank, pa.name, ranked.a, pb.name, ranked.b, ranked.n, ranked.w, ranked.n - ranked.w"
+        + (", ROUND(1.0 * ranked.w / ranked.n, 3)" if rate else "") +
+        " FROM ranked JOIN players pa ON pa.player_id = ranked.a JOIN players pb ON pb.player_id = ranked.b"
+        f" WHERE ranked.rank <= {top} ORDER BY ranked.rank, pa.name, pb.name")
+    team = f"{a_name} and {b_name}"
+    listed, left = ties([[r[0], f"{r[1]} and {r[3]}", [r[2], r[4]], *r[5:]] for r in rows])
+    notes = [n for n in (merged(a_given, a, a_name), merged(b_given, b, b_name)) if n]
+    notes += ((narrow.found.notes + status_notes(query, narrow.found.events)) if narrow.found else []) + narrow.notes
+    notes.append(f"Each row is a team that faced {team} in 2v2, with {team}'s wins against it (team_wins) and its wins"
+                 f" against {team} (opponent_wins); DQs, forfeits and ties are left out.")
+    scope = ", ".join([f"{SCOPE}, 2v2 sets against {team}", *narrow.said])
+    if not rows:
+        notes.append(f"{team} faced no team here ({scope})" + (f" in at least {least} sets, the minimum" if least else "")
+                     + ", so the ranking is empty.")
+        if least:
+            notes += most_between(query, ranked, None, "sets")
+    if left:
+        notes.append(f"Past {RANKED_AT_MOST} rows a tie isn't split, so {sum(len(g) for g in left)} more teams are"
+                     " counted but not listed: ask for fewer ranks, or narrow the question.")
+    if len({row[0] for row in listed}) < len(listed):
+        notes.append("Teams on the same rank are tied: give them the same place.")
+    measure = (f"by {team}'s win rate against them, then the most sets" if rate else
+               f"by {team}'s wins against them, then the fewest losses" if record else "the most sets first")
+    columns = ["rank", "opponents", "opponent_ids", "sets", "team_wins", "opponent_wins"] + (["win_rate"] if rate else [])
+    return observation("rank_pairs", scope, notes,
+                       [table(f"the teams {team} faced, {measure}, everyone ranked {ordinal(top)} or better", columns,
+                              listed) if listed else None], query.ran,
+                       player={"player_id": a, "name": a_name}, partner={"player_id": b, "name": b_name},
+                       event=narrow.found and narrow.found.about)
+
+
 # rank_players
 
 def one_by(value):
@@ -805,9 +943,15 @@ def ties(rows):
 
 
 def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_id=None, year=None, since=None,
-               until=None, event=None, region=None, min_sets=None, side=None):
+               until=None, event=None, region=None, min_sets=None, side=None, partner_id=None):
     """Pairs of players ranked: opponents by the 1v1 sets between them, or for one player their 2v2 meetings too;
-    teammates by their 2v2 events, wins, medals or top 8s together. Each pair once, every tie included."""
+    teammates by their 2v2 events, wins, medals or top 8s together; with partner_id, the teams a duo faced in 2v2
+    (team_opponents). Each pair once, every tie included."""
+    if partner_id is not None:
+        if player_id is None:
+            raise Refused("partner_id needs player_id: the team's two players")
+        return team_opponents(query, tools, player_id, partner_id, by, top, mode, min_sets, side, of, year, since,
+                              until, event, region)
     of, top = one_of(of), whole(top, "top")
     least = None if min_sets is None else whole(min_sets, "min_sets")
     narrow = narrowing(tools, year, since, until, event, region)
@@ -1315,6 +1459,25 @@ TEMPLATES = {t.name: t for t in (
          "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
         ("player_id", "opponent_id"), head_to_head),
     Template(
+        "team_head_to_head",
+        "Two 2v2 teams against each other at official events: the first team's record against the other in sets"
+        " (wins, losses, games) and each set between them with its winner and score, each pair on its own side. Use it"
+        " for \"X and Y vs Z and W\", two duos' head-to-head, or how one team did against another, with the team the"
+        " question asks about first. Without opponent_partner_id, the team's sets against that opponent with any"
+        " partner, each naming the partner. head_to_head is for two players, not two teams.",
+        {"player_id": {"type": "integer", "description": "a player of the first team, from resolve_player: the record is"
+                                                         " this team's"},
+         "partner_id": {"type": "integer", "description": "the first team's other player, from resolve_player"},
+         "opponent_id": {"type": "integer", "description": "a player of the other team, from resolve_player"},
+         "opponent_partner_id": {"type": "integer", "description": "the other team's second player, from resolve_player;"
+                                                                  " leave out for the opponent with any partner"},
+         "year": {"type": "integer", "description": "one calendar year only, such as 2026"},
+         "since": {"type": "string", "description": "only from this day on, included: 2025-10-01, 2025-10 or 2025"},
+         "until": {"type": "string", "description": "only up to this day, included: 2024-12-31, 2024-12 or 2024"},
+         "region": {"type": "string", "description": "one region's events only: na, eu, sa, brz, sea, aus, mena or jpn"},
+         "event": {"type": "string", "description": "one event or series only: its name as the question writes it"}},
+        ("player_id", "partner_id", "opponent_id"), team_head_to_head),
+    Template(
         "rank_players",
         "Players ranked by their wins (1st places), medals (top 3) or top 8s at official events, every tie included:"
         " the top 5 is everyone ranked 5th or better. Each row has the player's count, its 1v1 and 2v2 split and its"
@@ -1367,7 +1530,9 @@ TEMPLATES = {t.name: t for t in (
                                                         " question sets a minimum (side='opponents' with by='rate': 5 unless given)"},
          "side": {"type": "string", "enum": ["player", "opponents"],
                   "description": "with player_id and by record or rate: the player's own records (the default), or"
-                                 " the opponents' records against the player"}},
+                                 " the opponents' records against the player"},
+         "partner_id": {"type": "integer", "description": "with player_id: the player's 2v2 partner, to rank the teams"
+                                                         " the two faced together (by sets, record or rate)"}},
         (), rank_pairs),
     Template(
         "power_rankings",

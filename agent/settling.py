@@ -322,7 +322,7 @@ def after(trace, settled):
                     and observation.get("candidates") and named(settled.text, observation.get("name") or "")):
                 first = observation["candidates"][0]
                 players.append((first["name"], first["player_id"]))
-            for key in ("player", "opponent"):
+            for key in ("player", "partner", "opponent", "opponent_partner"):
                 who = observation.get(key)
                 if isinstance(who, dict) and who.get("player_id") is not None:
                     players.append((who.get("name") or str(who["player_id"]), who["player_id"]))

@@ -90,6 +90,8 @@ Choosing a tool
   - one player's wins, medals, top 8s or placements alone, overall, in a year or at an event: player_results
   - two players as a team, or who a player has played with in 2v2: team_results
   - two players against each other: head_to_head
+  - two 2v2 teams against each other ("X and Y vs Z and W"), with the four players' player_ids: team_head_to_head
+  - the teams a duo faced most, or the duo's best records against teams: rank_pairs with player_id and partner_id
   - who has the most wins, medals or top 8s, or the most among players who never won (never_won): rank_players
   - who has played whom the most, a player's most-played opponents, or the best duos: rank_pairs
   - a player's best records against their opponents: rank_pairs with player_id and by="record" (min_sets only for a
