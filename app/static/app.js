@@ -192,7 +192,35 @@ function apply(event, turn, bubble) {
   }
 }
 
+// A tunnel can hold an event stream back until it ends (Cloudflare's quick tunnels do), so away from this machine the
+// page polls instead: each poll answers as soon as there's a new event, or after two seconds with none.
+const LOCAL = ["127.0.0.1", "localhost", "[::1]"].includes(location.hostname);
+
+async function poll(jobId, turn, bubble) {
+  let after = 0;
+  for (let failures = 0; failures < 5;) {
+    let out;
+    try {
+      out = await api(`/api/jobs/${encodeURIComponent(jobId)}/poll?after=${after}`);
+      failures = 0;
+    } catch (error) {
+      if (error.status === 404) break;
+      failures += 1;
+      await new Promise((r) => setTimeout(r, 1000));
+      continue;
+    }
+    for (const event of out.events) {
+      if (event.type === "done") return;
+      apply(event, turn, bubble);
+    }
+    after = out.next;
+    if (out.finished) return;
+  }
+  turn.error = turn.error || "The connection to the server was lost.";
+}
+
 function follow(jobId, turn, bubble) {
+  if (!LOCAL) return poll(jobId, turn, bubble);
   return new Promise((resolve) => {
     const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/events`);
     let ended = false;

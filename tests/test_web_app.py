@@ -76,6 +76,19 @@ class AppTest(Fixture):
     def test_info_offers_only_recorded_examples(self):
         self.assertEqual(self.client.get("/api/info").json(), {"mode": "replay", "examples": [QUESTION], "models": []})
 
+    def test_polling_gives_the_same_events_as_the_stream(self):
+        _, job = self.ask(QUESTION)
+        polled, after = [], 0
+        for _ in range(50):
+            out = self.client.get(f"/api/jobs/{job}/poll", params={"after": after}).json()
+            polled += out["events"]
+            after = out["next"]
+            if out["finished"]:
+                break
+        self.assertEqual(polled, read(self.client, job))
+        self.assertEqual(polled[-1]["type"], "done")
+        self.assertEqual(self.client.get("/api/jobs/nope/poll").status_code, 404)
+
     def test_a_question_streams_its_progress_then_the_answer(self):
         _, job = self.ask(QUESTION)
         found = read(self.client, job)

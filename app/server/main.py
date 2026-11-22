@@ -16,6 +16,8 @@ Routes:
     POST /api/conversations                     a new conversation: {"conversation_id"}
     POST /api/conversations/{id}/questions      {"question"}: {"job_id", "position"}
     GET  /api/jobs/{id}/events                  the job's events (text/event-stream), from Last-Event-ID on
+    GET  /api/jobs/{id}/poll?after=N            the same events as JSON, waiting up to POLL_WAIT s for one: for a
+                                                tunnel that holds streams back (a Cloudflare quick tunnel does)
 """
 
 import argparse
@@ -46,6 +48,7 @@ import worker as workers  # noqa: E402
 
 STATIC = HERE.parent / "static"
 KEEPALIVE = 15  # seconds between comments on a quiet stream, so proxies keep it open
+POLL_WAIT = 2  # seconds a poll waits for a new event before answering with none
 PER_VISITOR = 30  # public mode: questions a visitor may ask in an hour (by the address the tunnel reports)
 # The example questions, one of each kind the page shows: a template's answer, a query's, suggestions, a follow-up,
 # an event that wasn't held. In replay mode only those with a recording are offered.
@@ -138,6 +141,17 @@ def create_app(source, tools, worker=None, examples=EXAMPLES, static=STATIC, ear
         except workers.Full as e:
             raise HTTPException(503, str(e))
         return {"job_id": job.id, "position": job.position}
+
+    @app.get("/api/jobs/{job_id}/poll")
+    async def poll(job_id: str, after: int = 0):
+        """The job's events from number after on, as soon as there is one or after POLL_WAIT seconds; next is the
+        after to ask with next time, and finished says the job has no more."""
+        job = worker.job(job_id)
+        if job is None:
+            raise HTTPException(404, "No such question.")
+        found, finished = await asyncio.to_thread(job.wait, max(after, 0), POLL_WAIT)
+        return {"events": [event for _, event in found], "next": max(after, 0) + len(found),
+                "finished": finished and max(after, 0) + len(found) >= len(job.events)}
 
     @app.get("/api/jobs/{job_id}/events")
     async def stream(job_id: str, request: Request):
