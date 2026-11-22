@@ -286,7 +286,9 @@ class RankPairsTest(Fixture):
         rate = self.call("rank_pairs", player_id=B, side="opponents", by="rate")  # the counting rule: 5 sets at least
         self.assertEqual(rate["tables"], [])
         self.assertIn("with at least 5 sets or meetings between them, the minimum, so the ranking is empty.",
-                      rate["notes"][-1])
+                      rate["notes"][-2])
+        self.assertEqual(rate["notes"][-1], "The most sets here is 3 (B with A): if the question sets no minimum, call"
+                                            " again without min_sets.")
         self.assertEqual(self.rows(self.call("rank_pairs", player_id=B, side="opponents", by="rate", min_sets=1),
                                    "records against B")[0][-1], 1.0)
         self.assertIn("side is 'player'", self.call("rank_pairs", player_id=B, side="enemies", by="record")["error"])
@@ -298,6 +300,14 @@ class RankPairsTest(Fixture):
                       " ".join(out["notes"]))
         least = self.call("rank_pairs", player_id=A, by="record", min_sets=2)
         self.assertEqual([r[3] for r in self.rows(least, "A's records")], ["B"])
+
+    def test_a_players_own_records_by_rate_take_no_minimum_the_question_doesnt_set(self):
+        out = self.call("rank_pairs", player_id=A, by="rate")  # live, c19: volst's best records came back empty
+        self.assertEqual([(r[3], r[-1]) for r in self.rows(out, "A's records")], [("B", 1.0), ("D", 1.0), ("C", 0.0)])
+        self.assertIn("with no minimum of sets", " ".join(out["notes"]))  # B's 3-0 before D's 1-0: a tie, more sets
+        empty = self.call("rank_pairs", player_id=A, by="rate", min_sets=4)
+        self.assertEqual(empty["notes"][-1], "The most sets here is 3 (A with B): if the question sets no minimum, call"
+                                             " again without min_sets.")
 
 
 class PowerRankingsTest(Fixture):
