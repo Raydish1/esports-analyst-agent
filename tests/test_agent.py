@@ -742,6 +742,16 @@ class LoopTest(Fixture):
         self.assertEqual(swaps, [{"kind": "the question's spelling", "from": "Raydsh", "to": "Raydish", "player_id": 11,
                                   "times": 3}])  # live, 'Yuz' to 'yüz' was listed eleven times
 
+    def test_a_spelling_that_starts_the_name_isnt_swapped_where_the_answer_writes_the_name(self):  # "Moni--"
+        resolved = [("dragon", 22, "Dragon!", "Dragon!")]
+        answer, swaps, _ = react.correct_names("Dragon! won 3 events.", resolved, self.tools.resolver)
+        self.assertEqual((answer, swaps), ("Dragon! won 3 events.", []))
+        answer, swaps, _ = react.correct_names("dragon won 3 events, and Dragon! lost one.", resolved, self.tools.resolver)
+        self.assertEqual(answer, "Dragon! won 3 events, and Dragon! lost one.")
+        self.assertEqual([(s["from"], s["to"]) for s in swaps], [("dragon", "Dragon!")])
+        tagged = [("cody", 21, "Cody Travis", "Cody Travis")]  # a name the spelling starts, a space after it
+        self.assertEqual(react.correct_names("Cody Travis won.", tagged, self.tools.resolver)[0], "Cody Travis won.")
+
     def test_a_name_several_players_share_exactly_with_no_clear_cut_goes_to_the_user(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "dragon"})]), reply("Dragon has 5 results."))
         trace = react.run("dragon stats", self.tools, ask=ask, log=lambda *_: None)

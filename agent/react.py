@@ -822,7 +822,9 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
     [{name, player_id, belongs_to, name_is}].
     - resolved: (spelling, player_id, name, display) for each player the question named that resolve_player decided.
       The question's spelling becomes the display where the answer first names the player, and the name after,
-      unless it's quoted (the name talked about, not used) or in parentheses just after the name, explaining it.
+      unless it's quoted (the name talked about, not used) or in parentheses just after the name, explaining it, or
+      the answer already writes the name or the display there: a spelling that is the name's start matches inside it
+      when a mark follows, and the swap wrote "Moni--" for "Moni-" and "Dragon!!" for "Dragon!" (2026-11-22).
     - A name in bold, quotes or a tag's shape just before a player ID that isn't that ID's name becomes it: '**Lucky**
       (player_id 147982)' becomes '**Zivai** (player_id 147982)'. But a name resolve_player decides as another player
       is left as it is, a pairing for the model (decided 2026-11-19): live, 'Raydish (player_id 147569)' had capsar's
@@ -843,7 +845,8 @@ def correct_names(answer, resolved, resolver, in_view=frozenset()):
         done = []
 
         def swap(m):
-            if any(a <= m.start() < b for a, b in kept):
+            here = m.string[m.start():].casefold()
+            if any(a <= m.start() < b for a, b in kept) or any(here.startswith(n.casefold()) for n in (name, shown)):
                 return m.group(0)
             to = name if done or named < m.start() else shown
             done.append({"kind": "the question's spelling", "from": m.group(0), "to": to, "player_id": pid})
