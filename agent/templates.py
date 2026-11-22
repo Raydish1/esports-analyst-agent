@@ -979,9 +979,12 @@ def rank_pairs(query, tools, of="opponents", by=None, top=5, mode=None, player_i
         if rate and against and least is None:
             least = 5  # the decided rule for the best record against a player (q08). A player's own records take no
             # minimum the question doesn't set: volst has at most 4 sets with any one opponent (c19)
-        if mode == "2v2" and player is None:
+        if mode == "2v2" and player is None:  # live, "use mode 1v1" here led to two queries that timed out, then
+            # an invented answer, for "which two teams have the most history in 2v2 sets" (2026-11-22)
             raise Refused("2v2 opponents are ranked for one player only: give player_id. Over every player the 2v2"
-                          " meetings take more than a minute; for the most-played pairs overall, use mode 1v1")
+                          " meetings take more than a minute. For the most-played pairs of 2v2 teams, use run_sql on"
+                          " v_match_results: group each match's side into a team (its two player_ids), then count the"
+                          " sets between each pair of teams")
         within = "".join(f" AND {c}" for c in narrow.where("s"))
         if player is None:
             ranked = (f"WITH pairs AS (SELECT MIN(s.winner_id, s.loser_id) AS a, MAX(s.winner_id, s.loser_id) AS b,"

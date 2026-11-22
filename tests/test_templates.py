@@ -274,7 +274,11 @@ class RankPairsTest(Fixture):
                          [[1, "A", A, "B", B, 2, 1, 2, 2]])
 
     def test_what_it_cant_rank_is_refused_with_the_reason(self):
-        self.assertIn("2v2 opponents are ranked for one player only", self.call("rank_pairs", mode="2v2")["error"])
+        refused = self.call("rank_pairs", mode="2v2")["error"]
+        self.assertIn("2v2 opponents are ranked for one player only", refused)
+        self.assertIn("For the most-played pairs of 2v2 teams, use run_sql on v_match_results: group each match's side"
+                      " into a team", refused)
+        self.assertNotIn("mode 1v1", refused)  # live, it pointed there, which ranks players, not 2v2 teams
         self.assertIn("of is 'opponents' or 'teammates'", self.call("rank_pairs", of="enemies")["error"])
         self.assertIn("teammates play 2v2 together", self.call("rank_pairs", of="teammates", mode="1v1")["error"])
         self.assertIn("opponents are ranked by the sets", self.call("rank_pairs", by="medals")["error"])
