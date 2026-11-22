@@ -444,7 +444,8 @@ it the agent changes only for bugs (the user's decision, 2026-11-21).
   32768, nomic-embed-text beside it, and no reload.
 - **The sets**, each at seeds 0-2, in a worktree with its own `data/rag`:
   - the evaluation set, the 45 questions the user verified (`20261121-final-questions`). Every run was drafted by hand
-    ("needs review") and scored by stage, as on 2026-11-08;
+    and scored by stage, as on 2026-11-08. The user confirmed all 130 drafted verdicts on 2026-11-22 (the other 5
+    are automatic);
   - the 19 conversations, 48 turns (`20261121-final-conversations`). The user verified c1-c13, and c14-c19 aren't
     verified yet. They're scored by their checks, then by hand where a check misread a right answer;
   - the audit set, 51 questions in 54 turns (`20261121-final-audit`). It isn't verified, and its checks look at how a
