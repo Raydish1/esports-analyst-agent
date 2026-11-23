@@ -7,6 +7,10 @@ This is the capstone project for the CMU Agentic AI program.
 - **Hosted demo:** https://brawlhalla-cortex.fly.dev plays recorded answers and serves the MCP server. It runs no model, so it can't answer new questions.
 - **Static demo:** https://raydish1.github.io/esports-analyst-agent/ plays the same recorded answers.
 
+**Presentation video** (about 10 minutes, with a live demo). Select the image to watch it on YouTube.
+
+[![The Brawlhalla Cortex presentation video](https://img.youtube.com/vi/T1MaN7CpTwc/maxresdefault.jpg)](https://youtu.be/T1MaN7CpTwc)
+
 ## Use Cortex from your own model
 
 Cortex is also an MCP server, so you can connect your own AI assistant to its data and its stat cards. The server is always on at https://brawlhalla-cortex.fly.dev/mcp/. It has 19 tools: the agent's 14 tools for looking up players, events and results, and 5 tools that return broadcast-style cards as images.
