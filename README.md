@@ -45,9 +45,7 @@ The agent was tuned on the 45 questions, and the held-out set of 16 can't measur
 
 ## How it works
 
-![The three-agent pipeline measured for Checkpoint 5](docs/figures/three-agent-pipeline.png)
-
-The agent is a single ReAct loop. The diagram shows the three-agent version that was tested against it. These are the parts of the agent:
+The agent is a single ReAct loop. These are its parts:
 
 - **The database.** A builder makes a SQLite database from the official Brawlhalla Esports Stats API, start.gg and Challengermode. A build goes live only if its checks pass. Sixteen views hold the counting rules, such as "a disqualification is neither a win nor a loss".
 - **The loop.** [`agent/react.py`](agent/react.py) runs qwen3:30b through Ollama, with thinking on, for at most 8 steps.
