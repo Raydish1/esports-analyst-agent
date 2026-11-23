@@ -466,6 +466,50 @@ Three bug fixes followed, at the user's go-ahead, each replayed on the recorded 
 Then the agent was frozen (2026-11-22, the user's decision): no more prompt or check changes, only fixes for bugs
 that break a live answer.
 
+After it, a live comparison brought three changes the user asked for (in the log):
+- M2, the tools: `rank_pairs`' 2v2 refusal points to run_sql on v_match_results, each match's side a team, and
+  worked example ex36 shows that query.
+- M3, facts the model makes: the failed-calls check. An answer after a turn whose every call failed goes back once,
+  then what no tool returned is left out, plain names included (`Shown.named_claims`).
+
+On the question's two phrasings, the queries came right in 4 of 6 runs, but 3 answers made up names for player IDs
+the query returned without names. The answer check doesn't read plain names, nor a bold span of several names.
+
+The user then approved the two proposals that followed (in the log):
+- M3, facts the model makes: after a result that gives players as player_ids without their names (`Shown.nameless`,
+  IDs of 10,000 or more), the answer check also reads plain names. Its message then says how to look the names up
+  (`NAMELESS`).
+  - The finder reads a word as a name only where it names (`plainly_named`). It skips a name the results write out,
+    and a player any tool returned in the conversation.
+  - Plain names in every answer were replayed first. Even with the finder tightened, they flag 28 of 2,904 answers,
+    17 of them false alarms ("Streak" in stat cards, names in an example). So the check reads them only after a
+    nameless result. There it flags 7 of 54 answers, all names made up or wrong for a player_id.
+  - That gives up two made-up names on the record that no other check reads: "BBA balloonBoy", and a40's "*Mikael*"
+    as 2017's Worlds winner in the final measurement.
+  - The same tightening keeps the failed-calls check's strict path from leaving out honest sentences ("However",
+    "For example").
+  - It misses a made-up name that opens its line or sentence alone ("5. **Zivai (81144)**").
+- M2, the tools: ex36's note says to join players for the names, and to pair the sides on `side <> side` with the
+  lower team first, never by side.
+
+## Checkpoint 5's three-agent pipeline (2026-11-22): an experiment arm, measured
+
+The user asked for Checkpoint 5's design built and measured beside the frozen agent (in the log, "Checkpoint 5's
+measurement"). `agent/pipeline.py` runs an analyst (the loop, stopped before its answer), a reporter that writes from
+the evidence packet alone, and a verifier (the loop's answer checks, then one model call) in one LangGraph graph, with
+`harness.py run --pipeline three-agent`. The diagram is in `docs/figures/`.
+
+On the 45 questions, seed 0, with the same evidence as a single-agent control: 36 right against 37, 4 wrong against 2,
+at 3.2 times the model time. It took the model's unsupported claims out of the final answers, but abstained where a
+check's failure persisted (q05, q42), which the loop would have sent back once and kept. By Checkpoint 5's rule it
+isn't kept: the single agent stays the default.
+
+What it showed about the mechanisms:
+- M3, facts the model makes: a verifier with its own context catches wrong details the writer misses (q15, q16), but
+  not omissions or a wrong query that ran without error.
+- M5, answer writing: a writer that sees only the packet talks about it ("the evidence packet") and answers tersely.
+- A check's false alarm costs more where the check blocks: the loop's send-back-once is the safer design.
+
 ## Decisions
 
 All dated 2026-11-20. The user said to make the design calls and take the simpler or more cautious option when unsure.
@@ -498,9 +542,15 @@ All dated 2026-11-20. The user said to make the design calls and take the simple
 ## Waiting on the user
 
 - Nothing for the agent. It's frozen since 2026-11-22 (the user's decision): no prompt or check changes, only fixes
-  for bugs that break a live answer.
-- Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions is in the
-  log, and the Sonnet experiment is skipped for now, with its backend in place (the user's decision).
+  for bugs that break a live answer, and what the user asks for.
+- A rerun of the live comparison's two phrasings with qwen3:30b, seeds 0-2 (about 5 minutes). It would measure the
+  answer check's plain names and ex36's note, both built and replayed offline on 2026-11-22.
+- Checkpoint 5's measurement (2026-11-22): reviewing the drafted verdicts of `20261122-checkpoint5-pipeline` and
+  `-single`, and two findings, the names correction's swap inside "formerly Godly" (a bug the single agent shares) and
+  the answer check reading "SteelSeries" as a player's name.
+- Verifying c20 to c24 (`eval/questions/teams-review.md`). The targeted run of 2026-11-22's additions and the
+  Sonnet experiment are in the log. Their drafted verdicts wait for review, and q12's names-correction bug for a
+  decision.
 - The definition of "strongest right now" and the other current-form words. Until then the general rule applies: the
   model picks a reading and says which one it took. c17 and the audit's a09 and a10 measure it.
 - Verifying c14 to c19 (`eval/questions/conversations-review.md`).

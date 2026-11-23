@@ -323,6 +323,10 @@ LAST_STEP = "You have one step left: reply with your answer, without calling a t
 CHECK = ("Before this answer is final: it {what}, which no tool returned in this conversation. If that means a"
          " player, find them with a tool first (resolve_player for a name, run_sql for a player_id) and answer from what"
          " the tools return. If it isn't meant as a player, reply with the same answer again.")
+# The answer check's hint when the results in view give player_ids without their names (Shown.nameless): in the check
+# run of 2026-11-22, three answers named the teams of a query's four player_ids with names no tool returned
+NAMELESS = (" If a result gives players as player_ids without their names, look the names up with run_sql (SELECT"
+            " player_id, name FROM players WHERE player_id IN (...)), and name the players by them.")
 PAIRING = ("Before this answer is final: it pairs {pairs}. A player_id belongs to one player: if the name is the player"
            " meant, use the player_id resolve_player gives for them, and query again if a query used the other one; if"
            " the player_id is, name them by its name.")
@@ -347,6 +351,13 @@ SQL_WORDS = [(LOOK_UP, "a run_sql query on the views"), ("a template or run_sql"
 RECHECKED = ("You answered again without a tool, so the agent ran again the calls the questioned answer rested on: the"
              " results are above. Say from them whether that answer was right, and correct it if it wasn't.")
 NOT_LOOKED_UP = "I couldn't look this up in the data, so I won't guess."
+# The failed-calls check (decided 2026-11-22): an answer after a turn whose every tool call failed goes back once, and
+# an answer after that has the players and numbers no tool returned left out (failed_only). Live, "which two teams have
+# the most history in 2v2 sets" had rank_pairs refused and two run_sql queries stopped at 30 s, then was answered
+# "Phazon & Zivai and Cody Travis & Ryno", which no tool returned, and no check caught it
+FAILED = ("Before this answer is final: every tool call in this question failed (an error or a timeout), so no tool"
+          " result holds what the answer states. Don't answer from what no tool returned: say that you couldn't get"
+          " the data, and what you tried.")
 # After each check's message: live, a reply to the number check opened "**Corrected Answer:**" and said "the previous
 # answer incorrectly stated ...", a draft the user never saw (docs/web-app-testing-notes.md, finding 34)
 DRAFT = (" The user hasn't seen the draft above: write the reply as the answer to their question, never as a correction"
@@ -394,6 +405,10 @@ MISATTRIBUTED = ("though the results in view hold each only for another player o
                  " Take each figure from the row for the player and the mode its sentence names: the cards and the"
                  " templates give each mode a row of its own, and both modes together another.")
 NUMBERISH = re.compile(r"\d+(?:st|nd|rd|th|s|v\d+)?")  # numbers, ordinals and formats, normalized: 7th, 2v2, 1990s
+# Words an answer writes that are some player's name but never name one there (plainly_named)
+NOT_NAMES = {"january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+             "november", "december", "gold", "golds", "silver", "silvers", "bronze", "bronzes"}
+NAMELESS_LEAST = 10_000  # a smaller player_id may be a count or a year (Shown.nameless); 9,161 of eval-v1's are smaller
 # Text in double or single quotes, straight or curly. A single quote is an apostrophe when a letter is on its outer
 # side (megD's, players' names), so quoted text starts and ends away from letters.
 QUOTED = re.compile(r'"([^"\n]+)"|“([^”\n]+)”|(?<![\w\'‘’])[\'‘]([^\'‘’\n]+)[\'’](?![\w\'‘’])')
@@ -801,6 +816,36 @@ class Shown:
                 out.append(Claim("player", name, m.start(), m.end(), (name,)))
         return out
 
+    def nameless(self):
+        """The players the results in view return by player_id alone: no result in view writes their name. A query
+        grouping v_match_results returns teams so, unless it joins players. Only IDs of NAMELESS_LEAST or more count:
+        a count or a year can equal a smaller player_id (25 sets; 2017), as 9,161 of eval-v1's are."""
+        returned = sorted(pid for pid in self.returned_now | self.returned_before if pid >= NAMELESS_LEAST)
+        return [pid for pid in returned if (name := " ".join((self.resolver.names.get(pid) or "").split()))
+                and not re.search(rf"(?<!\w){re.escape(name)}(?!\w)", self.in_view, re.I)]
+
+    def named_claims(self, answer, question, event_words):
+        """Each player an answer names in plain text (mentions.named, as a question's names are found, where it reads
+        as a name: plainly_named) that no tool returned, in view or earlier in the conversation, and the question
+        doesn't name, at its first mention, as a claim number_check.without can leave out. For a turn whose every call
+        failed (failed_only), and for the answer check after a result that gives players by player_id alone
+        (nameless): name_spans finds a name only when it's shaped like a tag or in bold or quotes, and live, "Phazon &
+        Zivai and Cody Travis & Ryno" passed."""
+        said, out = stated(answer), []
+        returned, canonical = self.returned_now | self.returned_before, self.resolver.canonical
+        asked = {normalize_full(text) for text, _ in mentions.named(question, self.resolver, event_words)}
+        for text, found in mentions.named(said, self.resolver, event_words):
+            first = (found.get("candidates") or [{}])[0].get("player_id")
+            written = re.search(rf"(?<!\w){re.escape(text)}(?!\w)", self.in_view, re.I)  # a result's name as text,
+            # as a query joining players gives it: the replay of 2026-11-22 flagged such a right answer
+            if (first is None or canonical.get(first, first) in returned | self.players
+                    or self.resolver.called(text) & (returned | self.players) or written or normalize_full(text) in asked):
+                continue
+            m = re.search(rf"(?<!\w){re.escape(text)}(?!\w)", said)
+            if m and plainly_named(m):
+                out.append(Claim("player", text, m.start(), m.end(), (text,)))
+        return out
+
     def states_facts(self, answer):
         """Whether an answer still states a fact, outside its questions and code: a number of the kinds the number
         check reads, or a player."""
@@ -1039,6 +1084,32 @@ def gapped(gap):
     return "; ".join(f"{kind} {', '.join(values)}" for kind, values in gap.items())
 
 
+def plainly_named(m):
+    """Whether a span the plain-name finder matched in an answer (a regex match on it) reads as a name where it's
+    written, not as an ordinary word that is also some player's name: it has a capital, isn't a number or an ordinal
+    (25th, 8s), a month or a medal word, has no apostrophe (I'll), and, if one word, isn't the first word of its
+    sentence, line or label (However, Note:, Key Partners) nor the first of a capitalized term (Power Rankings). On
+    2026-11-22 the finder alone read 1,041 recorded answers as naming a player no tool returned, nearly all for such
+    words. The made-up names of that day's check run ("Cody Travis and Phazon against Killa and Zivai") are
+    capitalized mid-sentence."""
+    span, before, after = m.group(0), m.string[:m.start()], m.string[m.end():]
+    if (not re.search(r"[A-Z]", span) or re.search(r"['’]", span) or NUMBERISH.fullmatch(normalize(span))
+            or span.casefold() in NOT_NAMES or len(span) < 3 or re.match(r"\s*#", before.rpartition("\n")[2])):
+        return False  # the last: a heading's words label a section ("### **Key Notes**")
+    if " " in span:
+        return True
+    first = (re.fullmatch(r"[\s*_#>\-]*", before)
+             or re.search(r"(?:[.!?:]|\n\s*(?:[-*>#]+|\d+[.)])?)[\s*_\"'“]*$", before))
+    return not first and not re.match(r"\s+[A-Z][a-z]", after)
+
+
+def failed_only(trace):
+    """Whether a turn called tools and every call failed: each observation an error, a timeout or a refusal, which
+    shows nothing (Shown.observe). A call the step limit left unrun has no observation and doesn't count."""
+    calls = [c for s in trace["steps"] for c in s["tool_calls"] if c.get("observation") is not None]
+    return bool(calls) and all("error" in json.loads(c["observation"]) for c in calls)
+
+
 def no_tool(gap):
     """The no-tool check's message: look up what the question asks, for its words no result in view holds, or else
     the facts."""
@@ -1190,12 +1261,14 @@ class Conversation:
       (retrieval.prompt), and the history keeps the bare question. The examples aren't what the conversation has
       shown, so an example's player in an answer is still flagged. A text that carries no question of its own
       ("the first one", "thanks": mentions.asks) retrieves nothing.
-    on_step, if given, gets each step as it finishes."""
+    on_step, if given, gets each step as it finishes. With evidence_only, a turn is the analyst of the three-agent
+    pipeline (pipeline.py): it stops before its answer's checks, with outcome 'evidence' and the model's reply as its
+    draft, and another agent writes the answer from what it looked up."""
 
     def __init__(self, tools, ask=chat, max_steps=MAX_STEPS, log=print, on_step=None, retriever=None, on_examples=None,
-                 **model):
+                 evidence_only=False, **model):
         self.tools, self.chat, self.max_steps, self.log, self.on_step, self.model = tools, ask, max_steps, log, on_step, model
-        self.retriever, self.on_examples = retriever, on_examples
+        self.retriever, self.on_examples, self.evidence_only = retriever, on_examples, evidence_only
         self.system = {"role": "system", "content": prompt(tools.path, max_steps, tools.templates)}
         self.earlier, self.previous, self.current = [], [], []  # older questions and answers; the last two in full
         self.view = Shown(tools.resolver, self.system["content"], json.dumps(tools.offered))
@@ -1340,11 +1413,13 @@ class Conversation:
                  **({"settled": settled.traced()} if settled and settled.text != said else {}),
                  "examples": examples, "steps": [], "answer": None, "outcome": None, "unreturned_names": {},
                  "unreturned_ids": [], "answered_after_too_big": False, "answered_after_lookup_miss": False,
-                 "answered_without_tools": False, "name_swaps": [], "unconfirmed": []}
+                 "answered_without_tools": False, "answered_after_failed_calls": False, "name_swaps": [],
+                 "unconfirmed": []}
         checked, too_big, log, max_steps = False, False, self.log, self.max_steps
         missing, missed = [], False  # the last empty result's text filters no row has, and whether that was sent back
         called, told = False, False  # whether this question called a tool, and whether the no-tool check sent one back
         rechecked = False  # whether the loop ran again the data calls a questioned answer rested on
+        failed_told = False  # whether the failed-calls check sent an answer back (FAILED)
         forced, complied = False, False  # whether the loop looked names up for the model; whether the model did, after
         numbered, paired = False, False  # whether the number check, and the pairing check, sent an answer back
         judged = False  # whether the claim check sent an answer back
@@ -1491,14 +1566,38 @@ class Conversation:
                         break
                     self.finished(step)
                     continue
-                strict = told and not complied and not rechecked  # the turn's facts never came from a tool the model
-                # called itself, nor from the calls a recheck ran again for it: after one, in the final run, c10 turn 2's
-                # whole answer became "I couldn't look this up", though the loop had looked it up
+                if self.evidence_only:  # the checks above gather evidence; those below judge the answer, which in
+                    # the pipeline is the reporter's to write and the verifier's to check
+                    trace["draft"] = content.strip() or None
+                    trace["outcome"] = "evidence" if outcome == "answered" else outcome
+                    log(f"  evidence: the analyst stops before its answer ({short(content, 200)})")
+                    self.finished(step)
+                    break
+                failed = outcome == "answered" and failed_only(trace)  # every call this turn failed (FAILED)
+                if failed and not failed_told and number < max_steps:
+                    failed_told, message = True, FAILED
+                    if number == max_steps - 1:
+                        message += " " + LAST_STEP
+                    step["failed_calls_check"] = {"action": "sent back", "message": message}
+                    self.current += [{"role": "assistant", "content": content, "thinking": thinking},
+                                     {"role": "user", "content": message + DRAFT}]
+                    log("  failed-calls check: every tool call failed, and an answer came anyway; sent back")
+                    sent_back = (content, swaps, message)
+                    self.finished(step)
+                    continue
+                if failed:
+                    step["failed_calls_check"] = {"action": "left out what no tool returned: " + (
+                        "sent back once already" if failed_told else "no steps left")}
+                # the turn's facts never came from a tool the model called itself, nor from the calls a recheck ran
+                # again for it (after one, in the final run, c10 turn 2's whole answer became "I couldn't look this up",
+                # though the loop had looked it up), or every call it made failed
+                strict = (told and not complied and not rechecked) or failed
+                lacked = "every tool call failed" if failed else "the turn looked nothing up"
                 if gap:
                     step["no_tool_check"] = {**gap, "action": "replaced: sent back once already" if told
                                              else "replaced: no steps left"}
                 if strict and outcome == "answered":
-                    trace["answered_without_tools"] = True
+                    trace["answered_after_failed_calls" if failed else "answered_without_tools"] = True
                 if pairings and not paired and not strict and number < max_steps:
                     paired, message = True, PAIRING.format(pairs=listed([paired_as(p) for p in pairings]))
                     if number == max_steps - 1:
@@ -1514,9 +1613,16 @@ class Conversation:
                     step["pairing_check"] = {"pairs": pairings, "action": "kept as written: sent back once already"
                                              if paired else "kept as written: no steps left"}
                 names = self.view.unreturned(content) if outcome == "answered" else {}
+                nameless = self.view.nameless() if outcome == "answered" else []
+                if nameless:  # a result gave players by player_id alone, so the players it names plainly are checked
+                    # too (2026-11-22): in the check run, three answers named a query's player_ids with names no tool gave
+                    for c in self.view.named_claims(content, question, self.tools.events.words):
+                        names.setdefault(c.text, sorted(self.tools.resolver.called(c.text))[:5])
                 ids = self.view.unreturned_ids(content) if outcome == "answered" else []
                 if (names or ids) and not checked and not strict and number < max_steps:
                     checked, message = True, CHECK.format(what=unreturned(names, ids))
+                    if nameless:
+                        message += NAMELESS
                     if number == max_steps - 1:
                         message += " " + LAST_STEP
                     step["answer_check"] = {"names": names, "ids": ids, "action": "sent back", "message": message}
@@ -1552,14 +1658,16 @@ class Conversation:
                     judgments = [c for c in self.wrong(content, said or question, disputed, emptied)
                                  if c.kind not in claim_check.SILENT and c.kind != "tool"]
                     step["claim_check"] = {"claims": [[c.kind, c.text] for c in wrong], "action": "left out: " + (
-                        "sent back once already" if judged else "the turn looked nothing up" if strict
+                        "sent back once already" if judged else lacked if strict
                         else "no steps left" if outcome == "answered" else "not an answer"),
                         "referrals_left_out": [d["claim"] for d in dropped]}
                     if not content.strip():
                         content = NOT_LOOKED_UP if strict else NOT_CONFIRMED
                 flagged = self.view.window.unsupported(self.view.without_ids(content))  # in every final text
-                if strict:  # and the players no result in view returned
-                    flagged = sorted(flagged + self.view.player_claims(content, question), key=lambda c: c.start)
+                if strict:  # and the players no result in view returned, written plainly too after failed calls
+                    plain = self.view.named_claims(content, question, self.tools.events.words) if failed else []
+                    flagged = sorted({(c.kind, c.start, c.end): c for c in flagged + plain
+                                      + self.view.player_claims(content, question)}.values(), key=lambda c: c.start)
                 flagged_texts = [c.text for c in flagged]
                 if flagged and outcome == "answered" and not numbered and not strict and number < max_steps:
                     numbered, message = True, self.worded(numbers_message(flagged))
@@ -1575,7 +1683,7 @@ class Conversation:
                 unconfirmed = []
                 if flagged or judgments:
                     content, unconfirmed = without(content, sorted(flagged + judgments, key=lambda c: c.start))
-                    why = ("the turn looked nothing up" if strict else "sent back once already" if numbered
+                    why = (lacked if strict else "sent back once already" if numbered
                            else "no steps left" if outcome == "answered" else "not an answer")
                     record = ({"numbers": flagged_texts, "action": f"replaced: {why}"} if flagged
                               else step["claim_check"])  # judgments alone: the claim check left them out

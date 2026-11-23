@@ -522,3 +522,29 @@ WHERE x.event_id = 'tournament/brawlhalla-japan-invitational/event/brawlhalla-ch
 ORDER BY seed_difference DESC
 LIMIT 1
 '''
+
+[[example]]
+id = "ex36"
+shape = "most_played_teams"
+question = "Which two 2v2 teams have played each other the most?"
+note = "A 2v2 team is one side of a match: group v_match_results by match_id and side, keep the sides of two players (HAVING COUNT(*) = 2), and name each team by its two player_ids in order. Join each match's two sides on side <> side and keep the lower team first ((x.a, x.b) < (y.a, y.b)), then count the sets between each pair of teams; never pair them by side (side < side), which splits a pairing or drops its meetings. Join players for the four names, and answer with the names the query returns: a player_id isn't a name. rank_pairs ranks 2v2 opponents for one player only, and v_head_to_head_2v2 over every player takes more than 30 s."
+sql = '''
+WITH sides AS (
+  SELECT match_id, side, MIN(player_id) AS a, MAX(player_id) AS b, MAX(won) AS won
+  FROM v_match_results
+  WHERE mode = '2v2'
+  GROUP BY match_id, side
+  HAVING COUNT(*) = 2),
+meetings AS (
+  SELECT x.a AS a1, x.b AS b1, y.a AS a2, y.b AS b2, x.won AS team1_won
+  FROM sides x JOIN sides y ON y.match_id = x.match_id AND y.side <> x.side
+  WHERE (x.a, x.b) < (y.a, y.b))
+SELECT pa.name AS team1_a, pb.name AS team1_b, pc.name AS team2_a, pd.name AS team2_b,
+       COUNT(*) AS sets, SUM(team1_won) AS team1_wins, COUNT(*) - SUM(team1_won) AS team2_wins
+FROM meetings
+JOIN players pa ON pa.player_id = a1 JOIN players pb ON pb.player_id = b1
+JOIN players pc ON pc.player_id = a2 JOIN players pd ON pd.player_id = b2
+GROUP BY a1, b1, a2, b2
+ORDER BY sets DESC
+LIMIT 5
+'''

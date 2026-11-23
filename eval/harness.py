@@ -39,6 +39,7 @@ import time
 import tomllib
 from collections import Counter
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -370,14 +371,22 @@ def kept(entry, fresh, record):
 
 # Running
 
-def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templates=True, backend="ollama"):
+def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templates=True, backend="ollama",
+        pipeline="single"):
     """Ask every question once per seed, appending each trace as it finishes; a rerun with the same run_id resumes.
     model is the backend's default unless given (react.MODEL on Ollama): everything else stays as the agent has it,
     for a model comparison. Without templates, the agent has run_sql and the views only (react.Tools(templates=False):
     arm B of the Sonnet experiment). backend "anthropic" asks the Messages API (agent/anthropic_chat.py), with
-    ANTHROPIC_API_KEY from .env; the API has no seed, so a seed only labels the run."""
+    ANTHROPIC_API_KEY from .env; the API has no seed, so a seed only labels the run. pipeline "three-agent" answers
+    with Checkpoint 5's analyst, reporter and verifier (agent/pipeline.py), on Ollama, instead of the single agent."""
     import react
     react.load_env()
+    answer = react.run
+    if pipeline == "three-agent":
+        if backend != "ollama":
+            sys.exit("The three-agent pipeline's reporter and verifier run on Ollama only.")
+        import pipeline as three_agent  # its graph needs LangGraph, installed for py -3.14
+        answer = partial(three_agent.run, reply=three_agent.chat)
     if backend == "anthropic":
         import anthropic_chat
         chat = anthropic_chat.AnthropicChat()
@@ -395,15 +404,16 @@ def run(questions, seeds, examples_on, run_id=None, log=print, model=None, templ
     header["backend"] = backend
     header["arm"] = "on" if examples_on else "off"
     header["templates"] = "on" if templates else "off"
+    header["pipeline"] = pipeline
     (out / "header.json").write_text(json.dumps(header, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     tools, todo = react.Tools(templates=templates), [(s, q) for s in seeds for q in questions if (q["id"], s) not in done]
     log(f"Run {run_id}: {len(questions)} questions, seeds {seeds}, examples {header['arm']}, templates"
-        f" {header['templates']}; {len(todo)} to go")
+        f" {header['templates']}, pipeline {pipeline}; {len(todo)} to go")
     for n, (seed, q) in enumerate(todo, 1):
         for attempt in range(1, TRIES + 1):  # a run that fails isn't written, so the retry starts it afresh
             try:
-                trace = react.run(q["question"], tools, ask=chat, retriever=retriever, log=lambda *_: None,
-                                  model=model, think=True, seed=seed)
+                trace = answer(q["question"], tools, ask=chat, retriever=retriever, log=lambda *_: None,
+                               model=model, think=True, seed=seed)
                 break
             # the server unreachable or timed out, or a reply cut off
             except (OSError, ValueError, http.client.HTTPException) as e:
@@ -711,6 +721,69 @@ def replayed(run_id, traces):
     return out
 
 
+def verified(run_id, log=print):
+    """Checkpoint 5's verifier alone (pipeline.verify) on a run's recorded answers: the loop's answer checks and one
+    model call on each, with the calls that returned data as the packet and the final answer as the draft. Each
+    record is appended to data/experiments/<run>/verifier.jsonl as it finishes, so a rerun resumes. Held-out traces
+    are left unread, and suggestions aren't verified, since the pipeline ends before its verifier. Needs the model."""
+    import react
+    import pipeline as three_agent
+    react.load_env()
+    header, traces = load_traces(run_id)
+    tools, path = react.Tools(), RAW / run_id / "verifier.jsonl"
+    done = ({(r["id"], r["seed"]) for r in map(json.loads, path.read_text(encoding="utf-8").splitlines())}
+            if path.exists() else set())
+    todo = [t for t in traces if t.get("set", "existing") == "existing" and t["outcome"] != "suggestions"
+            and (t["id"], t["seed"]) not in done]
+    log(f"Verifier on run {run_id}: {len(todo)} answers to go")
+    for n, t in enumerate(todo, 1):
+        for attempt in range(1, TRIES + 1):
+            try:
+                failures, missing, step = three_agent.verify(tools, t["question"], three_agent.packet_of(t),
+                                                             t["answer"] or "", three_agent.chat, model=header["model"],
+                                                             think=True, seed=t["seed"])
+                break
+            except (OSError, ValueError, http.client.HTTPException) as e:
+                if attempt == TRIES:
+                    raise
+                log(f"  {t['id']} seed {t['seed']}: {type(e).__name__}: {e}; trying again in {WAIT} s")
+                time.sleep(WAIT)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"id": t["id"], "seed": t["seed"], "failures": failures, "missing": missing,
+                                "step": step}, ensure_ascii=False) + "\n")
+        log(f"  [{n}/{len(todo)}] {t['id']} seed {t['seed']}: {len(failures)} failures"
+            f"{', missing' if missing else ''}, {step['seconds']} s")
+    return header, [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def verifier_table(records, judged, arm):
+    """The verifier's flags on a run's answers against the run's verdicts: per verdict, the answers flagged by its
+    code checks, by its model call, by either, and those whose packet it said can't answer the question. Then the
+    replies that weren't the JSON asked for, and the checks that flagged right answers and the others."""
+    verdict = {(r["id"], r["seed"]): judged.get((arm, r["id"], r["seed"]), {}).get("verdict") or "not judged"
+               for r in records}
+    groups = [(v, [r for r in records if verdict[(r["id"], r["seed"])] == v]) for v in (*VERDICTS, "not judged")]
+    groups.insert(3, ("not right", [r for r in records if verdict[(r["id"], r["seed"])] in ("partly", "wrong")]))
+    by = {"code": lambda r: any(f["by"] == "code" for f in r["failures"]),
+          "model": lambda r: any(f["by"] == "model" for f in r["failures"]),
+          "either": lambda r: bool(r["failures"]), "missing": lambda r: bool(r["missing"])}
+    out = ["| Verdict | Answers | Flagged by code | Flagged by the model | Flagged by either | Packet can't answer |",
+           "|---|---|---|---|---|---|"]
+    for name, rs in groups:
+        if rs:
+            out.append(f"| {name} | {len(rs)} | " + " | ".join(counted(sum(map(test, rs)), len(rs)) for test in by.values())
+                       + " |")
+    unparsed = sum(not r["step"]["verifier"]["parsed"] for r in records)
+    out += ["", f"Replies that weren't the JSON asked for: {counted(unparsed, len(records))}.", "",
+            "| Check | Right answers | Not right |", "|---|---|---|"]
+    kinds = Counter((f["by"], f["check"]) for r in records for f in r["failures"])
+    for (who, check), _ in kinds.most_common():
+        flagged = [verdict[(r["id"], r["seed"])] for r in records
+                   if any((f["by"], f["check"]) == (who, check) for f in r["failures"])]
+        out.append(f"| {who}: {check} | {flagged.count('right')} | {flagged.count('partly') + flagged.count('wrong')} |")
+    return out
+
+
 def main():
     sys.stdout.reconfigure(errors="replace")
     parser = argparse.ArgumentParser(description="Evaluate the agent on the evaluation and held-out sets.")
@@ -729,6 +802,9 @@ def main():
                                     " claude-sonnet-5-5)")
     go.add_argument("--backend", choices=["ollama", "anthropic"], default="ollama",
                     help="anthropic: the Messages API, with ANTHROPIC_API_KEY from .env (agent/anthropic_chat.py)")
+    go.add_argument("--pipeline", choices=["single", "three-agent"], default="single",
+                    help="three-agent: Checkpoint 5's analyst, reporter and verifier (agent/pipeline.py), on Ollama;"
+                         " its graph needs LangGraph (py -3.14)")
     for name in ("score", "report"):
         p = commands.add_parser(name)
         p.add_argument("runs", nargs="+")
@@ -737,7 +813,19 @@ def main():
     page.add_argument("--out", help="where to write it (default: data/experiments/<run>/failures.md, by its traces)")
     again = commands.add_parser("replay", help="the number check and the name filter on a run's traces, offline")
     again.add_argument("run")
+    check = commands.add_parser("verify", help="Checkpoint 5's verifier alone on a run's recorded answers, against its"
+                                               " verdicts (needs the model)")
+    check.add_argument("run")
     args = parser.parse_args()
+    if args.command == "verify":  # appends to data/experiments/<run>/verifier.jsonl; writes <run>-verifier.json
+        header, records = verified(args.run)
+        lines = verifier_table(records, read_judgments(RESULTS / f"{args.run}-judgments.toml"), header["arm"])
+        kept = [{**{k: r[k] for k in ("id", "seed", "failures", "missing")}, "parsed": r["step"]["verifier"]["parsed"],
+                 "seconds": r["step"]["seconds"], "output_tokens": r["step"]["output_tokens"]} for r in records]
+        (RESULTS / f"{args.run}-verifier.json").write_text(json.dumps(kept, indent=1, ensure_ascii=False) + "\n",
+                                                           encoding="utf-8")
+        print("\n".join(lines))
+        return
     if args.command == "replay":  # reads the run's traces and writes data/experiments/<run>/replay.md by them
         lines = replayed(args.run, load_traces(args.run)[1])
         (RAW / args.run / "replay.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -764,7 +852,7 @@ def main():
         else:
             chosen = questions
         print(run(chosen, args.seeds, args.examples == "on", args.run, model=args.model,
-                  templates=args.templates == "on", backend=args.backend))
+                  templates=args.templates == "on", backend=args.backend, pipeline=args.pipeline))
         return
     db = sqlite3.connect(SNAPSHOT.resolve().as_uri() + "?mode=ro", uri=True)
     add_views(db)  # as the agent's connections have them: a resolve_event condition can be on v_event_series

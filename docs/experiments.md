@@ -2,6 +2,363 @@
 
 One entry per experiment, newest first: what it asked, how it was set up, what it found, and what it decided. Results are in `eval/results/`. The models' full replies, thinking included, are in `data/experiments/` (git-ignored).
 
+## 2026-11-22: Checkpoint 5's measurement, the three-agent pipeline against the single agent
+
+**What it asked.** For completeness, the user asked for Checkpoint 5's multi-agent design (2026-11-09), built as an
+experiment arm beside the frozen agent, which must not change, and measured:
+1. built in LangGraph as Checkpoint 5 planned, with a harness switch and a diagram of the graph for the slides;
+2. offline first: the verifier alone on the final run's recorded answers, against their verdicts;
+3. the pipeline on the 45 questions, seed 0, against the final run's seed 0, scored the same way, with model time per
+   question.
+
+The held-out set is spent (2026-11-17), so this test used the evaluation set, which the agent was tuned on. Checkpoint
+5 had planned the 16 held-out questions, three seeds each.
+
+**Setup.** Six commits, d77c75d to 02738b4, each with tests (571 unit tests pass, and the pipeline's 17 also on
+py -3.14, which has LangGraph 1.2.24):
+- d77c75d, the analyst: `react.Conversation(evidence_only=True)` runs the loop through the checks that gather evidence
+  (result size, lookup, event, no-tool and the loop's own lookups) and stops where the checks that judge the answer
+  begin. Off by default, so the single agent doesn't change.
+- d9013cc, the packet and the verifier (`agent/pipeline.py`). The packet is every call that returned data, with its
+  result. The verifier runs the loop's answer checks (pairing, names and IDs, claims, numbers) in a model-free view of
+  the packet, then one model call that sees only the question, the packet and the draft. That call lists unsupported
+  claims and says whether the packet can answer the question, as JSON (Ollama's structured outputs).
+- 93ad177, the reporter and the graph. The reporter is one model call that sees only the question and the packet,
+  with a 5,917-character prompt: its role and how to read the packet, then the agent prompt's reading of the question,
+  counting rules and answering, without what's about tools. One StateGraph runs analyst, reporter and verifier. A
+  packet that can't answer goes back to the analyst once, a draft with failures to the reporter at most twice, then
+  the pipeline abstains.
+- 1ecc501 and abe0e8e: `harness.py run --pipeline three-agent`, and `harness.py verify RUN` for step 2.
+- 02738b4: the diagram, `docs/figures/three-agent-pipeline` (.mmd from LangGraph, .svg and .png rendered locally).
+
+Two differences from Checkpoint 5: qwen3:30b in every role (the default model since 2026-11-21, not qwen3:8b), and no
+graphic template for the reporter (the web app's cards draw the graphics).
+
+The runs were made at 02738b4 with qwen3:30b and retrieval on, at the user's go-ahead: the replay (33.8 minutes), the
+pipeline (34.5), and a control the user agreed to, the single agent at the same commit on seed 0 (11.5). The final
+run (0b7ee3d) predates the fixes made after it, so the control separates them from the pipeline's effect.
+
+**Results.**
+
+**Step 2: the verifier alone on the final run's answers** (`harness.py verify 20261121-final-questions`, 33.8
+minutes). It ran on the 132 recorded answers. The 3 suggestions (q22) aren't verified, since the pipeline ends before
+its verifier there. The verdicts are the user's confirmed ones: 130 by hand and 5 automatic.
+
+| Verdict | Answers | Flagged by code | Flagged by the model | Packet "can't answer" |
+|---|---|---|---|---|
+| right | 110 | 0 | 9 (8%) | 13 (12%) |
+| partly | 14 | 0 | 8 (57%) | 2 (14%) |
+| wrong | 8 | 0 | 3 (38%) | 4 (50%) |
+| not right | 22 | 0 | 11 (50%) | 6 (27%) |
+
+- **The code checks flag nothing.** These are the loop's own checks, and they already ran on these final answers.
+  Each sent back once, then left out what it still found.
+- **11 catches.** 9 flag the error the verdict names:
+  - q06's "3 medals (all 2nd places)", its "2nd or better in 9 events" and its partners' top 8s;
+  - q23's "two 3-0 wins" and its 3-1 at the wrong event;
+  - q27's "Won 2-3";
+  - q21's 1v1 event among the 2v2 wins;
+  - q16 seed 2's "SiB and Wess";
+  - q34 seed 2's earliest event.
+
+  2 flag another claim of a wrong answer (q16 seed 1, q42 seed 0).
+- **11 misses**, mostly what Checkpoint 5 said a verifier can't see:
+  - omissions: q05's scope, q12's 2v2 top 8, and q34's start year, which the number check had left out;
+  - wrong queries that ran without error: q20 (3 seeds), q42 seed 1, and q32 seed 2's name lookup;
+  - one unsupported claim: q32 seed 0's "career earnings aren't recorded", with no lookup.
+- **9 flags on right answers.**
+  - 4 point at real slips the verdicts let pass: q26 seed 0's "first result in 2024-08-04" (its first 2v2 medal is
+    2024-05-05), q17 seed 1's note on a name "yü", q11 seed 1's dominance rule in the wrong order, and q36 seed 2's
+    "Community" claim, which its verdict note also calls wrong.
+  - 2 flag the agent prompt's own facts, which the verifier doesn't see: q33's "figures only for PR players".
+  - 2 flag the answer's stated assumption (q30 seed 0, q15 seed 1).
+  - 1 flags a former name with a team tag (q26 seed 2).
+- **"Can't answer" on 13 right answers**, all on the partial and unanswerable questions: q09, q32, q33, q35, q36 and
+  q45. There the data lacks what's asked (earnings per event, legends, community events), and saying so is the right
+  answer. In the pipeline, each costs one return to the analyst.
+- 1 reply of 132 didn't parse: q37 seed 0's thinking ran to the 8,192-token cap. A call took 15.4 s on average (13.5
+  median, 63.1 at most), with 2,243 output tokens at 146 a second.
+
+**Step 3: the pipeline on the 45 questions, seed 0** (`20261122-checkpoint5-pipeline`, against the control
+`20261122-checkpoint5-single`):
+
+| Run | Right | Partly | Wrong | Model time per question |
+|---|---|---|---|---|
+| Final run, seed 0 (0b7ee3d), verdicts confirmed | 37 | 6 | 2 | 20.0 s |
+| Control: the single agent at 02738b4 | 37 | 6 | 2 | 13.5 s |
+| Pipeline at 02738b4 | 36 | 5 | 4 | 43.2 s |
+
+The control's and the pipeline's verdicts are drafted by hand ("needs review"); 2 of each are automatic (q20 and q44).
+The server ran at about 146 output tokens a second, against 90 in the final run, so the control is the fair
+comparison of time: the pipeline took 3.2 times its model time, 16.6 s for the analyst, 7.6 s for the reporter and
+19.0 s for the verifier per question.
+
+- **The same evidence.** With the same seed, the analyst made the control's calls: 32 resolve_player, 13
+  event_results and so on. Only the 5 returns added one run_sql (7 against 6). So this compares the answer alone: the
+  single agent's own, checked in its loop, against the reporter's, checked by the verifier.
+- **The paths.** Of 44 first drafts, 31 passed, 8 were revised once, 2 twice, and 5 went back to the analyst; 2
+  abstained. q22 ended at the analyst with its suggestions. All 61 verifier replies parsed.
+- **Caught in drafts and fixed by a revision:** q15's "did not win the 2v2" and q16's "SiB and Wess", the final run's
+  error in q16 seeds 1 and 2, both by the model call; tool names in q21, q25 and q26, by the claim check.
+- **Better than the control in 2:** q23, whose control lists the sets without DreamHack Valencia and says "three
+  events", and q45, whose control doesn't say Impala's figure isn't recorded.
+- **Worse in 3:**
+  - q05 abstained. The reporter wrote "yüZ" for yüz in all three drafts, and the verifier's model call flagged each.
+  - q42 abstained. The drafts named the North America SteelSeries Championship, 7,240 entries, which is right, but the
+    answer check read "SteelSeries" as a player's name each time. In the loop, a check sends back once, then keeps
+    the answer. In the pipeline, a failure that persists ends in abstaining.
+  - q35 says "Zivai, formerly Zivai". The names correction, which the reporter's finishing shares with the loop,
+    swapped the question's "Godly" inside "formerly Godly". The loop guards the exact display ("Zivai (formerly
+    Godly)"), not this phrasing, so the single agent has the same bug.
+- **Partly in both:** q06, q09, q12 and q34. The pipeline's q34 lost "the data starts in 2017": the verifier flagged
+  that fact of the agent prompt, which it doesn't see, and the revision left it out.
+- **Unsupported claims in the final answers**, the failure Checkpoint 5 targets: the control states 3 (q09's "no
+  career figure" for gdsandstorm, q23's "three events", q34's "the first World Championship was held in 2017"). The
+  pipeline's state none from the model, and 1 from code (q35).
+- **The writing.** The pipeline's answers are shorter: 26 words at the median against the control's 41, and 6 are a
+  bare name or phrase (q01, q12, q13, q20, q29, q40), against 1. 9 speak of what the user never saw ("the evidence
+  packet", "the event history table", "the ranked players data"), which the claim check's tool talk doesn't read.
+- **A gap in the reporter's prompt**, found in the replay: it lacks the agent prompt's earnings lines (figures only for
+  PR players, a ranking covers only players with a figure). The run was past q05 by then, so it ran as built.
+
+**What it decided.** By Checkpoint 5's own rule, to keep the three-agent design only if it reduces unsupported claims
+enough to justify the added latency: not kept. On the same evidence it took the model's unsupported claims out of the
+final answers (3 to none), but answered one question fewer right, abstained on two the single agent answered right,
+and took 3.2 times the model time. The frozen single agent stays the default, and the pipeline stays an arm
+(`--pipeline three-agent`). Two findings wait for the user: the names correction's swap inside "formerly Godly", a bug
+the single agent shares, and the answer check reading "SteelSeries" as a player's name.
+
+**Sonnet's misses, read against the pipeline.** The user asked whether the multi-agent design would fix the questions
+Sonnet missed in the Sonnet experiment (the entry below). Sonnet got none wrong: it gave 6 partly answers on 4
+questions, 2 in arm A (templates) and 4 in arm B (run_sql only). This is an estimate from step 2's replay, with no new
+run. The pipeline has only run with qwen3:30b in every role.
+
+| Question | Arm | What went wrong | Would the pipeline fix it? |
+|---|---|---|---|
+| q12, flowers' first top 8 | both | Sonnet named the other candidate correctly ("Flowers", 156897). The names correction then swapped it for flowerVS, so the answer says another player is named flowerVS. | No. The reporter's draft goes through the same correction. If the verifier flagged the result, each revision would be swapped again, and the pipeline would abstain, as it did on q35 ("formerly Zivai"). |
+| q45, who earned more, Raydish or Impala | both | Opens with "Raydish has earned more", though Impala has no figure. The next sentence says the two can't be compared. | Probably yes. A conclusion the packet doesn't support is the verifier's target, and the answer contradicts itself. |
+| q31, who won SEA League Week 1/4 | B | No winner recorded, rightly, but TigerBrawlhalla is named only for the event's last set, not as its one undefeated player (6-0). | Probably not. It's an omission, and the replay showed the verifier misses omissions. |
+| q41, the most 1v1 world titles | B | "Every other winner has one title" lists the other rows of a `LIMIT 8` query, leaving out ZEEKO and the other regional winners. | Maybe. The `LIMIT 8` is in the packet, but in the replay the verifier missed most problems that start in the query, not the wording. |
+
+At best that's q45's two runs and q41's one, of six. The other misses come from the agent's own code (q12) or from a
+fact the answer leaves out (q31). With Sonnet at 43 of 45, the pipeline's false alarms, which cost the qwen run q05
+and q42, could cost more than it gains.
+
+## 2026-11-22: the live comparison's two proposals, replayed on the recorded runs
+
+**What it asked.** The previous entry's two proposals, which the user approved ("do as you recommend"):
+1. an answer check that reads plain names, replayed first for false alarms;
+2. ex36's note on joining players for the names and pairing the sides.
+
+**Setup.** Four commits. Each was replayed without the model on the recorded answers, held-out records skipped
+unread:
+- 777372d, a bug in 572081a: the plain-name finder (`Shown.named_claims`) counted a player as returned only by player
+  ID. So it flagged seed 2's right answer to the first phrasing, whose query wrote the four names out. A name the
+  results in view write out now counts as returned.
+- 85a12dd: ex36's note says how to write the query.
+  - Keep the sides of two players (`HAVING COUNT(*) = 2`).
+  - Join the two sides on `side <> side` with the lower team first, and never pair them by side.
+  - Join players for the four names, since a player_id isn't a name.
+
+  The query is unchanged, and `retrieval.py check` passes all 36 examples. Retrieval embeds only the questions, so
+  the note doesn't change what's retrieved.
+- eac4ee8: a span counts as a name only where it reads as one (`plainly_named`).
+  - It has a capital and no apostrophe. It isn't a number, an ordinal, a month or a medal word, and isn't in a
+    heading.
+  - A single word isn't the first of its sentence, line or label, nor the first of a capitalized term ("Power
+    Rankings").
+  - A name a tool returned earlier in the conversation isn't flagged either.
+- 118c7c7: the answer check reads plain names, but only after a result that gives players as player_ids without their
+  names (`Shown.nameless`).
+  - Only IDs of 10,000 or more count, since a count or a year can equal a smaller ID. 9,161 of eval-v1's players
+    have a smaller one.
+  - Its message then says how to look the names up (`NAMELESS`).
+  - As for the other names it reads, it sends back once, then keeps the answer.
+
+552 unit tests pass.
+
+**Results.**
+- **Plain names in every answer**, replayed to the end on the 2,904 answers recorded by then. The replay behind
+  eac4ee8's and 118c7c7's messages stopped at its 15-minute limit, so their "1,041 of 2,902" is partial.
+  - 777372d's finder flags 1,148, nearly all for ordinary words that are some player's name: "Key" 244 times, "25th"
+    220, "8s" 192, "Note" 135 and "June" 108.
+  - The tightened finder (`plainly_named`) flags 28. 11 are names made up or wrong. The other 17 are false alarms:
+    - ordinary words, 12 times: "Streak" in 6 stat cards, "Example" twice, "Confirmed", "Excel", "Aug", and a table's
+      "Gold | Silver";
+    - names in an example, 3 times ("e.g., ... Zivai?");
+    - names the user gave a turn earlier, twice ("No data was found for **Java** or **Guichabou**").
+
+  So the answer check reads plain names only after a nameless result, where every flag on the record is right.
+- **The narrow check**, in three replays on the 2,902 answers recorded then:
+
+  | Version | Answers after a nameless result | Flagged | Right |
+  |---|---|---|---|
+  | IDs of 1,000 or more, the finder as in 777372d | 113 | 66 | 8 |
+  | IDs of 10,000 or more, with `plainly_named` | 54 | 8 | 7: "Notes" in a heading was a false alarm |
+  | And the heading rule (committed) | 54 | 7 | 7 |
+
+  In the first replay, the other 58 were ordinary words ("25th" 46 times, "Key" 20) and megD, whom the question
+  named as "he". Leaving out the IDs from 1,000 to 9,999 lost no right flag. On the 2,908 answers recorded at the
+  end, the committed check still flags the same 7 of 54.
+- **The 7 flagged are names made up or wrong for a player_id:**
+  - the check run's three answers:
+    - "Cody Travis and Phazon against Killa and Zivai";
+    - "Ninja and Spartan" (beside "Frodo and Lego", which isn't read);
+    - "Zivai and Phazon (player IDs 74433 and 146606) versus Mikael and Sunny";
+  - "Kappa", a placeholder, twice (question 6 seed 4 of 20261023T215750Z, and q40 seed 1 of
+    20261117-grounding-before);
+  - "Zivai" for STING RAY's ID (c1 seed 1 turn 2 of 20261119-conversations-before);
+  - "Lucky" for Zivai's ID (q20 seed 1 of 20261108-eval-on), which the names correction now fixes before any check.
+
+  No answer of the final measurement is flagged.
+- **Missed by the narrow check.** Of the 11 right flags in every answer, 4 come after no nameless result:
+  - the live answer, which the failed-calls check's strict path leaves out;
+  - the quoted "Pharaoh," "Kai," "Numb," and "Mikko" (a38 seed 1 of 20261121-audit), which the answer check
+    already reads in quotes, and sent back once in that run;
+  - "BBA balloonBoy" for BBBalloonBoy (q17 seed 0 of 20261109-step2);
+  - "*Mikael*" as 2017's Worlds 1v1 winner, beside "*Team A*" (a40 seed 2 of 20261121-final-audit). No check caught
+    it in the final measurement.
+
+  The last two are what the narrow scope gives up, against 17 false alarms.
+- **Missed by both:** the next turn of that c1 conversation repeats the made-up name as a list item, "5. **Zivai
+  (81144)**". A single word opening its line doesn't read as a name, which is what keeps "Key Partners" and "Note:"
+  out. The first replay's eighth right flag is that one. In the loop today, turn 2's answer would go back first.
+- **The failed-calls check**, on the 10 recorded answers after every call failed. Before `plainly_named`, the finder
+  flagged 6 of them, 5 for ordinary words such as "However", "example" and "I’ll". After it, the finder flags 2:
+  - the live answer's made-up "Phazon & Zivai and Cody Travis & Ryno", rightly;
+  - an example question that names Cody Travis and "Zivai?" (c16 seed 0 turn 1 of 20261121-r6-conversations), which
+    the strict path would leave out.
+
+  eac4ee8's message gives 8 answers, 6 with a false alarm, from an earlier count. These are the numbers to cite.
+
+**What it decided.** The replay narrowed the first proposal: the answer check reads plain names only after a nameless
+result. In every answer, 2 more right flags would cost 17 false alarms, and the user's direction is the more cautious
+option.
+
+Not measured: whether a send-back with the hint gets the names looked up. A rerun of the two phrasings would measure
+it (qwen3:30b, seeds 0-2, about 5 minutes). It waits for the user's go-ahead.
+
+## 2026-11-22: the live comparison's three changes, checked on two phrasings
+
+**What it asked.** In the user's live comparison, "which two teams have the most 2v2 history in sets" was answered
+right by Sonnet: gdsandstorm and Boomie against Cody Travis and Phazon, 25 sets, from v_match_results grouped by match
+and side. qwen3:30b failed in three steps:
+- `rank_pairs` refused the question and pointed it to mode 1v1;
+- `v_head_to_head_2v2` over every player stopped at 30 s, twice;
+- then it answered "Phazon & Zivai and Cody Travis & Ryno", which no tool returned, and no check caught it.
+
+After the freeze, the user asked for three changes, one commit each with tests, and a check of the question and its
+rewording ("which two teams have the most history in 2v2 sets") with qwen3:30b, seeds 0-2.
+
+**Setup.** Three commits:
+- 20b593d: `rank_pairs`' 2v2 refusal points to run_sql on v_match_results, each match's side a team;
+- c502d16: worked example ex36, "Which two 2v2 teams have played each other the most?". On eval-v1 its query gives
+  the 25 sets in 3.4 s;
+- 572081a: the failed-calls check. An answer after a turn whose every tool call failed goes back once, to say it
+  couldn't get the data. A second such answer has the players and numbers no tool returned left out, plain names
+  included (`Shown.named_claims`).
+
+The check run used qwen3:30b at 572081a, retrieval on, in the run worktree with its own store (run
+`20261122T174158Z`, 5 minutes, 21 GB at 100% GPU).
+
+**Results.** 2 of 6 answers right.
+
+| Seed | Phrasing | Query | Names in the answer | Answer |
+|---|---|---|---|---|
+| 0 | "the most 2v2 history in sets" | Wrong: the sides paired by `side <` and by the teams' order both, 12 sets | Made up for the IDs ("Cody Travis and Phazon against Killa and Zivai") | Wrong |
+| 0 | "the most history in 2v2 sets" | Right, IDs only, 25 sets | Made up ("Frodo and Lego versus Ninja and Spartan") | Wrong |
+| 1 | the first | Wrong: paired by `side <` alone, 16 sets | Looked up (acno? and Blaze, simpLe and hysen) | Wrong |
+| 1 | the rewording | Right, IDs only | Looked up | Right |
+| 2 | the first | Right, with names | From the result | Right |
+| 2 | the rewording | Right, IDs only | Made up beside the right IDs ("Zivai and Phazon (player IDs 74433 and 146606)") | Wrong |
+
+- **The refusal and the example.** Every run called `rank_pairs` first, got the new refusal, then wrote run_sql in
+  ex36's shape, which retrieval put first in all 6. No query timed out, and 4 of 6 returned the right pairing.
+- **The failed-calls check** never fired: each turn had a call that worked. Of 3,004 recorded turns, 10 answered
+  after every call failed, and in the final measurement only c16 seed 0 turn 1, which had already given up.
+- **Not caught: names made up for player IDs** the query returned without names, in 3 runs. The answer check reads
+  only tag-shaped, bold or quoted names, and it takes a bold span of three words ("Frodo and Lego") as one name that
+  isn't a player's. The names correction reads "(player_id X)" but not "(player IDs X and Y)".
+
+**What it decided.** Nothing yet. Two proposals wait for the user:
+1. the answer check reads plain names (`mentions.named`, as the failed-calls check does) in every answer, replayed on
+   the recorded runs first for false alarms;
+2. ex36's note says to join players for the names, and to pair the two sides with `side <>` and the teams' order,
+   never by side.
+
+## 2026-11-22: the Sonnet experiment, with and without the templates
+
+**What it asked.** The experiment the entry "run_sql when no template fits, and a backend for a Sonnet experiment"
+built and estimated, for the report (the user's go-ahead, 2026-11-22): claude-sonnet-5-5 in the frozen agent, on
+seed 0 of the 45 questions, in two arms. Arm A has everything as in the final measurement. Arm B has run_sql and the
+views only, with no templates. The question for the report: how much of the agent's accuracy comes from the tools
+and checks around the model, and how much from the model itself.
+
+**Setup.** The agent at 8923593 (frozen; agent code as 5c6b769), on eval-v1, retrieval on. The Anthropic backend
+(`agent/anthropic_chat.py`, SDK 2.12.0): adaptive thinking at effort high, summaries shown, at most 16,000 output
+tokens a step, no fallbacks. The API has no seed, so seed 0 only labels the runs. A one-question smoke test first
+(`20261122-sonnet-smoke`, q01: right, 3 steps, about $0.04). Then `harness.py run --ids q01 ... q45 --backend
+anthropic`, without and with `--templates off` (`20261122-sonnet-templates`, `20261122-sonnet-sqlonly`). Retrieval
+still embeds each question with nomic-embed-text on the Ollama server. Every verdict was drafted by hand, and the
+user confirmed all 90 (2026-11-22).
+
+**Results.** The 45 questions, seed 0, by hand, next to qwen3:30b's seed 0 in the final measurement
+(`20261121-final-questions`):
+
+| Run | Right | Partly | Wrong | Automatic stages | Steps per run | Model time per run |
+|---|---|---|---|---|---|---|
+| qwen3:30b, final measurement | 37 | 6 | 2 | 43 of 45 | 2.9 | 20.0 s |
+| Sonnet, arm A (templates) | 43 | 2 | 0 | 45 of 45 | 2.7 | 4.2 s |
+| Sonnet, arm B (run_sql only) | 41 | 4 | 0 | 45 of 45 | 3.1 | 4.8 s |
+
+The cost, at the estimate's prices ($0.10 a million for cache reads, $2.50 for cache writes, $10 for output; $1 for
+uncached input), from each step's usage:
+
+| Run | Steps | Cache reads | Cache writes | Output | Cost |
+|---|---|---|---|---|---|
+| Arm A | 123 | 1.57M | 61k | 15k | $0.46 |
+| Arm B | 141 | 0.83M | 69k | 19k | $0.45 |
+
+So $0.95 for both arms (with the smoke test, $0.99), against the estimate's $2. Output came in under the low end:
+adaptive thinking thought on 11 of arm A's 123 steps and 18 of arm B's 141, and the replies are short.
+
+Tool use: arm A called a template in 34 of 45 runs (34 calls) and run_sql in 12 (15 calls), where qwen3:30b's seed 0
+called a template in 32 runs and run_sql in 6; arm B called run_sql in 44 of 45 runs (55 calls). The number check sent back 4 answers in arm A and 5 in arm B, the event check one in each;
+no other check fired, and no answer lost a claim to a check.
+
+What the misses were:
+- q12, both arms: the model wrote that another player is named Flowers (156897, with 3 results, as `resolve_player`
+  returned). The names correction then swapped "Flowers" for "flowerVS", taking it for the question's spelling of
+  flowerVS, so the answer says another player is named flowerVS. That's a bug in the names correction, not the
+  model's: a spelling that is exactly another candidate's name, which a tool returned, isn't the question's
+  misspelling. Not fixed.
+- q45, both arms: Raydish's $83,825 and Impala's missing figure, not $0, but the answer opens with "Raydish has
+  earned more", which the data can't say.
+- q31, arm B: no winner recorded and the placements unreliable, but TigerBrawlhalla is named only for the event's last
+  set, not as its one undefeated player (6-0).
+- q41, arm B: gdsandstorm's 3 and the tie without the regionals are right, but "every other winner" lists the six
+  other rows of a `LIMIT 8` query, leaving out ZEEKO and the other regional winners.
+
+What Sonnet got right that qwen3:30b missed on seed 0: q20 (the 1v1 grand final score, which no template gives; both
+arms queried `v_sets_1v1` with `winner_placement = 1 AND loser_placement = 2`), q42 (the biggest event, by entrants,
+both arms), q12's earlier 2v2 top 8, q23's sets, q32 (no prize money per event, without denying the career figure),
+q34 (no 2016 event: the prompt's 2017 now counts as evidence, 7f49596), q05 (the list said to cover only players with
+a figure), and q06 (all 17 partners named).
+
+**What it found.** With Sonnet, the templates add little to accuracy: 43 against 41 right, and none wrong in either
+arm. They cut the steps per run from 3.1 to 2.7, but each step reads a bigger prompt (the system prompt and tools
+are about 8,600 tokens with them, 3,700 without), so the two arms cost the same. Without templates, Sonnet writes
+the queries the templates hold (q06's partners, q11's dominance order on `v_win_runs`, q37's ranking) itself. With
+qwen3:8b the templates had moved the automatic stages from 124 to 130 of 135 (2026-11-17): they compensate for a
+smaller model's SQL more than they help a stronger one. Sonnet also answers about five times faster per run than
+qwen3:30b on the Ollama server (4.2 s against 20.0 s of model time). One seed only, and no held-out questions: the
+45 questions were used to tune the agent, on qwen models.
+
+**What it decided.** Nothing yet. The verdicts were confirmed by the user (2026-11-22,
+`eval/results/20261122-sonnet-templates-judgments.toml` and `20261122-sonnet-sqlonly-judgments.toml`). The
+names-correction bug of q12 waits for the user's decision, as a fix for a bug that breaks a live answer. Checkpoint
+5's entry reads these misses against the three-agent pipeline.
+
 ## 2026-11-22: the doubled-ending fix, replayed on every recorded run, and the freeze
 
 **What it asked.** The user approved a fix for the bug the targeted run found, with a test and a replay on the
@@ -230,9 +587,11 @@ it the agent changes only for bugs (the user's decision, 2026-11-21).
   32768, nomic-embed-text beside it, and no reload.
 - **The sets**, each at seeds 0-2, in a worktree with its own `data/rag`:
   - the evaluation set, the 45 questions the user verified (`20261121-final-questions`). Every run was drafted by hand
-    ("needs review") and scored by stage, as on 2026-11-08;
+    and scored by stage, as on 2026-11-08. The user confirmed all 130 drafted verdicts on 2026-11-22 (the other 5
+    are automatic);
   - the 19 conversations, 48 turns (`20261121-final-conversations`). The user verified c1-c13, and c14-c19 aren't
-    verified yet. They're scored by their checks, then by hand where a check misread a right answer;
+    verified yet. They're scored by their checks, then by hand where a check misread a right answer. The user
+    confirmed the hand count (126 of 144) on 2026-11-22;
   - the audit set, 51 questions in 54 turns (`20261121-final-audit`). It isn't verified, and its checks look at how a
     turn went.
 - **Not rerun.** The held-out set's final measurement is 2026-11-17's, since its questions were read after it.
@@ -352,7 +711,7 @@ as measured: nothing after it is in them. Each change below has an entry of its 
 | A space left where a tool's name is cut out of an answer | Bug fix | 8ba7e18 | The final run, replayed | 5 final answers change, each by a space ("confirmed by thewith top=1") |
 | The prompt's own facts, the data's first year and its newest results' date, as evidence for the number check | Bug fix, the user's decision | 7f49596 | The final run, replayed | 16 of 69 check records with flagged numbers no longer fire, q34's six among them. q34 seed 0 keeps its draft instead of "I couldn't confirm this from the data" |
 | No swap of the question's spelling where the answer writes the right name | Bug fix | 5c6b769 | Every recorded run, replayed | 11 drafts change in 2,909 turns, each a doubled ending: "Dragon!!" (c13 turn 3, the final run's 3 seeds among them) and "Moni--" (c22 turn 2) |
-| A second backend on the Anthropic Messages API, and a switch for run_sql and the views only | Built for a Sonnet experiment | 3afe78a, 041b38c | Unit tests, with a fake client | None: the experiment is skipped for now (the user's decision), and the agent runs as before |
+| A second backend on the Anthropic Messages API, and a switch for run_sql and the views only | Built for a Sonnet experiment | 3afe78a, 041b38c | Unit tests, with a fake client; then the Sonnet experiment (2026-11-22, its own entry) | The agent runs as before on Ollama. With claude-sonnet-5-5, seed 0 by hand: 43 of 45 right with the templates, 41 without, for $0.95 in all |
 
 The targeted run (qwen3:30b at 7f49596, seeds 0-2, before 5c6b769) covered the items where the final run's no-tool
 check fired, and the live session's 2v2 turns:

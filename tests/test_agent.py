@@ -636,6 +636,24 @@ class LoopTest(Fixture):
         self.assertEqual((trace["output_tokens"], trace["largest_context"]), (30, 110))
         self.assertEqual(trace["unreturned_names"], {})  # megD was returned
 
+    def test_the_pipelines_analyst_stops_before_its_answer_with_what_it_looked_up(self):  # Checkpoint 5's analyst
+        draft = "megD and **Kappa** have 7 official results."  # a name and a number no tool returned: not checked
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "megd"})]), reply(draft))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, evidence_only=True)
+        trace = conversation.ask("How many results has megd?")
+        self.assertEqual((trace["outcome"], trace["answer"], trace["draft"]), ("evidence", None, draft))
+        self.assertEqual((len(ask.sent), trace["steps_used"]), (2, 2))
+        self.assertEqual([k for s in trace["steps"] for k in s if k.endswith("_check")], [])
+        self.assertEqual(json.loads(trace["steps"][0]["tool_calls"][0]["observation"])["status"], "confident")
+
+    def test_the_pipelines_analyst_still_looks_up_what_a_no_tool_answer_skipped(self):  # its evidence guards run
+        ask = Scripted(reply("megD has 7 official results."), reply(calls=[("resolve_player", {"name": "megd"})]),
+                       reply("megD has 2 official results."))
+        conversation = react.Conversation(self.tools, ask=ask, log=lambda *_: None, evidence_only=True)
+        trace = conversation.ask("How many results has megd?")
+        self.assertEqual(trace["steps"][0]["no_tool_check"]["action"], "sent back")
+        self.assertEqual((trace["outcome"], trace["draft"], trace["steps_used"]), ("evidence", "megD has 2 official results.", 3))
+
     def test_an_answer_naming_a_player_no_tool_returned_goes_back_once(self):
         ask = Scripted(reply(calls=[("resolve_player", {"name": "marckiemoo"})]),
                        reply("**tike36** has the best record against Marckiem00."), reply("**tike36** has it."))
@@ -1040,6 +1058,73 @@ class LoopTest(Fixture):
         page = react.markdown([trace], HEADER)
         self.assertIn("The loop looked up resolve_player({\"name\": \"raydish\"}), resolve_event({\"name\": \"worlds\"})"
                       " for the model.", page)
+
+    def test_an_answer_after_every_call_failed_goes_back_then_has_what_no_tool_returned_left_out(self):  # live
+        invented = "The two teams with the most history are Raydish & Zivai and Cody Travis & Boomie, with 24 sets."  # plain
+        ask = Scripted(reply(calls=[("rank_pairs", {"of": "opponents", "mode": "2v2", "top": 1})]),
+                       reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
+                       reply(invented), reply(invented.replace(", with 24 sets", "")))
+        trace = react.run("which two teams have the most history in 2v2 sets", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual([s.get("failed_calls_check", {}).get("action") for s in trace["steps"]],
+                         [None, None, "sent back", "left out what no tool returned: sent back once already"])
+        self.assertTrue(ask.sent[3][-1]["content"].startswith(react.FAILED))
+        self.assertEqual((trace["answer"], trace["answered_after_failed_calls"]), (react.NOT_LOOKED_UP, True))
+        self.assertEqual(trace["steps"][3]["number_check"]["action"],
+                         "replaced: every tool call failed; no fact left, so the whole answer")
+
+    def test_a_plain_name_a_result_writes_out_isnt_one_no_tool_returned(self):  # a query joining players for names
+        view = react.Conversation(self.tools, ask=Scripted(), log=lambda *_: None).view
+        view.ask("which two teams have the most history in 2v2 sets")
+        answer = "The teams were Raydish and Zivai against Cody Travis."  # mid-sentence, where a name reads as one
+        found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
+        self.assertEqual([c.text for c in found], ["Raydish", "Zivai", "Cody Travis"])  # no result yet
+        view.observe("run_sql", {"complete": True, "columns": ["team1_a", "team1_b", "sets"],
+                                 "rows": [["Raydish", "Zivai", 25]], "row_count": 1})
+        found = view.named_claims(answer, "which two teams have the most history in 2v2 sets", self.tools.events.words)
+        self.assertEqual([c.text for c in found], ["Cody Travis"])
+
+    def test_a_plain_name_no_tool_returned_goes_back_with_the_ids_the_results_give_without_names(self):  # live
+        patch_least = patch.object(react, "NAMELESS_LEAST", 1)  # the fixture's player_ids are small
+        patch_least.start()
+        self.addCleanup(patch_least.stop)
+        query = "SELECT 11 AS a1, 19 AS b1, 25 AS sets"  # player IDs only, as the live query gave them
+        right = "The team with the most history is Raydish and Zivai, with 25 sets."
+        ask = Scripted(reply(calls=[("run_sql", {"query": query})]),
+                       reply("The two teams with the most history are Raydish & Zivai and Cody Travis & Dragon!, 25 sets."),
+                       reply(right))
+        trace = react.run("which two teams have the most history in 2v2 sets", self.tools, ask=ask, log=lambda *_: None)
+        sent = trace["steps"][1]["answer_check"]  # Raydish and Zivai are the IDs' players; the other two no tool gave
+        self.assertEqual((sent["action"], sorted(sent["names"])), ("sent back", ["Cody Travis", "Dragon!"]))
+        self.assertTrue(sent["message"].endswith(react.NAMELESS))
+        self.assertNotIn("answer_check", trace["steps"][2])
+        self.assertEqual(trace["answer"], right)
+
+    def test_a_word_that_is_some_players_name_reads_as_one_only_where_it_names(self):  # the replay of 2026-11-22
+        def named(text, word):
+            return react.plainly_named(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text))
+        self.assertTrue(named("The teams are Cody Travis and Phazon against Killa and Zivai.", "Zivai"))
+        self.assertTrue(named("The teams are **Frodo and Lego** versus **Ninja and Spartan**.", "Ninja"))
+        for text, word in (("However, the query failed.", "However"), ("### Key Partners\n- megD", "Key"),
+                           ("Note: no data.", "Note"), ("Placed 25th twice.", "25th"), ("It was in August.", "August"),
+                           ("under the name", "under"), ("by the official Power Rankings", "Power"),
+                           ("I'll check.", "I'll"), ("an exact count", "exact"), ("a gold medal", "gold"),
+                           ("- 3v3 crew battle\n\n### **Key Notes**\n- invitational", "Notes")):
+            self.assertFalse(named(text, word), word)
+
+    def test_a_reply_saying_it_couldnt_get_the_data_stands_after_every_call_failed(self):
+        honest = "I couldn't get the data: the ranking was refused and the query failed, so I can't say which teams."
+        ask = Scripted(reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
+                       reply("Raydish & Zivai, with 24 sets."), reply(honest))
+        trace = react.run("which two teams have the most history in 2v2 sets", self.tools, ask=ask, log=lambda *_: None)
+        self.assertEqual((trace["answer"], trace["unconfirmed"]), (honest, []))
+
+    def test_a_turn_with_a_call_that_worked_gets_no_failed_calls_check(self):
+        ask = Scripted(reply(calls=[("resolve_player", {"name": "raydish"})]),
+                       reply(calls=[("run_sql", {"query": "SELECT nope FROM nowhere"})]),
+                       reply("Raydish has 6 official results."))
+        trace = react.run("how many official results has raydish?", self.tools, ask=ask, log=lambda *_: None)
+        self.assertFalse(any(s.get("failed_calls_check") for s in trace["steps"]))
+        self.assertEqual(trace["answer"], "Raydish has 6 official results.")
 
     def test_without_a_step_to_look_it_up_an_answer_that_rests_on_no_tool_is_replaced(self):
         ask = Scripted(reply("**megD** is 3-1 against **Raydish**."), reply("**megD** is 3-1 against **Raydish**."))
