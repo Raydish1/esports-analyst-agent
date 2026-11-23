@@ -1,87 +1,118 @@
-# esports-analyst-agent
+# Brawlhalla Cortex
 
-An agentic text-to-SQL data analyst for esports data, currently focused on Brawlhalla. Ask a question in plain English; the agent explores the database schema, writes and runs SQL, verifies the results, and explains the answer, with a chart when useful.
+Cortex is an agent that answers questions about the history of official Brawlhalla esports events. A caster, producer or player asks a question in plain English, such as "where did this team place at the last tournament?". The agent looks the answer up in a database of every official result since 2017, checks its own answer in code, and can draw the answer as a broadcast-style stat card.
 
-Capstone project for a CMU agentic AI course.
+This is the capstone project for the CMU Agentic AI program.
 
-## Layout
+- **Hosted demo:** https://brawlhalla-cortex.fly.dev plays recorded answers and serves the MCP server. It runs no model, so it can't answer new questions.
+- **Static demo:** https://raydish1.github.io/esports-analyst-agent/ plays the same recorded answers.
 
-| Directory | Purpose |
+## What it does
+
+- It answers questions about players, head-to-heads, events, rankings and 2v2 teams at the 622 official events since 2017.
+- It turns names written casually ("marckiemoo", "balloonboy", "bcx 2022") into the right player or event. When a name could mean several players, it asks which one.
+- It says when the data can't answer a question. A missing earnings figure isn't $0, and a cancelled event wasn't held.
+- It draws player, head-to-head, sets, team and leaderboard cards in the style of the official broadcasts. Code fills each card from the query results.
+- An MCP server gives other models the same tools and cards.
+
+## Results
+
+These are the final measurement's results (2026-11-21, qwen3:30b, seeds 0, 1 and 2), from its entry in [`docs/experiments.md`](docs/experiments.md). Each run on the 45 questions was judged by hand, and the verdicts were reviewed. The conversation and audit rows count the turns that pass automatic checks.
+
+| Test set | Result | Earlier result |
+|---|---|---|
+| 45 verified questions, runs right | 113 of 135 (84%) | 94 of 135 (70%), qwen3:8b, 2026-11-08 |
+| Questions right in all 3 seeds | 34 of 45 | 25 of 45 |
+| 19 conversations, turns that pass every check | 120 of 144 (83%) | |
+| 49-question audit set, turns that pass every check | 158 of 162 | |
+| Model time per run | 20.0 s | |
+
+The agent was tuned on the 45 questions, and the held-out set of 16 can't measure new changes because it was read on 2026-11-17. The log has the limits of each result, the model comparison (qwen3:8b, 14b and 30b, and Claude Sonnet 5.5), and Checkpoint 5's three-agent experiment, which was measured and not kept.
+
+## How it works
+
+![The three-agent pipeline measured for Checkpoint 5](docs/figures/three-agent-pipeline.png)
+
+The agent is a single ReAct loop. The diagram shows the three-agent version that was tested against it. These are the parts of the agent:
+
+- **The database.** A builder makes a SQLite database from the official Brawlhalla Esports Stats API, start.gg and Challengermode. A build goes live only if its checks pass. Sixteen views hold the counting rules, such as "a disqualification is neither a win nor a loss".
+- **The loop.** [`agent/react.py`](agent/react.py) runs qwen3:30b through Ollama, with thinking on, for at most 8 steps.
+- **The tools.** `resolve_player` and `resolve_event` turn names into IDs. `run_sql` runs one read-only query with a 30-second limit. Eleven template tools in [`agent/templates.py`](agent/templates.py) hold tested SQL for common questions.
+- **Retrieval.** Chroma stores 36 worked examples of a question and its SQL ([`agent/examples/examples.toml`](agent/examples/examples.toml)). The model sees the 3 that are closest to the question.
+- **The checks.** Before the user sees an answer, code checks every name, ID and number in it against the tool results. A draft that fails goes back to the model once, and a claim that still fails is removed.
+- **The web app.** [`app/`](app/) is a FastAPI server and a JavaScript page. The MCP server is [`app/server/mcp_server.py`](app/server/mcp_server.py).
+
+[`docs/agent-walkthrough.md`](docs/agent-walkthrough.md) follows one question through the code, and [`docs/agent-mechanisms.md`](docs/agent-mechanisms.md) explains each check.
+
+## How to review this project
+
+1. Read the last entry of [`docs/experiments.md`](docs/experiments.md) for the final results, the changes after them, and the known limitations.
+2. Read [`docs/agent-walkthrough.md`](docs/agent-walkthrough.md) to see how the agent works.
+3. Open [`eval/questions/questions.toml`](eval/questions/questions.toml) for the 45 questions and their verified answers. The verdicts for each run are in [`eval/results/`](eval/results/), for example `20261121-final-questions-judgments.toml`.
+4. Run the tests (see below). They need no database and no model.
+5. Try the [hosted demo](https://brawlhalla-cortex.fly.dev).
+
+The experiment log has one entry for each experiment, newest first. Each entry gives the setup, the results and the decision.
+
+## Repository layout
+
+| Folder | Contents |
 |---|---|
-| `ingest/` | Data collection from APIs |
-| `agent/` | LangGraph agent code |
-| `eval/` | Evaluation questions and scoring |
-| `app/` | Demo web app: a FastAPI backend and a plain-JavaScript page ([`docs/web-app-proposal.md`](docs/web-app-proposal.md)) |
-| `data/raw/`, `data/db/` | Local data only, never committed |
+| [`agent/`](agent/) | The agent: the loop, tools, templates, checks, retrieval, and the three-agent experiment (`pipeline.py`) |
+| [`app/`](app/) | The web app, the MCP server, and the broadcast cards |
+| [`eval/`](eval/) | The question sets, the evaluation harness, and every run's scores and verdicts |
+| [`ingest/`](ingest/) | The API clients, the crawl, and the database builder |
+| [`curation/`](curation/) | Hand-made data: nicknames, account merges, event names and overrides |
+| [`docs/`](docs/) | The API surveys, the schema and build plans, the experiment log, and the walkthrough |
+| [`tests/`](tests/) | Unit tests |
+| [`deploy/`](deploy/) | The Fly.io deployment |
 
-## Status
+## Run it
 
-Phase 1 of the plan in [`docs/schema-proposal.md`](docs/schema-proposal.md) (§9) is done (2026-10-07). The database is built from the fetched cache and the hand-made files in `curation/`, as [`docs/build-plan.md`](docs/build-plan.md) describes:
+### Run the tests
 
-```bash
-python ingest/build.py                        # build into data/db/builds/, check, and make it live if the checks pass
-python ingest/build.py status                 # the live build, the builds kept and the frozen snapshots
-python ingest/build.py rollback               # make the build that was live before live again
-python ingest/build.py compare live BUILD_ID  # whether two builds hold the same data
-python ingest/build.py freeze eval-v2         # copy the live build to data/db/eval/, read-only, as a new version
-python ingest/target_questions.py             # the target questions' regression check, against the live build
-```
-
-The builder makes no requests. `data/db/current.json` names the live build, which the agent opens read-only. A build also takes:
-- `--no-publish`;
-- `--as-of TIME`, for a build of the past;
-- `--dev` or `--event ID`, for a quick build of a few events.
-
-Builds made with `--as-of`, `--dev` or `--event` never go live.
-
-What a build leaves behind:
-- **A report,** in `data/reports/<build>/report.md`: each check's result, every failure, and the known events (`curation/known_events.csv`).
-- **The review list,** `data/review/review.csv`, rewritten by every full build: everything waiting for a person, most pressing first, such as curated rows that name an unknown player (marked `!!`) and merge candidates.
-
-The evaluation uses a frozen snapshot, `data/db/eval/eval-v1.sqlite`, which nothing changes; a later freeze takes a new name. `ingest/target_questions.py` is a regression check, not the evaluation gold set: its expected answers come from our own data.
-
-The crawl runs one stage at a time:
+The tests need Python 3.12 or newer and the packages in `requirements.txt`. Tests that need the database, LangGraph or the Anthropic SDK skip themselves when those are missing.
 
 ```bash
-python ingest/crawl.py status      # progress of every stage; safe to run during a crawl
-python ingest/crawl.py events      # 0: official events
-python ingest/crawl.py pr          # 1: PR lists, which seed the players
-python ingest/crawl.py profiles    # 2: player profiles
-python ingest/crawl.py lookups     # 2b: the Stats API record of every start.gg and Challengermode player
-python ingest/crawl.py histories   # 3: official placements and teammates (held after its pilot)
-python ingest/crawl.py proseries   # 3b: placements at the three Pro Series finals
-python ingest/crawl.py gaps        # 3c: Stats API placements of entrants missing from start.gg standings
-python ingest/crawl.py teams       # 4: official placements of each 2v2 pair (held after its pilot)
-python ingest/crawl.py standings   # P1: start.gg standings of official start.gg events
-python ingest/crawl.py entrants    # P1b: entrant lists of events whose standings miss entrants who played
-python ingest/crawl.py brackets    # P4: start.gg sets, pools and last-phase games
-python ingest/crawl.py cm          # P5: Challengermode entrant lists and brackets
+pip install -r requirements.txt
 ```
-
-**Order of the Phase 1 platform fetches.** `brackets` is the long one, about 5 hours, and it uses only start.gg, so it can start first and run alongside the rest. Meanwhile, one after another: `cm`, then `lookups` (which needs the Challengermode entrant lists), then `proseries` (which reuses the lookups). After `brackets`: `entrants`, then `lookups` again for any new players, then `gaps`.
-
-**Merge candidates.** `python ingest/merge_candidates.py` reads the cache and the crawl's tables and makes no requests. It adds the strongest pairs (tier 1) to `curation/player_merges.csv`, and writes the rest for review to `data/review/merge_candidates.csv`. Re-run it after new fetches.
-
-Each run plans its stage's tasks from what earlier stages found, works through them, and logs to `data/logs/crawl-<stage>.log`. Stages on different APIs (the Stats API, start.gg, Challengermode) can run at the same time; two stages on the same API can't. Re-running a command resumes where it stopped, and Ctrl+C stops after the current task. For a pilot, `--event ID` limits `brackets`, `cm`, `entrants`, `gaps`, `lookups` and `proseries` to the events named, and `brackets --max-pools N` fetches only the first N pools of each phase of an event over start.gg's 10,000-set cap. A rejected task (a client error) isn't retried on its own; once its cause is fixed, re-run the stage with `--retry-rejected`.
-
-Tests use only the standard library:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-API findings are in [`docs/api-survey.md`](docs/api-survey.md). To re-run the API survey (Node 18+; it writes to `data/raw/survey/`):
+### Run the agent
 
-```bash
-cd ingest && npm install && npm run survey
-```
+The agent needs the database, which isn't in this repository: API responses and the built database stay out of git (see [`DATA.md`](DATA.md)). To build it, you need API credentials for the Stats API, start.gg and Challengermode.
 
-The start.gg and Challengermode survey ([`docs/platform-api-survey.md`](docs/platform-api-survey.md)) needs API credentials in `.env` (copy `.env.example`):
+1. Install the packages, as for the tests.
+2. Copy `.env.example` to `.env`, and fill in the API credentials and `OLLAMA_BASE_URL`, the address of an Ollama server with `qwen3:30b` and `nomic-embed-text`.
+3. Fetch the data. Each stage resumes where it stopped. The full fetch takes several hours, and [`docs/build-plan.md`](docs/build-plan.md) gives the order.
 
-```bash
-python ingest/survey_platforms.py
-```
+   ```bash
+   python ingest/crawl.py status
+   ```
+
+4. Build the database. A build goes live only if its checks pass.
+
+   ```bash
+   python ingest/build.py
+   ```
+
+5. Ask a question, or start a session with no question:
+
+   ```bash
+   python agent/ask.py "who won worlds 2019 1v1"
+   ```
+
+6. Start the web app in live mode, and open http://127.0.0.1:8000:
+
+   ```bash
+   python app/server/main.py --mode live
+   ```
+
+Chroma has no build for Python on Windows ARM64. On such a machine, run the agent with an x64 Python, or add `--examples off` to run it without retrieval.
 
 ## Data
 
-Data comes from the official Brawlhalla Esports Stats API, which is for personal use only. Downloaded data stays local and is git-ignored. See `CLAUDE.md` for details.
+The data comes from the official Brawlhalla Esports Stats API, start.gg and Challengermode, which gave permission for its public use (2026-11-17). [`DATA.md`](DATA.md) records the permission, what it covers, and the sources of the broadcast graphics and art.

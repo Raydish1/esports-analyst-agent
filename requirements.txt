@@ -1,10 +1,4 @@
-# Minimal starting set; more will be added as the project grows.
-langgraph
-langchain-ollama
-streamlit
-pandas
-requests
-python-dotenv
+# The agent's core, the API clients and the builder use only the standard library.
 # Retrieval of worked examples (agent/retrieval.py). It has no build for Windows ARM64's Python (its index library,
 # chroma-hnswlib), so on an ARM64 Windows machine the agent runs with an x64 Python (py -3.14) under emulation.
 chromadb
@@ -18,3 +12,5 @@ playwright
 pillow
 # The Sonnet backend (agent/anthropic_chat.py), only with ANTHROPIC_API_KEY
 anthropic
+# Checkpoint 5's three-agent experiment (agent/pipeline.py, harness.py run --pipeline three-agent), not the default agent
+langgraph
