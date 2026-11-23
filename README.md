@@ -99,7 +99,7 @@ The fastest way to try Cortex is to connect your own model to the hosted MCP ser
 
 ### Run the agent
 
-To run Cortex's own agent, you need the model and the database on your machine. The agent needs the database, which isn't in this repository: API responses and the built database stay out of git (see [`DATA.md`](DATA.md)). To build it, you need API credentials for the Stats API, start.gg and Challengermode.
+To run Cortex's own agent, you need the model and the database on your own machine. The database isn't in this repository: API responses and the built database stay out of git (see [`DATA.md`](DATA.md)). To build it, you need API credentials for the Stats API, start.gg and Challengermode.
 
 1. Install the packages, as for the tests.
 2. Copy `.env.example` to `.env`, and fill in the API credentials and `OLLAMA_BASE_URL`, the address of an Ollama server with `qwen3:30b` and `nomic-embed-text`.
